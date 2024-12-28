@@ -183,7 +183,6 @@ int elf_bits(uint8_t *elf) {
     struct elf64_hdr *hdr = (void *)elf;
 
     if (strncmp((char *)hdr->ident, "\177ELF", 4)) {
-        printv("elf: Not a valid ELF file.\n");
         return -1;
     }
 
@@ -564,7 +563,9 @@ end_of_pt_segment:
 bool elf64_load_section(uint8_t *elf, void *buffer, const char *name, size_t limit, uint64_t slide) {
     struct elf64_hdr *hdr = (void *)elf;
 
-    elf64_validate(hdr);
+    if (elf_bits(elf) == -1) {
+        return false;
+    }
 
     if (hdr->sh_num == 0) {
         return false;
@@ -626,7 +627,7 @@ static uint64_t elf64_max_align(uint8_t *elf) {
     return ret;
 }
 
-static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct elf_range **_ranges, uint64_t *_ranges_count) {
+static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct mem_range **_ranges, uint64_t *_ranges_count) {
     struct elf64_hdr *hdr = (void *)elf;
 
     uint64_t ranges_count = 0;
@@ -657,7 +658,7 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct elf_range **_r
         panic(true, "elf: No higher half PHDRs exist");
     }
 
-    struct elf_range *ranges = ext_mem_alloc(ranges_count * sizeof(struct elf_range));
+    struct mem_range *ranges = ext_mem_alloc(ranges_count * sizeof(struct mem_range));
 
     size_t r = 0;
     for (uint16_t i = 0; i < hdr->ph_num; i++) {
@@ -678,7 +679,18 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct elf_range **_r
 
         ranges[r].base = load_addr & ~(phdr->p_align - 1);
         ranges[r].length = ALIGN_UP(this_top - ranges[r].base, phdr->p_align);
-        ranges[r].permissions = phdr->p_flags & 0b111;
+
+        if (phdr->p_flags & ELF_PF_X) {
+            ranges[r].permissions |= MEM_RANGE_X;
+        }
+
+        if (phdr->p_flags & ELF_PF_W) {
+            ranges[r].permissions |= MEM_RANGE_W;
+        }
+
+        if (phdr->p_flags & ELF_PF_R) {
+            ranges[r].permissions |= MEM_RANGE_R;
+        }
 
         r++;
     }
@@ -687,7 +699,7 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct elf_range **_r
     *_ranges = ranges;
 }
 
-bool elf64_load(uint8_t *elf, uint64_t *entry_point, uint64_t *_slide, uint32_t alloc_type, bool kaslr, struct elf_range **ranges, uint64_t *ranges_count, uint64_t *physical_base, uint64_t *virtual_base, uint64_t *_image_size, uint64_t *_image_size_before_bss, bool *is_reloc) {
+bool elf64_load(uint8_t *elf, uint64_t *entry_point, uint64_t *_slide, uint32_t alloc_type, bool kaslr, struct mem_range **ranges, uint64_t *ranges_count, uint64_t *physical_base, uint64_t *virtual_base, uint64_t *_image_size, uint64_t *_image_size_before_bss, bool *is_reloc) {
     struct elf64_hdr *hdr = (void *)elf;
 
     elf64_validate(hdr);

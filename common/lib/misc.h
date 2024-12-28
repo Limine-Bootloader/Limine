@@ -104,4 +104,14 @@ noreturn void loongarch_spinup(uint64_t entry, uint64_t sp, uint64_t pgdl,
 
 #define no_unwind __attribute__((section(".no_unwind")))
 
+#define MEM_RANGE_X 1
+#define MEM_RANGE_W 2
+#define MEM_RANGE_R 4
+
+struct mem_range {
+    uint64_t base;
+    uint64_t length;
+    uint64_t permissions;
+};
+
 #endif

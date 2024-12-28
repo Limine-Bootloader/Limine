@@ -8,6 +8,7 @@
 #include <lib/acpi.h>
 #include <lib/config.h>
 #include <lib/time.h>
+#include <lib/pe.h>
 #include <lib/print.h>
 #include <lib/real.h>
 #include <lib/libc.h>
@@ -142,7 +143,7 @@ static void limine_memcpy_to_64(uint64_t dst, void *src, size_t count) {
 #endif
 
 static pagemap_t build_pagemap(int base_revision,
-                               bool nx, struct elf_range *ranges, size_t ranges_count,
+                               bool nx, struct mem_range *ranges, size_t ranges_count,
                                uint64_t physical_base, uint64_t virtual_base,
                                uint64_t direct_map_offset) {
     pagemap_t pagemap = new_pagemap(paging_mode);
@@ -162,8 +163,8 @@ static pagemap_t build_pagemap(int base_revision,
         }
 
         uint64_t pf =
-            (ranges[i].permissions & ELF_PF_X ? 0 : (nx ? VMM_FLAG_NOEXEC : 0)) |
-            (ranges[i].permissions & ELF_PF_W ? VMM_FLAG_WRITE : 0);
+            (ranges[i].permissions & MEM_RANGE_X ? 0 : (nx ? VMM_FLAG_NOEXEC : 0)) |
+            (ranges[i].permissions & MEM_RANGE_W ? VMM_FLAG_WRITE : 0);
 
         map_pages(pagemap, virt, phys, pf, ranges[i].length);
     }
@@ -448,19 +449,32 @@ noreturn void limine_load(char *config, char *cmdline) {
 
     // ELF loading
     uint64_t entry_point = 0;
-    struct elf_range *ranges;
+    struct mem_range *ranges;
     uint64_t ranges_count;
 
     uint64_t image_size_before_bss;
     bool is_reloc;
 
-    if (!elf64_load(kernel, &entry_point, &slide,
-                   MEMMAP_KERNEL_AND_MODULES, kaslr,
-                   &ranges, &ranges_count,
-                   &physical_base, &virtual_base, NULL,
-                   &image_size_before_bss,
-                   &is_reloc)) {
-        panic(true, "limine: ELF64 load failure");
+    if (elf_bits(kernel) != -1) {
+        if (!elf64_load(kernel, &entry_point, &slide,
+                    MEMMAP_KERNEL_AND_MODULES, kaslr,
+                    &ranges, &ranges_count,
+                    &physical_base, &virtual_base, NULL,
+                    &image_size_before_bss,
+                    &is_reloc)) {
+            panic(true, "limine: ELF64 load failure");
+        }
+    } else if (pe_bits(kernel) != -1) {
+        if (!pe64_load(kernel, &entry_point, &slide,
+                    MEMMAP_KERNEL_AND_MODULES, kaslr,
+                    &ranges, &ranges_count,
+                    &physical_base, &virtual_base, NULL,
+                    &image_size_before_bss,
+                    &is_reloc)) {
+            panic(true, "limine: PE64 load failure");
+        }
+    } else {
+        panic(true, "limine: Unknown executable format");
     }
 
     kaslr = kaslr && is_reloc;

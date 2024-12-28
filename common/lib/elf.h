@@ -4,18 +4,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <lib/elsewhere.h>
+#include <lib/misc.h>
 
 #define FIXED_HIGHER_HALF_OFFSET_64 ((uint64_t)0xffffffff80000000)
 
 #define ELF_PF_X 1
 #define ELF_PF_W 2
 #define ELF_PF_R 4
-
-struct elf_range {
-    uint64_t base;
-    uint64_t length;
-    uint64_t permissions;
-};
 
 struct elf_section_hdr_info {
     uint32_t section_entry_size;
@@ -30,7 +25,7 @@ struct elf_section_hdr_info elf64_section_hdr_info(uint8_t *elf);
 struct elf_section_hdr_info elf32_section_hdr_info(uint8_t *elf);
 
 bool elf64_load_section(uint8_t *elf, void *buffer, const char *name, size_t limit, uint64_t slide);
-bool elf64_load(uint8_t *elf, uint64_t *entry_point, uint64_t *_slide, uint32_t alloc_type, bool kaslr, struct elf_range **ranges, uint64_t *ranges_count, uint64_t *physical_base, uint64_t *virtual_base, uint64_t *image_size, uint64_t *image_size_before_bss, bool *is_reloc);
+bool elf64_load(uint8_t *elf, uint64_t *entry_point, uint64_t *_slide, uint32_t alloc_type, bool kaslr, struct mem_range **ranges, uint64_t *ranges_count, uint64_t *physical_base, uint64_t *virtual_base, uint64_t *image_size, uint64_t *image_size_before_bss, bool *is_reloc);
 
 bool elf32_load_elsewhere(uint8_t *elf, uint64_t *entry_point,
                           struct elsewhere_range **ranges);
