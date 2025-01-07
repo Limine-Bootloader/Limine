@@ -280,11 +280,12 @@ again:
     }
 
     if (reloc_dir->VirtualAddress != 0) {
-        IMAGE_BASE_RELOCATION_BLOCK *block = (IMAGE_BASE_RELOCATION_BLOCK *)(*physical_base + reloc_dir->VirtualAddress);
+        uintptr_t reloc_block_offset = 0;
 
-        while (block->VirtualAddress != 0) {
+        while (reloc_block_offset - reloc_dir->Size >= sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
+            IMAGE_BASE_RELOCATION_BLOCK *block = (IMAGE_BASE_RELOCATION_BLOCK *)(*physical_base + reloc_dir->VirtualAddress + reloc_block_offset);
+
             uint64_t block_base = *physical_base + block->VirtualAddress;
-
             uint64_t entries = (block->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION_BLOCK)) / sizeof(uint16_t);
             uint16_t *relocs = (uint16_t *)(block + 1);
 
@@ -308,7 +309,7 @@ again:
                 }
             }
 
-            block = (IMAGE_BASE_RELOCATION_BLOCK *)((uintptr_t)block + block->SizeOfBlock);
+            reloc_block_offset += block->SizeOfBlock;
         }
     }
 
