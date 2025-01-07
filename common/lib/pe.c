@@ -9,40 +9,28 @@
 
 #define FIXED_HIGHER_HALF_OFFSET_64 ((uint64_t)0xffffffff80000000)
 
-typedef unsigned char BYTE;
-typedef unsigned char UCHAR;
-typedef unsigned short USHORT;
-typedef unsigned int DWORD;
-typedef unsigned int ULONG;
-typedef unsigned long long ULONGLONG;
-
-typedef char CHAR;
-typedef short SHORT;
-typedef int LONG;
-typedef long long LONGLONG;
-
 #define IMAGE_DOS_SIGNATURE 0x5a4d
 
 typedef struct _IMAGE_DOS_HEADER {
-    USHORT e_magic;
-    USHORT e_cblp;
-    USHORT e_cp;
-    USHORT e_crlc;
-    USHORT e_cparhdr;
-    USHORT e_minalloc;
-    USHORT e_maxalloc;
-    USHORT e_ss;
-    USHORT e_sp;
-    USHORT e_csum;
-    USHORT e_ip;
-    USHORT e_cs;
-    USHORT e_lfarlc;
-    USHORT e_ovno;
-    USHORT e_res[4];
-    USHORT e_oemid;
-    USHORT e_oeminfo;
-    USHORT e_res2[10];
-    LONG e_lfanew;
+    uint16_t e_magic;
+    uint16_t e_cblp;
+    uint16_t e_cp;
+    uint16_t e_crlc;
+    uint16_t e_cparhdr;
+    uint16_t e_minalloc;
+    uint16_t e_maxalloc;
+    uint16_t e_ss;
+    uint16_t e_sp;
+    uint16_t e_csum;
+    uint16_t e_ip;
+    uint16_t e_cs;
+    uint16_t e_lfarlc;
+    uint16_t e_ovno;
+    uint16_t e_res[4];
+    uint16_t e_oemid;
+    uint16_t e_oeminfo;
+    uint16_t e_res2[10];
+    uint32_t e_lfanew;
 } IMAGE_DOS_HEADER;
 
 #define IMAGE_FILE_MACHINE_I386 0x14c
@@ -53,18 +41,18 @@ typedef struct _IMAGE_DOS_HEADER {
 #define IMAGE_FILE_EXECUTABLE_IMAGE 2
 
 typedef struct {
-    USHORT Machine;
-    USHORT NumberOfSections;
-    ULONG TimeDateStamp;
-    ULONG PointerToSymbolTable;
-    ULONG NumberOfSymbols;
-    USHORT SizeOfOptionalHeader;
-    USHORT Characteristics;
+    uint16_t Machine;
+    uint16_t NumberOfSections;
+    uint32_t TimeDateStamp;
+    uint32_t PointerToSymbolTable;
+    uint32_t NumberOfSymbols;
+    uint16_t SizeOfOptionalHeader;
+    uint16_t Characteristics;
 } IMAGE_FILE_HEADER;
 
 typedef struct {
-    ULONG VirtualAddress;
-    ULONG Size;
+    uint32_t VirtualAddress;
+    uint32_t Size;
 } IMAGE_DATA_DIRECTORY;
 
 #define IMAGE_NT_OPTIONAL_HDR32_MAGIC 0x10b
@@ -87,42 +75,42 @@ typedef struct {
 #define IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR 14
 
 typedef struct {
-    USHORT Magic;
-    UCHAR MajorLinkerVersion;
-    UCHAR MinorLinkerVersion;
-    ULONG SizeOfCode;
-    ULONG SizeOfInitializedData;
-    ULONG SizeOfUninitializedData;
-    ULONG AddressOfEntryPoint;
-    ULONG BaseOfCode;
-    ULONGLONG ImageBase;
-    ULONG SectionAlignment;
-    ULONG FileAlignment;
-    USHORT MajorOperatingSystemVersion;
-    USHORT MinorOperatingSystemVersion;
-    USHORT MajorImageVersion;
-    USHORT MinorImageVersion;
-    USHORT MajorSubsystemVersion;
-    USHORT MinorSubsystemVersion;
-    ULONG Win32VersionValue;
-    ULONG SizeOfImage;
-    ULONG SizeOfHeaders;
-    ULONG CheckSum;
-    USHORT Subsystem;
-    USHORT DllCharacteristics;
-    ULONGLONG SizeOfStackReserve;
-    ULONGLONG SizeOfStackCommit;
-    ULONGLONG SizeOfHeapReserve;
-    ULONGLONG SizeOfHeapCommit;
-    ULONG LoaderFlags;
-    ULONG NumberOfRvaAndSizes;
+    uint16_t Magic;
+    uint8_t MajorLinkerVersion;
+    uint8_t MinorLinkerVersion;
+    uint32_t SizeOfCode;
+    uint32_t SizeOfInitializedData;
+    uint32_t SizeOfUninitializedData;
+    uint32_t AddressOfEntryPoint;
+    uint32_t BaseOfCode;
+    uint64_t ImageBase;
+    uint32_t SectionAlignment;
+    uint32_t FileAlignment;
+    uint16_t MajorOperatingSystemVersion;
+    uint16_t MinorOperatingSystemVersion;
+    uint16_t MajorImageVersion;
+    uint16_t MinorImageVersion;
+    uint16_t MajorSubsystemVersion;
+    uint16_t MinorSubsystemVersion;
+    uint32_t Win32VersionValue;
+    uint32_t SizeOfImage;
+    uint32_t SizeOfHeaders;
+    uint32_t CheckSum;
+    uint16_t Subsystem;
+    uint16_t DllCharacteristics;
+    uint64_t SizeOfStackReserve;
+    uint64_t SizeOfStackCommit;
+    uint64_t SizeOfHeapReserve;
+    uint64_t SizeOfHeapCommit;
+    uint32_t LoaderFlags;
+    uint32_t NumberOfRvaAndSizes;
     IMAGE_DATA_DIRECTORY DataDirectory[16];
 } IMAGE_OPTIONAL_HEADER64;
 
 #define IMAGE_NT_SIGNATURE 0x4550
 
 typedef struct {
-    ULONG Signature;
+    uint32_t Signature;
     IMAGE_FILE_HEADER FileHeader;
     IMAGE_OPTIONAL_HEADER64 OptionalHeader;
 } IMAGE_NT_HEADERS64;
@@ -133,27 +121,27 @@ typedef struct {
 #define IMAGE_SCN_MEM_WRITE 0x80000000
 
 typedef struct {
-    UCHAR Name[8];
-    ULONG VirtualSize;
-    ULONG VirtualAddress;
-    ULONG SizeOfRawData;
-    ULONG PointerToRawData;
-    ULONG PointerToRelocations;
-    ULONG PointerToLinenumbers;
-    USHORT NumberOfRelocations;
-    USHORT NumberOfLinenumbers;
-    ULONG Characteristics;
+    char Name[8];
+    uint32_t VirtualSize;
+    uint32_t VirtualAddress;
+    uint32_t SizeOfRawData;
+    uint32_t PointerToRawData;
+    uint32_t PointerToRelocations;
+    uint32_t PointerToLinenumbers;
+    uint16_t NumberOfRelocations;
+    uint16_t NumberOfLinenumbers;
+    uint32_t Characteristics;
 } IMAGE_SECTION_HEADER;
 
 typedef struct {
     union {
-        DWORD Characteristics;
-        DWORD OriginalFirstThunk;
+        uint32_t Characteristics;
+        uint32_t OriginalFirstThunk;
     };
-    DWORD TimeDateStamp;
-    DWORD ForwarderChain;
-    DWORD Name;
-    DWORD FirstThunk;
+    uint32_t TimeDateStamp;
+    uint32_t ForwarderChain;
+    uint32_t Name;
+    uint32_t FirstThunk;
 } IMAGE_IMPORT_DESCRIPTOR;
 
 #define IMAGE_REL_BASED_ABSOLUTE 0
@@ -161,8 +149,8 @@ typedef struct {
 #define IMAGE_REL_BASED_DIR64 10
 
 typedef struct {
-    DWORD VirtualAddress;
-    DWORD SizeOfBlock;
+    uint32_t VirtualAddress;
+    uint32_t SizeOfBlock;
 } IMAGE_BASE_RELOCATION_BLOCK;
 
 static void pe64_validate(uint8_t *image) {
