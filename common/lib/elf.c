@@ -563,9 +563,7 @@ end_of_pt_segment:
 bool elf64_load_section(uint8_t *elf, void *buffer, const char *name, size_t limit, uint64_t slide) {
     struct elf64_hdr *hdr = (void *)elf;
 
-    if (elf_bits(elf) == -1) {
-        return false;
-    }
+    elf64_validate(hdr);
 
     if (hdr->sh_num == 0) {
         return false;
