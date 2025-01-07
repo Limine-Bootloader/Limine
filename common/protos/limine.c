@@ -35,6 +35,21 @@
 #include <protos/limine.h>
 #include <limine.h>
 
+enum executable_format {
+    EXECUTABLE_FORMAT_ELF,
+    EXECUTABLE_FORMAT_PE,
+};
+
+static enum executable_format detect_kernel_format(uint8_t *kernel) {
+    if (elf_bits(kernel) != -1) {
+        return EXECUTABLE_FORMAT_ELF;
+    } else if (pe_bits(kernel) != -1) {
+        return EXECUTABLE_FORMAT_PE;
+    } else {
+        panic(true, "limine: Unknown kernel executable format");
+    }
+}
+
 #define SUPPORTED_BASE_REVISION 3
 
 #define MAX_REQUESTS 128
@@ -455,26 +470,28 @@ noreturn void limine_load(char *config, char *cmdline) {
     uint64_t image_size_before_bss;
     bool is_reloc;
 
-    if (elf_bits(kernel) != -1) {
-        if (!elf64_load(kernel, &entry_point, &slide,
-                    MEMMAP_KERNEL_AND_MODULES, kaslr,
-                    &ranges, &ranges_count,
-                    &physical_base, &virtual_base, NULL,
-                    &image_size_before_bss,
-                    &is_reloc)) {
-            panic(true, "limine: ELF64 load failure");
-        }
-    } else if (pe_bits(kernel) != -1) {
-        if (!pe64_load(kernel, &entry_point, &slide,
-                    MEMMAP_KERNEL_AND_MODULES, kaslr,
-                    &ranges, &ranges_count,
-                    &physical_base, &virtual_base, NULL,
-                    &image_size_before_bss,
-                    &is_reloc)) {
-            panic(true, "limine: PE64 load failure");
-        }
-    } else {
-        panic(true, "limine: Unknown executable format");
+    enum executable_format kernel_format = detect_kernel_format(kernel);
+    switch (kernel_format) {
+        case EXECUTABLE_FORMAT_ELF:
+            if (!elf64_load(kernel, &entry_point, &slide,
+                            MEMMAP_KERNEL_AND_MODULES, kaslr,
+                            &ranges, &ranges_count,
+                            &physical_base, &virtual_base, NULL,
+                            &image_size_before_bss,
+                            &is_reloc)) {
+                panic(true, "limine: ELF64 load failure");
+            }
+            break;
+        case EXECUTABLE_FORMAT_PE:
+            if (!pe64_load(kernel, &entry_point, &slide,
+                            MEMMAP_KERNEL_AND_MODULES, kaslr,
+                            &ranges, &ranges_count,
+                            &physical_base, &virtual_base, NULL,
+                            &image_size_before_bss,
+                            &is_reloc)) {
+                panic(true, "limine: PE64 load failure");
+            }
+            break;
     }
 
     kaslr = kaslr && is_reloc;
@@ -529,7 +546,7 @@ noreturn void limine_load(char *config, char *cmdline) {
     uint64_t *limine_reqs = NULL;
     requests = ext_mem_alloc(MAX_REQUESTS * sizeof(void *));
     requests_count = 0;
-    if (base_revision == 0 && elf64_load_section(kernel, &limine_reqs, ".limine_reqs", 0, slide)) {
+    if (base_revision == 0 && kernel_format == EXECUTABLE_FORMAT_ELF && elf64_load_section(kernel, &limine_reqs, ".limine_reqs", 0, slide)) {
         for (size_t i = 0; ; i++) {
             if (limine_reqs[i] == 0) {
                 break;
