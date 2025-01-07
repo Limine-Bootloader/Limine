@@ -36,6 +36,8 @@ typedef struct _IMAGE_DOS_HEADER {
 #define IMAGE_FILE_MACHINE_I386 0x14c
 #define IMAGE_FILE_MACHINE_AMD64 0x8664
 #define IMAGE_FILE_MACHINE_ARM64 0xaa64
+#define IMAGE_FILE_MACHINE_RISCV64 0x5064
+#define IMAGE_FILE_MACHINE_LOONGARCH64 0x6264
 
 #define IMAGE_FILE_RELOCS_STRIPPED 1
 #define IMAGE_FILE_EXECUTABLE_IMAGE 2
@@ -170,8 +172,20 @@ static void pe64_validate(uint8_t *image) {
     if (nt_hdrs->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
         panic(true, "pe: Not an x86-64 PE file");
     }
+#elif defined(__aarch64__)
+    if (nt_hdrs->FileHeader.Machine != IMAGE_FILE_MACHINE_ARM64) {
+        panic(true, "pe: Not an ARM64 PE file");
+    }
+#elif defined (__riscv) && (__riscv_xlen == 64)
+    if (nt_hdrs->FileHeader.Machine != IMAGE_FILE_MACHINE_RISCV64) {
+        panic(true, "pe: Not a RISC-V PE file");
+    }
+#elif defined (__loongarch__) && (__loongarch_grlen == 64)
+    if (nt_hdrs->FileHeader.Machine != IMAGE_FILE_MACHINE_LOONGARCH64) {
+        panic(true, "pe: Not a loongarch64 PE file");
+    }
 #else
-#error Unsupported architecture
+#error Unknown architecture
 #endif
 }
 
@@ -305,7 +319,7 @@ again:
                         *(uint64_t *)(block_base + offset) += slide;
                         break;
                     default:
-                        panic(true, "pe: Unknown relocation type %u", type);
+                        panic(true, "pe: Unsupported relocation type %u", type);
                 }
             }
 
