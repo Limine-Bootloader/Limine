@@ -207,6 +207,8 @@ int pe_bits(uint8_t *image) {
             return 32;
         case IMAGE_FILE_MACHINE_AMD64:
         case IMAGE_FILE_MACHINE_ARM64:
+        case IMAGE_FILE_MACHINE_RISCV64:
+        case IMAGE_FILE_MACHINE_LOONGARCH64:
             return 64;
     }
 
