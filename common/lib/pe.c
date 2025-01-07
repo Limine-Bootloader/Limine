@@ -255,7 +255,7 @@ bool pe64_load(uint8_t *image, uint64_t *entry_point, uint64_t *_slide, uint32_t
     *physical_base = (uintptr_t)ext_mem_alloc_type_aligned(image_size, alloc_type, alignment);
     *virtual_base = image_base;
 
-    memcpy((void *)*physical_base, image, nt_hdrs->OptionalHeader.SizeOfHeaders);
+    memcpy((void *)(uintptr_t)*physical_base, image, nt_hdrs->OptionalHeader.SizeOfHeaders);
 
     if (_image_size) {
         *_image_size = image_size;
@@ -276,8 +276,8 @@ again:
     for (size_t i = 0; i < nt_hdrs->FileHeader.NumberOfSections; i++) {
         IMAGE_SECTION_HEADER *section = &sections[i];
 
-        uint64_t section_base = *physical_base + section->VirtualAddress;
-        uint64_t section_raw_size = section->VirtualSize < section->SizeOfRawData ? section->VirtualSize : section->SizeOfRawData;
+        uintptr_t section_base = *physical_base + section->VirtualAddress;
+        uint32_t section_raw_size = section->VirtualSize < section->SizeOfRawData ? section->VirtualSize : section->SizeOfRawData;
 
         memcpy((void *)section_base, image + section->PointerToRawData, section_raw_size);
     }
@@ -286,7 +286,7 @@ again:
     IMAGE_DATA_DIRECTORY *reloc_dir = &nt_hdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
 
     if (import_dir->Size != 0) {
-        IMAGE_IMPORT_DESCRIPTOR *import_desc = (IMAGE_IMPORT_DESCRIPTOR *)(*physical_base + import_dir->VirtualAddress);
+        IMAGE_IMPORT_DESCRIPTOR *import_desc = (IMAGE_IMPORT_DESCRIPTOR *)((uintptr_t)*physical_base + import_dir->VirtualAddress);
 
         if (import_desc->Name != 0) {
             panic(true, "pe: Kernel must not have any imports");
@@ -294,13 +294,13 @@ again:
     }
 
     if (reloc_dir->VirtualAddress != 0) {
-        uintptr_t reloc_block_offset = 0;
+        size_t reloc_block_offset = 0;
 
         while (reloc_block_offset - reloc_dir->Size >= sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
-            IMAGE_BASE_RELOCATION_BLOCK *block = (IMAGE_BASE_RELOCATION_BLOCK *)(*physical_base + reloc_dir->VirtualAddress + reloc_block_offset);
+            IMAGE_BASE_RELOCATION_BLOCK *block = (IMAGE_BASE_RELOCATION_BLOCK *)((uintptr_t)*physical_base + reloc_dir->VirtualAddress + reloc_block_offset);
 
-            uint64_t block_base = *physical_base + block->VirtualAddress;
-            uint64_t entries = (block->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION_BLOCK)) / sizeof(uint16_t);
+            uintptr_t block_base = *physical_base + block->VirtualAddress;
+            size_t entries = (block->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION_BLOCK)) / sizeof(uint16_t);
             uint16_t *relocs = (uint16_t *)(block + 1);
 
             for (size_t i = 0; i < entries; i++) {
