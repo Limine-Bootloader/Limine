@@ -296,7 +296,7 @@ again:
     if (reloc_dir->VirtualAddress != 0) {
         size_t reloc_block_offset = 0;
 
-        while (reloc_block_offset - reloc_dir->Size >= sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
+        while (reloc_dir->Size - reloc_block_offset >= sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
             IMAGE_BASE_RELOCATION_BLOCK *block = (IMAGE_BASE_RELOCATION_BLOCK *)((uintptr_t)*physical_base + reloc_dir->VirtualAddress + reloc_block_offset);
 
             uintptr_t block_base = *physical_base + block->VirtualAddress;
