@@ -348,8 +348,10 @@ again:
                 continue;
             }
 
-            ranges[j].base = *virtual_base + ALIGN_UP(section->VirtualAddress, alignment);
-            ranges[j].length = ALIGN_UP(section->VirtualSize, alignment);
+            uintptr_t misalign = section->VirtualAddress % alignment;
+
+            ranges[j].base = *virtual_base + ALIGN_DOWN(section->VirtualAddress, alignment);
+            ranges[j].length = ALIGN_UP(section->VirtualSize + misalign, alignment);
 
             if (section->Characteristics & IMAGE_SCN_MEM_EXECUTE) {
                 ranges[j].permissions |= MEM_RANGE_X;
