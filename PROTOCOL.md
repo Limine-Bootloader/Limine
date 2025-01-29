@@ -1091,6 +1091,8 @@ struct limine_module_response {
 };
 ```
 
+Note: `limine_module_response` is not guaranteed when no modules are passed in.
+
 * `module_count` - How many modules are present.
 * `modules` - Pointer to an array of `module_count` pointers to
 `struct limine_file` structures (see below).
