@@ -148,13 +148,35 @@ parking64:
     mov eax, 1
     xchg dword [rbx + (passed_info.booted_flag - smp_trampoline_start)], eax
 
-    xor eax, eax
+    ; Check for MONITOR/MWAIT support
+    mov eax, 1
+    xor ecx, ecx
+    cpuid
+    test ecx, (1 << 3)
+    jnz .monitor_spin
+
   .loop:
-    lock xadd qword [rdi + 16], rax
+    mov rax, qword [rdi + 16]
     test rax, rax
     jnz .out
     pause
     jmp .loop
+
+  .monitor_spin:
+    mov rax, qword [rdi + 16]
+    test rax, rax
+    jnz .out
+    lea rax, qword [rdi + 16]
+    xor ecx, ecx
+    xor edx, edx
+    monitor
+    mov rax, qword [rdi + 16]
+    test rax, rax
+    jnz .out
+    xor eax, eax
+    xor ecx, ecx
+    mwait
+    jmp .monitor_spin
 
   .out:
     ; Clear TLB
