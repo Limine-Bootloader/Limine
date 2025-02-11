@@ -1212,9 +1212,12 @@ noreturn void boot(char *config) {
     } else if (!strcmp(proto, "chainload_next")) {
         chainload_next(config, cmdline);
 #if defined (BIOS)
-    } else if (!strcmp(proto, "bios_chainload")) {
+    } else if (!strcmp(proto, "bios_chainload")
+            || !strcmp(proto, "bios")) {
 #elif defined (UEFI)
-    } else if (!strcmp(proto, "efi_chainload")) {
+    } else if (!strcmp(proto, "efi_chainload")
+            || !strcmp(proto, "efi")
+            || !strcmp(proto, "uefi")) {
 #endif
         chainload(config, cmdline);
     }
