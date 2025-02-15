@@ -204,7 +204,8 @@ noreturn void chainload(char *config, char *cmdline) {
     char *image_path = config_get_value(config, 0, "PATH");
     if (image_path == NULL) {
         image_path = config_get_value(config, 0, "IMAGE_PATH");
-    } else {
+    }
+    if (image_path == NULL) {
         panic(true, "chainload: Image path not specified");
     }
 
