@@ -37,9 +37,9 @@ clone_repo_commit() {
 
 download_by_hash() {
     DOWNLOAD_COMMAND="curl -Lo"
-    if ! command -v $DOWNLOAD_COMMAND >/dev/null 2>&1; then
+    if ! command -v "${DOWNLOAD_COMMAND% *}" >/dev/null 2>&1; then
         DOWNLOAD_COMMAND="wget -O"
-        if ! command -v $DOWNLOAD_COMMAND >/dev/null 2>&1; then
+        if ! command -v "${DOWNLOAD_COMMAND% *}" >/dev/null 2>&1; then
             set +x
             echo "error: Neither curl nor wget found"
             exit 1
