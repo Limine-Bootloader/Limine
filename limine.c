@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <time.h>
 
 #ifndef LIMINE_NO_BIOS
 #include "limine-bios-hdd.h"
@@ -72,6 +73,7 @@ static int set_pos(FILE *stream, uint64_t pos) {
     return 0;
 }
 
+#define SIZEOF_ARRAY(array) (sizeof(array) / sizeof(array[0]))
 #define DIV_ROUNDUP(a, b) (((a) + ((b) - 1)) / (b))
 
 struct gpt_table_header {
@@ -157,6 +159,54 @@ static const uint32_t crc32_table[] = {
 	0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
 	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
+
+struct gpt2mbr_type_conv {
+    uint64_t gpt_type1;
+    uint64_t gpt_type2;
+    uint8_t mbr_type;
+};
+
+// This table is very incomplete, but it should be enough for covering
+// all that matters for ISOHYBRIDs.
+// Of course, though, expansion is welcome.
+static struct gpt2mbr_type_conv gpt2mbr_type_conv_table[] = {
+    { 0x11d2f81fc12a7328, 0x3bc93ec9a0004bba, 0xef }, // EFI system partition
+    { 0x4433b9e5ebd0a0a2, 0xc79926b7b668c087, 0x07 }, // Microsoft basic data
+    { 0x11aa000048465300, 0xacec4365300011aa, 0xaf }, // HFS/HFS+
+};
+
+static int gpt2mbr_type(uint64_t gpt_type1, uint64_t gpt_type2) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(gpt2mbr_type_conv_table); i++) {
+        if (gpt2mbr_type_conv_table[i].gpt_type1 == gpt_type1
+         && gpt2mbr_type_conv_table[i].gpt_type2 == gpt_type2) {
+            return gpt2mbr_type_conv_table[i].mbr_type;
+        }
+    }
+    return -1;
+}
+
+static void lba2chs(uint8_t *chs, uint64_t lba) {
+    // If LBA is too big to express, use a standard value for CHS.
+    if (lba > 63 * 255 * 1024) {
+        goto lba_too_big;
+    }
+
+    uint64_t cylinder = lba / (255 * 63);
+    if (cylinder >= 1024) {
+lba_too_big:
+        chs[0] = 0xfe;
+        chs[1] = 0xff;
+        chs[2] = 0xff;
+        return;
+    }
+    uint64_t head = (lba / 63) % 255;
+    uint64_t sector = (lba % 63) + 1;
+
+    chs[0] = head;
+    chs[1] = (cylinder >> 2) & 0xc0; // high 2 bits
+    chs[1] |= sector & 0x3f;
+    chs[2] = cylinder; // low 8 bits
+}
 
 static uint32_t crc32(void *_stream, size_t len) {
     uint8_t *stream = _stream;
@@ -572,6 +622,11 @@ static void bios_install_usage(void) {
     printf("                    Set the input (for --uninstall) or output file\n");
     printf("                    name of the file which contains uninstall data\n");
     printf("\n");
+    printf("    --no-gpt-to-mbr-isohybrid-conversion\n");
+    printf("                    Do not automatically convert a GPT partition table found on\n");
+    printf("                    an ISOHYBRID image into an MBR partition table (which is\n");
+    printf("                    done for better hardware compatibility)\n");
+    printf("\n");
     printf("    --quiet         Do not print verbose diagnostic messages\n");
     printf("\n");
     printf("    --help | -h     Display this help message\n");
@@ -581,6 +636,7 @@ static void bios_install_usage(void) {
 static int bios_install(int argc, char *argv[]) {
     int      ok = EXIT_FAILURE;
     int      force_mbr = 0;
+    bool gpt2mbr_allowed = true;
     bool uninstall_mode = false;
     const uint8_t *bootloader_img = binary_limine_hdd_bin_data;
     size_t   bootloader_file_size = sizeof(binary_limine_hdd_bin_data);
@@ -612,6 +668,8 @@ static int bios_install(int argc, char *argv[]) {
                 fprintf(stderr, "%s: warning: --force-mbr already set.\n", program_name);
             }
             force_mbr = 1;
+        } else if (strcmp(argv[i], "--no-gpt-to-mbr-isohybrid-conversion") == 0) {
+            gpt2mbr_allowed = false;
         } else if (strcmp(argv[i], "--uninstall") == 0) {
             if (uninstall_mode && !quiet) {
                 fprintf(stderr, "%s: warning: --uninstall already set.\n", program_name);
@@ -704,6 +762,132 @@ static int bios_install(int argc, char *argv[]) {
             goto cleanup;
         }
     }
+
+    // Check if this is an ISO w/ a GPT, in which case try converting it
+    // to MBR for improved compatibility with a whole range of hardware that
+    // does not like booting off of GPT in BIOS or CSM mode, and other
+    // broken hardware.
+    if (gpt && gpt2mbr_allowed == true) {
+        char iso_signature[5];
+        device_read(iso_signature, 32769, 5);
+
+        if (strncmp(iso_signature, "CD001", 5) != 0) {
+            goto no_mbr_conv;
+        }
+
+        if (!quiet) {
+            fprintf(stderr, "Detected ISOHYBRID with a GPT partition table.\n");
+            fprintf(stderr, "Converting to MBR for improved compatibility...\n");
+        }
+
+        // Gather the (up to 4) GPT partition to convert.
+        struct {
+            uint64_t lba_start;
+            uint64_t lba_end;
+            uint8_t chs_start[3];
+            uint8_t chs_end[3];
+            uint8_t type;
+        } part_to_conv[4];
+        size_t part_to_conv_i = 0;
+
+        for (int64_t i = 0; i < (int64_t)ENDSWAP(gpt_header.number_of_partition_entries); i++) {
+            struct gpt_entry gpt_entry;
+            device_read(&gpt_entry,
+                        (ENDSWAP(gpt_header.partition_entry_lba) * lb_size)
+                        + (i * ENDSWAP(gpt_header.size_of_partition_entry)),
+                        sizeof(struct gpt_entry));
+
+            if (gpt_entry.unique_partition_guid[0] == 0 &&
+                gpt_entry.unique_partition_guid[1] == 0) {
+                continue;
+            }
+
+            if (ENDSWAP(gpt_entry.starting_lba) > UINT32_MAX) {
+                if (!quiet) {
+                    fprintf(stderr, "Starting LBA of partition %zu is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
+                }
+                goto no_mbr_conv;
+            }
+            part_to_conv[part_to_conv_i].lba_start = ENDSWAP(gpt_entry.starting_lba);
+            lba2chs(part_to_conv[part_to_conv_i].chs_start, part_to_conv[part_to_conv_i].lba_start);
+
+            if (ENDSWAP(gpt_entry.ending_lba) > UINT32_MAX) {
+                if (!quiet) {
+                    fprintf(stderr, "Ending LBA of partition %zu is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
+                }
+                goto no_mbr_conv;
+            }
+            part_to_conv[part_to_conv_i].lba_end = ENDSWAP(gpt_entry.ending_lba);
+            lba2chs(part_to_conv[part_to_conv_i].chs_end, part_to_conv[part_to_conv_i].lba_end);
+
+            int type = gpt2mbr_type(ENDSWAP(gpt_entry.partition_type_guid[0]),
+                                    ENDSWAP(gpt_entry.partition_type_guid[1]));
+            if (type == -1) {
+                if (!quiet) {
+                    fprintf(stderr, "Cannot convert partition type for partition %zu, will not convert GPT.\n", i + 1);
+                }
+                goto no_mbr_conv;
+            }
+
+            if (part_to_conv_i == 4) {
+                if (!quiet) {
+                    fprintf(stderr, "GPT contains more than 4 partitions, will not convert.\n");
+                }
+                goto no_mbr_conv;
+            }
+
+            part_to_conv[part_to_conv_i].type = type;
+
+            part_to_conv_i++;
+        }
+
+        // Nuke the GPTs.
+        void *empty_lba = calloc(1, lb_size);
+        if (empty_lba == NULL) {
+            perror_wrap("error: bios_install(): malloc()");
+            goto cleanup;
+        }
+
+        // ... nuke primary GPT + protective MBR.
+        for (size_t i = 0; i < 34; i++) {
+            device_write(empty_lba, i * lb_size, lb_size);
+        }
+
+        // ... nuke secondary GPT.
+        for (size_t i = 0; i < 33; i++) {
+            device_write(empty_lba, ((ENDSWAP(gpt_header.alternate_lba) - 32) + i) * lb_size, lb_size);
+        }
+
+        free(empty_lba);
+
+        // We're no longer GPT.
+        gpt = 0;
+
+        // Generate pseudorandom MBR disk ID.
+        srand(time(NULL));
+        for (size_t i = 0; i < 4; i++) {
+            uint8_t r = rand();
+            device_write(&r, 0x1b8 + i, 1);
+        }
+
+        // Write out the partition entries.
+        for (size_t i = 0; i < part_to_conv_i; i++) {
+            device_write(&part_to_conv[i].type, 0x1be + i * 16 + 0x04, 1);
+            uint32_t lba_start = ENDSWAP(part_to_conv[i].lba_start);
+            device_write(&lba_start, 0x1be + i * 16 + 0x08, 4);
+            uint32_t sect_count = ENDSWAP((part_to_conv[i].lba_end - part_to_conv[i].lba_start) + 1);
+            device_write(&sect_count, 0x1be + i * 16 + 0x0c, 4);
+
+            device_write(part_to_conv[i].chs_start, 0x1be + i * 16 + 1, 3);
+            device_write(part_to_conv[i].chs_end, 0x1be + i * 16 + 5, 3);
+        }
+
+        if (!quiet) {
+            fprintf(stderr, "Conversion successful.\n");
+        }
+    }
+
+no_mbr_conv:;
 
     int mbr = 0;
     if (gpt == 0) {
@@ -1202,7 +1386,7 @@ cleanup:
     return ret;
 }
 
-#define LIMINE_VERSION "9.0.1"
+#define LIMINE_VERSION "9.1.0"
 #define LIMINE_COPYRIGHT "Copyright (C) 2019-2025 mintsuki and contributors."
 
 static void version_usage(void) {
