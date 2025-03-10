@@ -20,3 +20,32 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+---
+
+The above License covers the core Limine bootloader code as present inside the
+official Git repository (https://github.com/limine-bootloader/limine),
+excluding any file with a license header overriding it.
+
+The Limine project depends on several other projects which are pulled in by the
+./bootstrap script, or, in the case of release tarballs, are shipped alongside
+the core Limine code in the tarballs themselves, similar to ./bootstrap having
+been already run.
+
+These additional projects are NOT covered by the License at the top of this
+file, but are instead licensed as described by each individual documentation
+present therein.
+
+A non-binding, informal summary of all licenses used by the Limine project and
+additional projects it depends on, in SPDX format where possible, is as
+follows:
+
+- Apache-2.0 WITH LLVM-exception
+- 0BSD
+- BSD-2-Clause
+- BSD-2-Clause-Patent
+- BSD-3-Clause
+- BSD-Axis without modification
+  (not SPDX, see: https://scancode-licensedb.aboutcode.org/bsd-axis-nomod.html)
+- MIT
+- Zlib
