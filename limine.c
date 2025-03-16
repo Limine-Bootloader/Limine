@@ -623,9 +623,9 @@ static void bios_install_usage(void) {
     printf("                    name of the file which contains uninstall data\n");
     printf("\n");
     printf("    --no-gpt-to-mbr-isohybrid-conversion\n");
-    printf("                    Do not automatically convert a GPT partition table found on\n");
-    printf("                    an ISOHYBRID image into an MBR partition table (which is\n");
-    printf("                    done for better hardware compatibility)\n");
+    printf("                    Do not automatically convert a GUID partition table (GPT)\n");
+    printf("                    found on an ISOHYBRID image into an MBR partition table\n");
+    printf("                    (which is done for better hardware compatibility)\n");
     printf("\n");
     printf("    --quiet         Do not print verbose diagnostic messages\n");
     printf("\n");
@@ -776,7 +776,7 @@ static int bios_install(int argc, char *argv[]) {
         }
 
         if (!quiet) {
-            fprintf(stderr, "Detected ISOHYBRID with a GPT partition table.\n");
+            fprintf(stderr, "Detected ISOHYBRID with a GUID partition table (GPT).\n");
             fprintf(stderr, "Converting to MBR for improved compatibility...\n");
         }
 
@@ -1386,7 +1386,7 @@ cleanup:
     return ret;
 }
 
-#define LIMINE_VERSION "9.1.3"
+#define LIMINE_VERSION "9.2.0"
 #define LIMINE_COPYRIGHT "Copyright (C) 2019-2025 mintsuki and contributors."
 
 static void version_usage(void) {
