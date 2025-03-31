@@ -1,3 +1,15 @@
+2025-03-31  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.2.2 ***
+
+    Noteworthy changes compared to the previous release, 9.2.1:
+
+    Bug fixes:
+        - Two quick bug fixes and workarounds in order to make multiboot2 more
+          resilient when booting specific kernels such as Xen.
+        - Avoid mistakenly allocating more memory than necessary when creating
+          the volume index.
+
 2025-03-25  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.2.1 ***
