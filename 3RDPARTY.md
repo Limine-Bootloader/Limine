@@ -19,14 +19,14 @@ that Limine is distributed under:
 A non-binding, informal summary of all projects Limine depends on, and the
 licenses used by said projects, in SPDX format, is as follows:
 
-- [cc-runtime](https://github.com/osdev0/cc-runtime)
+- [cc-runtime](https://codeberg.org/osdev/cc-runtime)
 (Apache-2.0 WITH LLVM-exception) is used to provide runtime libgcc-like
 routines.
 
-- [0BSD Freestanding C Headers](https://github.com/osdev0/freestnd-c-hdrs-0bsd)
+- [0BSD Freestanding C Headers](https://codeberg.org/osdev/freestnd-c-hdrs-0bsd)
 (0BSD) provide GCC and Clang compatible freestanding C headers.
 
-- [Nyu-EFI](https://github.com/osdev0/nyu-efi) (multiple licenses, see list
+- [Nyu-EFI](https://codeberg.org/osdev/nyu-efi) (multiple licenses, see list
 below) provides headers and build-time support for UEFI.
     - BSD-2-Clause
     - BSD-2-Clause-Patent
@@ -48,7 +48,7 @@ below) provides headers and build-time support for UEFI.
 - [tinf](https://github.com/jibsen/tinf) (Zlib) is used in early x86 BIOS
 stages for GZIP decompression of stage2.
 
-- [Flanterm](https://github.com/mintsuki/flanterm) (BSD-2-Clause) is used for
+- [Flanterm](https://codeberg.org/mintsuki/flanterm) (BSD-2-Clause) is used for
 text related screen drawing.
 
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) (MIT) is

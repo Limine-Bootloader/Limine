@@ -71,23 +71,22 @@ download_by_hash() {
 
 if ! test -f version; then
     clone_repo_commit \
-        https://github.com/osdev0/freestnd-c-hdrs-0bsd.git \
+        https://codeberg.org/osdev/freestnd-c-hdrs-0bsd.git \
         freestnd-c-hdrs \
         a87c192f3eb66b0806740dc67325f9ad23fc2d0b
 
     clone_repo_commit \
-        https://github.com/osdev0/cc-runtime.git \
+        https://codeberg.org/osdev/cc-runtime.git \
         cc-runtime \
         576a01179f3298a4795b92f42c088f9f8800b56b
 
-    download_by_hash \
-        https://github.com/osdev0/freestanding-toolchain/raw/b285931385edc926decab5c69934af5c045bd2dd/freestanding-toolchain \
+    clone_repo_commit \
+        https://codeberg.org/osdev/freestanding-toolchain.git \
         build-aux/freestanding-toolchain \
-        b280df87c6db0f6ca1dd0a48579e694b403cb0fc77cf6df1e2ddbe69a134b405
-    chmod +x build-aux/freestanding-toolchain
+        b285931385edc926decab5c69934af5c045bd2dd
 
     clone_repo_commit \
-        https://github.com/osdev0/nyu-efi.git \
+        https://codeberg.org/osdev/nyu-efi.git \
         nyu-efi \
         2263ac1a2bc98e5534d64a4896d3cfbbae00745a
 
@@ -101,7 +100,7 @@ if ! test -f version; then
     rm -f decompressor/tinf/*.orig
 
     clone_repo_commit \
-        https://github.com/mintsuki/flanterm.git \
+        https://codeberg.org/mintsuki/flanterm.git \
         common/flanterm \
         201100c968ad6db4f38632f9b6c3544854897788
 
