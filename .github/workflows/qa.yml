@@ -6,7 +6,13 @@ jobs:
   spellcheck:
     name: Spellcheck
     runs-on: ubuntu-latest
+    container: archlinux:latest
     steps:
-      - uses: actions/checkout@v4
-      # Executes "typos ."
-      - uses: crate-ci/typos@v1
+      - name: Install dependencies
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S git typos
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run spellchecker
+        run: typos
