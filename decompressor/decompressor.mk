@@ -3,8 +3,6 @@ MAKEFLAGS += -rR
 
 include $(TOOLCHAIN_FILE)
 
-override SRCDIR := $(shell pwd -P)
-
 override SPACE := $(subst ,, )
 
 override MKESCAPE = $(subst $(SPACE),\ ,$(1))
@@ -64,17 +62,7 @@ override HEADER_DEPS := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=
 .PHONY: all
 all: $(call MKESCAPE,$(BUILDDIR))/decompressor.bin
 
-$(call MKESCAPE,$(BUILDDIR))/cc-runtime/cc-runtime.a: ../cc-runtime/*
-	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))/cc-runtime'
-	cp -r ../cc-runtime '$(call SHESCAPE,$(BUILDDIR))/'
-	$(MAKE) -C '$(call SHESCAPE,$(BUILDDIR))/cc-runtime' -f cc-runtime.mk \
-		CC="$(CC_FOR_TARGET)" \
-		AR="$(AR_FOR_TARGET)" \
-		CFLAGS="$(CFLAGS_FOR_TARGET)" \
-		CPPFLAGS='-isystem $(call SHESCAPE,$(SRCDIR))/../freestnd-c-hdrs -DCC_RUNTIME_NO_FLOAT'
-
-$(call MKESCAPE,$(BUILDDIR))/decompressor.bin: $(OBJ) $(call MKESCAPE,$(BUILDDIR))/cc-runtime/cc-runtime.a
+$(call MKESCAPE,$(BUILDDIR))/decompressor.bin: $(OBJ)
 	$(LD_FOR_TARGET) '$(call OBJESCAPE,$^)' $(LDFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$(BUILDDIR))/decompressor.elf'
 	$(OBJCOPY_FOR_TARGET) -O binary '$(call SHESCAPE,$(BUILDDIR))/decompressor.elf' '$(call SHESCAPE,$@)'
 

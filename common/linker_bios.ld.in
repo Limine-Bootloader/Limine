@@ -18,12 +18,10 @@ SECTIONS
     .text.stage2 : {
         *(.entry)
         *(.realmode)
-        *cc-runtime.a:*(.text .text.*)
         *.s2.o(.text .text.*)
     } :text_s2
 
     .rodata.stage2 : {
-        *cc-runtime.a:*(.rodata .rodata.*)
         *.s2.o(.rodata .rodata.*)
 
         build_id_s2 = .;
@@ -57,7 +55,6 @@ SECTIONS
 
     .data.stage2 : {
         s2_data_begin = .;
-        *cc-runtime.a:*(.data .data.*)
         *.s2.o(.data .data.*)
         s2_data_end = .;
 
