@@ -1,3 +1,16 @@
+2025-04-12  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.2.3 ***
+
+    Noteworthy changes compared to the previous release, 9.2.2:
+
+    Bug fixes:
+        - Fix issues introduced by the stb_image fix introduced in 9.2.1 which
+          could cause hangs or crashes when certain wallpaper images are used.
+
+    Miscellaneous:
+        - Update cc-runtime to new, integer-only, packed version.
+
 2025-03-31  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.2.2 ***
