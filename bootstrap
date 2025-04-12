@@ -90,7 +90,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/osdev/nyu-efi.git \
         nyu-efi \
-        2263ac1a2bc98e5534d64a4896d3cfbbae00745a
+        b3d97edd1446ca795ac86bc16829c4626f66f575
 
     clone_repo_commit \
         https://github.com/jibsen/tinf.git \
