@@ -60,6 +60,18 @@ char *strncpy(char *dest, const char *src, size_t n) {
     return dest;
 }
 
+char *strcat(char *dest, const char *src) {
+    size_t len;
+    size_t i;
+
+    for (len = strlen(dest), i = 0; src[i]; i++)
+        dest[len + i] = src[i];
+
+    dest[len + i] = 0;
+
+    return dest;
+}
+
 int strcmp(const char *s1, const char *s2) {
     for (size_t i = 0; ; i++) {
         char c1 = s1[i], c2 = s2[i];
