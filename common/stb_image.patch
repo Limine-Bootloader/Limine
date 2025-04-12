@@ -35,7 +35,7 @@
 +    void *STBI_REALLOC_buf = (x); \
 +    size_t STBI_REALLOC_alloc_size = (y); \
 +    void *STBI_REALLOC_new_buf = STBI_MALLOC(STBI_REALLOC_alloc_size); \
-+    size_t STBI_REALLOC_old_size = *(size_t *)((void *)STBI_REALLOC_buf - 16); \
++    size_t STBI_REALLOC_old_size = (*(size_t *)((void *)STBI_REALLOC_buf - 16)) - 16; \
 +    if (STBI_REALLOC_buf != NULL) { \
 +        memcpy(STBI_REALLOC_new_buf, STBI_REALLOC_buf, \
 +               MIN(STBI_REALLOC_alloc_size, STBI_REALLOC_old_size)); \
