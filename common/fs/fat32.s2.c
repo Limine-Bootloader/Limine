@@ -85,6 +85,11 @@ struct fat32_directory_entry {
     uint32_t file_size_bytes;
 } __attribute__((packed));
 
+struct fat32_directory_handle {
+    struct fat32_context context;
+    struct fat32_directory_entry entry;
+};
+
 struct fat32_lfn_entry {
     uint8_t sequence_number;
     char name1[10];
@@ -453,6 +458,7 @@ char *fat32_get_label(struct volume *part) {
 
 static void fat32_read(struct file_handle *handle, void *buf, uint64_t loc, uint64_t count);
 static void fat32_close(struct file_handle *file);
+static struct dir_entry *fat32_readdir(struct file_handle *file, size_t *out_size);
 
 struct file_handle *fat32_open(struct volume *part, const char *path) {
     struct fat32_context context;
@@ -515,6 +521,22 @@ struct file_handle *fat32_open(struct volume *part, const char *path) {
         if (expect_directory) {
             _current_directory = current_file;
             current_directory = &_current_directory;
+
+            if (path[current_index] == 0) {
+                struct file_handle *handle = ext_mem_alloc(sizeof(struct file_handle));
+                struct fat32_directory_handle *ret = ext_mem_alloc(sizeof(struct fat32_directory_handle));
+
+                ret->context = context;
+                ret->entry = _current_directory;
+
+                handle->fd = (void *)ret;
+                handle->readdir = (void *)fat32_readdir;
+                handle->vol = part;
+#if defined (UEFI)
+                handle->efi_part_handle = part->efi_part_handle;
+#endif
+                return handle;
+            }
         } else {
             struct file_handle *handle = ext_mem_alloc(sizeof(struct file_handle));
             struct fat32_file_handle *ret = ext_mem_alloc(sizeof(struct fat32_file_handle));
@@ -550,4 +572,118 @@ static void fat32_close(struct file_handle *file) {
     struct fat32_file_handle *f = file->fd;
     pmm_free(f->cluster_chain, f->chain_len * sizeof(uint32_t));
     pmm_free(f, sizeof(struct fat32_file_handle));
+}
+
+static struct dir_entry *fat32_readdir(struct file_handle *file, size_t *out_size) {
+    if (!file)
+        return NULL;
+
+    struct fat32_directory_handle *d = file->fd;
+    uint32_t current_cluster_number = d->entry.cluster_num_low;
+    if (d->context.type == 32)
+        current_cluster_number |= (uint32_t)d->entry.cluster_num_high << 16;
+
+    size_t dir_chain_len = 0;
+    uint32_t *directory_cluster_chain = cache_cluster_chain(&d->context, current_cluster_number, &dir_chain_len);
+
+    if (directory_cluster_chain == NULL)
+        return NULL;
+
+    struct fat32_directory_entry *directory_entries;
+    size_t block_size = d->context.sectors_per_cluster * d->context.bytes_per_sector;
+    directory_entries = ext_mem_alloc(dir_chain_len * block_size);
+    read_cluster_chain(&d->context, directory_cluster_chain, directory_entries, 0, dir_chain_len * block_size);
+    char current_lfn[FAT32_LFN_MAX_FILENAME_LENGTH] = {0};
+
+    const size_t num_entries = (dir_chain_len * block_size) / sizeof(struct fat32_directory_entry);
+    struct dir_entry *buffer = ext_mem_alloc(num_entries * sizeof(struct dir_entry));
+    size_t buffer_idx = 0;
+
+    for (size_t i = 0; i < num_entries; i++) {
+        if (directory_entries[i].file_name_and_ext[0] == 0x00) {
+            // no more entries here
+            break;
+        }
+
+        if (directory_entries[i].attribute == FAT32_LFN_ATTRIBUTE) {
+            struct fat32_lfn_entry* lfn = (struct fat32_lfn_entry*) &directory_entries[i];
+
+            if (lfn->sequence_number & 0b01000000) {
+                // this lfn is the first entry in the table, clear the lfn buffer
+                memset(current_lfn, ' ', sizeof(current_lfn));
+            }
+
+            const unsigned int lfn_index = ((lfn->sequence_number & 0b00011111) - 1U) * 13U;
+            if (lfn_index >= FAT32_LFN_MAX_ENTRIES * 13) {
+                continue;
+            }
+
+            fat32_lfncpy(current_lfn + lfn_index + 00, lfn->name1, 5);
+            fat32_lfncpy(current_lfn + lfn_index + 05, lfn->name2, 6);
+            fat32_lfncpy(current_lfn + lfn_index + 11, lfn->name3, 2);
+
+            if (lfn_index != 0)
+                continue;
+
+            // Remove trailing spaces.
+            for (int j = SIZEOF_ARRAY(current_lfn) - 2; j >= -1; j--) {
+                if (j == -1 || current_lfn[j] != ' ') {
+                    current_lfn[j + 1] = 0;
+                    break;
+                }
+            }
+
+            continue;
+        }
+
+        if (directory_entries[i].attribute & (1 << 3)) {
+            // It is a volume label, skip
+            continue;
+        }
+
+        if (i > 0 && directory_entries[i - 1].attribute == FAT32_LFN_ATTRIBUTE) {
+            memcpy(buffer[buffer_idx].name, current_lfn, sizeof(current_lfn));
+        } else {
+            // SFN
+            char sfn[8 + 1 + 3 + 1]; // 8 + '.' + 3 + NUL
+            size_t sfn_idx = 8;
+            memcpy(sfn, directory_entries[i].file_name_and_ext, 8);
+            // Remove trailing spaces.
+            for (int j = 7; j >= 0; j--) {
+                if (sfn[j] == ' ') {
+                    sfn[j] = 0;
+                    sfn_idx = j;
+                    continue;
+                }
+                break;
+            }
+            // Check if we have a filename extension.
+            if (directory_entries[i].file_name_and_ext[8] != ' ') {
+                sfn[sfn_idx++] = '.';
+                memcpy(sfn + sfn_idx, directory_entries[i].file_name_and_ext + 8, 3);
+                for (int j = 2; j >= 0; j--) {
+                    if (sfn[sfn_idx + j] == ' ') {
+                        sfn[sfn_idx + j] = 0;
+                        continue;
+                    }
+                    break;
+                }
+            }
+            memcpy(buffer[buffer_idx].name, sfn, sizeof(sfn));
+        }
+
+        if (directory_entries[i].attribute == FAT32_ATTRIBUTE_SUBDIRECTORY) {
+            buffer[buffer_idx].type = DIR_ENTRY_TYPE_DIRECTORY;
+        } else {
+            buffer[buffer_idx].type = DIR_ENTRY_TYPE_FILE;
+        }
+
+        buffer_idx++;
+    }
+
+    pmm_free(directory_cluster_chain, dir_chain_len * sizeof(uint32_t));
+
+    *out_size = buffer_idx;
+
+    return buffer;
 }
