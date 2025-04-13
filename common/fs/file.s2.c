@@ -86,6 +86,14 @@ void fread(struct file_handle *fd, void *buf, uint64_t loc, uint64_t count) {
     }
 }
 
+struct dir_entry *freaddir(struct file_handle *fd, size_t *out_size) {
+    if (!fd || !fd->readdir) {
+        return NULL;
+    }
+
+    return fd->readdir(fd, out_size);
+}
+
 void *freadall(struct file_handle *fd, uint32_t type) {
     return freadall_mode(fd, type, false
 #if defined (__i386__)

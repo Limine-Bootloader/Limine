@@ -28,7 +28,11 @@ no_unwind bool bad_config = false;
 static char *config_addr;
 
 int init_config_disk(struct volume *part) {
-    struct file_handle *f;
+    struct file_handle *f;      // The config file
+    struct file_handle *dir;    // The limine.d directory
+    struct file_handle **files; // Files inside the limine.d directory
+    size_t num_files = 0;       // Amount of files inside limine.d
+    size_t config_size = 0;
 
     bool old_cif = case_insensitive_fopen;
     case_insensitive_fopen = true;
@@ -49,11 +53,62 @@ int init_config_disk(struct volume *part) {
 
 opened:
     case_insensitive_fopen = old_cif;
+    config_size = f->size + 2;
 
-    size_t config_size = f->size + 2;
+    // Get the path of the loaded config file so we can get limine.d/ from the same directory.
+    char* loaded_dir = ext_mem_alloc(f->path_len);
+    memcpy(loaded_dir, f->path, f->path_len);
+    for (int i = f->path_len; i >= 0; i--) {
+        if (loaded_dir[i] == '/') {
+            memcpy(loaded_dir + i, "/limine.d/", 11);
+            break;
+        }
+    }
+
+    // Open the directory and get the amount of memory we need to allocate.
+    if ((dir = fopen(part, loaded_dir)) != NULL) {
+        size_t num_entries;
+        struct dir_entry *dir_entries = freaddir(dir, &num_entries);
+        files = ext_mem_alloc(num_entries * sizeof(struct file_handle *));
+        for (size_t i = 0; i < num_entries; i++) {
+            if (dir_entries[i].type == DIR_ENTRY_TYPE_FILE) {
+                // Build an absolute path.
+                char *file_path = ext_mem_alloc(strlen(loaded_dir) + strlen(dir_entries[i].name));
+                memcpy(file_path, loaded_dir, strlen(loaded_dir));
+                memcpy(file_path + strlen(loaded_dir), dir_entries[i].name, strlen(dir_entries[i].name));
+
+                struct file_handle *entry = fopen(part, file_path);
+                if (entry) {
+                    config_size += entry->size;
+                    files[num_files++] = entry;
+                }
+            }
+        }
+    }
+
     config_addr = ext_mem_alloc(config_size);
 
+    // Read the main config file.
     fread(f, config_addr, 0, f->size);
+    size_t config_cursor = f->size;
+
+    // Sort all files by name in ascending order.
+    struct file_handle* temp = NULL;
+    for (size_t i = 1; i < num_files; i++) {
+        for (size_t j = 0; j < num_files - i; j++) {
+            if (strcmp(files[j]->path, files[j + 1]->path) > 0) {
+                temp = files[j];
+                files[j] = files[j + 1];
+                files[j + 1] = temp;
+            }
+        }
+    }
+
+    // Concatenate all limine.d files.
+    for (size_t i = 0; i < num_files; i++) {
+        fread(files[i], config_addr + config_cursor, 0, files[i]->size);
+        config_cursor += files[i]->size;
+    }
 
     fclose(f);
 
