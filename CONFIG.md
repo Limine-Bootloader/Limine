@@ -25,6 +25,13 @@ candidates in subsequent partitions or directories are ignored.
 It is thus imperative that the intended config file is placed in a location
 that will not be shadowed by another candidate config file.
 
+## Split config files
+
+Limine allows loading multiple additional config file snippets from a directory
+named `limine.d/`. All files in that directory will be appended to
+`limine.conf`, sorted by their file name in ascending order.
+`limine.d/` has to be located in the same directory as `limine.conf`.
+
 ## Structure of the config file
 
 The Limine configuration file is comprised of *menu entries* and *options*.
