@@ -22,6 +22,9 @@
 *.dtb
 *~
 
+# Keep limine.d, since the .d conflicts with the '*.d' rule
+!test/limine.d
+
 /bin
 /build
 /toolchain-files
