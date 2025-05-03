@@ -36,7 +36,7 @@ ovmf-loongarch64:
 test.hdd:
 	rm -f test.hdd
 	dd if=/dev/zero bs=1M count=0 seek=64 of=test.hdd
-	PATH=$$PATH:/usr/sbin:/sbin parted -s test.hdd mklabel gpt
+	PATH=$$PATH:/usr/sbin:/sbin parted -s test.hdd mklabel msdos
 	PATH=$$PATH:/usr/sbin:/sbin parted -s test.hdd mkpart primary 2048s 100%
 
 .PHONY: mbrtest.hdd
