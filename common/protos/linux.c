@@ -368,8 +368,13 @@ noreturn void linux_load(char *config, char *cmdline) {
                 MEMMAP_BOOTLOADER_RECLAIMABLE, MEMMAP_USABLE, false, false, false))
             break;
 
+        if (kernel_load_addr == 0xfff00000) {
+            panic(true, "linux: Failed to allocate memory for kernel");
+        }
+
         kernel_load_addr += 0x100000;
     }
+
     fread(kernel_file, (void *)kernel_load_addr, real_mode_code_size, kernel_file->size - real_mode_code_size);
 
     fclose(kernel_file);
@@ -378,9 +383,12 @@ noreturn void linux_load(char *config, char *cmdline) {
     // Modules
     ///////////////////////////////////////
 
-    uint32_t modules_mem_base = setup_header->initrd_addr_max;
-    if (modules_mem_base == 0)
+    uint32_t modules_mem_base;
+    if (setup_header->version <= 0x202 || setup_header->initrd_addr_max == 0)
         modules_mem_base = 0x38000000;
+    } else {
+        modules_mem_base = setup_header->initrd_addr_max + 1;
+    }
 
     size_t size_of_all_modules = 0;
 
@@ -399,13 +407,18 @@ noreturn void linux_load(char *config, char *cmdline) {
     }
 
     modules_mem_base -= size_of_all_modules;
-    modules_mem_base = ALIGN_DOWN(modules_mem_base, 4096);
+    modules_mem_base = ALIGN_DOWN(modules_mem_base, 0x100000);
 
     for (;;) {
-        if (memmap_alloc_range(modules_mem_base, ALIGN_UP(size_of_all_modules, 4096),
+        if (modules_mem_base < 0x100000) {
+            panic(true, "linux: Failed to allocate memory for modules");
+        }
+
+        if (memmap_alloc_range(modules_mem_base, ALIGN_UP(size_of_all_modules, 0x100000),
                                MEMMAP_BOOTLOADER_RECLAIMABLE, MEMMAP_USABLE, false, false, false))
             break;
-        modules_mem_base -= 4096;
+
+        modules_mem_base -= 0x100000;
     }
 
     size_t _modules_mem_base = modules_mem_base;
