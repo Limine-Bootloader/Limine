@@ -384,7 +384,7 @@ noreturn void linux_load(char *config, char *cmdline) {
     ///////////////////////////////////////
 
     uint32_t modules_mem_base;
-    if (setup_header->version <= 0x202 || setup_header->initrd_addr_max == 0)
+    if (setup_header->version <= 0x202 || setup_header->initrd_addr_max == 0) {
         modules_mem_base = 0x38000000;
     } else {
         modules_mem_base = setup_header->initrd_addr_max + 1;
