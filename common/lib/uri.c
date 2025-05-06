@@ -206,6 +206,10 @@ static struct file_handle *uri_boot_dispatch(char *s_part, char *path) {
     return fopen(volume, path);
 }
 
+#if defined (UEFI) && defined (__x86_64__)
+bool uri_open_allow_high = false;
+#endif
+
 struct file_handle *uri_open(char *uri) {
     struct file_handle *ret;
 
@@ -238,7 +242,12 @@ struct file_handle *uri_open(char *uri) {
 
     if (hash != NULL && ret != NULL) {
         uint8_t out_buf[BLAKE2B_OUT_BYTES];
+#if defined (UEFI) && defined (__x86_64__)
+        void *file_buf = freadall_mode(ret, MEMMAP_BOOTLOADER_RECLAIMABLE, uri_open_allow_high);
+        uri_open_allow_high = false;
+#else
         void *file_buf = freadall(ret, MEMMAP_BOOTLOADER_RECLAIMABLE);
+#endif
         blake2b(out_buf, file_buf, ret->size);
         uint8_t hash_buf[BLAKE2B_OUT_BYTES];
 

@@ -21,6 +21,9 @@
 #include <drivers/gop.h>
 
 noreturn void linux_spinup(void *entry, void *boot_params);
+#if defined (UEFI) && defined (__x86_64__)
+    noreturn void linux_spinup64(void *entry, void *boot_params);
+#endif
 
 // The following definitions and struct were copied and adapted from Linux
 // kernel headers released under GPL-2.0 WITH Linux-syscall-note
@@ -382,14 +385,6 @@ noreturn void linux_load(char *config, char *cmdline) {
     ///////////////////////////////////////
     // Modules
     ///////////////////////////////////////
-
-    uint32_t modules_mem_base;
-    if (setup_header->version <= 0x202 || setup_header->initrd_addr_max == 0) {
-        modules_mem_base = 0x38000000;
-    } else {
-        modules_mem_base = setup_header->initrd_addr_max + 1;
-    }
-
     size_t size_of_all_modules = 0;
 
     for (size_t i = 0; ; i++) {
@@ -398,12 +393,33 @@ noreturn void linux_load(char *config, char *cmdline) {
             break;
 
         struct file_handle *module;
+#if defined (UEFI) && defined (__x86_64__)
+        uri_open_allow_high = true;
+#endif
         if ((module = uri_open(module_path)) == NULL)
             panic(true, "linux: Failed to open module with path `%s`. Is the path correct?", module_path);
 
         size_of_all_modules += module->size;
 
         fclose(module);
+    }
+
+    uintptr_t modules_mem_base;
+
+#if defined (UEFI) && defined (__x86_64__)
+    if ((setup_header->xloadflags & 3) == 3) {
+        modules_mem_base = (uintptr_t)ext_mem_alloc_type_aligned_mode(
+            size_of_all_modules,
+            MEMMAP_BOOTLOADER_RECLAIMABLE,
+            0x100000,
+            true
+        );
+    } else {
+#endif
+    if (setup_header->version <= 0x202 || setup_header->initrd_addr_max == 0) {
+        modules_mem_base = 0x38000000;
+    } else {
+        modules_mem_base = setup_header->initrd_addr_max + 1;
     }
 
     modules_mem_base -= size_of_all_modules;
@@ -420,8 +436,11 @@ noreturn void linux_load(char *config, char *cmdline) {
 
         modules_mem_base -= 0x100000;
     }
+#if defined (UEFI) && defined (__x86_64__)
+    }
+#endif
 
-    size_t _modules_mem_base = modules_mem_base;
+    uintptr_t _modules_mem_base = modules_mem_base;
     for (size_t i = 0; ; i++) {
         char *module_path = config_get_value(config, i, "MODULE_PATH");
         if (module_path == NULL)
@@ -430,17 +449,29 @@ noreturn void linux_load(char *config, char *cmdline) {
         print("linux: Loading module `%#`...\n", module_path);
 
         struct file_handle *module;
+
+#if defined (UEFI) && defined (__x86_64__)
+        uri_open_allow_high = true;
+#endif
         if ((module = uri_open(module_path)) == NULL)
             panic(true, "linux: Could not open `%#`", module_path);
 
         fread(module, (void *)_modules_mem_base, 0, module->size);
 
         _modules_mem_base += module->size;
+
+        fclose(module);
     }
 
     if (size_of_all_modules != 0) {
         setup_header->ramdisk_image = (uint32_t)modules_mem_base;
-        setup_header->ramdisk_size  = (uint32_t)size_of_all_modules;
+#if defined (UEFI) && defined (__x86_64__)
+        boot_params->ext_ramdisk_image = (uint32_t)(modules_mem_base >> 32);
+#endif
+        setup_header->ramdisk_size = (uint32_t)size_of_all_modules;
+#if defined (UEFI) && defined (__x86_64__)
+        boot_params->ext_ramdisk_size = (uint32_t)(size_of_all_modules >> 32);
+#endif
     }
 
     ///////////////////////////////////////
@@ -571,6 +602,13 @@ no_fb:;
     ///////////////////////////////////////
 
     irq_flush_type = IRQ_PIC_ONLY_FLUSH;
+
+#if defined (UEFI) && defined (__x86_64__)
+    if ((setup_header->xloadflags & 3) == 3) {
+        flush_irqs();
+        linux_spinup64((void *)kernel_load_addr + 0x200, boot_params);
+    }
+#endif
 
     common_spinup(linux_spinup, 2, (uint32_t)kernel_load_addr,
                                    (uint32_t)(uintptr_t)boot_params);

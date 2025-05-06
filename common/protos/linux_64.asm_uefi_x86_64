@@ -1,0 +1,62 @@
+section .data
+
+align 16
+linux_gdt64:
+    dq 0
+
+    dq 0
+
+    dw 0xffff
+    dw 0x0000
+    db 0x00
+    db 10011011b
+    db 10101111b
+    db 0x00
+
+    dw 0xffff
+    dw 0x0000
+    db 0x00
+    db 10010011b
+    db 10001111b
+    db 0x00
+
+  .end:
+
+align 16
+linux_gdt64_ptr:
+    dw (linux_gdt64.end - linux_gdt64) - 1
+    dq linux_gdt64
+
+section .text
+
+bits 64
+
+global linux_spinup64
+linux_spinup64:
+    cli
+    cld
+
+    lgdt [rel linux_gdt64_ptr]
+
+    lea rbx, [rel .fj]
+    push 0x10
+    push rbx
+    retfq
+
+  .fj:
+    mov eax, 0x18
+    mov ds, eax
+    mov es, eax
+    mov fs, eax
+    mov gs, eax
+    mov ss, eax
+
+    mov rax, rdi
+
+    xor ebp, ebp
+    xor edi, edi
+    xor ebx, ebx
+
+    jmp rax
+
+section .note.GNU-stack noalloc noexec nowrite progbits
