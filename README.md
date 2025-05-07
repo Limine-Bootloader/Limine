@@ -77,9 +77,9 @@ For example, to clone the latest binary release of the `9.x` branch, one can do:
 ```bash
 git clone https://github.com/limine-bootloader/limine.git --branch=v9.x-binary --depth=1
 ```
-or, to clone a specific binary point release (for example `9.2.3`):
+or, to clone a specific binary point release (for example `9.3.0`):
 ```bash
-git clone https://github.com/limine-bootloader/limine.git --branch=v9.2.3-binary --depth=1
+git clone https://github.com/limine-bootloader/limine.git --branch=v9.3.0-binary --depth=1
 ```
 
 In order to rebuild host utilities like `limine`, simply run `make` in the binary

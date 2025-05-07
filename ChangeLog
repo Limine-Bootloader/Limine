@@ -1,3 +1,25 @@
+2025-05-07  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.3.0 ***
+
+    Noteworthy changes compared to the previous release, 9.2.3:
+
+    New features:
+        - Add optional support for the 64-bit x86-64 boot protocol for Linux.
+          This is supported on the UEFI/x86-64 port of Limine, and it is
+          preferred over the 32-bit boot protocol if supported by the given
+          kernel. This helps with loading larger modules on certain systems
+          with low amounts of low memory which would otherwise panic.
+
+    Bug fixes:
+        - Fix away some ungraceful handling of out-of-memory situations when
+          loading files using the Linux boot protocol. Make into panics instead
+          of crashes or hangs.
+
+    Miscellaneous:
+        - Improve performance and memory usage of loading modules for the Linux
+          boot protocol.
+
 2025-04-12  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.2.3 ***
