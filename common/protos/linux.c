@@ -393,9 +393,6 @@ noreturn void linux_load(char *config, char *cmdline) {
             break;
 
         struct file_handle *module;
-#if defined (UEFI) && defined (__x86_64__)
-        uri_open_allow_high = true;
-#endif
         if ((module = uri_open(module_path)) == NULL)
             panic(true, "linux: Failed to open module with path `%s`. Is the path correct?", module_path);
 
@@ -450,9 +447,6 @@ noreturn void linux_load(char *config, char *cmdline) {
 
         struct file_handle *module;
 
-#if defined (UEFI) && defined (__x86_64__)
-        uri_open_allow_high = true;
-#endif
         if ((module = uri_open(module_path)) == NULL)
             panic(true, "linux: Could not open `%#`", module_path);
 

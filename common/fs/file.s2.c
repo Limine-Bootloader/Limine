@@ -117,7 +117,18 @@ void *freadall_mode(struct file_handle *fd, uint32_t type, bool allow_high_alloc
 #endif
             return fd->fd;
         }
+#if defined (UEFI) && defined (__x86_64__)
+        if (!allow_high_allocs && (uintptr_t)fd->fd >= 0x100000000) {
+            void *newptr = ext_mem_alloc_type(fd->size, type);
+            memcpy(newptr, fd->fd, fd->size);
+            pmm_free(fd->fd, fd->size);
+            fd->fd = newptr;
+        } else {
+#endif
         memmap_alloc_range((uint64_t)(size_t)fd->fd, ALIGN_UP(fd->size, 4096), type, 0, true, false, false);
+#if defined (UEFI) && defined (__x86_64__)
+        }
+#endif
         fd->readall = true;
 #if defined (__i386__)
         if (allow_high_allocs == true) {
