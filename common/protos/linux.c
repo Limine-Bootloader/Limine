@@ -387,10 +387,21 @@ noreturn void linux_load(char *config, char *cmdline) {
     ///////////////////////////////////////
     size_t size_of_all_modules = 0;
 
+    size_t module_count;
+    for (module_count = 0; ; module_count++) {
+        char *module_path = config_get_value(config, module_count, "MODULE_PATH");
+        if (module_path == NULL)
+            break;
+    }
+
+    struct file_handle **modules = ext_mem_alloc(module_count * sizeof(struct file_handle *));
+
     for (size_t i = 0; ; i++) {
         char *module_path = config_get_value(config, i, "MODULE_PATH");
         if (module_path == NULL)
             break;
+
+        print("linux: Loading module `%#`...\n", module_path);
 
         struct file_handle *module;
         if ((module = uri_open(module_path)) == NULL)
@@ -398,7 +409,7 @@ noreturn void linux_load(char *config, char *cmdline) {
 
         size_of_all_modules += module->size;
 
-        fclose(module);
+        modules[i] = module;
     }
 
     uintptr_t modules_mem_base;
@@ -443,19 +454,14 @@ noreturn void linux_load(char *config, char *cmdline) {
         if (module_path == NULL)
             break;
 
-        print("linux: Loading module `%#`...\n", module_path);
+        fread(modules[i], (void *)_modules_mem_base, 0, modules[i]->size);
 
-        struct file_handle *module;
+        _modules_mem_base += modules[i]->size;
 
-        if ((module = uri_open(module_path)) == NULL)
-            panic(true, "linux: Could not open `%#`", module_path);
-
-        fread(module, (void *)_modules_mem_base, 0, module->size);
-
-        _modules_mem_base += module->size;
-
-        fclose(module);
+        fclose(modules[i]);
     }
+
+    pmm_free(modules, module_count * sizeof(struct file_handle *));
 
     if (size_of_all_modules != 0) {
         setup_header->ramdisk_image = (uint32_t)modules_mem_base;
