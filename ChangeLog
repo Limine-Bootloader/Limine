@@ -1,3 +1,14 @@
+2025-05-15  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.3.1 ***
+
+    Noteworthy changes compared to the previous release, 9.3.0:
+
+    Bug fixes:
+        - Remove .git directory mistakenly left over inside release tarballs.
+        - Fix bug that would lead to panics when booting Linux protocol kernels
+          without modules on x86.
+
 2025-05-07  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.3.0 ***
