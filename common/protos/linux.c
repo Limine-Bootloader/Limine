@@ -394,6 +394,10 @@ noreturn void linux_load(char *config, char *cmdline) {
             break;
     }
 
+    if (module_count == 0) {
+        goto no_modules;
+    }
+
     struct file_handle **modules = ext_mem_alloc(module_count * sizeof(struct file_handle *));
 
     for (size_t i = 0; ; i++) {
@@ -463,16 +467,16 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     pmm_free(modules, module_count * sizeof(struct file_handle *));
 
-    if (size_of_all_modules != 0) {
-        setup_header->ramdisk_image = (uint32_t)modules_mem_base;
+    setup_header->ramdisk_image = (uint32_t)modules_mem_base;
 #if defined (UEFI) && defined (__x86_64__)
-        boot_params->ext_ramdisk_image = (uint32_t)(modules_mem_base >> 32);
+    boot_params->ext_ramdisk_image = (uint32_t)(modules_mem_base >> 32);
 #endif
-        setup_header->ramdisk_size = (uint32_t)size_of_all_modules;
+    setup_header->ramdisk_size = (uint32_t)size_of_all_modules;
 #if defined (UEFI) && defined (__x86_64__)
-        boot_params->ext_ramdisk_size = (uint32_t)(size_of_all_modules >> 32);
+    boot_params->ext_ramdisk_size = (uint32_t)(size_of_all_modules >> 32);
 #endif
-    }
+
+no_modules:;
 
     ///////////////////////////////////////
     // Video
