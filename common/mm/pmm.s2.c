@@ -481,6 +481,7 @@ static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count) {
             switch (entry->Type) {
                 case EfiBootServicesCode:
                 case EfiBootServicesData:
+                    our_type = MEMMAP_BOOTLOADER_RECLAIMABLE; break;
                 case EfiConventionalMemory:
                     our_type = MEMMAP_USABLE; break;
                 case EfiACPIReclaimMemory:
