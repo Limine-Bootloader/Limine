@@ -231,7 +231,7 @@ del_mm1:
 }
 
 #if defined (UEFI)
-static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count);
+static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool raw);
 #endif
 
 struct memmap_entry *get_memmap(size_t *entries) {
@@ -240,7 +240,7 @@ struct memmap_entry *get_memmap(size_t *entries) {
         panic(true, "get_memmap called whilst in boot services");
     }
 
-    pmm_reclaim_uefi_mem(memmap, &memmap_entries);
+    pmm_reclaim_uefi_mem(memmap, &memmap_entries, false);
 #endif
 
     pmm_sanitise_entries(memmap, &memmap_entries, true);
@@ -431,7 +431,7 @@ fail:
     panic(false, "pmm: Failure initialising memory map");
 }
 
-static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count) {
+static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool raw) {
     size_t count = *_count;
 
     size_t recl_i = 0;
@@ -481,7 +481,12 @@ static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count) {
             switch (entry->Type) {
                 case EfiBootServicesCode:
                 case EfiBootServicesData:
-                    our_type = MEMMAP_BOOTLOADER_RECLAIMABLE; break;
+                    if (raw) {
+                        our_type = MEMMAP_USABLE;
+                    } else {
+                        our_type = MEMMAP_BOOTLOADER_RECLAIMABLE;
+                    }
+                    break;
                 case EfiConventionalMemory:
                     our_type = MEMMAP_USABLE; break;
                 case EfiACPIReclaimMemory:
@@ -538,7 +543,7 @@ struct memmap_entry *get_raw_memmap(size_t *entry_count) {
 
     bool old_skfp = pmm_sanitiser_keep_first_page;
     pmm_sanitiser_keep_first_page = true;
-    pmm_reclaim_uefi_mem(untouched_memmap, &untouched_memmap_entries);
+    pmm_reclaim_uefi_mem(untouched_memmap, &untouched_memmap_entries, true);
     pmm_sanitiser_keep_first_page = old_skfp;
 
     *entry_count = untouched_memmap_entries;
