@@ -1,3 +1,16 @@
+2025-05-19  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.3.2 ***
+
+    Noteworthy changes compared to the previous release, 9.3.1:
+
+    Bug fixes:
+        - PMM: Mark EfiBootServices{Code,Data} memory regions as bootloader
+          reclaimable instead of usable free memory as apparently the ACPI
+          and UEFI specifications make no guarantees about useful structures
+          being left in these areas after leaving boot services (namely BGRT
+          and ESRT).
+
 2025-05-15  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.3.1 ***
