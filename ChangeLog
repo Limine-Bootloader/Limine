@@ -1,3 +1,13 @@
+2025-05-27  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.3.3 ***
+
+    Noteworthy changes compared to the previous release, 9.3.2:
+
+    Bug fixes:
+        - Reinstate the limit for scanned drives to 0xf0. This is due to a
+          report of int 13h hangs when used on drives >=0xf0.
+
 2025-05-19  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.3.2 ***
