@@ -245,7 +245,7 @@ void disk_create_index(void) {
 
     int optical_indices = 1, hdd_indices = 1, consumed_bda_disks = 0;
 
-    for (uint8_t drive = 0x80; drive != 0 /* overflow */; drive++) {
+    for (uint8_t drive = 0x80; drive < 0xf0; drive++) {
         struct rm_regs r = {0};
         struct bios_drive_params drive_params;
 
