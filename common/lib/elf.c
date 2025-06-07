@@ -877,7 +877,9 @@ again:
 
         memcpy((void *)(uintptr_t)load_addr, elf + (phdr->p_offset), phdr->p_filesz);
 
-        bss_size = phdr->p_memsz - phdr->p_filesz;
+        if (phdr->p_vaddr + phdr->p_memsz == max_vaddr) {
+            bss_size = phdr->p_memsz - phdr->p_filesz;
+        }
 
         if (!elf64_apply_relocations(elf, hdr, (void *)(uintptr_t)load_addr, phdr->p_vaddr, phdr->p_memsz, slide)) {
             panic(true, "elf: Failed to apply relocations");
