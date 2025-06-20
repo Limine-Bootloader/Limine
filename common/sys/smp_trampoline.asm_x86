@@ -52,13 +52,11 @@ smp_trampoline_start:
   .no_pat:
     mov ebx, esi
 
-    test dword [ebx + (passed_info.target_mode - smp_trampoline_start)], (1 << 2)
-    jz .nox2apic
-
     mov ecx, 0x1b
-    rdmsr
-    bts eax, 10
+    mov eax, [ebx + (passed_info.bsp_apic_addr_msr_lo - smp_trampoline_start)]
+    mov edx, [ebx + (passed_info.bsp_apic_addr_msr_hi - smp_trampoline_start)]
     bts eax, 11
+    btr eax, 8
     wrmsr
 
   .nox2apic:
@@ -216,6 +214,10 @@ passed_info:
         dq 0
     .hhdm:
         dq 0
+    .bsp_apic_addr_msr_lo:
+        dd 0
+    .bsp_apic_addr_msr_hi:
+        dd 0
     .mtrr_restore:
         dq 0
     .temp_stack:

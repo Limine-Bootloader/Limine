@@ -33,6 +33,7 @@ struct trampoline_passed_info {
     uint32_t smp_tpl_info_struct;
     struct gdtr smp_tpl_gdt;
     uint64_t smp_tpl_hhdm;
+    uint64_t smp_tpl_bsp_apic_addr_msr;
     uint64_t smp_tpl_mtrr_restore;
     uint64_t smp_tpl_temp_stack;
 } __attribute__((packed));
@@ -63,12 +64,12 @@ static bool smp_start_ap(uint32_t lapic_id, struct gdtr *gdtr,
     passed_info->smp_tpl_info_struct = (uint32_t)(uintptr_t)info_struct;
     passed_info->smp_tpl_booted_flag = 0;
     passed_info->smp_tpl_pagemap     = pagemap;
-    passed_info->smp_tpl_target_mode = ((uint32_t)x2apic << 2)
-                                     | ((uint32_t)(paging_mode == PAGING_MODE_X86_64_5LVL) << 1)
+    passed_info->smp_tpl_target_mode = ((uint32_t)(paging_mode == PAGING_MODE_X86_64_5LVL) << 1)
                                      | ((uint32_t)nx << 3)
                                      | ((uint32_t)wp << 4);
     passed_info->smp_tpl_gdt = *gdtr;
     passed_info->smp_tpl_hhdm = hhdm;
+    passed_info->smp_tpl_bsp_apic_addr_msr = rdmsr(0x1b);
     passed_info->smp_tpl_mtrr_restore = (uint64_t)(uintptr_t)mtrr_restore;
     passed_info->smp_tpl_temp_stack = (uint64_t)(uintptr_t)temp_stack;
 
