@@ -348,10 +348,10 @@ void init_memmap(void) {
             case EfiMemoryMappedIO:
             case EfiMemoryMappedIOPortSpace:
             case EfiPalCode:
-            case EfiLoaderCode:
-            case EfiLoaderData:
             default:
                 our_type = MEMMAP_RESERVED; break;
+            case EfiLoaderCode:
+            case EfiLoaderData:
             case EfiBootServicesCode:
             case EfiBootServicesData:
                 our_type = MEMMAP_EFI_RECLAIMABLE; break;
@@ -479,6 +479,8 @@ static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool ra
 
             uint32_t our_type;
             switch (entry->Type) {
+                case EfiLoaderCode:
+                case EfiLoaderData:
                 case EfiBootServicesCode:
                 case EfiBootServicesData:
                     if (raw) {
