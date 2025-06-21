@@ -1,3 +1,22 @@
+2025-06-21  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.3.4 ***
+
+    Noteworthy changes compared to the previous release, 9.3.3:
+
+    Bug fixes:
+        - ELF: Make an optimisation related to skipping scanning of .bss
+          regions for finding of structures in the loaded image (for Limine
+          protocol structures or otherwise) less overeager as that could break
+          in certain cases.
+        - SMP: On x86, ensure that the value of IA32_APIC_BASE is the same on
+          the APs as it is on the BSP.
+        - PMM: Mark EfiLoader{Code,Data} regions as bootloader reclaimable
+          rather than reserved memory, as for certain protocols, like the
+          Limine boot protocol, reserved memory is unmapped at runtime, while
+          these regions may contain hot data that is still needed, like Limine
+          bootloader memory stacks.
+
 2025-05-27  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.3.3 ***
