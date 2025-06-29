@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <lib/misc.h>
 
 #if defined(__x86_64__) || defined(__i386__)
 
@@ -160,6 +161,15 @@ static inline uint64_t rdtsc(void) {
     return ((uint64_t)edx << 32) | eax;
 }
 
+static inline uint64_t tsc_freq_arch(void) {
+    uint32_t eax, ebx, ecx, edx;
+    if (!cpuid(0x15, 0, &eax, &ebx, &ecx, &edx))
+        return 0;
+    if (eax == 0 || ebx == 0 || ecx == 0)
+        return 0;
+    return ecx * ebx / eax;
+}
+
 #define rdrand(type) ({ \
     type rdrand__ret; \
     asm volatile ( \
@@ -219,6 +229,10 @@ static inline uint64_t rdtsc(void) {
     uint64_t v;
     asm volatile ("mrs %0, cntpct_el0" : "=r" (v));
     return v;
+}
+
+static inline uint64_t tsc_freq_arch(void) {
+    return 0; // FIXME
 }
 
 #define locked_read(var) ({ \
@@ -289,6 +303,10 @@ static inline uint64_t rdtsc(void) {
     return v;
 }
 
+static inline uint64_t tsc_freq_arch(void) {
+    return 0; // FIXME
+}
+
 #define csr_read(csr) ({\
     size_t v;\
     asm volatile ("csrr %0, " csr : "=r"(v));\
@@ -348,9 +366,33 @@ static inline uint64_t rdtsc(void) {
     return v;
 }
 
+static inline uint64_t tsc_freq_arch(void) {
+    return 0; // FIXME
+}
+
 #else
 #error Unknown architecture
 #endif
+
+static inline uint64_t tsc_freq(void) {
+    uint64_t freq = tsc_freq_arch();
+    if (freq != 0) {
+        return freq;
+    }
+
+#if defined(UEFI)
+    uint64_t tsc_start = rdtsc();
+    gBS->Stall(1000);
+    uint64_t tsc_end = rdtsc();
+
+    if (tsc_end < tsc_start)
+        return 0;
+
+    return (tsc_end - tsc_start) * 1000ULL;
+#else
+    return 0;
+#endif
+}
 
 static inline void delay(uint64_t cycles) {
     uint64_t next_stop = rdtsc() + cycles;
