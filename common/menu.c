@@ -12,7 +12,6 @@
 #include <lib/gterm.h>
 #include <lib/getchar.h>
 #include <lib/uri.h>
-#include <lib/bli.h>
 #include <mm/pmm.h>
 #include <drivers/vbe.h>
 #include <drivers/vga_textmode.h>
@@ -1165,9 +1164,6 @@ timeout_aborted:
 noreturn void boot(char *config) {
 #if defined (__riscv)
     init_riscv(config);
-#endif
-#if defined (UEFI)
-    init_bli();
 #endif
 
     char *cmdline = config_get_value(config, 0, "KERNEL_CMDLINE");

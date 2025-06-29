@@ -394,6 +394,12 @@ static inline uint64_t tsc_freq(void) {
 #endif
 }
 
+static inline uint64_t rdtsc_usec(void) {
+    uint64_t exec_ticks = rdtsc();
+    uint64_t freq = tsc_freq();
+    return freq != 0 ? 1000000ULL * exec_ticks / freq : 0;
+}
+
 static inline void delay(uint64_t cycles) {
     uint64_t next_stop = rdtsc() + cycles;
 

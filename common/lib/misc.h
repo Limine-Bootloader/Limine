@@ -40,6 +40,8 @@ extern bool stage3_loaded;
 
 extern bool quiet, serial, editor_enabled, help_hidden, hash_mismatch_panic;
 
+extern uint64_t usec_at_bootloader_entry;
+
 bool parse_resolution(size_t *width, size_t *height, size_t *bpp, const char *buf);
 
 void get_absolute_path(char *path_ptr, const char *path, const char *pwd);

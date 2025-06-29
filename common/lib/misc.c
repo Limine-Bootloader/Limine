@@ -8,6 +8,7 @@
 #include <lib/real.h>
 #include <lib/config.h>
 #include <lib/uri.h>
+#include <lib/bli.h>
 #include <fs/file.h>
 #include <mm/pmm.h>
 #include <libfdt/libfdt.h>
@@ -24,6 +25,8 @@ UINT32 efi_desc_ver = 0;
 
 bool editor_enabled = true;
 bool help_hidden = false;
+
+uint64_t usec_at_bootloader_entry;
 
 #if defined (UEFI)
 bool is_efi_serial_present(void) {
@@ -282,6 +285,8 @@ bool efi_exit_boot_services(void) {
     if (status) {
         goto fail;
     }
+
+    bli_on_boot();
 
     const size_t EFI_COPY_MAX_ENTRIES = (efi_mmap_size * 2) / efi_desc_size;
 

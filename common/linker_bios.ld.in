@@ -42,6 +42,7 @@ SECTIONS
         term_notready = .;
         terms = .;
         terms_i = .;
+        usec_at_bootloader_entry = .;
         serial_out = .;
         stage3_addr = .;
 #else

@@ -8,6 +8,7 @@
 #include <lib/part.h>
 #include <lib/config.h>
 #include <lib/trace.h>
+#include <lib/bli.h>
 #include <sys/e820.h>
 #include <sys/a20.h>
 #include <sys/idt.h>
@@ -35,6 +36,8 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
     gBS = SystemTable->BootServices;
     gRT = SystemTable->RuntimeServices;
     efi_image_handle = ImageHandle;
+
+    usec_at_bootloader_entry = rdtsc_usec();
 
     EFI_STATUS status;
 
@@ -178,6 +181,10 @@ noreturn void stage3_common(void) {
 #endif
 
     term_notready();
+
+#if defined (UEFI)
+    init_bli();
+#endif
 
     menu(true);
 }

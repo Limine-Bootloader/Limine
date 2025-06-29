@@ -85,6 +85,8 @@ noreturn void entry(uint8_t boot_drive, int boot_from) {
         panic(false, "Could not enable A20 line");
     }
 
+    uint64_t usec_at_entry = rdtsc_usec();
+
     init_e820();
     init_memmap();
 
@@ -122,6 +124,7 @@ noreturn void entry(uint8_t boot_drive, int boot_from) {
 
     term_fallback();
 
+    usec_at_bootloader_entry = usec_at_entry;
     stage3_common();
 }
 

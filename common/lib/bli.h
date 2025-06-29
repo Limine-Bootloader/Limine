@@ -4,6 +4,7 @@
 #if defined (UEFI)
 
 void init_bli(void);
+void bli_on_boot(void);
 
 #endif
 

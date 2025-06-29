@@ -12,6 +12,7 @@
 #include <lib/print.h>
 #include <lib/libc.h>
 #include <sys/idt.h>
+#include <lib/bli.h>
 #include <drivers/vga_textmode.h>
 #include <mm/pmm.h>
 #if defined (UEFI)
@@ -360,6 +361,8 @@ noreturn void chainload(char *config, char *cmdline) {
 
     new_handle_loaded_image->LoadOptionsSize = cmdline_len * sizeof(CHAR16);
     new_handle_loaded_image->LoadOptions = new_cmdline;
+
+    bli_on_boot();
 
     UINTN exit_data_size = 0;
     CHAR16 *exit_data = NULL;
