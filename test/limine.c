@@ -166,6 +166,12 @@ static volatile struct limine_riscv_bsp_hartid_request _bsp_request = {
 };
 #endif
 
+__attribute__((section(".limine_requests")))
+static volatile struct limine_bootloader_performance_request _perf_request = {
+    .id = LIMINE_BOOTLOADER_PERFORMANCE_REQUEST,
+    .revision = 0, .response = NULL,
+};
+
 __attribute__((used, section(".limine_requests_end_marker")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
@@ -575,6 +581,19 @@ FEAT_START
     e9_printf("RISC-V BSP Hart ID: %x", bsp_response->bsp_hartid);
 FEAT_END
 #endif
+
+FEAT_START
+    e9_printf("");
+    struct limine_bootloader_performance_response *perf_response = _perf_request.response;
+    if (perf_response == NULL) {
+        e9_printf("Bootloader performance not passed");
+        break;
+    }
+    e9_printf("Bootloader performance feature, revision %d", perf_response->revision);
+    e9_printf("Reset time: %d usec", perf_response->reset_usec);
+    e9_printf("Init time: %d usec", perf_response->init_usec);
+    e9_printf("Exec time: %d usec", perf_response->exec_usec);
+FEAT_END
 
     for (;;);
 }
