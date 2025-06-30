@@ -1381,3 +1381,43 @@ given by bootloader tags, and as such the `/chosen` node properties should be ig
 
 Note: If the DTB contained `memory@...` nodes, they will get removed.
 Executables may not rely on these nodes and should use the Memory Map feature instead.
+
+### Bootloader Performance Feature
+
+ID:
+```c
+#define LIMINE_BOOTLOADER_PERFORMANCE_REQUEST { LIMINE_COMMON_MAGIC, 0x6b50ad9bf36d13ad, 0xdc4c7e88fc759e17 }
+```
+
+Request:
+```c
+struct limine_bootloader_performance_request {
+    uint64_t id[4];
+    uint64_t revision;
+    struct limine_bootloader_performance_response *response;
+};
+```
+
+Response:
+```c
+struct limine_bootloader_performance_response {
+    uint64_t revision;
+    uint64_t reset_usec;
+    uint64_t init_usec;
+    uint64_t exec_usec;
+};
+```
+
+* `reset_usec` - time of system reset in microseconds relative to an arbitrary point in the past.
+* `init_usec` - time of bootloader initialisation in microseconds relative to an arbitrary point in
+the past.
+* `exec_usec` - time of executable handoff in microseconds relative to an arbitrary point in the
+past.
+
+Note: Data provided by this feature is purely informational. The ACPI Firmware Performance Data
+Table may have more correct data and should be preferred if it exists. Bootloaders may implement
+this feature using the FPDT.
+
+Note: The bootloader may assume `reset_usec` is zero if it cannot or does not know the time of
+system reset, due to implementation or platform restrictions. `reset_usec` will usually be 0 or a
+value near zero, but may be any value relative to any point in the past.

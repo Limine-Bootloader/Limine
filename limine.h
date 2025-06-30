@@ -747,6 +747,23 @@ struct limine_riscv_bsp_hartid_request {
     LIMINE_PTR(struct limine_riscv_bsp_hartid_response *) response;
 };
 
+/* Bootloader Performance */
+
+#define LIMINE_BOOTLOADER_PERFORMANCE_REQUEST { LIMINE_COMMON_MAGIC, 0x6b50ad9bf36d13ad, 0xdc4c7e88fc759e17 }
+
+struct limine_bootloader_performance_response {
+    uint64_t revision;
+    uint64_t reset_usec;
+    uint64_t init_usec;
+    uint64_t exec_usec;
+};
+
+struct limine_bootloader_performance_request {
+    uint64_t id[4];
+    uint64_t revision;
+    LIMINE_PTR(struct limine_bootloader_performance_response *) response;
+};
+
 #ifdef __cplusplus
 }
 #endif

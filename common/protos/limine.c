@@ -1395,6 +1395,27 @@ FEAT_END
     }
 #endif
 
+    // Bootloader Performance
+    // rdtsc_usec depends on EFI boot services
+FEAT_START
+    if (usec_at_bootloader_entry == 0) {
+        break;
+    }
+
+    struct limine_bootloader_performance_request *perf_request = get_request(LIMINE_BOOTLOADER_PERFORMANCE_REQUEST);
+    if (perf_request == NULL) {
+        break;
+    }
+
+    struct limine_bootloader_performance_response *perf_response =
+        ext_mem_alloc(sizeof(struct limine_bootloader_performance_response));
+
+    perf_response->reset_usec = 0;
+    perf_response->init_usec = usec_at_bootloader_entry;
+    perf_response->exec_usec = rdtsc_usec();
+    perf_request->response = reported_addr(perf_response);
+FEAT_END
+
 #if defined (UEFI)
     efi_exit_boot_services();
 #endif
