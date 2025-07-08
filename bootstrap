@@ -78,9 +78,9 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/osdev/cc-runtime.git \
         cc-runtime \
-        b4d3b970b2f6e7d08360c66eea8314e8dd901490
-    cp cc-runtime/cc-runtime.c common/cc-runtime.s2.c
-    cp cc-runtime/cc-runtime.c decompressor/cc-runtime.c
+        dae79833b57a01b9fd3e359ee31def69f5ae899b
+    cp cc-runtime/src/cc-runtime.c common/cc-runtime.s2.c
+    cp cc-runtime/src/cc-runtime.c decompressor/cc-runtime.c
 
     clone_repo_commit \
         https://codeberg.org/osdev/freestanding-toolchain.git \
