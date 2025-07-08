@@ -16,19 +16,19 @@ clone_repo_commit() {
     if test -d "$2/.git"; then
         git -C "$2" reset --hard
         git -C "$2" clean -fd
-        if ! git -C "$2" checkout $3; then
+        if ! git -C "$2" -c advice.detachedHead=false checkout $3; then
             rm -rf "$2"
         fi
     else
         if test -d "$2"; then
             set +x
-            echo "error: '$2' is not a Git repository"
+            echo "error: '$2' is not a Git repository" 1>&2
             exit 1
         fi
     fi
     if ! test -d "$2"; then
         git clone $1 "$2"
-        if ! git -C "$2" checkout $3; then
+        if ! git -C "$2" -c advice.detachedHead=false checkout $3; then
             rm -rf "$2"
             exit 1
         fi
@@ -41,7 +41,7 @@ download_by_hash() {
         DOWNLOAD_COMMAND="wget -O"
         if ! command -v "${DOWNLOAD_COMMAND%% *}" >/dev/null 2>&1; then
             set +x
-            echo "error: Neither curl nor wget found"
+            echo "error: Neither curl nor wget found" 1>&2
             exit 1
         fi
     fi
@@ -50,7 +50,7 @@ download_by_hash() {
         SHA256_COMMAND="sha256"
         if ! command -v "${SHA256_COMMAND%% *}" >/dev/null 2>&1; then
             set +x
-            echo "error: Cannot find sha256(sum) command"
+            echo "error: Cannot find sha256(sum) command" 1>&2
             exit 1
         fi
     fi
@@ -60,9 +60,9 @@ download_by_hash() {
         $DOWNLOAD_COMMAND "$2" $1
         if ! $SHA256_COMMAND "$2" | grep $3 >/dev/null 2>&1; then
             set +x
-            echo "error: Cannot download file '$2' by hash"
-            echo "incorrect hash:"
-            $SHA256_COMMAND "$2"
+            echo "error: Cannot download file '$2' by hash" 1>&2
+            echo "incorrect hash:" 1>&2
+            $SHA256_COMMAND "$2" 1>&2
             rm -f "$2"
             exit 1
         fi
@@ -153,8 +153,8 @@ for auxfile in $AUXFILES; do
     if ! test -f build-aux/$auxfile; then
         if ! $AUTOMAKE --print-libdir >/dev/null 2>&1; then
             set +x
-            echo "error: Broken autoreconf detected, but missing or broken automake."
-            echo "       Please make sure automake is installed and working."
+            echo "error: Broken autoreconf detected, but missing or broken automake." 1>&2
+            echo "       Please make sure automake is installed and working." 1>&2
             exit 1
         fi
         AUTOMAKE_LIBDIR="$($AUTOMAKE --print-libdir)"
@@ -167,3 +167,7 @@ for auxfile in $AUXFILES; do
         chmod +x build-aux/$auxfile
     fi
 done
+
+set +x
+
+printf "\nDependencies obtained successfully!\n"
