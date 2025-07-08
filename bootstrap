@@ -85,7 +85,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/osdev/freestanding-toolchain.git \
         build-aux/freestanding-toolchain \
-        b285931385edc926decab5c69934af5c045bd2dd
+        fbfde0c050e9200f6eaad83c341d6dd235cea216
 
     clone_repo_commit \
         https://codeberg.org/osdev/nyu-efi.git \
