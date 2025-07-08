@@ -170,4 +170,4 @@ done
 
 set +x
 
-printf "\nDependencies obtained successfully!\n"
+printf "\nSource tree bootstrapped successfully!\n"
