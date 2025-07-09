@@ -43,7 +43,7 @@ override LDFLAGS_FOR_TARGET += \
     -m elf_i386 \
     -nostdlib \
     -z max-page-size=0x1000 \
-    -gc-sections \
+    --gc-sections \
     -static \
     -T linker.ld
 

@@ -167,7 +167,7 @@ endif
 override LDFLAGS_FOR_TARGET += \
     -nostdlib \
     -z max-page-size=0x1000 \
-    -gc-sections
+    --gc-sections
 
 ifeq ($(TARGET),bios)
     override LDFLAGS_FOR_TARGET += \
