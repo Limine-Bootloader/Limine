@@ -22,7 +22,7 @@ jobs:
         run: ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=llvm --enable-werror --enable-all && make all && make maintainer-clean
 
       - name: Set cross GCC version
-        run: echo "GCC_VERSION=14.2.0" >> $GITHUB_ENV
+        run: echo "GCC_VERSION=15.1.0" >> $GITHUB_ENV
 
       - name: Download GCC cross toolchains
         run: |
