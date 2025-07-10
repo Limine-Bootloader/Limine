@@ -20,7 +20,7 @@ Donations welcome, but absolutely not mandatory!
 
 #### Community
 We have a Matrix room at [`#limine:matrix.org`](https://matrix.to/#/#limine:matrix.org)
-if you need support, info, or you just want to hang out with us.
+and a [Discord server](https://discord.gg/Z93u2ZUNZs) if you need support, info, or you just want to hang out with us.
 
 ### Limine's boot menu
 
