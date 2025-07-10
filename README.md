@@ -1,4 +1,4 @@
-# Limine
+# Limine [![Build Status](https://github.com/limine-bootloader/limine/actions/workflows/check.yml/badge.svg)](https://github.com/limine-bootloader/limine/actions/workflows/check.yml) [![Discord Server](https://dcbadge.limes.pink/api/server/Z93u2ZUNZs)](https://discord.gg/Z93u2ZUNZs)
 
 <p align="center">
     <img src="https://github.com/limine-bootloader/limine/blob/trunk/logo.png?raw=true" alt="Limine's logo"/>
