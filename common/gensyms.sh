@@ -28,9 +28,9 @@ TMP4="$(mktemp)"
 
 trap 'rm -f "$TMP1" "$TMP2" "$TMP3" "$TMP4"' EXIT
 
-"$OBJDUMP_FOR_TARGET" -t "$1" | ( "$SED" '/[[:<:]]d[[:>:]]/d' 2>/dev/null || "$SED" '/\bd\b/d' ) | sort > "$TMP1"
-"$GREP" "F $4" < "$TMP1" | cut -d' ' -f1 > "$TMP2"
-"$GREP" "F $4" < "$TMP1" | "$AWK" 'NF{ print $NF }' > "$TMP3"
+"$NM_FOR_TARGET" -n "$1" | "$GREP" -i ' t ' > "$TMP1"
+"$AWK" '{ print $1 }' "$TMP1" > "$TMP2"
+"$AWK" '{ print $3 }' "$TMP1" > "$TMP3"
 
 echo ".section .$2_map" > "$TMP4"
 echo ".globl $2_map" >> "$TMP4"

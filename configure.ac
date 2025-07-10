@@ -116,8 +116,8 @@ AC_CHECK_HEADERS([stdint.h stddef.h stdbool.h limits.h inttypes.h stdio.h stdlib
 AC_ARG_VAR([TOOLCHAIN_FOR_TARGET], [alternative toolchain prefix for Limine (or 'llvm', or 'gnu')])
 AC_ARG_VAR([CC_FOR_TARGET], [C compiler command for Limine])
 AC_ARG_VAR([LD_FOR_TARGET], [linker command for Limine])
+AC_ARG_VAR([NM_FOR_TARGET], [nm command for Limine])
 AC_ARG_VAR([OBJCOPY_FOR_TARGET], [objcopy command for Limine])
-AC_ARG_VAR([OBJDUMP_FOR_TARGET], [objdump command for Limine])
 AC_ARG_VAR([READELF_FOR_TARGET], [readelf command for Limine])
 
 rm -rf toolchain-files
@@ -171,10 +171,10 @@ else
         FREESTANDING_CC="$CC_FOR_TARGET" \
         WANT_FREESTANDING_LD=yes \
         FREESTANDING_LD="$LD_FOR_TARGET" \
+        WANT_FREESTANDING_NM=yes \
+        FREESTANDING_NM="$NM_FOR_TARGET" \
         WANT_FREESTANDING_OBJCOPY=yes \
         FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
         WANT_FREESTANDING_READELF=yes \
         FREESTANDING_READELF="$READELF_FOR_TARGET" \
         "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/bios-i686-toolchain.mk" || exit 1
@@ -203,10 +203,10 @@ else
         FREESTANDING_CC="$CC_FOR_TARGET" \
         WANT_FREESTANDING_LD=yes \
         FREESTANDING_LD="$LD_FOR_TARGET" \
+        WANT_FREESTANDING_NM=yes \
+        FREESTANDING_NM="$NM_FOR_TARGET" \
         WANT_FREESTANDING_OBJCOPY=yes \
         FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
         "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-i686-toolchain.mk" || exit 1
     BUILD_UEFI_IA32="limine-uefi-ia32"
     NEED_NASM=yes
@@ -232,10 +232,10 @@ else
         FREESTANDING_CC="$CC_FOR_TARGET" \
         WANT_FREESTANDING_LD=yes \
         FREESTANDING_LD="$LD_FOR_TARGET" \
+        WANT_FREESTANDING_NM=yes \
+        FREESTANDING_NM="$NM_FOR_TARGET" \
         WANT_FREESTANDING_OBJCOPY=yes \
         FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
         "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-x86_64-toolchain.mk" || exit 1
     BUILD_UEFI_X86_64="limine-uefi-x86-64"
     NEED_NASM=yes
@@ -261,10 +261,10 @@ else
         FREESTANDING_CC="$CC_FOR_TARGET" \
         WANT_FREESTANDING_LD=yes \
         FREESTANDING_LD="$LD_FOR_TARGET" \
+        WANT_FREESTANDING_NM=yes \
+        FREESTANDING_NM="$NM_FOR_TARGET" \
         WANT_FREESTANDING_OBJCOPY=yes \
         FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
         "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-aarch64-toolchain.mk" || exit 1
     BUILD_UEFI_AARCH64="limine-uefi-aarch64"
 fi
@@ -289,10 +289,10 @@ else
         FREESTANDING_CC="$CC_FOR_TARGET" \
         WANT_FREESTANDING_LD=yes \
         FREESTANDING_LD="$LD_FOR_TARGET" \
+        WANT_FREESTANDING_NM=yes \
+        FREESTANDING_NM="$NM_FOR_TARGET" \
         WANT_FREESTANDING_OBJCOPY=yes \
         FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
         "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-riscv64-toolchain.mk" || exit 1
     BUILD_UEFI_RISCV64="limine-uefi-riscv64"
 fi
@@ -317,10 +317,10 @@ else
         FREESTANDING_CC="$CC_FOR_TARGET" \
         WANT_FREESTANDING_LD=yes \
         FREESTANDING_LD="$LD_FOR_TARGET" \
+        WANT_FREESTANDING_NM=yes \
+        FREESTANDING_NM="$NM_FOR_TARGET" \
         WANT_FREESTANDING_OBJCOPY=yes \
         FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
         "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-loongarch64-toolchain.mk" || exit 1
     BUILD_UEFI_LOONGARCH64="limine-uefi-loongarch64"
 fi
