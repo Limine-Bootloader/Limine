@@ -1,3 +1,24 @@
+2025-07-10  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.4.0 ***
+
+    Noteworthy changes compared to the previous release, 9.3.4:
+
+    New features:
+        - BLI: Implement `LoaderTimeInitUSec` and `LoaderTimeExecUSec`.
+          These are variables used by `systemd-analyze` and are useful for boot
+          performance metrics.
+        - Limine boot protocol: Add bootloader performance feature.
+          This feature provides the same information as the new Boot Loader
+          Interface variables, but encoded in a nicer way for Limine protocol
+          executables.
+
+    Miscellaneous:
+        - Use `nm` instead of `objdump` for generating the symbol table, which
+          results in a better, more consistent output, especially for non-x86
+          architectures.
+        - Miscellaneous build system updates and improvements.
+
 2025-06-21  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.3.4 ***
