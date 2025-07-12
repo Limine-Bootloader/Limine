@@ -90,7 +90,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/limine-bootloader/limine-protocol.git \
         limine-protocol \
-        43af38b5686120b4dfb4e76019056329fe82ce62
+        b3c10bc1d903b29e915081a38c7f3e3f323e4689
 
     clone_repo_commit \
         https://codeberg.org/osdev/nyu-efi.git \
