@@ -11,7 +11,7 @@
 #include <lib/bli.h>
 #include <fs/file.h>
 #include <mm/pmm.h>
-#include <libfdt/libfdt.h>
+#include <libfdt.h>
 
 #if defined (UEFI)
 EFI_SYSTEM_TABLE *gST;

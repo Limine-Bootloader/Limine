@@ -58,8 +58,8 @@ text related screen drawing.
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) (MIT) is
 used for wallpaper image loading.
 
-- [libfdt](https://git.kernel.org/pub/scm/utils/dtc/dtc.git) (BSD-2-Clause) is
-used for manipulating Flat Device Trees.
+- [libfdt](https://codeberg.org/osdev/libfdt) (BSD-2-Clause) is used for
+manipulating Flat Device Trees.
 
 Note that some of these projects, or parts of them, are provided under
 dual-licensing, in which case, in the above list, the only license mentioned is

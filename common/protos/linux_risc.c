@@ -16,7 +16,7 @@
 #include <lib/fb.h>
 #include <lib/acpi.h>
 #include <lib/fdt.h>
-#include <libfdt/libfdt.h>
+#include <libfdt.h>
 
 // The following definitions and struct were copied and adapted from Linux
 // kernel headers released under GPL-2.0 WITH Linux-syscall-note

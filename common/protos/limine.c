@@ -14,7 +14,7 @@
 #include <lib/libc.h>
 #include <lib/gterm.h>
 #include <lib/fdt.h>
-#include <libfdt/libfdt.h>
+#include <libfdt.h>
 #include <lib/uri.h>
 #include <sys/smp.h>
 #include <sys/cpu.h>

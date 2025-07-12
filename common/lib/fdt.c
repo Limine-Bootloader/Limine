@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <libfdt/libfdt.h>
+#include <libfdt.h>
 
 static int fdt_get_or_add_chosen_node(void *fdt) {
     int offset = fdt_subnode_offset(fdt, 0, "chosen");

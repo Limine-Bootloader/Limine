@@ -29,14 +29,13 @@
 /nyu-efi
 /freestnd-c-hdrs
 /common/flanterm
-/common/libfdt
 /common/lib/stb_image.h.nopatch
 /common/lib/stb_image.h
 /common/cc-runtime.s2.c
 /cc-runtime
 /decompressor/tinf
 /decompressor/cc-runtime.c
-/dtc
+/libfdt
 /tinf
 /ovmf*
 /bochsout.txt

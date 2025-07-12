@@ -18,7 +18,7 @@
 #include <sys/sbi.h>
 #endif
 #if defined (__aarch64__)
-#include <libfdt/libfdt.h>
+#include <libfdt.h>
 #endif
 
 extern symbol smp_trampoline_start;

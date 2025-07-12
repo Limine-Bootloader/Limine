@@ -45,7 +45,7 @@ override CPPFLAGS_FOR_TARGET := \
     -I . \
     -I libc-compat \
     -I ../limine-protocol/include \
-    -I libfdt \
+    -I ../libfdt/src \
     -I '$(call SHESCAPE,$(BUILDDIR))/..' \
     -isystem ../freestnd-c-hdrs \
     $(CPPFLAGS_FOR_TARGET) \
@@ -55,10 +55,10 @@ override CPPFLAGS_FOR_TARGET := \
     -MMD \
     -MP
 
-$(call MKESCAPE,$(BUILDDIR))/./libfdt/fdt_overlay.o: override CFLAGS_FOR_TARGET += \
+$(call MKESCAPE,$(BUILDDIR))/libfdt/src/fdt_overlay.o: override CFLAGS_FOR_TARGET += \
     -Wno-unused-parameter
 
-$(call MKESCAPE,$(BUILDDIR))/./flanterm/backends/fb.o: override CPPFLAGS_FOR_TARGET += \
+$(call MKESCAPE,$(BUILDDIR))/common/flanterm/backends/fb.o: override CPPFLAGS_FOR_TARGET += \
     -DFLANTERM_FB_DISABLE_BUMP_ALLOC
 
 override NASMFLAGS_FOR_TARGET += \
@@ -214,44 +214,44 @@ ifeq ($(TARGET),uefi-loongarch64)
         -z text
 endif
 
-override C_FILES := $(shell find . -type f -name '*.c' | LC_ALL=C sort)
+override C_FILES := $(shell cd .. && find common libfdt -type f -name '*.c' | LC_ALL=C sort)
 ifeq ($(TARGET),bios)
-    override ASMX86_FILES := $(shell find . -type f -name '*.asm_x86' | LC_ALL=C sort)
-    override ASM32_FILES := $(shell find . -type f -name '*.asm_ia32' | LC_ALL=C sort)
-    override ASMB_FILES := $(shell find . -type f -name '*.asm_bios_ia32' | LC_ALL=C sort)
+    override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
+    override ASM32_FILES := $(shell cd .. && find common -type f -name '*.asm_ia32' | LC_ALL=C sort)
+    override ASMB_FILES := $(shell cd .. && find common -type f -name '*.asm_bios_ia32' | LC_ALL=C sort)
 
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASMB_FILES:.asm_bios_ia32=.o) $(ASMX86_FILES:.asm_x86=.o))
     override OBJ_S2 := $(filter %.s2.o,$(OBJ))
 endif
 ifeq ($(TARGET),uefi-x86-64)
-    override ASMX86_FILES := $(shell find . -type f -name '*.asm_x86' | LC_ALL=C sort)
-    override ASM64_FILES := $(shell find . -type f -name '*.asm_x86_64' | LC_ALL=C sort)
-    override ASM64U_FILES := $(shell find . -type f -name '*.asm_uefi_x86_64' | LC_ALL=C sort)
+    override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
+    override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_x86_64' | LC_ALL=C sort)
+    override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_x86_64' | LC_ALL=C sort)
 
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(ASM64_FILES:.asm_x86_64=.o) $(ASM64U_FILES:.asm_uefi_x86_64=.o) $(ASMX86_FILES:.asm_x86=.o))
 endif
 ifeq ($(TARGET),uefi-ia32)
-    override ASMX86_FILES := $(shell find . -type f -name '*.asm_x86' | LC_ALL=C sort)
-    override ASM32_FILES := $(shell find . -type f -name '*.asm_ia32' | LC_ALL=C sort)
-    override ASM32U_FILES := $(shell find . -type f -name '*.asm_uefi_ia32' | LC_ALL=C sort)
+    override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
+    override ASM32_FILES := $(shell cd .. && find common -type f -name '*.asm_ia32' | LC_ALL=C sort)
+    override ASM32U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_ia32' | LC_ALL=C sort)
 
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASM32U_FILES:.asm_uefi_ia32=.o) $(ASMX86_FILES:.asm_x86=.o))
 endif
 ifeq ($(TARGET),uefi-aarch64)
-    override ASM64_FILES := $(shell find . -type f -name '*.asm_aarch64' | LC_ALL=C sort)
-    override ASM64U_FILES := $(shell find . -type f -name '*.asm_uefi_aarch64' | LC_ALL=C sort)
+    override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_aarch64' | LC_ALL=C sort)
+    override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_aarch64' | LC_ALL=C sort)
 
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(ASM64_FILES:.asm_aarch64=.o) $(ASM64U_FILES:.asm_uefi_aarch64=.o))
 endif
 ifeq ($(TARGET),uefi-riscv64)
-    override ASM64_FILES := $(shell find . -type f -name '*.asm_riscv64' | LC_ALL=C sort)
-    override ASM64U_FILES := $(shell find . -type f -name '*.asm_uefi_riscv64' | LC_ALL=C sort)
+    override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_riscv64' | LC_ALL=C sort)
+    override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_riscv64' | LC_ALL=C sort)
 
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(ASM64_FILES:.asm_riscv64=.o) $(ASM64U_FILES:.asm_uefi_riscv64=.o))
 endif
 ifeq ($(TARGET),uefi-loongarch64)
-    override ASM64_FILES := $(shell find . -type f -name '*.asm_loongarch64' | LC_ALL=C sort)
-    override ASM64U_FILES := $(shell find . -type f -name '*.asm_uefi_loongarch64' | LC_ALL=C sort)
+    override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_loongarch64' | LC_ALL=C sort)
+    override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_loongarch64' | LC_ALL=C sort)
 
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(ASM64_FILES:.asm_loongarch64=.o) $(ASM64U_FILES:.asm_uefi_loongarch64=.o))
 endif
@@ -611,37 +611,37 @@ endif
 -include $(HEADER_DEPS)
 
 ifeq ($(TARGET),uefi-x86-64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-aarch64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-riscv64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-loongarch64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-ia32)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c $(call MKESCAPE,$(BUILDDIR))/nyu-efi
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),bios)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.c
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
@@ -649,7 +649,7 @@ endif
 -include $(HEADER_DEPS)
 
 ifeq ($(TARGET),bios)
-$(call MKESCAPE,$(BUILDDIR))/%.s2.o: %.s2.c
+$(call MKESCAPE,$(BUILDDIR))/%.s2.o: ../%.s2.c
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(S2CFLAGS) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
@@ -657,73 +657,73 @@ endif
 -include $(HEADER_DEPS)
 
 ifeq ($(TARGET),bios)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_ia32
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_ia32
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_bios_ia32
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_bios_ia32
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_x86
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_x86
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-x86-64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_x86_64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_x86_64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_uefi_x86_64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_uefi_x86_64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_x86
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_x86
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-aarch64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_aarch64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_aarch64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -x assembler-with-cpp -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_uefi_aarch64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_uefi_aarch64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -x assembler-with-cpp -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-riscv64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_riscv64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_riscv64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -x assembler-with-cpp -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_uefi_riscv64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_uefi_riscv64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -x assembler-with-cpp -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-loongarch64)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_loongarch64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_loongarch64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -x assembler-with-cpp -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_uefi_loongarch64
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_uefi_loongarch64
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -x assembler-with-cpp -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 endif
 
 ifeq ($(TARGET),uefi-ia32)
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_ia32
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_ia32
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_uefi_ia32
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_uefi_ia32
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 
-$(call MKESCAPE,$(BUILDDIR))/%.o: %.asm_x86
+$(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_x86
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	nasm '$(call SHESCAPE,$<)' $(NASMFLAGS_FOR_TARGET) -o '$(call SHESCAPE,$@)'
 endif

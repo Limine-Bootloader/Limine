@@ -120,12 +120,9 @@ if ! test -f version; then
     rm -f common/lib/stb_image.h.orig
 
     clone_repo_commit \
-        https://git.kernel.org/pub/scm/utils/dtc/dtc.git \
-        dtc \
-        2d10aa2afe35527728db30b35ec491ecb6959e5c
-    rm -rf common/libfdt
-    cp -rp dtc/libfdt common/
-    find common/libfdt/ -type f -not -name '*.c' -not -name '*.h' -delete
+        https://codeberg.org/osdev/libfdt.git \
+        libfdt \
+        7bf94e6347129d17eca263112296ad170dec28a9
 fi
 
 # Create timestamps file

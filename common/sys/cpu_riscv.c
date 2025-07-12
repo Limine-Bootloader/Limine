@@ -8,7 +8,7 @@
 #include <mm/pmm.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <libfdt/libfdt.h>
+#include <libfdt.h>
 
 // ACPI RISC-V Hart Capabilities Table
 struct rhct {
