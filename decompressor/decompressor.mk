@@ -32,9 +32,9 @@ override CFLAGS_FOR_TARGET += \
     -mno-80387
 
 override CPPFLAGS_FOR_TARGET := \
+    -I . \
+    -I tinf \
     -isystem ../freestnd-c-hdrs \
-    -I./tinf \
-    -I. \
     $(CPPFLAGS_FOR_TARGET) \
     -MMD \
     -MP

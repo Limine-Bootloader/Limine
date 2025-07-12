@@ -42,11 +42,12 @@ override CFLAGS_FOR_TARGET += \
     -fno-lto
 
 override CPPFLAGS_FOR_TARGET := \
+    -I . \
     -I libc-compat \
-    -isystem ../freestnd-c-hdrs \
-    -I'$(call SHESCAPE,$(BUILDDIR))/..' \
-    -I. \
+    -I ../limine-protocol/include \
     -I libfdt \
+    -I '$(call SHESCAPE,$(BUILDDIR))/..' \
+    -isystem ../freestnd-c-hdrs \
     $(CPPFLAGS_FOR_TARGET) \
     -DCOM_OUTPUT=$(COM_OUTPUT) \
     -DE9_OUTPUT=$(E9_OUTPUT) \

@@ -58,8 +58,9 @@ override CFLAGS += \
     -fno-stack-check \
     -fno-lto \
     -fPIE \
-    -I../freestnd-c-hdrs \
     -I. \
+    -I../limine-protocol/include \
+    -isystem ../freestnd-c-hdrs \
     -D_LIMINE_PROTO \
     -DLIMINE_API_REVISION=3
 
@@ -104,9 +105,9 @@ override CFLAGS_MB := \
     -m32 \
     -march=i686 \
     -mgeneral-regs-only \
-    -I../freestnd-c-hdrs \
     -I. \
-    -I../common/protos
+    -I../common/protos \
+    -isystem ../freestnd-c-hdrs
 
 ifneq ($(findstring 86,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
 all: test.elf multiboot2.elf multiboot.elf device_tree.dtb
@@ -117,9 +118,6 @@ endif
 flanterm:
 	mkdir -p flanterm
 	cp -rv ../common/flanterm/* ./flanterm/
-
-limine.h:
-	cp -v ../limine.h ./
 
 test.elf: limine.o e9print.o memory.o flanterm/flanterm.o flanterm/backends/fb.o
 	$(LD) $^ $(LDFLAGS) -o $@
@@ -136,7 +134,7 @@ multiboot.elf: multiboot_trampoline.o
 	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.o
 	$(LD) $^ memory.o multiboot.o e9print.o $(LDFLAGS_MB1) -o $@
 
-%.o: %.c flanterm limine.h
+%.o: %.c flanterm
 	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.asm
@@ -149,4 +147,4 @@ clean:
 	rm -rf test.elf limine.o e9print.o memory.o
 	rm -rf multiboot2.o multiboot2.elf multiboot2_trampoline.o
 	rm -rf multiboot.o multiboot_trampoline.o multiboot.elf
-	rm -rf flanterm limine.h device_tree.dtb
+	rm -rf flanterm device_tree.dtb

@@ -26,6 +26,10 @@ routines.
 - [0BSD Freestanding C Headers](https://codeberg.org/osdev/freestnd-c-hdrs-0bsd)
 (0BSD) provide GCC and Clang compatible freestanding C headers.
 
+- [Limine Boot Protocol](https://github.com/limine-bootloader/limine-protocol)
+(0BSD) has the C/C++ header and the specification text of the Limine Boot
+Protocol.
+
 - [Nyu-EFI](https://codeberg.org/osdev/nyu-efi) (multiple licenses, see list
 below) provides headers and build-time support for UEFI.
     - BSD-2-Clause

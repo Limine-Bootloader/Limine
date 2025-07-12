@@ -140,7 +140,7 @@ install: all
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/LICENSES/LicenseRef-scancode-bsd-no-disclaimer-unmodified.txt' '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/3RDPARTY.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/CONFIG.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
-	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/PROTOCOL.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
+	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/limine-protocol/PROTOCOL.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/FAQ.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/USAGE.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(mandir))/man1'
@@ -175,7 +175,7 @@ ifeq ($(BUILD_UEFI_IA32),limine-uefi-ia32)
 	$(INSTALL_DATA) '$(call SHESCAPE,$(BINDIR))/BOOTIA32.EFI' '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/limine/'
 endif
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(includedir))'
-	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/limine.h' '$(call SHESCAPE,$(DESTDIR)$(includedir))/'
+	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/limine-protocol/include/limine.h' '$(call SHESCAPE,$(DESTDIR)$(includedir))/'
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(bindir))'
 	$(INSTALL_PROGRAM) '$(call SHESCAPE,$(BINDIR))/limine' '$(call SHESCAPE,$(DESTDIR)$(bindir))/'
 
@@ -309,6 +309,7 @@ dist:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/common/flanterm/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/common/flanterm/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/freestnd-c-hdrs/.git"
+	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/limine-protocol/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/nyu-efi/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/nyu-efi/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/cc-runtime"
@@ -341,7 +342,7 @@ distclean: clean
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
-	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf common/flanterm common/libfdt common/lib/stb_image.h.nopatch common/lib/stb_image.h decompressor/tinf tinf dtc freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c decompressor/cc-runtime.c nyu-efi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
+	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf common/flanterm common/libfdt common/lib/stb_image.h.nopatch common/lib/stb_image.h decompressor/tinf tinf dtc freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c decompressor/cc-runtime.c limine-protocol nyu-efi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
 
 .PHONY: common-uefi-x86-64
 common-uefi-x86-64:

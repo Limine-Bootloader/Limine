@@ -386,9 +386,5 @@ AC_SUBST([LIMINE_COPYRIGHT])
 
 AC_PREFIX_DEFAULT([/usr/local])
 
-if ! test -f limine.h; then
-    cp "$SRCDIR/limine.h" ./
-fi
-
 AC_CONFIG_FILES([man/man1/limine.1 GNUmakefile config.h])
 AC_OUTPUT

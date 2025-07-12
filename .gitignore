@@ -25,6 +25,7 @@
 /bin
 /build
 /toolchain-files
+/limine-protocol
 /nyu-efi
 /freestnd-c-hdrs
 /common/flanterm

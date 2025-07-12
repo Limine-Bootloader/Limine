@@ -70,7 +70,7 @@ jobs:
         run: cp build-aux/install-sh build/bin/
 
       - name: Copy limine.h to bin
-        run: cp limine.h build/bin/
+        run: cp limine-protocol/include/limine.h build/bin/
 
       - name: Remove limine-bios-hdd.bin
         run: rm build/bin/limine-bios-hdd.bin
