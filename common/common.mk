@@ -47,7 +47,7 @@ override CPPFLAGS_FOR_TARGET := \
     -I ../limine-protocol/include \
     -I ../libfdt/src \
     -I '$(call SHESCAPE,$(BUILDDIR))/..' \
-    -isystem ../freestnd-c-hdrs \
+    -isystem ../freestnd-c-hdrs/include \
     $(CPPFLAGS_FOR_TARGET) \
     -DCOM_OUTPUT=$(COM_OUTPUT) \
     -DE9_OUTPUT=$(E9_OUTPUT) \

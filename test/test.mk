@@ -60,7 +60,7 @@ override CFLAGS += \
     -fPIE \
     -I. \
     -I../limine-protocol/include \
-    -isystem ../freestnd-c-hdrs \
+    -isystem ../freestnd-c-hdrs/include \
     -D_LIMINE_PROTO \
     -DLIMINE_API_REVISION=3
 
@@ -107,7 +107,7 @@ override CFLAGS_MB := \
     -mgeneral-regs-only \
     -I. \
     -I../common/protos \
-    -isystem ../freestnd-c-hdrs
+    -isystem ../freestnd-c-hdrs/include
 
 ifneq ($(findstring 86,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
 all: test.elf multiboot2.elf multiboot.elf device_tree.dtb

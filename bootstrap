@@ -73,7 +73,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/osdev/freestnd-c-hdrs-0bsd.git \
         freestnd-c-hdrs \
-        a87c192f3eb66b0806740dc67325f9ad23fc2d0b
+        5e4e9e70278fe89ea328d359a58aff4f4a94b165
 
     clone_repo_commit \
         https://codeberg.org/osdev/cc-runtime.git \
