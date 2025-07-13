@@ -76,8 +76,9 @@ ifeq ($(TARGET),bios)
     override CPPFLAGS_FOR_TARGET := \
         $(CPPFLAGS_FOR_TARGET) \
         -DBIOS
-    override NASMFLAGS_FOR_TARGET += \
+    override NASMFLAGS_FOR_TARGET := \
         -f elf32 \
+        $(NASMFLAGS_FOR_TARGET) \
         -DIA32_TARGET \
         -DBIOS
 endif
@@ -97,8 +98,9 @@ ifeq ($(TARGET),uefi-x86-64)
         -I ../nyu-efi/inc \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
-    override NASMFLAGS_FOR_TARGET += \
+    override NASMFLAGS_FOR_TARGET := \
         -f elf64 \
+        $(NASMFLAGS_FOR_TARGET) \
         -DX86_64_TARGET \
         -DUEFI
 endif
@@ -114,8 +116,9 @@ ifeq ($(TARGET),uefi-ia32)
         -I ../nyu-efi/inc \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
-    override NASMFLAGS_FOR_TARGET += \
+    override NASMFLAGS_FOR_TARGET := \
         -f elf32 \
+        $(NASMFLAGS_FOR_TARGET) \
         -DIA32_TARGET \
         -DUEFI
 endif

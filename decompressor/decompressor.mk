@@ -47,12 +47,13 @@ override LDFLAGS_FOR_TARGET += \
     -static \
     -T linker.ld
 
-override NASMFLAGS_FOR_TARGET += \
+override NASMFLAGS_FOR_TARGET := \
+    -f elf32 \
+    $(NASMFLAGS_FOR_TARGET) \
     -Wall \
     -w-unknown-warning \
     -w-reloc \
-    $(WERROR_FLAG) \
-    -f elf32
+    $(WERROR_FLAG)
 
 override C_FILES := $(shell find . -type f -name '*.c' | LC_ALL=C sort)
 override ASM_FILES := $(shell find . -type f -name '*.asm' | LC_ALL=C sort)
