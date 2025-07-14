@@ -1,3 +1,25 @@
+2025-07-14  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.5.0 ***
+
+    Noteworthy changes compared to the previous release, 9.4.0:
+
+    New features:
+        - protocols/efi: Hybridise loading mechanism with old memory-device
+          based approach. This may work around the redundant requirement that
+          EFI applications be signed, and it may fix certain issues created
+          when the chainload mechanism was changed in 9.0.1.
+
+    Bug fixes:
+        - `limine` host tool: Fix some mismatched printf format specifiers.
+
+    Miscellaneous:
+        - Miscellaneous build system updates and improvements.
+        - Many dependencies had their commits bumped, some new dependencies
+          were added (limine-protocol), some were changed (libfdt moved to a
+          different repository that only includes BSD-2-Clause licensable
+          code).
+
 2025-07-10  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.4.0 ***
