@@ -804,7 +804,7 @@ static int bios_install(int argc, char *argv[]) {
 
             if (ENDSWAP(gpt_entry.starting_lba) > UINT32_MAX) {
                 if (!quiet) {
-                    fprintf(stderr, "Starting LBA of partition %zu is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
+                    fprintf(stderr, "Starting LBA of partition %" PRIi64 " is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
                 }
                 goto no_mbr_conv;
             }
@@ -813,7 +813,7 @@ static int bios_install(int argc, char *argv[]) {
 
             if (ENDSWAP(gpt_entry.ending_lba) > UINT32_MAX) {
                 if (!quiet) {
-                    fprintf(stderr, "Ending LBA of partition %zu is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
+                    fprintf(stderr, "Ending LBA of partition %" PRIi64 " is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
                 }
                 goto no_mbr_conv;
             }
@@ -824,7 +824,7 @@ static int bios_install(int argc, char *argv[]) {
                                     ENDSWAP(gpt_entry.partition_type_guid[1]));
             if (type == -1) {
                 if (!quiet) {
-                    fprintf(stderr, "Cannot convert partition type for partition %zu, will not convert GPT.\n", i + 1);
+                    fprintf(stderr, "Cannot convert partition type for partition %" PRIi64 ", will not convert GPT.\n", i + 1);
                 }
                 goto no_mbr_conv;
             }
@@ -1386,7 +1386,7 @@ cleanup:
     return ret;
 }
 
-#define LIMINE_VERSION "9.4.0"
+#define LIMINE_VERSION "9.5.0"
 #define LIMINE_COPYRIGHT "Copyright (C) 2019-2025 Mintsuki and contributors."
 
 static void version_usage(void) {
