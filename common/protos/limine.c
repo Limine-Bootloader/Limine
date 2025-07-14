@@ -21,7 +21,7 @@
 #include <sys/gdt.h>
 #include <lib/fb.h>
 #include <lib/term.h>
-#include <flanterm/backends/fb.h>
+#include <flanterm_backends/fb.h>
 #include <sys/pic.h>
 #include <sys/lapic.h>
 #include <sys/idt.h>

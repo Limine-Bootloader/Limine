@@ -7,7 +7,7 @@
 #include <lib/fb.h>
 #include <mm/pmm.h>
 #include <drivers/vga_textmode.h>
-#include <flanterm/backends/fb.h>
+#include <flanterm_backends/fb.h>
 
 #if defined (BIOS)
 int current_video_mode = -1;

@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <lib/print.h>
-#include <flanterm/flanterm.h>
+#include <flanterm.h>
 
 enum {
     _NOT_READY,

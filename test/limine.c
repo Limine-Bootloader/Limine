@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <limine.h>
 #include <e9print.h>
-#include <flanterm/flanterm.h>
-#include <flanterm/backends/fb.h>
+#include <flanterm.h>
+#include <flanterm_backends/fb.h>
 
 __attribute__((section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);

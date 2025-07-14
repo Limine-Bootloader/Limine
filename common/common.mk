@@ -45,6 +45,7 @@ override CPPFLAGS_FOR_TARGET := \
     -I . \
     -I libc-compat \
     -I ../limine-protocol/include \
+    -I ../flanterm/src \
     -I ../libfdt/src \
     -I '$(call SHESCAPE,$(BUILDDIR))/..' \
     -isystem ../freestnd-c-hdrs/include \
@@ -52,13 +53,14 @@ override CPPFLAGS_FOR_TARGET := \
     -DCOM_OUTPUT=$(COM_OUTPUT) \
     -DE9_OUTPUT=$(E9_OUTPUT) \
     -DLIMINE_API_REVISION=3 \
+    -DFLANTERM_IN_FLANTERM \
     -MMD \
     -MP
 
 $(call MKESCAPE,$(BUILDDIR))/libfdt/src/fdt_overlay.o: override CFLAGS_FOR_TARGET += \
     -Wno-unused-parameter
 
-$(call MKESCAPE,$(BUILDDIR))/common/flanterm/backends/fb.o: override CPPFLAGS_FOR_TARGET += \
+$(call MKESCAPE,$(BUILDDIR))/flanterm/src/flanterm_backends/fb.o: override CPPFLAGS_FOR_TARGET += \
     -DFLANTERM_FB_DISABLE_BUMP_ALLOC
 
 override NASMFLAGS_FOR_TARGET += \
@@ -218,8 +220,8 @@ ifeq ($(TARGET),uefi-loongarch64)
 endif
 
 ifeq ($(TARGET),bios)
-    override C_FILES := $(shell cd .. && find common libfdt -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common libfdt -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM32_FILES := $(shell cd .. && find common -type f -name '*.asm_ia32' | LC_ALL=C sort)
@@ -229,8 +231,8 @@ ifeq ($(TARGET),bios)
     override OBJ_S2 := $(filter %.s2.o,$(OBJ))
 endif
 ifeq ($(TARGET),uefi-x86-64)
-    override C_FILES := $(shell cd .. && find common nyu-efi/x86_64 libfdt -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/x86_64 libfdt -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common nyu-efi/x86_64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/x86_64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_x86_64' | LC_ALL=C sort)
@@ -239,8 +241,8 @@ ifeq ($(TARGET),uefi-x86-64)
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_x86_64=.o) $(ASM64U_FILES:.asm_uefi_x86_64=.o) $(ASMX86_FILES:.asm_x86=.o))
 endif
 ifeq ($(TARGET),uefi-ia32)
-    override C_FILES := $(shell cd .. && find common nyu-efi/ia32 libfdt -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/ia32 libfdt -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common nyu-efi/ia32 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/ia32 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM32_FILES := $(shell cd .. && find common -type f -name '*.asm_ia32' | LC_ALL=C sort)
@@ -249,8 +251,8 @@ ifeq ($(TARGET),uefi-ia32)
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASM32U_FILES:.asm_uefi_ia32=.o) $(ASMX86_FILES:.asm_x86=.o))
 endif
 ifeq ($(TARGET),uefi-aarch64)
-    override C_FILES := $(shell cd .. && find common nyu-efi/aarch64 libfdt -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/aarch64 libfdt -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common nyu-efi/aarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/aarch64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_aarch64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_aarch64' | LC_ALL=C sort)
@@ -258,8 +260,8 @@ ifeq ($(TARGET),uefi-aarch64)
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_aarch64=.o) $(ASM64U_FILES:.asm_uefi_aarch64=.o))
 endif
 ifeq ($(TARGET),uefi-riscv64)
-    override C_FILES := $(shell cd .. && find common nyu-efi/riscv64 libfdt -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/riscv64 libfdt -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common nyu-efi/riscv64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/riscv64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_riscv64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_riscv64' | LC_ALL=C sort)
@@ -267,8 +269,8 @@ ifeq ($(TARGET),uefi-riscv64)
     override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_riscv64=.o) $(ASM64U_FILES:.asm_uefi_riscv64=.o))
 endif
 ifeq ($(TARGET),uefi-loongarch64)
-    override C_FILES := $(shell cd .. && find common nyu-efi/loongarch64 libfdt -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/loongarch64 libfdt -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common nyu-efi/loongarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/loongarch64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_loongarch64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_loongarch64' | LC_ALL=C sort)

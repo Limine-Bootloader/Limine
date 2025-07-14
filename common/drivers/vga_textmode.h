@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <flanterm/flanterm.h>
+#include <flanterm.h>
 
 #define VD_COLS (80 * 2)
 #define VD_ROWS 25

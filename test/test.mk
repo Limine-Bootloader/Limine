@@ -60,6 +60,7 @@ override CFLAGS += \
     -fPIE \
     -I. \
     -I../limine-protocol/include \
+    -I../flanterm/src \
     -isystem ../freestnd-c-hdrs/include \
     -D_LIMINE_PROTO \
     -DLIMINE_API_REVISION=3
@@ -115,11 +116,13 @@ else
 all: test.elf device_tree.dtb
 endif
 
-flanterm:
-	mkdir -p flanterm
-	cp -rv ../common/flanterm/* ./flanterm/
+flanterm.o: ../flanterm/src/flanterm.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-test.elf: limine.o e9print.o memory.o flanterm/flanterm.o flanterm/backends/fb.o
+flanterm_fb.o: ../flanterm/src/flanterm_backends/fb.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+test.elf: limine.o e9print.o memory.o flanterm.o flanterm_fb.o
 	$(LD) $^ $(LDFLAGS) -o $@
 
 multiboot2.elf: multiboot2_trampoline.o
@@ -134,7 +137,7 @@ multiboot.elf: multiboot_trampoline.o
 	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.o
 	$(LD) $^ memory.o multiboot.o e9print.o $(LDFLAGS_MB1) -o $@
 
-%.o: %.c flanterm
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.asm
@@ -145,6 +148,7 @@ multiboot.elf: multiboot_trampoline.o
 
 clean:
 	rm -rf test.elf limine.o e9print.o memory.o
+	rm -rf flanterm.o flanterm_fb.o
 	rm -rf multiboot2.o multiboot2.elf multiboot2_trampoline.o
 	rm -rf multiboot.o multiboot_trampoline.o multiboot.elf
-	rm -rf flanterm device_tree.dtb
+	rm -rf device_tree.dtb

@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #if defined (_LIMINE_PROTO)
-#include <flanterm/flanterm.h>
+#include <flanterm.h>
 extern struct flanterm_context *ft_ctx;
 #endif
 

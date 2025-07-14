@@ -10,8 +10,8 @@
 #include <lib/image.h>
 #include <lib/rand.h>
 #include <mm/pmm.h>
-#include <flanterm/flanterm.h>
-#include <flanterm/backends/fb.h>
+#include <flanterm.h>
+#include <flanterm_backends/fb.h>
 #include <lib/term.h>
 
 // Builtin font originally taken from:
