@@ -277,6 +277,15 @@ noreturn void chainload(char *config, char *cmdline) {
 
     EFI_STATUS status;
 
+    EFI_HANDLE efi_part_handle = image->efi_part_handle;
+
+    void *ptr = freadall(image, MEMMAP_RESERVED);
+    size_t image_size = image->size;
+
+    memmap_alloc_range_in(untouched_memmap, &untouched_memmap_entries,
+                          (uintptr_t)ptr, ALIGN_UP(image_size, 4096),
+                          MEMMAP_RESERVED, MEMMAP_USABLE, true, false, true);
+
     size_t path_len = strlen(image->path);
 
     size_t efi_file_path_len = (path_len + 1) * sizeof(CHAR16);
@@ -341,11 +350,27 @@ noreturn void chainload(char *config, char *cmdline) {
 
     pmm_release_uefi_mem();
 
+    MEMMAP_DEVICE_PATH memdev_path[2];
+
+    memdev_path[0].Header.Type      = HARDWARE_DEVICE_PATH;
+    memdev_path[0].Header.SubType   = HW_MEMMAP_DP;
+    memdev_path[0].Header.Length[0] = sizeof(MEMMAP_DEVICE_PATH);
+    memdev_path[0].Header.Length[1] = sizeof(MEMMAP_DEVICE_PATH) >> 8;
+
+    memdev_path[0].MemoryType       = EfiLoaderCode;
+    memdev_path[0].StartingAddress  = (uintptr_t)ptr;
+    memdev_path[0].EndingAddress    = (uintptr_t)ptr + image_size;
+
+    memdev_path[1].Header.Type      = END_DEVICE_PATH_TYPE;
+    memdev_path[1].Header.SubType   = END_ENTIRE_DEVICE_PATH_SUBTYPE;
+    memdev_path[1].Header.Length[0] = sizeof(EFI_DEVICE_PATH);
+    memdev_path[1].Header.Length[1] = sizeof(EFI_DEVICE_PATH) >> 8;
+
     EFI_HANDLE new_handle = 0;
 
     status = gBS->LoadImage(0, efi_image_handle,
-                            device_path,
-                            NULL, 0, &new_handle);
+                            (EFI_DEVICE_PATH *)memdev_path,
+                            ptr, image_size, &new_handle);
     if (status) {
         panic(false, "efi: LoadImage failure (%x)", status);
     }
@@ -358,6 +383,12 @@ noreturn void chainload(char *config, char *cmdline) {
     if (status) {
         panic(false, "efi: HandleProtocol failure (%x)", status);
     }
+
+    if (efi_part_handle != 0) {
+        new_handle_loaded_image->DeviceHandle = efi_part_handle;
+    }
+
+    new_handle_loaded_image->FilePath = device_path;
 
     new_handle_loaded_image->LoadOptionsSize = cmdline_len * sizeof(CHAR16);
     new_handle_loaded_image->LoadOptions = new_cmdline;
