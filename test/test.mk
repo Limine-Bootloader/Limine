@@ -69,6 +69,7 @@ ifneq ($(findstring x86_64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
 override CFLAGS += \
     -m64 \
     -march=x86-64 \
+    -mabi=sysv \
     -mgeneral-regs-only \
     -mno-red-zone
 endif
@@ -105,6 +106,7 @@ override CFLAGS_MB := \
     -fno-PIC \
     -m32 \
     -march=i686 \
+    -mabi=sysv \
     -mgeneral-regs-only \
     -I. \
     -I../common/protos \

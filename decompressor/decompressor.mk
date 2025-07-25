@@ -29,6 +29,7 @@ override CFLAGS_FOR_TARGET += \
     -fno-PIC \
     -m32 \
     -march=i686 \
+    -mabi=sysv \
     -mno-80387
 
 override CPPFLAGS_FOR_TARGET := \
