@@ -132,6 +132,8 @@ ifeq ($(TARGET),uefi-aarch64)
     override CFLAGS_FOR_TARGET += \
         -fPIE \
         -fshort-wchar \
+        -mcpu=generic \
+        -march=armv8-a+nofp+nosimd \
         -mgeneral-regs-only
     override CPPFLAGS_FOR_TARGET := \
         -I ../nyu-efi/inc \
@@ -165,7 +167,10 @@ ifeq ($(TARGET),uefi-loongarch64)
         -fPIE \
         -fshort-wchar \
         -march=loongarch64 \
-        -mabi=lp64s
+        -mabi=lp64s \
+        -mfpu=none \
+        -msimd=none \
+        -mno-relax
 
     override CPPFLAGS_FOR_TARGET := \
         -I ../nyu-efi/inc \
