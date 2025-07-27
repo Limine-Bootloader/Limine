@@ -3,12 +3,12 @@ ENTRY(_start)
 
 PHDRS
 {
-    text_s2   PT_LOAD    FLAGS((1 << 0) | (1 << 2)) ;
-    rodata_s2 PT_LOAD    FLAGS((1 << 2)) ;
-    data_s2   PT_LOAD    FLAGS((1 << 1) | (1 << 2)) ;
-    text_s3   PT_LOAD    FLAGS((1 << 0) | (1 << 2)) ;
-    rodata_s3 PT_LOAD    FLAGS((1 << 2)) ;
-    data_s3   PT_LOAD    FLAGS((1 << 1) | (1 << 2)) ;
+    text_s2   PT_LOAD    FLAGS(0x05);
+    rodata_s2 PT_LOAD    FLAGS(0x04);
+    data_s2   PT_LOAD    FLAGS(0x06);
+    text_s3   PT_LOAD    FLAGS(0x05);
+    rodata_s3 PT_LOAD    FLAGS(0x04);
+    data_s3   PT_LOAD    FLAGS(0x06);
 }
 
 SECTIONS

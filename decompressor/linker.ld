@@ -3,9 +3,9 @@ ENTRY(_start)
 
 PHDRS
 {
-    text  PT_LOAD    FLAGS((1 << 0) | (1 << 2)) ;
-    rodata PT_LOAD   FLAGS((1 << 2)) ;
-    data  PT_LOAD    FLAGS((1 << 1) | (1 << 2)) ;
+    text  PT_LOAD    FLAGS(0x05);
+    rodata PT_LOAD   FLAGS(0x04);
+    data  PT_LOAD    FLAGS(0x06);
 }
 
 SECTIONS
