@@ -50,11 +50,16 @@ SECTIONS
     .data : {
    data_begin = .;
         *(.data .data.*)
+    } :data
+
+    .bss : {
         *(.bss .bss.*)
         *(COMMON)
    data_end = .;
+    } :data
 
-   *(.no_unwind)
+    .no_unwind : {
+        *(.no_unwind)
     } :data
 
     .dynamic : {

@@ -58,7 +58,9 @@ SECTIONS
         s2_data_begin = .;
         *.s2.o(.data .data.*)
         s2_data_end = .;
+    } :data_s2
 
+    .no_unwind.stage2 : {
         *.s2.o(.no_unwind)
     } :data_s2
 
@@ -85,7 +87,9 @@ SECTIONS
         data_begin = .;
         *(.data .data.*)
         data_end = .;
+    } :data_s3
 
+    .no_unwind.stage3 : {
         *(.no_unwind)
     } :data_s3
 #endif
