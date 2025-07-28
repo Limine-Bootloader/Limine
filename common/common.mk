@@ -229,61 +229,61 @@ endif
 
 ifeq ($(TARGET),bios)
     override C_FILES := $(shell cd .. && find common flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common -type f -name '*.S' ! -name 'section_type_markers.*' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM32_FILES := $(shell cd .. && find common -type f -name '*.asm_ia32' | LC_ALL=C sort)
     override ASMB_FILES := $(shell cd .. && find common -type f -name '*.asm_bios_ia32' | LC_ALL=C sort)
 
-    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, common/section_type_markers.s2.o common/section_type_markers.o $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASMB_FILES:.asm_bios_ia32=.o) $(ASMX86_FILES:.asm_x86=.o))
+    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASMB_FILES:.asm_bios_ia32=.o) $(ASMX86_FILES:.asm_x86=.o))
     override OBJ_S2 := $(filter %.s2.o,$(OBJ))
 endif
 ifeq ($(TARGET),uefi-x86-64)
     override C_FILES := $(shell cd .. && find common nyu-efi/x86_64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/x86_64 -type f -name '*.S' ! -name 'section_type_markers.*' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/x86_64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_x86_64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_x86_64' | LC_ALL=C sort)
 
-    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, common/section_type_markers.o $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_x86_64=.o) $(ASM64U_FILES:.asm_uefi_x86_64=.o) $(ASMX86_FILES:.asm_x86=.o))
+    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_x86_64=.o) $(ASM64U_FILES:.asm_uefi_x86_64=.o) $(ASMX86_FILES:.asm_x86=.o))
 endif
 ifeq ($(TARGET),uefi-ia32)
     override C_FILES := $(shell cd .. && find common nyu-efi/ia32 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/ia32 -type f -name '*.S' ! -name 'section_type_markers.*' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/ia32 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM32_FILES := $(shell cd .. && find common -type f -name '*.asm_ia32' | LC_ALL=C sort)
     override ASM32U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_ia32' | LC_ALL=C sort)
 
-    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, common/section_type_markers.o $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASM32U_FILES:.asm_uefi_ia32=.o) $(ASMX86_FILES:.asm_x86=.o))
+    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASM32U_FILES:.asm_uefi_ia32=.o) $(ASMX86_FILES:.asm_x86=.o))
 endif
 ifeq ($(TARGET),uefi-aarch64)
     override C_FILES := $(shell cd .. && find common nyu-efi/aarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/aarch64 -type f -name '*.S' ! -name 'section_type_markers.*' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/aarch64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_aarch64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_aarch64' | LC_ALL=C sort)
 
-    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, common/section_type_markers.o $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_aarch64=.o) $(ASM64U_FILES:.asm_uefi_aarch64=.o))
+    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_aarch64=.o) $(ASM64U_FILES:.asm_uefi_aarch64=.o))
 endif
 ifeq ($(TARGET),uefi-riscv64)
     override C_FILES := $(shell cd .. && find common nyu-efi/riscv64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/riscv64 -type f -name '*.S' ! -name 'section_type_markers.*' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/riscv64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_riscv64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_riscv64' | LC_ALL=C sort)
 
-    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, common/section_type_markers.o $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_riscv64=.o) $(ASM64U_FILES:.asm_uefi_riscv64=.o))
+    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_riscv64=.o) $(ASM64U_FILES:.asm_uefi_riscv64=.o))
 endif
 ifeq ($(TARGET),uefi-loongarch64)
     override C_FILES := $(shell cd .. && find common nyu-efi/loongarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common nyu-efi/loongarch64 -type f -name '*.S' ! -name 'section_type_markers.*' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common nyu-efi/loongarch64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_loongarch64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_loongarch64' | LC_ALL=C sort)
 
-    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, common/section_type_markers.o $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_loongarch64=.o) $(ASM64U_FILES:.asm_uefi_loongarch64=.o))
+    override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_loongarch64=.o) $(ASM64U_FILES:.asm_uefi_loongarch64=.o))
 endif
 
 override HEADER_DEPS := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=.d) $(C_FILES:.S=.d))

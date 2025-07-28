@@ -16,16 +16,12 @@ SECTIONS
     . = 0xf000;
 
     .text.stage2 : {
-        KEEP(*(.text_type_marker_s2))
-
         *(.entry)
         *(.realmode)
         *.s2.o(.text .text.*)
     } :text_s2
 
     .rodata.stage2 : {
-        KEEP(*(.rodata_type_marker_s2))
-
         *.s2.o(.rodata .rodata.*)
 
         build_id_s2 = .;
@@ -59,8 +55,6 @@ SECTIONS
     } :rodata_s2
 
     .data.stage2 : {
-        KEEP(*(.data_type_marker_s2))
-
         s2_data_begin = .;
         *.s2.o(.data .data.*)
         s2_data_end = .;
@@ -70,15 +64,11 @@ SECTIONS
 
 #ifndef LINKER_STAGE2ONLY
     .text.stage3 : {
-        KEEP(*(.text_type_marker))
-
         stage3_addr = .;
         *(.text .text.*)
     } :text_s3
 
     .rodata.stage3 : {
-        KEEP(*(.rodata_type_marker))
-
         *(.rodata .rodata.*)
 
         build_id_s3 = .;
@@ -92,8 +82,6 @@ SECTIONS
     } :rodata_s3
 
     .data.stage3 : {
-        KEEP(*(.data_type_marker))
-
         data_begin = .;
         *(.data .data.*)
         data_end = .;
