@@ -17,6 +17,8 @@ SECTIONS
     __image_size = ABSOLUTE(__image_end - __image_base);
 
     .text : {
+        KEEP(*(.text_type_marker))
+
         KEEP(*(.pe_header))
 
         . = ALIGN(0x1000);
@@ -30,6 +32,8 @@ SECTIONS
     __text_size = ABSOLUTE(__text_end - __text_start);
 
     .rodata : {
+        KEEP(*(.rodata_type_marker))
+
         __reloc_start = ABSOLUTE(.);
         *(.dummy_reloc)
 
@@ -48,6 +52,8 @@ SECTIONS
     } :rodata
 
     .data : {
+        KEEP(*(.data_type_marker))
+
    data_begin = .;
         *(.data .data.*)
         *(.bss .bss.*)
