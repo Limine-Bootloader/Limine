@@ -1,3 +1,15 @@
+2025-07-29  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.5.1 ***
+
+    Noteworthy changes compared to the previous release, 9.5.0:
+
+    Bug fixes:
+        - Unbreak build using ld.gold as linker.
+
+    Miscellaneous:
+        - Miscellaneous build system updates and improvements.
+
 2025-07-14  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.5.0 ***
