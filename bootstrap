@@ -85,7 +85,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/osdev/freestanding-toolchain.git \
         build-aux/freestanding-toolchain \
-        476692d0644d44618a30e77d9c10e976a650b79b
+        2da3feadd74c6b11b5887e0703a253c164388d80
 
     clone_repo_commit \
         https://github.com/limine-bootloader/limine-protocol.git \

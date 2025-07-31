@@ -1,5 +1,16 @@
-MAKEFLAGS += -rR
-.SUFFIXES:
+# Nuke built-in rules and variables.
+ROOTMAKE := true
+ifeq ($(__BASH_MAKE_COMPLETION__)$(ROOTMAKE),true)
+ifeq ($(MAKECMDGOALS),)
+    override TARGETS := all
+else
+    override TARGETS := $(MAKECMDGOALS)
+endif
+override TMP_INC := $(shell mktemp)
+$(shell for t in $(TARGETS); do printf ".PHONY: $$t\n$$t:\n\t@true\n" >>'$(TMP_INC)'; done)
+$(shell printf "\t@rm -f '$(TMP_INC)'\n\t@\$$(MAKE) -rR $(MAKECMDGOALS) ROOTMAKE=false\n" >>'$(TMP_INC)')
+include $(TMP_INC)
+else
 
 override SOURCE_DATE_EPOCH := @SOURCE_DATE_EPOCH@
 export SOURCE_DATE_EPOCH
@@ -10,17 +21,15 @@ override PACKAGE_TARNAME := @PACKAGE_TARNAME@
 override PACKAGE_VERSION := @PACKAGE_VERSION@
 override DIST_OUTPUT := $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
 
-prefix := @prefix@
-exec_prefix := @exec_prefix@
+override prefix := @prefix@
+override exec_prefix := @exec_prefix@
 
-bindir := @bindir@
-datarootdir := @datarootdir@
-includedir := @includedir@
-datarootdir := @datarootdir@
-mandir := @mandir@
-docdir := @docdir@
-
-STRIP := @STRIP@
+override bindir := @bindir@
+override datarootdir := @datarootdir@
+override includedir := @includedir@
+override datarootdir := @datarootdir@
+override mandir := @mandir@
+override docdir := @docdir@
 
 override BUILDDIR := @BUILDDIR@
 override BINDIR := $(BUILDDIR)/bin
@@ -44,49 +53,52 @@ override BUILD_UEFI_CD := @BUILD_UEFI_CD@
 override BUILD_BIOS_PXE := @BUILD_BIOS_PXE@
 override BUILD_BIOS_CD := @BUILD_BIOS_CD@
 
-CC := @CC@
+CC ?= @CC@
 export CC
 
-MKDIR_P := @MKDIR_P@
+MKDIR_P ?= @MKDIR_P@
 export MKDIR_P
 
-INSTALL := @INSTALL@
+INSTALL ?= @INSTALL@
 export INSTALL
 
-INSTALL_PROGRAM := @INSTALL_PROGRAM@
+INSTALL_PROGRAM ?= @INSTALL_PROGRAM@
 export INSTALL_PROGRAM
 
-INSTALL_DATA := @INSTALL_DATA@
+INSTALL_DATA ?= @INSTALL_DATA@
 export INSTALL_DATA
 
-GREP := @GREP@
+STRIP ?= @STRIP@
+export STRIP
+
+GREP ?= @GREP@
 export GREP
 
-SED := @SED@
+SED ?= @SED@
 export SED
 
-AWK := @AWK@
+AWK ?= @AWK@
 export AWK
 
-CPPFLAGS := @CPPFLAGS@
+CPPFLAGS ?= @CPPFLAGS@
 export CPPFLAGS
-CFLAGS := @CFLAGS@
+CFLAGS ?= @CFLAGS@
 export CFLAGS
-LDFLAGS := @LDFLAGS@
+LDFLAGS ?= @LDFLAGS@
 export LDFLAGS
-LIBS := @LIBS@
+LIBS ?= @LIBS@
 export LIBS
 
 override WERROR_FLAG := @WERROR_FLAG@
 export WERROR_FLAG
 
-CFLAGS_FOR_TARGET := @CFLAGS_FOR_TARGET@
+CFLAGS_FOR_TARGET ?= @CFLAGS_FOR_TARGET@
 export CFLAGS_FOR_TARGET
-CPPFLAGS_FOR_TARGET := @CPPFLAGS_FOR_TARGET@
+CPPFLAGS_FOR_TARGET ?= @CPPFLAGS_FOR_TARGET@
 export CPPFLAGS_FOR_TARGET
-LDFLAGS_FOR_TARGET := @LDFLAGS_FOR_TARGET@
+LDFLAGS_FOR_TARGET ?= @LDFLAGS_FOR_TARGET@
 export LDFLAGS_FOR_TARGET
-NASMFLAGS_FOR_TARGET := @NASMFLAGS_FOR_TARGET@
+NASMFLAGS_FOR_TARGET ?= @NASMFLAGS_FOR_TARGET@
 export NASMFLAGS_FOR_TARGET
 
 override STAGE1_FILES := $(shell find '$(call SHESCAPE,$(SRCDIR))/stage1' -type f -name '*.asm' | LC_ALL=C sort)
@@ -421,3 +433,5 @@ decompressor-clean:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))/decompressor-build'
 
 -include test.mk
+
+endif
