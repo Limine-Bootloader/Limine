@@ -379,7 +379,7 @@ AC_ARG_VAR([LDFLAGS_FOR_TARGET], [linker flags for Limine])
 test "x${LDFLAGS_FOR_TARGET+set}" = "x" && LDFLAGS_FOR_TARGET=""
 
 AC_ARG_VAR([NASMFLAGS_FOR_TARGET], [nasm flags for Limine])
-test "x${NASMFLAGS_FOR_TARGET+set}" = "x" && NASMFLAGS_FOR_TARGET="-F dwarf -g"
+test "x${NASMFLAGS_FOR_TARGET+set}" = "x" && NASMFLAGS_FOR_TARGET="-g"
 
 LIMINE_COPYRIGHT=$($GREP Copyright "$SRCDIR/COPYING")
 AC_SUBST([LIMINE_COPYRIGHT])

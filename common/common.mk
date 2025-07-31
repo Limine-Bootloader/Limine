@@ -60,7 +60,8 @@ override NASMFLAGS_FOR_TARGET += \
     -Wall \
     -w-unknown-warning \
     -w-reloc \
-    $(WERROR_FLAG)
+    $(WERROR_FLAG) \
+    -g
 
 ifeq ($(TARGET),bios)
     override CFLAGS_FOR_TARGET += \
@@ -74,7 +75,7 @@ ifeq ($(TARGET),bios)
         -DBIOS
     override NASMFLAGS_FOR_TARGET := \
         -f elf32 \
-        $(NASMFLAGS_FOR_TARGET) \
+        $(shell printf '%s' '$(NASMFLAGS_FOR_TARGET)' | $(SED) -E 's/(^|[[:space:]])-g($$|[[:space:]])/\1-g -F dwarf\2/g') \
         -DIA32_TARGET \
         -DBIOS
 endif
@@ -97,7 +98,7 @@ ifeq ($(TARGET),uefi-x86-64)
         -DUEFI
     override NASMFLAGS_FOR_TARGET := \
         -f elf64 \
-        $(NASMFLAGS_FOR_TARGET) \
+        $(shell printf '%s' '$(NASMFLAGS_FOR_TARGET)' | $(SED) -E 's/(^|[[:space:]])-g($$|[[:space:]])/\1-g -F dwarf\2/g') \
         -DX86_64_TARGET \
         -DUEFI
 endif
