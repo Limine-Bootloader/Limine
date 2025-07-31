@@ -1,14 +1,8 @@
 # Nuke built-in rules and variables.
-ROOTMAKE := true
-ifeq ($(__BASH_MAKE_COMPLETION__)$(ROOTMAKE),true)
-ifeq ($(MAKECMDGOALS),)
-    override TARGETS := all
-else
-    override TARGETS := $(MAKECMDGOALS)
-endif
+ifeq ($(__BASH_MAKE_COMPLETION__)$(GMAKE_BUILTINS),)
 override TMP_INC := $(shell mktemp)
-$(shell for t in $(TARGETS); do printf ".PHONY: $$t\n$$t:\n\t@true\n" >>'$(TMP_INC)'; done)
-$(shell printf "\t@rm -f '\$$(TMP_INC)'\n\t@\$$(MAKE) -rR \$$(MAKECMDGOALS) ROOTMAKE=false\n" >>'$(TMP_INC)')
+$(shell for t in DEFAULT $(MAKECMDGOALS); do printf ".PHONY: $$t\n$$t:\n\t@true\n" >>'$(TMP_INC)'; done)
+$(shell printf "\t@rm -f '\$$(TMP_INC)'\n\t@\$$(MAKE) -rR \$$(MAKECMDGOALS) GMAKE_BUILTINS=off\n" >>'$(TMP_INC)')
 include $(TMP_INC)
 else
 
