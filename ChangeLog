@@ -1,3 +1,17 @@
+2025-08-01  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.5.2 ***
+
+    Noteworthy changes compared to the previous release, 9.5.1:
+
+    Bug fixes:
+        - Revert change that moved to `nm` from `objdump` for generating the
+          symbol table, as that broke section-specific symbol dumps and caused
+          BIOS stage 2 to be bloated with the full symbol table.
+
+    Miscellaneous:
+        - Miscellaneous build system updates and improvements.
+
 2025-07-29  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.5.1 ***

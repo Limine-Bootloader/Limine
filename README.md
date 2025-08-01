@@ -1,4 +1,4 @@
-# Limine [![Build Status](https://github.com/limine-bootloader/limine/actions/workflows/check.yml/badge.svg)](https://github.com/limine-bootloader/limine/actions/workflows/check.yml) [![Discord Server](https://dcbadge.limes.pink/api/server/Z93u2ZUNZs)](https://discord.gg/Z93u2ZUNZs)
+# Limine [![Build Status](https://github.com/limine-bootloader/limine/actions/workflows/check.yml/badge.svg)](https://github.com/limine-bootloader/limine/actions/workflows/check.yml) [![Discord Server](https://img.shields.io/discord/706151776247873636?color=5865F2&label=Discord&logo=discord&logoColor=white)](https://discord.gg/Z93u2ZUNZs)
 
 <p align="center">
     <img src="https://github.com/limine-bootloader/limine/blob/trunk/logo.png?raw=true" alt="Limine's logo"/>
@@ -77,9 +77,9 @@ For example, to clone the latest binary release of the `9.x` branch, one can do:
 ```bash
 git clone https://github.com/limine-bootloader/limine.git --branch=v9.x-binary --depth=1
 ```
-or, to clone a specific binary point release (for example `9.5.1`):
+or, to clone a specific binary point release (for example `9.5.2`):
 ```bash
-git clone https://github.com/limine-bootloader/limine.git --branch=v9.5.1-binary --depth=1
+git clone https://github.com/limine-bootloader/limine.git --branch=v9.5.2-binary --depth=1
 ```
 
 In order to rebuild host utilities like `limine`, simply run `make` in the binary
