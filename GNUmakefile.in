@@ -8,7 +8,7 @@ else
 endif
 override TMP_INC := $(shell mktemp)
 $(shell for t in $(TARGETS); do printf ".PHONY: $$t\n$$t:\n\t@true\n" >>'$(TMP_INC)'; done)
-$(shell printf "\t@rm -f '\$$(TMP_INC)'\n\t@\$$(MAKE) -rR \$$(MAKECMDGOALS) ROOTMAKE=false\n" >>'$(TMP_INC)')
+$(shell printf "\t@rm -f '$(TMP_INC)'\n\t@\$$(MAKE) -rR $(MAKECMDGOALS) ROOTMAKE=false\n" >>'$(TMP_INC)')
 include $(TMP_INC)
 else
 
