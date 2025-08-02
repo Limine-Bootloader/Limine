@@ -1,5 +1,12 @@
+MAKEFLAGS += -rR
+.SUFFIXES:
+
 include $(TOOLCHAIN_FILE)
+export CC_FOR_TARGET
+export LD_FOR_TARGET
 export OBJDUMP_FOR_TARGET
+export OBJCOPY_FOR_TARGET
+export READELF_FOR_TARGET
 
 override SRCDIR := $(shell pwd -P)
 
@@ -9,8 +16,8 @@ override MKESCAPE = $(subst $(SPACE),\ ,$(1))
 override SHESCAPE = $(subst ','\'',$(1))
 override OBJESCAPE = $(subst .a ,.a' ',$(subst .o ,.o' ',$(call SHESCAPE,$(1))))
 
-COM_OUTPUT ?= false
-E9_OUTPUT ?= false
+COM_OUTPUT := false
+E9_OUTPUT := false
 
 override S2CFLAGS := -Os
 

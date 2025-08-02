@@ -1,3 +1,6 @@
+MAKEFLAGS += -rR
+.SUFFIXES:
+
 include $(TOOLCHAIN_FILE)
 
 override SPACE := $(subst ,, )
