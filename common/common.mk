@@ -1,12 +1,7 @@
-MAKEFLAGS += -rR
 .SUFFIXES:
 
 include $(TOOLCHAIN_FILE)
-export CC_FOR_TARGET
-export LD_FOR_TARGET
 export OBJDUMP_FOR_TARGET
-export OBJCOPY_FOR_TARGET
-export READELF_FOR_TARGET
 
 override SRCDIR := $(shell pwd -P)
 

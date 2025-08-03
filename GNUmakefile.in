@@ -1,4 +1,3 @@
-MAKEFLAGS += -rR
 .SUFFIXES:
 
 override SOURCE_DATE_EPOCH := @SOURCE_DATE_EPOCH@
@@ -10,17 +9,15 @@ override PACKAGE_TARNAME := @PACKAGE_TARNAME@
 override PACKAGE_VERSION := @PACKAGE_VERSION@
 override DIST_OUTPUT := $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
 
-prefix := @prefix@
-exec_prefix := @exec_prefix@
+override prefix := @prefix@
+override exec_prefix := @exec_prefix@
 
-bindir := @bindir@
-datarootdir := @datarootdir@
-includedir := @includedir@
-datarootdir := @datarootdir@
-mandir := @mandir@
-docdir := @docdir@
-
-STRIP := @STRIP@
+override bindir := @bindir@
+override datarootdir := @datarootdir@
+override includedir := @includedir@
+override datarootdir := @datarootdir@
+override mandir := @mandir@
+override docdir := @docdir@
 
 override BUILDDIR := @BUILDDIR@
 override BINDIR := $(BUILDDIR)/bin
@@ -58,6 +55,9 @@ export INSTALL_PROGRAM
 
 INSTALL_DATA := @INSTALL_DATA@
 export INSTALL_DATA
+
+STRIP := @STRIP@
+export STRIP
 
 GREP := @GREP@
 export GREP
