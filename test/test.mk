@@ -1,9 +1,4 @@
 include $(TOOLCHAIN_FILE)
-export CC_FOR_TARGET
-export LD_FOR_TARGET
-export OBJDUMP_FOR_TARGET
-export OBJCOPY_FOR_TARGET
-export READELF_FOR_TARGET
 
 override CC := $(CC_FOR_TARGET)
 CFLAGS = -O2 -g -Wall -Wextra
