@@ -1,3 +1,13 @@
+2025-08-04  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.5.3 ***
+
+    Noteworthy changes compared to the previous release, 9.5.2:
+
+    Bug fixes:
+        - Miscellaneous build system fixes, mainly to sort out possible issues
+          introduced by 9.5.2.
+
 2025-08-01  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.5.2 ***
