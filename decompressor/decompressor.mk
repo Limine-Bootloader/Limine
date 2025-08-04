@@ -49,7 +49,7 @@ override LDFLAGS_FOR_TARGET += \
 
 override NASMFLAGS_FOR_TARGET := \
     -f elf32 \
-    $(shell printf '%s' '$(NASMFLAGS_FOR_TARGET)' | $(SED) -E 's/(^|[[:space:]])-g($$|[[:space:]])/\1-g -F dwarf\2/g') \
+    $(patsubst -g,-g -F dwarf,$(NASMFLAGS_FOR_TARGET)) \
     -Wall \
     -w-unknown-warning \
     -w-reloc \

@@ -36,6 +36,9 @@ override CFLAGS_FOR_TARGET += \
     -fno-strict-aliasing \
     -fno-lto
 
+override CFLAGS_FOR_TARGET := \
+    $(patsubst -g,-gdwarf,$(CFLAGS_FOR_TARGET))
+
 override CPPFLAGS_FOR_TARGET := \
     -I . \
     -I libc-compat \
@@ -59,11 +62,14 @@ $(call MKESCAPE,$(BUILDDIR))/flanterm/src/flanterm_backends/fb.o: override CPPFL
     -DFLANTERM_FB_DISABLE_BUMP_ALLOC
 
 override NASMFLAGS_FOR_TARGET += \
+    -g \
     -Wall \
     -w-unknown-warning \
     -w-reloc \
-    $(WERROR_FLAG) \
-    -g
+    $(WERROR_FLAG)
+
+override NASMFLAGS_FOR_TARGET := \
+    $(patsubst -g,-g -F dwarf,$(NASMFLAGS_FOR_TARGET))
 
 ifeq ($(TARGET),bios)
     override CFLAGS_FOR_TARGET += \
@@ -77,7 +83,7 @@ ifeq ($(TARGET),bios)
         -DBIOS
     override NASMFLAGS_FOR_TARGET := \
         -f elf32 \
-        $(shell printf '%s' '$(NASMFLAGS_FOR_TARGET)' | $(SED) -E 's/(^|[[:space:]])-g($$|[[:space:]])/\1-g -F dwarf\2/g') \
+        $(NASMFLAGS_FOR_TARGET) \
         -DIA32_TARGET \
         -DBIOS
 endif
@@ -100,7 +106,7 @@ ifeq ($(TARGET),uefi-x86-64)
         -DUEFI
     override NASMFLAGS_FOR_TARGET := \
         -f elf64 \
-        $(shell printf '%s' '$(NASMFLAGS_FOR_TARGET)' | $(SED) -E 's/(^|[[:space:]])-g($$|[[:space:]])/\1-g -F dwarf\2/g') \
+        $(NASMFLAGS_FOR_TARGET) \
         -DX86_64_TARGET \
         -DUEFI
 endif
