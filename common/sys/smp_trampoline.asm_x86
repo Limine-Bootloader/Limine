@@ -164,7 +164,7 @@ parking64:
     mov rax, qword [rdi + 16]
     test rax, rax
     jnz .out
-    lea rax, qword [rdi + 16]
+    lea rax, [rdi + 16]
     xor ecx, ecx
     xor edx, edx
     monitor
