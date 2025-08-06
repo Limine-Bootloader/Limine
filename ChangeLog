@@ -1,3 +1,21 @@
+2025-08-06  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.5.4 ***
+
+    Noteworthy changes compared to the previous release, 9.5.3:
+
+    Bug fixes:
+        - Exclude non-PCI devices from the volume discovery process on UEFI.
+          This is because on (especially, but not limited to) Snapdragon X
+          systems, firmware/flash devices, which are non-PCI, are exposed as
+          block I/O volumes too. This skips them, which makes the bootloader
+          more reliable and avoids long hangs at boot.
+        - Miscellaneous changes and fixes to the fallback volume discovery
+          path, to increase reliability and reduce the chance of accidental
+          damage or data loss. See GitHub issue #525.
+        - Minor assembly improvement that fixed Limine not building with old
+          NASM.
+
 2025-08-04  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.5.3 ***
