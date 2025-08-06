@@ -408,6 +408,36 @@ static struct volume *volume_by_unique_sector(void *b2b) {
     return NULL;
 }
 
+static bool validate_efi_handle(EFI_HANDLE efi_handle) {
+    EFI_STATUS status;
+
+    EFI_GUID dp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+    EFI_DEVICE_PATH_PROTOCOL *dp = NULL;
+
+    status = gBS->HandleProtocol(efi_handle, &dp_guid, (void **)&dp);
+    if (status) {
+        return false;
+    }
+
+    for (;; dp = (void *)dp + *(uint16_t *)dp->Length) {
+        if (dp->Type == END_DEVICE_PATH_TYPE && dp->SubType == END_ENTIRE_DEVICE_PATH_SUBTYPE) {
+            break;
+        }
+
+        if (dp->Type != MEDIA_DEVICE_PATH) {
+            continue;
+        }
+
+        switch (dp->SubType) {
+            case MEDIA_HARDDRIVE_DP:
+            case MEDIA_CDROM_DP:
+                return true;
+        }
+    }
+
+    return false;
+}
+
 struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle) {
     struct volume *ret;
 
@@ -415,6 +445,10 @@ struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle) {
 
     EFI_GUID block_io_guid = BLOCK_IO_PROTOCOL;
     EFI_BLOCK_IO *block_io = NULL;
+
+    if (!validate_efi_handle(efi_handle)) {
+        return NULL;
+    }
 
     status = gBS->HandleProtocol(efi_handle, &block_io_guid, (void **)&block_io);
     if (status) {
