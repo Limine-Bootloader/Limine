@@ -451,8 +451,6 @@ struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle) {
         return pxe_from_efi_handle(efi_handle);
     }
 
-    block_io->Media->WriteCaching = false;
-
     uint64_t bdev_size = ((uint64_t)block_io->Media->LastBlock + 1) * (uint64_t)block_io->Media->BlockSize;
     if (bdev_size < UNIQUE_SECTOR_POOL_SIZE) {
         goto fallback;
@@ -674,6 +672,8 @@ fail:
         }
 
         status = drive->WriteBlocks(drive, drive->Media->MediaId, 0, 4096, unique_sector_pool);
+
+        drive->Media->WriteCaching = true;
 
         struct volume *block = ext_mem_alloc(sizeof(struct volume));
 
