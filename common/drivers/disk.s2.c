@@ -424,15 +424,11 @@ static bool validate_efi_handle(EFI_HANDLE efi_handle) {
             break;
         }
 
-        if (dp->Type != MEDIA_DEVICE_PATH) {
+        if (dp->Type != HARDWARE_DEVICE_PATH || dp->SubType != HW_PCI_DP) {
             continue;
         }
 
-        switch (dp->SubType) {
-            case MEDIA_HARDDRIVE_DP:
-            case MEDIA_CDROM_DP:
-                return true;
-        }
+        return true;
     }
 
     return false;
@@ -654,6 +650,10 @@ fail:
 
     for (size_t i = 0; i < handle_count; i++) {
         EFI_BLOCK_IO *drive = NULL;
+
+        if (!validate_efi_handle(handles[i])) {
+            continue;
+        }
 
         status = gBS->HandleProtocol(handles[i], &block_io_guid, (void **)&drive);
 
