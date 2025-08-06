@@ -31,9 +31,6 @@ override CFLAGS_FOR_TARGET += \
     -mabi=sysv \
     -mno-80387
 
-override CFLAGS_FOR_TARGET := \
-    $(patsubst -g,-gdwarf,$(CFLAGS_FOR_TARGET))
-
 override CPPFLAGS_FOR_TARGET := \
     -I . \
     -I tinf \

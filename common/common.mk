@@ -36,9 +36,6 @@ override CFLAGS_FOR_TARGET += \
     -fno-strict-aliasing \
     -fno-lto
 
-override CFLAGS_FOR_TARGET := \
-    $(patsubst -g,-gdwarf,$(CFLAGS_FOR_TARGET))
-
 override CPPFLAGS_FOR_TARGET := \
     -I . \
     -I libc-compat \
