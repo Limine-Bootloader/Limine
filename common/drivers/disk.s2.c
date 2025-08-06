@@ -490,6 +490,9 @@ fallback:;
     *(uint64_t *)unique_sector_pool = signature;
     status = block_io->WriteBlocks(block_io, block_io->Media->MediaId, 0, 4096, unique_sector_pool);
     if (status) {
+        // Attempt to restore anyways, just in case.
+        *(uint64_t *)unique_sector_pool = orig;
+        block_io->WriteBlocks(block_io, block_io->Media->MediaId, 0, 4096, unique_sector_pool);
         return NULL;
     }
 
