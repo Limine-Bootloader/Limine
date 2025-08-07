@@ -1,3 +1,14 @@
+2025-08-07  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.6.0 ***
+
+    Noteworthy changes compared to the previous release, 9.5.4:
+
+    Miscellaneous:
+        - Get rid of the fragile and messy "freestanding-toolchain" build
+          helper tool. This allows for a simpler and more predictable way of
+          selecting the target toolchain components via ./configure.
+
 2025-08-06  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.5.4 ***
