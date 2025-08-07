@@ -18,8 +18,8 @@ jobs:
       - name: Git config
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Build the bootloader (LLVM)
-        run: ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=llvm --enable-werror --enable-all && make all && make maintainer-clean
+      - name: Build the bootloader (LLVM, default)
+        run: ./bootstrap && ./configure --enable-werror --enable-all && make all && make maintainer-clean
 
       - name: Set cross GCC version
         run: echo "GCC_VERSION=15.1.0" >> $GITHUB_ENV
@@ -33,13 +33,13 @@ jobs:
           done
 
       - name: Build the bootloader (GNU, x86)
-        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/x86_64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=x86_64-linux --enable-werror --enable-bios --enable-uefi-ia32 --enable-uefi-x86-64 && make all && make maintainer-clean
+        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/x86_64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=x86_64-linux- --enable-werror --enable-bios --enable-uefi-ia32 --enable-uefi-x86-64 && make all && make maintainer-clean
 
       - name: Build the bootloader (GNU, aarch64)
-        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/aarch64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=aarch64-linux --enable-werror --enable-uefi-aarch64 && make all && make maintainer-clean
+        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/aarch64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=aarch64-linux- --enable-werror --enable-uefi-aarch64 && make all && make maintainer-clean
 
       - name: Build the bootloader (GNU, riscv64)
-        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/riscv64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=riscv64-linux --enable-werror --enable-uefi-riscv64 && make all && make maintainer-clean
+        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/riscv64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=riscv64-linux- --enable-werror --enable-uefi-riscv64 && make all && make maintainer-clean
 
       - name: Build the bootloader (GNU, loongarch64)
-        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/loongarch64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=loongarch64-linux --enable-werror --enable-uefi-loongarch64 && make all && make maintainer-clean
+        run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/loongarch64-linux/bin:"$PATH" && ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=loongarch64-linux- --enable-werror --enable-uefi-loongarch64 && make all && make maintainer-clean

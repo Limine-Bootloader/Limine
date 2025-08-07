@@ -49,7 +49,7 @@ jobs:
         run: mkdir -p build
 
       - name: Configure
-        run: cd build && ../configure --enable-all TOOLCHAIN_FOR_TARGET=llvm
+        run: cd build && ../configure --enable-all
 
       - name: Build the bootloader
         run: make -C build
