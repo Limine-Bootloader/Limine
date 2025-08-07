@@ -127,9 +127,9 @@ override CFLAGS_MB := \
     -isystem ../freestnd-c-hdrs/include
 
 ifeq ($(ARCH),x86)
-all: test.elf multiboot2.elf multiboot.elf device_tree.dtb
+all: test.elf multiboot2.elf multiboot.elf
 else
-all: test.elf device_tree.dtb
+all: test.elf
 endif
 
 flanterm.o: ../flanterm/src/flanterm.c
@@ -159,12 +159,8 @@ multiboot.elf: multiboot_trampoline.o
 %.o: %.asm
 	nasm -felf32 -F dwarf -g $< -o $@
 
-%.dtb: %.dts
-	dtc $< -o $@
-
 clean:
 	rm -rf test.elf limine.o e9print.o memory.o
 	rm -rf flanterm.o flanterm_fb.o
 	rm -rf multiboot2.o multiboot2.elf multiboot2_trampoline.o
 	rm -rf multiboot.o multiboot_trampoline.o multiboot.elf
-	rm -rf device_tree.dtb
