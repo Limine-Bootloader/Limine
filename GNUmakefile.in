@@ -62,6 +62,17 @@ CFLAGS := @CFLAGS@
 LDFLAGS := @LDFLAGS@
 LIBS := @LIBS@
 
+CC_FOR_TARGET := @CC_FOR_TARGET@
+export CC_FOR_TARGET
+LD_FOR_TARGET := @LD_FOR_TARGET@
+export LD_FOR_TARGET
+OBJCOPY_FOR_TARGET := @OBJCOPY_FOR_TARGET@
+export OBJCOPY_FOR_TARGET
+OBJDUMP_FOR_TARGET := @OBJDUMP_FOR_TARGET@
+export OBJDUMP_FOR_TARGET
+READELF_FOR_TARGET := @READELF_FOR_TARGET@
+export READELF_FOR_TARGET
+
 override WERROR_FLAG := @WERROR_FLAG@
 export WERROR_FLAG
 
@@ -290,7 +301,6 @@ dist:
 	cp -r '$(call SHESCAPE,$(SRCDIR))'/.git '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)"/
 	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && git checkout .
 	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && ./bootstrap
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/build-aux/freestanding-toolchain/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/freestnd-c-hdrs/.git"
@@ -323,7 +333,7 @@ dist:
 
 .PHONY: distclean
 distclean: clean
-	rm -rf ovmf* config.log config.status GNUmakefile config.h toolchain-files man/man1/limine.1
+	rm -rf ovmf* config.log config.status GNUmakefile config.h man/man1/limine.1
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
@@ -331,7 +341,6 @@ maintainer-clean: distclean
 
 .PHONY: common-uefi-x86-64
 common-uefi-x86-64:
-	TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk' \
 	TARGET=uefi-x86-64 \
 	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-x86-64' \
 		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
@@ -342,7 +351,6 @@ common-uefi-x86-64-clean:
 
 .PHONY: common-uefi-aarch64
 common-uefi-aarch64:
-	TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-aarch64-toolchain.mk' \
 	TARGET=uefi-aarch64 \
 	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-aarch64' \
 		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
@@ -353,7 +361,6 @@ common-uefi-aarch64-clean:
 
 .PHONY: common-uefi-riscv64
 common-uefi-riscv64:
-	TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-riscv64-toolchain.mk' \
 	TARGET=uefi-riscv64 \
 	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-riscv64' \
 		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
@@ -364,7 +371,6 @@ common-uefi-riscv64-clean:
 
 .PHONY: common-uefi-loongarch64
 common-uefi-loongarch64:
-	TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-loongarch64-toolchain.mk' \
 	TARGET=uefi-loongarch64 \
 	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-loongarch64' \
 		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
@@ -375,7 +381,6 @@ common-uefi-loongarch64-clean:
 
 .PHONY: common-uefi-ia32
 common-uefi-ia32:
-	TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-i686-toolchain.mk' \
 	TARGET=uefi-ia32 \
 	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-ia32' \
 		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
@@ -386,7 +391,6 @@ common-uefi-ia32-clean:
 
 .PHONY: common-bios
 common-bios:
-	TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/bios-i686-toolchain.mk' \
 	TARGET=bios \
 	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-bios' \
 		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
@@ -397,7 +401,6 @@ common-bios-clean:
 
 .PHONY: decompressor
 decompressor:
-	TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/bios-i686-toolchain.mk' \
 	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/decompressor-build' \
 		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/decompressor' -f decompressor.mk
 

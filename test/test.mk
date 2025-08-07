@@ -1,25 +1,39 @@
-include $(TOOLCHAIN_FILE)
-
 override CC := $(CC_FOR_TARGET)
-CFLAGS = -O2 -g -Wall -Wextra
-LDFLAGS =
+override CFLAGS := -O2 -g -Wall -Wextra
+override LDFLAGS :=
 override LD := $(LD_FOR_TARGET)
-override QEMU := qemu-system-x86_64
-QEMUFLAGS = -m 1G -enable-kvm -cpu host
 
-ifneq ($(findstring x86_64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+override CC_IS_CLANG := $(shell ! $(CC) --version 2>/dev/null | $(GREP) -q '^Target: '; echo $$?)
+
+ifeq ($(ARCH),x86)
+ifeq ($(CC_IS_CLANG),1)
+override CC += \
+    -target x86_64-unknown-none-elf
+endif
 override LDFLAGS += \
     -m elf_x86_64
 endif
-ifneq ($(findstring aarch64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),aarch64)
+ifeq ($(CC_IS_CLANG),1)
+override CC += \
+    -target aarch64-unknown-none-elf
+endif
 override LDFLAGS += \
     -m aarch64elf
 endif
-ifneq ($(findstring riscv64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),riscv64)
+ifeq ($(CC_IS_CLANG),1)
+override CC += \
+    -target riscv64-unknown-none-elf
+endif
 override LDFLAGS += \
     -m elf64lriscv
 endif
-ifneq ($(findstring loongarch64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),loongarch64)
+ifeq ($(CC_IS_CLANG),1)
+override CC += \
+    -target loongarch64-unknown-none-elf
+endif
 override LDFLAGS += \
     -m elf64loongarch
 endif
@@ -60,7 +74,7 @@ override CFLAGS += \
     -D_LIMINE_PROTO \
     -DLIMINE_API_REVISION=3
 
-ifneq ($(findstring x86_64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),x86)
 override CFLAGS += \
     -m64 \
     -march=x86-64 \
@@ -69,12 +83,14 @@ override CFLAGS += \
     -mno-red-zone
 endif
 
-ifneq ($(findstring aarch64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),aarch64)
 override CFLAGS += \
+    -mcpu=generic \
+    -march=armv8-a+nofp+nosimd \
     -mgeneral-regs-only
 endif
 
-ifneq ($(findstring riscv64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),riscv64)
 override CFLAGS += \
     -march=rv64imac \
     -mabi=lp64 \
@@ -83,10 +99,13 @@ override LDFLAGS += \
     --no-relax
 endif
 
-ifneq ($(findstring loongarch64,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),loongarch64)
 override CFLAGS += \
     -march=loongarch64 \
-    -mabi=lp64s
+    -mabi=lp64s \
+    -mfpu=none \
+    -msimd=none \
+    -mno-relax
 override LDFLAGS += \
     --no-relax
 endif
@@ -107,7 +126,7 @@ override CFLAGS_MB := \
     -I../common/protos \
     -isystem ../freestnd-c-hdrs/include
 
-ifneq ($(findstring 86,$(shell $(CC_FOR_TARGET) -dumpmachine)),)
+ifeq ($(ARCH),x86)
 all: test.elf multiboot2.elf multiboot.elf device_tree.dtb
 else
 all: test.elf device_tree.dtb

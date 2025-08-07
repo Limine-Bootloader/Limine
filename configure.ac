@@ -113,14 +113,54 @@ GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
 AC_CHECK_HEADERS([stdint.h stddef.h stdbool.h limits.h inttypes.h stdio.h stdlib.h string.h],
     [], [AC_MSG_ERROR([required header not found])])
 
-AC_ARG_VAR([TOOLCHAIN_FOR_TARGET], [alternative toolchain prefix for Limine (or 'llvm', or 'gnu')])
-AC_ARG_VAR([CC_FOR_TARGET], [C compiler command for Limine])
-AC_ARG_VAR([LD_FOR_TARGET], [linker command for Limine])
-AC_ARG_VAR([OBJCOPY_FOR_TARGET], [objcopy command for Limine])
-AC_ARG_VAR([OBJDUMP_FOR_TARGET], [objdump command for Limine])
-AC_ARG_VAR([READELF_FOR_TARGET], [readelf command for Limine])
+AC_ARG_VAR([TOOLCHAIN_FOR_TARGET], [alternative toolchain prefix for Limine])
 
-rm -rf toolchain-files
+AC_ARG_VAR([CC_FOR_TARGET], [C compiler command for Limine])
+if test "x${CC_FOR_TARGET+set}" = "x"; then
+    if test "x${TOOLCHAIN_FOR_TARGET}" = "x"; then
+        CC_FOR_TARGET="clang"
+    else
+        CC_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}gcc"
+    fi
+fi
+AC_ARG_VAR([LD_FOR_TARGET], [linker command for Limine])
+if test "x${LD_FOR_TARGET+set}" = "x"; then
+    if test "x${TOOLCHAIN_FOR_TARGET}" = "x"; then
+        LD_FOR_TARGET="ld.lld"
+    else
+        LD_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}ld"
+    fi
+fi
+
+test "x${TOOLCHAIN_FOR_TARGET+set}" = "x" && TOOLCHAIN_FOR_TARGET=llvm-
+
+AC_ARG_VAR([OBJCOPY_FOR_TARGET], [objcopy command for Limine])
+test "x${OBJCOPY_FOR_TARGET+set}" = "x" && OBJCOPY_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}objcopy"
+AC_ARG_VAR([OBJDUMP_FOR_TARGET], [objdump command for Limine])
+test "x${OBJDUMP_FOR_TARGET+set}" = "x" && OBJDUMP_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}objdump"
+AC_ARG_VAR([READELF_FOR_TARGET], [readelf command for Limine])
+test "x${READELF_FOR_TARGET+set}" = "x" && READELF_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}readelf"
+
+AC_CHECK_PROG([CC_FOR_TARGET_FOUND], [$CC_FOR_TARGET], [yes])
+if ! test "x$CC_FOR_TARGET_FOUND" = "xyes"; then
+    AC_MSG_ERROR([$CC_FOR_TARGET invalid, set CC_FOR_TARGET to a valid program])
+fi
+AC_CHECK_PROG([LD_FOR_TARGET_FOUND], [$LD_FOR_TARGET], [yes])
+if ! test "x$LD_FOR_TARGET_FOUND" = "xyes"; then
+    AC_MSG_ERROR([$LD_FOR_TARGET invalid, set LD_FOR_TARGET to a valid program])
+fi
+AC_CHECK_PROG([OBJCOPY_FOR_TARGET_FOUND], [$OBJCOPY_FOR_TARGET], [yes])
+if ! test "x$OBJCOPY_FOR_TARGET_FOUND" = "xyes"; then
+    AC_MSG_ERROR([$OBJCOPY_FOR_TARGET invalid, set OBJCOPY_FOR_TARGET to a valid program])
+fi
+AC_CHECK_PROG([OBJDUMP_FOR_TARGET_FOUND], [$OBJDUMP_FOR_TARGET], [yes])
+if ! test "x$OBJDUMP_FOR_TARGET_FOUND" = "xyes"; then
+    AC_MSG_ERROR([$OBJDUMP_FOR_TARGET invalid, set OBJDUMP_FOR_TARGET to a valid program])
+fi
+AC_CHECK_PROG([READELF_FOR_TARGET_FOUND], [$READELF_FOR_TARGET], [yes])
+if ! test "x$READELF_FOR_TARGET_FOUND" = "xyes"; then
+    AC_MSG_ERROR([$READELF_FOR_TARGET invalid, set READELF_FOR_TARGET to a valid program])
+fi
 
 BUILD_ALL="no"
 
@@ -162,22 +202,6 @@ fi
 if test "x$BUILD_BIOS" = "xno"; then
     BUILD_BIOS=""
 else
-    $MKDIR_P toolchain-files
-    CC="$CC" \
-        ARCHITECTURE=i686 \
-        FREESTANDING_TOOLCHAIN_SUFFIX="_FOR_TARGET" \
-        FREESTANDING_TOOLCHAIN="$TOOLCHAIN_FOR_TARGET" \
-        WANT_FREESTANDING_CC=yes \
-        FREESTANDING_CC="$CC_FOR_TARGET" \
-        WANT_FREESTANDING_LD=yes \
-        FREESTANDING_LD="$LD_FOR_TARGET" \
-        WANT_FREESTANDING_OBJCOPY=yes \
-        FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
-        WANT_FREESTANDING_READELF=yes \
-        FREESTANDING_READELF="$READELF_FOR_TARGET" \
-        "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/bios-i686-toolchain.mk" || exit 1
     BUILD_BIOS="limine-bios"
     NEED_NASM=yes
     NEED_GZIP=yes
@@ -194,20 +218,6 @@ AC_ARG_ENABLE([uefi-ia32],
 if test "x$BUILD_UEFI_IA32" = "xno"; then
     BUILD_UEFI_IA32=""
 else
-    $MKDIR_P toolchain-files
-    CC="$CC" \
-        ARCHITECTURE=i686 \
-        FREESTANDING_TOOLCHAIN_SUFFIX="_FOR_TARGET" \
-        FREESTANDING_TOOLCHAIN="$TOOLCHAIN_FOR_TARGET" \
-        WANT_FREESTANDING_CC=yes \
-        FREESTANDING_CC="$CC_FOR_TARGET" \
-        WANT_FREESTANDING_LD=yes \
-        FREESTANDING_LD="$LD_FOR_TARGET" \
-        WANT_FREESTANDING_OBJCOPY=yes \
-        FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
-        "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-i686-toolchain.mk" || exit 1
     BUILD_UEFI_IA32="limine-uefi-ia32"
     NEED_NASM=yes
 fi
@@ -223,20 +233,6 @@ AC_ARG_ENABLE([uefi-x86-64],
 if test "x$BUILD_UEFI_X86_64" = "xno"; then
     BUILD_UEFI_X86_64=""
 else
-    $MKDIR_P toolchain-files
-    CC="$CC" \
-        ARCHITECTURE=x86_64 \
-        FREESTANDING_TOOLCHAIN_SUFFIX="_FOR_TARGET" \
-        FREESTANDING_TOOLCHAIN="$TOOLCHAIN_FOR_TARGET" \
-        WANT_FREESTANDING_CC=yes \
-        FREESTANDING_CC="$CC_FOR_TARGET" \
-        WANT_FREESTANDING_LD=yes \
-        FREESTANDING_LD="$LD_FOR_TARGET" \
-        WANT_FREESTANDING_OBJCOPY=yes \
-        FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
-        "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-x86_64-toolchain.mk" || exit 1
     BUILD_UEFI_X86_64="limine-uefi-x86-64"
     NEED_NASM=yes
 fi
@@ -252,20 +248,6 @@ AC_ARG_ENABLE([uefi-aarch64],
 if test "x$BUILD_UEFI_AARCH64" = "xno"; then
     BUILD_UEFI_AARCH64=""
 else
-    mkdir -p toolchain-files
-    CC="$CC" \
-        ARCHITECTURE=aarch64 \
-        FREESTANDING_TOOLCHAIN_SUFFIX="_FOR_TARGET" \
-        FREESTANDING_TOOLCHAIN="$TOOLCHAIN_FOR_TARGET" \
-        WANT_FREESTANDING_CC=yes \
-        FREESTANDING_CC="$CC_FOR_TARGET" \
-        WANT_FREESTANDING_LD=yes \
-        FREESTANDING_LD="$LD_FOR_TARGET" \
-        WANT_FREESTANDING_OBJCOPY=yes \
-        FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
-        "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-aarch64-toolchain.mk" || exit 1
     BUILD_UEFI_AARCH64="limine-uefi-aarch64"
 fi
 
@@ -280,20 +262,6 @@ AC_ARG_ENABLE([uefi-riscv64],
 if test "x$BUILD_UEFI_RISCV64" = "xno"; then
     BUILD_UEFI_RISCV64=""
 else
-    mkdir -p toolchain-files
-    CC="$CC" \
-        ARCHITECTURE=riscv64 \
-        FREESTANDING_TOOLCHAIN_SUFFIX="_FOR_TARGET" \
-        FREESTANDING_TOOLCHAIN="$TOOLCHAIN_FOR_TARGET" \
-        WANT_FREESTANDING_CC=yes \
-        FREESTANDING_CC="$CC_FOR_TARGET" \
-        WANT_FREESTANDING_LD=yes \
-        FREESTANDING_LD="$LD_FOR_TARGET" \
-        WANT_FREESTANDING_OBJCOPY=yes \
-        FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
-        "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-riscv64-toolchain.mk" || exit 1
     BUILD_UEFI_RISCV64="limine-uefi-riscv64"
 fi
 
@@ -308,20 +276,6 @@ AC_ARG_ENABLE([uefi-loongarch64],
 if test "x$BUILD_UEFI_LOONGARCH64" = "xno"; then
     BUILD_UEFI_LOONGARCH64=""
 else
-    mkdir -p toolchain-files
-    CC="$CC" \
-        ARCHITECTURE=loongarch64 \
-        FREESTANDING_TOOLCHAIN_SUFFIX="_FOR_TARGET" \
-        FREESTANDING_TOOLCHAIN="$TOOLCHAIN_FOR_TARGET" \
-        WANT_FREESTANDING_CC=yes \
-        FREESTANDING_CC="$CC_FOR_TARGET" \
-        WANT_FREESTANDING_LD=yes \
-        FREESTANDING_LD="$LD_FOR_TARGET" \
-        WANT_FREESTANDING_OBJCOPY=yes \
-        FREESTANDING_OBJCOPY="$OBJCOPY_FOR_TARGET" \
-        WANT_FREESTANDING_OBJDUMP=yes \
-        FREESTANDING_OBJDUMP="$OBJDUMP_FOR_TARGET" \
-        "$SRCDIR/build-aux/freestanding-toolchain/freestanding-toolchain" 2>"toolchain-files/uefi-loongarch64-toolchain.mk" || exit 1
     BUILD_UEFI_LOONGARCH64="limine-uefi-loongarch64"
 fi
 

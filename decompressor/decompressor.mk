@@ -1,12 +1,17 @@
 .SUFFIXES:
 
-include $(TOOLCHAIN_FILE)
-
 override SPACE := $(subst ,, )
 
 override MKESCAPE = $(subst $(SPACE),\ ,$(1))
 override SHESCAPE = $(subst ','\'',$(1))
 override OBJESCAPE = $(subst .a ,.a' ',$(subst .o ,.o' ',$(call SHESCAPE,$(1))))
+
+override CC_FOR_TARGET_IS_CLANG := $(shell ! $(CC_FOR_TARGET) --version 2>/dev/null | $(GREP) -q '^Target: '; echo $$?)
+
+ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+    override CC_FOR_TARGET += \
+        -target i686-unknown-none-elf
+endif
 
 override CFLAGS_FOR_TARGET += \
     -Os \
@@ -29,7 +34,8 @@ override CFLAGS_FOR_TARGET += \
     -m32 \
     -march=i686 \
     -mabi=sysv \
-    -mno-80387
+    -mno-80387 \
+    -mno-mmx
 
 override CPPFLAGS_FOR_TARGET := \
     -I . \

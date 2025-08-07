@@ -1,8 +1,5 @@
 .SUFFIXES:
 
-include $(TOOLCHAIN_FILE)
-export OBJDUMP_FOR_TARGET
-
 override SRCDIR := $(shell pwd -P)
 
 override SPACE := $(subst ,, )
@@ -10,6 +7,8 @@ override SPACE := $(subst ,, )
 override MKESCAPE = $(subst $(SPACE),\ ,$(1))
 override SHESCAPE = $(subst ','\'',$(1))
 override OBJESCAPE = $(subst .a ,.a' ',$(subst .o ,.o' ',$(call SHESCAPE,$(1))))
+
+override CC_FOR_TARGET_IS_CLANG := $(shell ! $(CC_FOR_TARGET) --version 2>/dev/null | $(GREP) -q '^Target: '; echo $$?)
 
 COM_OUTPUT := false
 E9_OUTPUT := false
@@ -69,12 +68,17 @@ override NASMFLAGS_FOR_TARGET := \
     $(patsubst -g,-g -F dwarf,$(NASMFLAGS_FOR_TARGET))
 
 ifeq ($(TARGET),bios)
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+        override CC_FOR_TARGET += \
+            -target i686-unknown-none-elf
+    endif
     override CFLAGS_FOR_TARGET += \
         -fno-PIC \
         -m32 \
         -march=i686 \
         -mabi=sysv \
-        -mno-80387
+        -mno-80387 \
+        -mno-mmx
     override CPPFLAGS_FOR_TARGET := \
         $(CPPFLAGS_FOR_TARGET) \
         -DBIOS
@@ -86,6 +90,10 @@ ifeq ($(TARGET),bios)
 endif
 
 ifeq ($(TARGET),uefi-x86-64)
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+        override CC_FOR_TARGET += \
+            -target x86_64-unknown-none-elf
+    endif
     override CFLAGS_FOR_TARGET += \
         -fPIE \
         -fshort-wchar \
@@ -109,13 +117,18 @@ ifeq ($(TARGET),uefi-x86-64)
 endif
 
 ifeq ($(TARGET),uefi-ia32)
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+        override CC_FOR_TARGET += \
+            -target i686-unknown-none-elf
+    endif
     override CFLAGS_FOR_TARGET += \
         -fPIE \
         -fshort-wchar \
         -m32 \
         -march=i686 \
         -mabi=sysv \
-        -mno-80387
+        -mno-80387 \
+        -mno-mmx
     override CPPFLAGS_FOR_TARGET := \
         -I ../nyu-efi/inc \
         $(CPPFLAGS_FOR_TARGET) \
@@ -128,6 +141,10 @@ ifeq ($(TARGET),uefi-ia32)
 endif
 
 ifeq ($(TARGET),uefi-aarch64)
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+        override CC_FOR_TARGET += \
+            -target aarch64-unknown-none-elf
+    endif
     override CFLAGS_FOR_TARGET += \
         -fPIE \
         -fshort-wchar \
@@ -141,16 +158,18 @@ ifeq ($(TARGET),uefi-aarch64)
 endif
 
 ifeq ($(TARGET),uefi-riscv64)
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+        override CC_FOR_TARGET += \
+            -target riscv64-unknown-none-elf
+    endif
     override CFLAGS_FOR_TARGET += \
         -fPIE \
         -fshort-wchar
-
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),yes)
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
         override CFLAGS_FOR_TARGET += -march=rv64imac
     else
         override CFLAGS_FOR_TARGET += -march=rv64imac_zicsr_zifencei
     endif
-
     override CFLAGS_FOR_TARGET += \
         -mabi=lp64 \
         -mno-relax
@@ -162,6 +181,10 @@ ifeq ($(TARGET),uefi-riscv64)
 endif
 
 ifeq ($(TARGET),uefi-loongarch64)
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+        override CC_FOR_TARGET += \
+            -target loongarch64-unknown-none-elf
+    endif
     override CFLAGS_FOR_TARGET += \
         -fPIE \
         -fshort-wchar \

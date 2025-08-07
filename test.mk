@@ -51,7 +51,7 @@ fat12-test:
 	$(MAKE) test.hdd
 	$(MAKE) limine-bios
 	$(MAKE) limine
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev
@@ -74,7 +74,7 @@ fat16-test:
 	$(MAKE) test.hdd
 	$(MAKE) limine-bios
 	$(MAKE) limine
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev
@@ -98,7 +98,7 @@ legacy-fat16-test:
 	fdisk -l mbrtest.hdd
 	$(MAKE) limine-bios
 	$(MAKE) limine
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show mbrtest.hdd > loopback_dev
@@ -121,7 +121,7 @@ fat32-test:
 	$(MAKE) test.hdd
 	$(MAKE) limine-bios
 	$(MAKE) limine
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev
@@ -143,7 +143,7 @@ iso9660-test:
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-bios
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	$(MKDIR_P) test_image/boot
 	cp -rv $(BINDIR)/* test_image/boot/
@@ -157,7 +157,7 @@ full-hybrid-test:
 	$(MAKE) ovmf-ia32
 	$(MAKE) test-clean
 	$(MAKE) all
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	$(MKDIR_P) test_image/boot
 	cp -rv $(BINDIR)/* test_image/boot/
@@ -177,7 +177,7 @@ full-hybrid-test:
 pxe-test:
 	$(MAKE) test-clean
 	$(MAKE) limine-bios
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	$(MKDIR_P) test_image/boot
 	cp -rv $(BINDIR)/* test_image/boot/
@@ -190,7 +190,7 @@ uefi-x86-64-test:
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-x86-64
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev
@@ -214,7 +214,7 @@ uefi-aa64-test:
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-aarch64
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-aarch64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=aarch64
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev
@@ -238,7 +238,7 @@ uefi-rv64-test:
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-riscv64
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-riscv64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=riscv64
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev
@@ -262,7 +262,7 @@ uefi-loongarch64-test:
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-loongarch64
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-loongarch64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=loongarch64
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev
@@ -286,7 +286,7 @@ uefi-ia32-test:
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-ia32
-	$(MAKE) -C test -f test.mk TOOLCHAIN_FILE='$(call SHESCAPE,$(BUILDDIR))/toolchain-files/uefi-x86_64-toolchain.mk'
+	$(MAKE) -C test -f test.mk ARCH=x86
 	rm -rf test_image/
 	mkdir test_image
 	sudo losetup -Pf --show test.hdd > loopback_dev

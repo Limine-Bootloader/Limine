@@ -83,11 +83,6 @@ if ! test -f version; then
     cp cc-runtime/src/cc-runtime.c decompressor/cc-runtime.c
 
     clone_repo_commit \
-        https://codeberg.org/osdev/freestanding-toolchain.git \
-        build-aux/freestanding-toolchain \
-        75fb06aae0fa3cd191f7013985dc55019f7a94d1
-
-    clone_repo_commit \
         https://github.com/limine-bootloader/limine-protocol.git \
         limine-protocol \
         fedf97facd1c473ee8720f8dfd5a71d03490d928
