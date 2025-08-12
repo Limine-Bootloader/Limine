@@ -13,7 +13,7 @@ jobs:
         run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Git config
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
