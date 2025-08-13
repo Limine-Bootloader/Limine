@@ -78,46 +78,58 @@ if ! test "x$FIND_FOUND" = "xyes"; then
     AC_MSG_ERROR([find not found, please install find before configuring])
 fi
 
-# $1 - UPPERCASEVAR, $2 - default program
-AC_DEFUN([GET_PROG_FROM_TOOLCHAIN], [
-    AC_ARG_VAR([$1], [$2 command @<:@default: $2@:>@])
+# $1 - UPPERCASEVAR, $2 - default program, $2 - 'tool' if toolchain
+AC_DEFUN([GET_PROG], [
+    first_elem="$(rel2abs $(echo "$$1" | cut -f 1 -d " "))"
 
-    if ! test -z "$$1"; then
-        first_elem="$(echo "$$1" | cut -f 1 -d " ")"
+    if test "x${$1+set}" = "xset"; then
         case "$first_elem" in
-            */*)
+            /*)
+                AC_MSG_CHECKING([for $first_elem])
                 if test -f "$first_elem" && test -x "$first_elem"; then
-                    $1_USER_FOUND=yes
+                    $1="$(rel2abs "$$1")"
+                    $1_FOUND=yes
+                else
+                    $1_FOUND=no
                 fi
+                AC_MSG_RESULT([$$1_FOUND])
                 ;;
             *)
-                AC_CHECK_PROG([$1_USER_FOUND], [$$1], [yes])
+                AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
                 ;;
         esac
-
-        if ! test "x$$1_USER_FOUND" = "xyes"; then
-            AC_MSG_ERROR([$2 not found, please install $2 before configuring])
-        fi
     else
-        AC_CHECK_TOOL([$1], [$2], [:])
-        if test "x$$1" = "x:"; then
-            AC_MSG_ERROR([$2 not found, please install $2 or set $1 to a valid command])
+        if ! test -z "$2"; then
+            if test "x$3" = "xtool"; then
+                AC_CHECK_TOOL([$1_FOUND], [$2], [no])
+                if ! test "x$$1_FOUND" = "xno"; then
+                    $1="$$1_FOUND"
+                    $1_FOUND=yes
+                fi
+            else
+                AC_CHECK_PROG([$1_FOUND], [$2], [yes])
+            fi
+        else
+            $1_FOUND=no
         fi
     fi
 
-    $1="$(rel2abs "$$1")"
+    if ! test "x$$1_FOUND" = "xyes"; then
+        AC_MSG_ERROR([$first_elem invalid, set $1 to a valid program])
+    fi
 ])
 
-GET_PROG_FROM_TOOLCHAIN([STRIP], [strip])
+AC_ARG_VAR([STRIP], [strip command @<:@default: strip@:>@])
+GET_PROG([STRIP], [strip], [tool])
 
-AC_CHECK_HEADERS([stdint.h stddef.h stdbool.h limits.h inttypes.h stdio.h stdlib.h string.h],
+AC_CHECK_HEADERS([stdio.h stdlib.h stdint.h stddef.h stdbool.h stdarg.h string.h errno.h inttypes.h limits.h time.h],
     [], [AC_MSG_ERROR([required header not found])])
 
 AC_ARG_VAR([TOOLCHAIN_FOR_TARGET], [alternative toolchain prefix for Limine])
 
 AC_ARG_VAR([CC_FOR_TARGET], [C compiler command for Limine])
 if test "x${CC_FOR_TARGET+set}" = "x"; then
-    if test "x${TOOLCHAIN_FOR_TARGET}" = "x"; then
+    if test "x${TOOLCHAIN_FOR_TARGET+set}" = "x"; then
         CC_FOR_TARGET="clang"
     else
         CC_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}gcc"
@@ -125,7 +137,7 @@ if test "x${CC_FOR_TARGET+set}" = "x"; then
 fi
 AC_ARG_VAR([LD_FOR_TARGET], [linker command for Limine])
 if test "x${LD_FOR_TARGET+set}" = "x"; then
-    if test "x${TOOLCHAIN_FOR_TARGET}" = "x"; then
+    if test "x${TOOLCHAIN_FOR_TARGET+set}" = "x"; then
         LD_FOR_TARGET="ld.lld"
     else
         LD_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}ld"
@@ -141,26 +153,11 @@ test "x${OBJDUMP_FOR_TARGET+set}" = "x" && OBJDUMP_FOR_TARGET="${TOOLCHAIN_FOR_T
 AC_ARG_VAR([READELF_FOR_TARGET], [readelf command for Limine])
 test "x${READELF_FOR_TARGET+set}" = "x" && READELF_FOR_TARGET="${TOOLCHAIN_FOR_TARGET}readelf"
 
-AC_CHECK_PROG([CC_FOR_TARGET_FOUND], [$CC_FOR_TARGET], [yes])
-if ! test "x$CC_FOR_TARGET_FOUND" = "xyes"; then
-    AC_MSG_ERROR([$CC_FOR_TARGET invalid, set CC_FOR_TARGET to a valid program])
-fi
-AC_CHECK_PROG([LD_FOR_TARGET_FOUND], [$LD_FOR_TARGET], [yes])
-if ! test "x$LD_FOR_TARGET_FOUND" = "xyes"; then
-    AC_MSG_ERROR([$LD_FOR_TARGET invalid, set LD_FOR_TARGET to a valid program])
-fi
-AC_CHECK_PROG([OBJCOPY_FOR_TARGET_FOUND], [$OBJCOPY_FOR_TARGET], [yes])
-if ! test "x$OBJCOPY_FOR_TARGET_FOUND" = "xyes"; then
-    AC_MSG_ERROR([$OBJCOPY_FOR_TARGET invalid, set OBJCOPY_FOR_TARGET to a valid program])
-fi
-AC_CHECK_PROG([OBJDUMP_FOR_TARGET_FOUND], [$OBJDUMP_FOR_TARGET], [yes])
-if ! test "x$OBJDUMP_FOR_TARGET_FOUND" = "xyes"; then
-    AC_MSG_ERROR([$OBJDUMP_FOR_TARGET invalid, set OBJDUMP_FOR_TARGET to a valid program])
-fi
-AC_CHECK_PROG([READELF_FOR_TARGET_FOUND], [$READELF_FOR_TARGET], [yes])
-if ! test "x$READELF_FOR_TARGET_FOUND" = "xyes"; then
-    AC_MSG_ERROR([$READELF_FOR_TARGET invalid, set READELF_FOR_TARGET to a valid program])
-fi
+GET_PROG([CC_FOR_TARGET])
+GET_PROG([LD_FOR_TARGET])
+GET_PROG([OBJCOPY_FOR_TARGET])
+GET_PROG([OBJDUMP_FOR_TARGET])
+GET_PROG([READELF_FOR_TARGET])
 
 BUILD_ALL="no"
 
