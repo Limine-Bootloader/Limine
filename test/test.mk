@@ -139,19 +139,19 @@ flanterm_fb.o: ../flanterm/src/flanterm_backends/fb.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test.elf: limine.o e9print.o memory.o flanterm.o flanterm_fb.o
-	$(LD) $^ $(LDFLAGS) -o $@
+	$(LD) $(LDFLAGS) $^ -o $@
 
 multiboot2.elf: multiboot2_trampoline.o
 	$(CC) $(CFLAGS_MB) -c memory.c -o memory.o
 	$(CC) $(CFLAGS_MB) -c multiboot2.c -o multiboot2.o
 	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.o
-	$(LD) $^ memory.o multiboot2.o e9print.o $(LDFLAGS_MB2) -o $@
+	$(LD) $(LDFLAGS_MB2) $^ memory.o multiboot2.o e9print.o -o $@
 
 multiboot.elf: multiboot_trampoline.o
 	$(CC) $(CFLAGS_MB) -c memory.c -o memory.o
 	$(CC) $(CFLAGS_MB) -c multiboot.c -o multiboot.o
 	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.o
-	$(LD) $^ memory.o multiboot.o e9print.o $(LDFLAGS_MB1) -o $@
+	$(LD) $(LDFLAGS_MB1) $^ memory.o multiboot.o e9print.o -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

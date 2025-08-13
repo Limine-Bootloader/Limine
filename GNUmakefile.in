@@ -109,11 +109,10 @@ $(call MKESCAPE,$(BINDIR))/limine: $(call MKESCAPE,$(BINDIR))/Makefile $(call MK
 	$(SED) 's/%VERSION%/@PACKAGE_VERSION@/g;s/%COPYRIGHT%/@LIMINE_COPYRIGHT@/g' <'$(call SHESCAPE,$(SRCDIR))/host/limine.c' >'$(call SHESCAPE,$(BINDIR))/limine.c'
 	$(MAKE) -C '$(call SHESCAPE,$(BINDIR))' limine \
 		CC="$(CC)" \
-		CFLAGS="$(CFLAGS)" \
+		CFLAGS="$(CFLAGS) -Wall -Wextra $(WERROR_FLAG)" \
 		CPPFLAGS='$(CPPFLAGS) $(LIMINE_NO_BIOS) -DLIMINE_DATADIR=\"$(call SHESCAPE,$(datarootdir))/limine\"' \
 		LDFLAGS="$(LDFLAGS)" \
-		LIBS="$(LIBS)" \
-		WERROR_FLAG="$(WERROR_FLAG)"
+		LIBS="$(LIBS)"
 
 $(call MKESCAPE,$(BINDIR))/Makefile: $(call MKESCAPE,$(SRCDIR))/host/host.mk $(call MKESCAPE,$(SRCDIR))/host/.gitignore
 	mkdir -p '$(call SHESCAPE,$(BINDIR))'
@@ -341,9 +340,9 @@ maintainer-clean: distclean
 
 .PHONY: common-uefi-x86-64
 common-uefi-x86-64:
-	TARGET=uefi-x86-64 \
-	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-x86-64' \
-		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
+	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
+		TARGET=uefi-x86-64 \
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-x86-64'
 
 .PHONY: common-uefi-x86-64-clean
 common-uefi-x86-64-clean:
@@ -351,9 +350,9 @@ common-uefi-x86-64-clean:
 
 .PHONY: common-uefi-aarch64
 common-uefi-aarch64:
-	TARGET=uefi-aarch64 \
-	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-aarch64' \
-		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
+	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
+		TARGET=uefi-aarch64 \
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-aarch64'
 
 .PHONY: common-uefi-aarch64-clean
 common-uefi-aarch64-clean:
@@ -361,9 +360,9 @@ common-uefi-aarch64-clean:
 
 .PHONY: common-uefi-riscv64
 common-uefi-riscv64:
-	TARGET=uefi-riscv64 \
-	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-riscv64' \
-		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
+	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
+		TARGET=uefi-riscv64 \
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-riscv64'
 
 .PHONY: common-uefi-riscv64-clean
 common-uefi-riscv64-clean:
@@ -371,9 +370,9 @@ common-uefi-riscv64-clean:
 
 .PHONY: common-uefi-loongarch64
 common-uefi-loongarch64:
-	TARGET=uefi-loongarch64 \
-	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-loongarch64' \
-		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
+	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
+		TARGET=uefi-loongarch64 \
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-loongarch64'
 
 .PHONY: common-uefi-loongarch64-clean
 common-uefi-loongarch64-clean:
@@ -381,9 +380,9 @@ common-uefi-loongarch64-clean:
 
 .PHONY: common-uefi-ia32
 common-uefi-ia32:
-	TARGET=uefi-ia32 \
-	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-ia32' \
-		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
+	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
+		TARGET=uefi-ia32 \
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-uefi-ia32'
 
 .PHONY: common-uefi-ia32-clean
 common-uefi-ia32-clean:
@@ -391,9 +390,9 @@ common-uefi-ia32-clean:
 
 .PHONY: common-bios
 common-bios:
-	TARGET=bios \
-	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-bios' \
-		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk
+	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
+		TARGET=bios \
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-bios'
 
 .PHONY: common-bios-clean
 common-bios-clean:
@@ -401,8 +400,8 @@ common-bios-clean:
 
 .PHONY: decompressor
 decompressor:
-	BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/decompressor-build' \
-		$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/decompressor' -f decompressor.mk
+	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/decompressor' -f decompressor.mk \
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/decompressor-build'
 
 .PHONY: decompressor-clean
 decompressor-clean:
