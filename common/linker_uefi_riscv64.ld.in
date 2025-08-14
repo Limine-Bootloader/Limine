@@ -39,6 +39,8 @@ SECTIONS
 
         __data_start = ABSOLUTE(.);
         *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        *(.sdata2 .sdata2.*)
 
 #ifdef LINKER_NOMAP
    full_map = .;
@@ -54,8 +56,8 @@ SECTIONS
     } :data
 
     .bss : {
-        *(.sbss .sbss.*)
         *(.bss .bss.*)
+        *(.sbss .sbss.*)
         *(COMMON)
    data_end = .;
     } :data
