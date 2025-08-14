@@ -20,18 +20,19 @@ SECTIONS
 
     .rodata : {
         *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        *(.sdata2 .sdata2.*)
     } :rodata
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .data : {
         *(.data .data.*)
+        *(.sdata .sdata.*)
 
         KEEP(*(.limine_requests_start_marker))
         KEEP(*(.limine_requests))
         KEEP(*(.limine_requests_end_marker))
-
-        *(.sdata .sdata.*)
     } :data
 
     .dynamic : {
@@ -39,8 +40,8 @@ SECTIONS
     } :data :dynamic
 
     .bss : {
-        *(.sbss .sbss.*)
         *(.bss .bss.*)
+        *(.sbss .sbss.*)
         *(COMMON)
     } :data
 
