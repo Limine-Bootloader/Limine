@@ -1,3 +1,20 @@
+2025-08-16  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.6.1 ***
+
+    Noteworthy changes compared to the previous release, 9.6.0:
+
+    Bug fixes:
+        - EFI chainloading: Make EFI device path of loaded image relative to
+          the loaded image device handle. This now complies with the EFI
+          specification, and, amongst others, it fixes chainloading Shim.
+
+    Miscellaneous:
+        - Miscellaneous build system changes and improvements.
+        - Do not disable linker relaxations for LoongArch64.
+        - `limine` host tool: Add check to ensure that a provided GPT BIOS
+          partition is at least 32KiB in size.
+
 2025-08-07  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.6.0 ***
