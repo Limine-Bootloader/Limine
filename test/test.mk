@@ -104,10 +104,7 @@ override CFLAGS += \
     -march=loongarch64 \
     -mabi=lp64s \
     -mfpu=none \
-    -msimd=none \
-    -mno-relax
-override LDFLAGS += \
-    --no-relax
+    -msimd=none
 endif
 
 override CFLAGS_MB := \

@@ -191,8 +191,7 @@ ifeq ($(TARGET),uefi-loongarch64)
         -march=loongarch64 \
         -mabi=lp64s \
         -mfpu=none \
-        -msimd=none \
-        -mno-relax
+        -msimd=none
 
     override CPPFLAGS_FOR_TARGET := \
         -I ../nyu-efi/inc \
@@ -244,7 +243,6 @@ endif
 ifeq ($(TARGET),uefi-loongarch64)
     override LDFLAGS_FOR_TARGET += \
         -m elf64loongarch \
-        --no-relax \
         -pie \
         -z text
 endif
