@@ -195,71 +195,56 @@ load:
 
 #elif defined (UEFI)
 
-/*
-static void devpath_print(EFI_DEVICE_PATH_PROTOCOL *DevicePath) {
-    for (;;) {
-        uint8_t type = DevicePath->Type;
-        uint8_t subtype = DevicePath->SubType;
-        size_t length = *(uint16_t *)DevicePath->Length;
+static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle *image) {
+    // The file path stored in EFI_LOADED_IMAGE_PROTOCOL::FilePath is
+    // expected to be relative to the EFI_LOADED_IMAGE_PROTOCOL::DeviceHandle.
+    // For this reason the EFI_DEVICE_PATH_PROTOCOL of the efi_part_handle
+    // is not used as a prefix. This likely also means that the returned
+    // path cannot be given to gBS->LoadImage() directly.
 
-        print("Device Path Type: %x, SubType: %x, Length: %x\n", type, subtype, length);
+    size_t original_path_chars = strlen(image->path);
 
-        if (type == 4 && subtype == 4) {
-            for (size_t i = sizeof(EFI_DEVICE_PATH_PROTOCOL); i < length; i += 2) {
-                print("%c", *(uint16_t *)((void *)DevicePath + i));
-            }
-            print("\n");
+    size_t efi_file_path_alloc_len = (original_path_chars + 1) * sizeof(CHAR16);
+    CHAR16 *efi_file_path = ext_mem_alloc(efi_file_path_alloc_len);
+
+    bool leading_slash = true;
+    size_t j = 0;
+    for (size_t i = 0; i < original_path_chars; i++) {
+        if (image->path[i] == '/' && leading_slash) {
+            continue;
         }
-
-        DevicePath = (EFI_DEVICE_PATH_PROTOCOL *)((uint8_t *)DevicePath + *(uint16_t *)DevicePath->Length);
-
-        if (type == END_DEVICE_PATH_TYPE) {
-            break;
-        }
+        leading_slash = false;
+        efi_file_path[j++] = image->path[i] == '/' ? '\\' : image->path[i];
     }
-}
-*/
+    efi_file_path[j] = 0;
 
-static size_t get_devpath_len(EFI_DEVICE_PATH_PROTOCOL *devpath) {
-    size_t len = 0;
-    EFI_DEVICE_PATH_PROTOCOL *header = devpath;
-    for (;;) {
-        size_t this_len = *(uint16_t *)header->Length;
-        len += this_len;
-        if (header->Type == END_DEVICE_PATH_TYPE) {
-            break;
-        }
-        header = (void *)header + this_len;
-    }
-    return len;
-}
 
-static EFI_DEVICE_PATH_PROTOCOL *devpath_append(EFI_DEVICE_PATH_PROTOCOL *devpath,
-                                                EFI_DEVICE_PATH_PROTOCOL *item) {
-    EFI_STATUS status;
+    size_t efi_file_path_len = ((j + 1) * sizeof(CHAR16));
+    size_t path_item_len     = sizeof(EFI_DEVICE_PATH_PROTOCOL) + efi_file_path_len;
+    size_t end_item_len      = sizeof(EFI_DEVICE_PATH_PROTOCOL);
+    size_t alloc_len         = path_item_len + end_item_len;
 
-    size_t devpath_len = get_devpath_len(devpath);
-    size_t item_size = *(uint16_t *)item->Length;
-    size_t new_devpath_len = devpath_len + item_size;
-
-    EFI_DEVICE_PATH_PROTOCOL *new_devpath = NULL;
-    status = gBS->AllocatePool(EfiLoaderData, new_devpath_len, (void **)&new_devpath);
+    EFI_DEVICE_PATH_PROTOCOL *device_path;
+    EFI_STATUS status = gBS->AllocatePool(EfiLoaderData, alloc_len, (void **)&device_path);
     if (status) {
         panic(true, "efi: AllocatePool() failure (%x)", status);
     }
 
-    memcpy(new_devpath, devpath, devpath_len);
+    FILEPATH_DEVICE_PATH *path_item = (FILEPATH_DEVICE_PATH *)device_path;
+    path_item->Header.Type      = MEDIA_DEVICE_PATH;
+    path_item->Header.SubType   = MEDIA_FILEPATH_DP;
+    path_item->Header.Length[0] = path_item_len;
+    path_item->Header.Length[1] = path_item_len >> 8;
+    memcpy(&path_item->PathName, efi_file_path, efi_file_path_len);
 
-    EFI_DEVICE_PATH_PROTOCOL *item_ptr = (void *)new_devpath + (devpath_len - sizeof(EFI_DEVICE_PATH_PROTOCOL));
-    memcpy(item_ptr, item, item_size);
+    EFI_DEVICE_PATH_PROTOCOL *end_item = (void *)device_path + path_item_len;
+    end_item->Type      = END_DEVICE_PATH_TYPE;
+    end_item->SubType   = END_ENTIRE_DEVICE_PATH_SUBTYPE;
+    end_item->Length[0] = end_item_len;
+    end_item->Length[1] = end_item_len >> 8;
 
-    EFI_DEVICE_PATH_PROTOCOL *end_ptr = (void *)new_devpath + (new_devpath_len - sizeof(EFI_DEVICE_PATH_PROTOCOL));
-    end_ptr->Type = END_DEVICE_PATH_TYPE;
-    end_ptr->SubType = END_ENTIRE_DEVICE_PATH_SUBTYPE;
-    end_ptr->Length[0] = sizeof(EFI_DEVICE_PATH);
-    end_ptr->Length[1] = sizeof(EFI_DEVICE_PATH) >> 8;
-
-    return new_devpath;
+    pmm_free(efi_file_path, efi_file_path_alloc_len);
+    return device_path;
 }
 
 noreturn void chainload(char *config, char *cmdline) {
@@ -286,46 +271,9 @@ noreturn void chainload(char *config, char *cmdline) {
                           (uintptr_t)ptr, ALIGN_UP(image_size, 4096),
                           MEMMAP_RESERVED, MEMMAP_USABLE, true, false, true);
 
-    size_t path_len = strlen(image->path);
-
-    size_t efi_file_path_len = (path_len + 1) * sizeof(CHAR16);
-    CHAR16 *efi_file_path = ext_mem_alloc(efi_file_path_len);
-
-    bool leading_slash = true;
-    size_t j = 0;
-    for (size_t i = 0; i < path_len; i++) {
-        if (image->path[i] == '/' && leading_slash) {
-            continue;
-        }
-        leading_slash = false;
-        efi_file_path[j++] = image->path[i] == '/' ? '\\' : image->path[i];
-    }
-    efi_file_path[j] = 0;
-
-    EFI_GUID device_path_protocol_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
-    EFI_DEVICE_PATH_PROTOCOL *device_path = NULL;
-    status = gBS->HandleProtocol(image->efi_part_handle, &device_path_protocol_guid, (void **)&device_path);
-    if (status) {
-        panic(true, "efi: HandleProtocol() failure (%x)", status);
-    }
+    EFI_DEVICE_PATH_PROTOCOL *efi_file_path = build_relative_efi_file_path(image);
 
     fclose(image);
-
-    size_t devpath_item_size = sizeof(EFI_DEVICE_PATH_PROTOCOL) + ((j + 1) * sizeof(CHAR16));
-    EFI_DEVICE_PATH_PROTOCOL *devpath_item = ext_mem_alloc(devpath_item_size);
-
-    devpath_item->Type = 0x04;
-    devpath_item->SubType = 0x04;
-    devpath_item->Length[0] = devpath_item_size;
-    devpath_item->Length[1] = devpath_item_size >> 8;
-
-    memcpy(&devpath_item[1], efi_file_path, (j + 1) * sizeof(CHAR16));
-    pmm_free(efi_file_path, efi_file_path_len);
-
-    device_path = devpath_append(device_path, devpath_item);
-
-    pmm_free(devpath_item, devpath_item_size);
-
     term_notready();
 
     size_t req_width = 0, req_height = 0, req_bpp = 0;
@@ -388,7 +336,7 @@ noreturn void chainload(char *config, char *cmdline) {
         new_handle_loaded_image->DeviceHandle = efi_part_handle;
     }
 
-    new_handle_loaded_image->FilePath = device_path;
+    new_handle_loaded_image->FilePath = efi_file_path;
 
     new_handle_loaded_image->LoadOptionsSize = cmdline_len * sizeof(CHAR16);
     new_handle_loaded_image->LoadOptions = new_cmdline;
