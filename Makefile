@@ -1,3 +1,5 @@
+.POSIX:
+
 SHELL=/bin/sh
 
 CC=cc
@@ -5,8 +7,6 @@ CFLAGS=-g -O2 -pipe
 CPPFLAGS=
 LDFLAGS=
 LIBS=
-
-WERROR_FLAG=
 
 STRIP=strip
 INSTALL=./install-sh
@@ -43,4 +43,4 @@ clean:
 	rm -f limine limine.exe
 
 limine: limine.c
-	$(CC) $(CFLAGS) -Wall -Wextra $(WERROR_FLAG) $(CPPFLAGS) $(LDFLAGS) -std=c99 limine.c $(LIBS) -o $@
+	$(CC) $(CFLAGS) -std=c99 $(CPPFLAGS) $(LDFLAGS) $< $(LIBS) -o $@
