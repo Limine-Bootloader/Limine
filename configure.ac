@@ -78,11 +78,10 @@ if ! test "x$FIND_FOUND" = "xyes"; then
     AC_MSG_ERROR([find not found, please install find before configuring])
 fi
 
-# $1 - UPPERCASEVAR, $2 - default program, $2 - 'tool' if toolchain
+# $1 - UPPERCASEVAR, $2 - default command, $3 - 'tool' if toolchain, $4 - 'no-err' to ignore errors
 AC_DEFUN([GET_PROG], [
-    first_elem="$(rel2abs $(echo "$$1" | cut -f 1 -d " "))"
-
     if test "x${$1+set}" = "xset"; then
+        first_elem="$(rel2abs $(echo "$$1" | cut -f 1 -d " "))"
         case "$first_elem" in
             /*)
                 AC_MSG_CHECKING([for $first_elem])
@@ -95,7 +94,7 @@ AC_DEFUN([GET_PROG], [
                 AC_MSG_RESULT([$$1_FOUND])
                 ;;
             *)
-                AC_CHECK_PROG([$1_FOUND], [$$1], [yes])
+                AC_CHECK_PROG([$1_FOUND], [$first_elem], [yes])
                 ;;
         esac
     else
@@ -103,11 +102,15 @@ AC_DEFUN([GET_PROG], [
             if test "x$3" = "xtool"; then
                 AC_CHECK_TOOL([$1_FOUND], [$2], [no])
                 if ! test "x$$1_FOUND" = "xno"; then
-                    $1="$$1_FOUND"
+                    $1="$(rel2abs "$$1_FOUND")"
                     $1_FOUND=yes
                 fi
             else
-                AC_CHECK_PROG([$1_FOUND], [$2], [yes])
+                first_elem="$(rel2abs $(echo "$2" | cut -f 1 -d " "))"
+                AC_CHECK_PROG([$1_FOUND], [$first_elem], [yes])
+                if test "x$$1_FOUND" = "xyes"; then
+                    $1="$(rel2abs "$2")"
+                fi
             fi
         else
             $1_FOUND=no
@@ -115,11 +118,15 @@ AC_DEFUN([GET_PROG], [
     fi
 
     if ! test "x$$1_FOUND" = "xyes"; then
-        AC_MSG_ERROR([$first_elem invalid, set $1 to a valid program])
+        if test "x$4" = "xno-err"; then
+            AC_MSG_WARN([$first_elem invalid, set $1 to a valid program])
+        else
+            AC_MSG_ERROR([$first_elem invalid, set $1 to a valid program])
+        fi
     fi
 ])
 
-AC_ARG_VAR([STRIP], [strip command @<:@default: strip@:>@])
+AC_ARG_VAR([STRIP], [strip command])
 GET_PROG([STRIP], [strip], [tool])
 
 AC_CHECK_HEADERS([stdio.h stdlib.h stdint.h stddef.h stdbool.h stdarg.h string.h errno.h inttypes.h limits.h time.h],
