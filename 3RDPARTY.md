@@ -19,18 +19,18 @@ that Limine is distributed under:
 A non-binding, informal summary of all projects Limine depends on, and the
 licenses used by said projects, in SPDX format, is as follows:
 
-- [cc-runtime](https://codeberg.org/osdev/cc-runtime)
+- [cc-runtime](https://github.com/osdev0/cc-runtime)
 (Apache-2.0 WITH LLVM-exception) is used to provide runtime libgcc-like
 routines.
 
-- [0BSD Freestanding C Headers](https://codeberg.org/osdev/freestnd-c-hdrs-0bsd)
+- [0BSD Freestanding C Headers](https://github.com/osdev0/freestnd-c-hdrs-0bsd)
 (0BSD) provide GCC and Clang compatible freestanding C headers.
 
 - [Limine Boot Protocol](https://github.com/limine-bootloader/limine-protocol)
 (0BSD) has the C/C++ header and the specification text of the Limine Boot
 Protocol.
 
-- [Nyu-EFI](https://codeberg.org/osdev/nyu-efi) (multiple licenses, see list
+- [PicoEFI](https://github.com/PicoEFI/PicoEFI) (multiple licenses, see list
 below) provides headers and build-time support for UEFI.
     - BSD-2-Clause
     - BSD-2-Clause-Patent
@@ -40,7 +40,7 @@ below) provides headers and build-time support for UEFI.
 
     For more information about the
     LicenseRef-scancode-bsd-no-disclaimer-unmodified license used by parts of
-    Nyu-EFI, see
+    PicoEFI, see
     https://scancode-licensedb.aboutcode.org/bsd-no-disclaimer-unmodified.html
     and the LicenseRef file
     [here](LICENSES/LicenseRef-scancode-bsd-no-disclaimer-unmodified.txt),
@@ -52,13 +52,13 @@ below) provides headers and build-time support for UEFI.
 - [tinf](https://github.com/jibsen/tinf) (Zlib) is used in early x86 BIOS
 stages for GZIP decompression of stage2.
 
-- [Flanterm](https://codeberg.org/mintsuki/flanterm) (BSD-2-Clause) is used for
+- [Flanterm](https://github.com/mintsuki/flanterm) (BSD-2-Clause) is used for
 text related screen drawing.
 
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) (MIT) is
 used for wallpaper image loading.
 
-- [libfdt](https://codeberg.org/osdev/libfdt) (BSD-2-Clause) is used for
+- [libfdt](https://github.com/osdev0/libfdt) (BSD-2-Clause) is used for
 manipulating Flat Device Trees.
 
 Note that some of these projects, or parts of them, are provided under

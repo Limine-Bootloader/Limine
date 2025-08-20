@@ -25,7 +25,7 @@
 /bin
 /build
 /limine-protocol
-/nyu-efi
+/picoefi
 /freestnd-c-hdrs
 /flanterm
 /common/lib/stb_image.h.nopatch

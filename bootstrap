@@ -71,12 +71,12 @@ download_by_hash() {
 
 if ! test -f version; then
     clone_repo_commit \
-        https://codeberg.org/osdev/freestnd-c-hdrs-0bsd.git \
+        https://github.com/osdev0/freestnd-c-hdrs-0bsd.git \
         freestnd-c-hdrs \
         5e4e9e70278fe89ea328d359a58aff4f4a94b165
 
     clone_repo_commit \
-        https://codeberg.org/osdev/cc-runtime.git \
+        https://github.com/osdev0/cc-runtime.git \
         cc-runtime \
         dae79833b57a01b9fd3e359ee31def69f5ae899b
     cp cc-runtime/src/cc-runtime.c common/cc-runtime.s2.c
@@ -88,9 +88,9 @@ if ! test -f version; then
         fedf97facd1c473ee8720f8dfd5a71d03490d928
 
     clone_repo_commit \
-        https://codeberg.org/osdev/nyu-efi.git \
-        nyu-efi \
-        2307e1e06c51023285ceac4b41bfdd44d746df8b
+        https://github.com/PicoEFI/PicoEFI.git \
+        picoefi \
+        2690f9a67db1ad05315c044d7ba51d72b6a6ccc3
 
     clone_repo_commit \
         https://github.com/jibsen/tinf.git \
@@ -102,7 +102,7 @@ if ! test -f version; then
     rm -f decompressor/tinf/*.orig
 
     clone_repo_commit \
-        https://codeberg.org/mintsuki/flanterm.git \
+        https://github.com/mintsuki/flanterm.git \
         flanterm \
         fa3ee697b4a9d0a506e5249a791ae2f830a0bf4c
 
@@ -115,7 +115,7 @@ if ! test -f version; then
     rm -f common/lib/stb_image.h.orig
 
     clone_repo_commit \
-        https://codeberg.org/osdev/libfdt.git \
+        https://github.com/osdev0/libfdt.git \
         libfdt \
         7bf94e6347129d17eca263112296ad170dec28a9
 fi
