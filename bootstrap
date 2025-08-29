@@ -83,12 +83,12 @@ if ! test -f version; then
     cp cc-runtime/src/cc-runtime.c decompressor/cc-runtime.c
 
     clone_repo_commit \
-        https://github.com/limine-bootloader/limine-protocol.git \
+        https://codeberg.org/Limine/limine-protocol.git \
         limine-protocol \
         fedf97facd1c473ee8720f8dfd5a71d03490d928
 
     clone_repo_commit \
-        https://github.com/PicoEFI/PicoEFI.git \
+        https://codeberg.org/PicoEFI/PicoEFI.git \
         picoefi \
         2690f9a67db1ad05315c044d7ba51d72b6a6ccc3
 
@@ -102,7 +102,7 @@ if ! test -f version; then
     rm -f decompressor/tinf/*.orig
 
     clone_repo_commit \
-        https://github.com/mintsuki/flanterm.git \
+        https://codeberg.org/Mintsuki/Flanterm.git \
         flanterm \
         fa3ee697b4a9d0a506e5249a791ae2f830a0bf4c
 

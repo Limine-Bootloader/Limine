@@ -26,11 +26,11 @@ routines.
 - [0BSD Freestanding C Headers](https://github.com/osdev0/freestnd-c-hdrs-0bsd)
 (0BSD) provide GCC and Clang compatible freestanding C headers.
 
-- [Limine Boot Protocol](https://github.com/limine-bootloader/limine-protocol)
+- [Limine Boot Protocol](https://codeberg.org/Limine/limine-protocol)
 (0BSD) has the C/C++ header and the specification text of the Limine Boot
 Protocol.
 
-- [PicoEFI](https://github.com/PicoEFI/PicoEFI) (multiple licenses, see list
+- [PicoEFI](https://codeberg.org/PicoEFI/PicoEFI) (multiple licenses, see list
 below) provides headers and build-time support for UEFI.
     - BSD-2-Clause
     - BSD-2-Clause-Patent
@@ -52,7 +52,7 @@ below) provides headers and build-time support for UEFI.
 - [tinf](https://github.com/jibsen/tinf) (Zlib) is used in early x86 BIOS
 stages for GZIP decompression of stage2.
 
-- [Flanterm](https://github.com/mintsuki/flanterm) (BSD-2-Clause) is used for
+- [Flanterm](https://codeberg.org/Mintsuki/Flanterm) (BSD-2-Clause) is used for
 text related screen drawing.
 
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) (MIT) is

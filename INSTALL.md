@@ -15,8 +15,7 @@ the respective binutils.
 ## Configure
 
 If using a release tarball (recommended, see
-https://github.com/limine-bootloader/limine/releases), run `./configure`
-directly.
+https://codeberg.org/Limine/Limine/releases), run `./configure` directly.
 
 If checking out from the repository, run `./bootstrap` first in order to
 download the necessary [dependencies](3RDPARTY.md) and generate the configure
