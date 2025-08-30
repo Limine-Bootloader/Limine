@@ -16,7 +16,7 @@ jobs:
           echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
 
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel git autoconf automake nasm curl mtools llvm clang lld
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S nodejs base-devel git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v5

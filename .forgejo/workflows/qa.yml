@@ -15,7 +15,7 @@ jobs:
           echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
 
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S git typos
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S nodejs git typos
 
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v5
