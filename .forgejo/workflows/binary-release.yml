@@ -1,4 +1,4 @@
-name: Release
+name: Binary release
 
 on:
   push:
@@ -7,11 +7,17 @@ on:
 
 jobs:
   build:
-    name: Build and upload artifacts
-    runs-on: ubuntu-latest
+    name: Build and upload binary artifacts
+    runs-on: codeberg-tiny
     container: archlinux:latest
 
     steps:
+      - name: Create resolv.conf
+        run: |
+          set -ex
+          echo 'nameserver 8.8.8.8' >/etc/resolv.conf
+          echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
+
       - name: Install dependencies
         run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg gzip bzip2 lzip zstd git autoconf automake nasm curl mtools llvm clang lld mingw-w64-gcc
 
@@ -24,23 +30,23 @@ jobs:
           MINTSUKI_PRIVATE_KEY: ${{ secrets.MINTSUKI_PRIVATE_KEY }}
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: https://code.forgejo.org/actions/checkout@v5
         with:
           fetch-depth: '0'
 
       - name: Git config
         run: |
           set -e
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$FORGEJO_WORKSPACE"
           git config --global user.name 'Mintsuki'
           git config --global user.email 'mintsuki@protonmail.com'
           git config --global user.signingkey 05D29860D0A0668AAEFB9D691F3C021BECA23821
 
       - name: Get tag name
-        run: echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $GITHUB_ENV
+        run: echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $FORGEJO_ENV
 
       - name: Get branch name
-        run: echo "BRANCH_NAME=$(echo "$TAG_NAME" | grep -o 'v[0-9]\+\.')x" >> $GITHUB_ENV
+        run: echo "BRANCH_NAME=$(echo "$TAG_NAME" | grep -o 'v[0-9]\+\.')x" >> $FORGEJO_ENV
 
       - name: Regenerate
         run: ./bootstrap
@@ -52,7 +58,7 @@ jobs:
         run: cd build && ../configure --enable-all
 
       - name: Build the bootloader
-        run: make -C build
+        run: make -C build -j$(nproc)
 
       - name: Clean limine
         run: rm build/bin/limine
@@ -78,7 +84,7 @@ jobs:
       - name: Push binaries to binary branch
         run: |
           set -e
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/limine-bootloader/limine.git
+          git remote set-url origin https://x-access-token:${{ secrets.FORGEJO_TOKEN }}@codeberg.org/Limine/Limine.git
           git fetch --all
           git checkout $BRANCH_NAME-binary || git checkout --orphan $BRANCH_NAME-binary
           rm -rf $(ls -a | grep -v '^\.git$' | grep -v '^\.\.$' | grep -v '^\.$' | grep -v '^build$')
@@ -89,47 +95,3 @@ jobs:
           git push origin $BRANCH_NAME-binary
           git tag $TAG_NAME-binary -s -m $TAG_NAME-binary
           git push origin $TAG_NAME-binary
-
-      - name: Cleanup source tree
-        run: git checkout $TAG_NAME && rm -rf * && git checkout .
-
-      - name: Package release tarball
-        run: ./bootstrap && ./configure --enable-all && make dist
-
-      - name: Sign release tarball
-        run: |
-          set -e
-          for f in limine-*.tar.*; do \
-            gpg --batch --default-key 05D29860D0A0668AAEFB9D691F3C021BECA23821 --detach-sign $f; \
-          done \
-
-      - name: Create release notes
-        run: |
-          cat <<EOF >rel_notes.txt
-          Changelog can be found [here](https://github.com/limine-bootloader/limine/blob/$TAG_NAME/ChangeLog).
-
-          Binary release can be found [here](https://github.com/limine-bootloader/limine/tree/$TAG_NAME-binary).
-          EOF
-          cat <<'EOF' >>rel_notes.txt
-
-          Tarballs are signed using key ID `05D29860D0A0668AAEFB9D691F3C021BECA23821` which can be obtained from a keyserver such as `keyserver.ubuntu.com`.
-
-          Import the public key with:
-          ```bash
-          gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
-          ```
-
-          In order to verify the tarball with the given signature, do:
-          ```bash
-          gpg --verify <tarball sig file> <associated tarball>
-          ```
-          EOF
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: rel_notes.txt
-          files: |
-            limine-*.tar.*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

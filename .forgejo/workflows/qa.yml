@@ -5,14 +5,20 @@ on: [ merge_group, push, pull_request ]
 jobs:
   spellcheck:
     name: Spellcheck
-    runs-on: ubuntu-latest
+    runs-on: codeberg-tiny
     container: archlinux:latest
     steps:
+      - name: Create resolv.conf
+        run: |
+          set -ex
+          echo 'nameserver 8.8.8.8' >/etc/resolv.conf
+          echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
+
       - name: Install dependencies
         run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S git typos
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: https://code.forgejo.org/actions/checkout@v5
 
       - name: Run spellchecker
         run: typos

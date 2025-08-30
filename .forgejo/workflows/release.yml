@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - 'v*'
+
+jobs:
+  build:
+    name: Build and upload release tarball
+    runs-on: codeberg-tiny
+    container: archlinux:latest
+
+    steps:
+      - name: Create resolv.conf
+        run: |
+          set -ex
+          echo 'nameserver 8.8.8.8' >/etc/resolv.conf
+          echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
+
+      - name: Install dependencies
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg gzip bzip2 lzip zstd git autoconf automake nasm curl mtools llvm clang lld
+
+      - name: Checkout code
+        uses: https://code.forgejo.org/actions/checkout@v5
+
+      - name: Git config
+        run: |
+          set -e
+          git config --global --add safe.directory "$FORGEJO_WORKSPACE"
+          git config --global user.name 'Mintsuki'
+          git config --global user.email 'mintsuki@protonmail.com'
+
+      - name: Package release tarball
+        run: |
+          set -e
+          ./bootstrap
+          ./configure --enable-all
+          make dist
+          mkdir dist-output
+          mv limine-*.tar.* dist-output/
+
+      - name: Sign release tarball
+        run: |
+          set -e
+          for f in dist-output/*; do
+            gpg --batch --default-key 05D29860D0A0668AAEFB9D691F3C021BECA23821 --detach-sign $f
+          done
+
+      - name: Release
+        uses: https://code.forgejo.org/actions/forgejo-release@v2
+        with:
+          direction: upload
+          release-dir: dist-output
+          release-notes: |
+            Changelog can be found [here](https://codeberg.org/Limine/Limine/src/tag/${{ forgejo.ref_name }}/ChangeLog).
+
+            Binary release can be found [here](https://codeberg.org/Limine/Limine/src/tag/${{ forgejo.ref_name }}-binary).
+
+            Tarballs are signed using key ID `05D29860D0A0668AAEFB9D691F3C021BECA23821` which can be obtained from a keyserver such as `keyserver.ubuntu.com`.
+
+            Import the public key with:
+            ```bash
+            gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
+            ```
+
+            In order to verify the tarball with the given signature, do:
+            ```bash
+            gpg --verify <tarball sig file> <associated tarball>
+            ```
