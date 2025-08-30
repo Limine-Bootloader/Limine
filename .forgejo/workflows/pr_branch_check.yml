@@ -8,7 +8,7 @@ jobs:
     runs-on: codeberg-tiny
     steps:
       - name: Check that the PR is targetting trunk
-        if: ${{ forgejo.base_ref != 'trunk' }}
+        if: ${{ forge.base_ref != 'trunk' }}
         run: |
           set -e
           echo "The PR is not targetting the trunk branch, please fix that."

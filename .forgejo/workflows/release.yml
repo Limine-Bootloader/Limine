@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-    - 'v*'
+      - 'v*'
 
 jobs:
   build:
@@ -49,14 +49,15 @@ jobs:
           done
 
       - name: Release
-        uses: https://code.forgejo.org/actions/forgejo-release@v2
+        uses: https://code.forgejo.org/actions/forgejo-release@v2.7.2
         with:
           direction: upload
+          hide-archive-link: true
           release-dir: dist-output
           release-notes: |
-            Changelog can be found [here](https://codeberg.org/Limine/Limine/src/tag/${{ forgejo.ref_name }}/ChangeLog).
+            Changelog can be found [here](https://codeberg.org/Limine/Limine/src/tag/${{ forge.ref_name }}/ChangeLog).
 
-            Binary release can be found [here](https://codeberg.org/Limine/Limine/src/tag/${{ forgejo.ref_name }}-binary).
+            Binary release can be found [here](https://codeberg.org/Limine/Limine/src/tag/${{ forge.ref_name }}-binary).
 
             Tarballs are signed using key ID `05D29860D0A0668AAEFB9D691F3C021BECA23821` which can be obtained from a keyserver such as `keyserver.ubuntu.com`.
 

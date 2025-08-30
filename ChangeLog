@@ -1,5 +1,16 @@
 2025-08-30  Mintsuki  <mintsuki@protonmail.com>
 
+    *** Release 9.6.3 ***
+
+    Noteworthy changes compared to the previous release, 9.6.2:
+
+    This is a special hotfix release attempting to address issues with the
+    Forgejo release workflow after the migration to Codeberg.
+
+    Other than that, it has no differences compared to 9.6.2.
+
+2025-08-30  Mintsuki  <mintsuki@protonmail.com>
+
     *** Release 9.6.2 ***
 
     Noteworthy changes compared to the previous release, 9.6.1:
