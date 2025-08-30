@@ -1,3 +1,14 @@
+2025-08-30  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.6.2 ***
+
+    Noteworthy changes compared to the previous release, 9.6.1:
+
+    Miscellaneous:
+        - The Limine project has moved its home to Codeberg.
+        - Nyu-EFI was rebranded to PicoEFI.
+        - Minor build system improvements and subproject bumps.
+
 2025-08-16  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.6.1 ***
