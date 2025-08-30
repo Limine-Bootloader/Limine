@@ -21,15 +21,16 @@ jobs:
       - name: Install dependencies
         run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S nodejs base-devel gnupg gzip bzip2 lzip zstd git autoconf automake nasm curl mtools llvm clang lld
 
+      - name: Import GPG public key
+        run: gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
+
+      - name: Import GPG private key
+        run: echo "$MINTSUKI_PRIVATE_KEY" | gpg --batch --import
+        env:
+          MINTSUKI_PRIVATE_KEY: ${{ secrets.MINTSUKI_PRIVATE_KEY }}
+
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v5
-
-      - name: Git config
-        run: |
-          set -e
-          git config --global --add safe.directory "$FORGEJO_WORKSPACE"
-          git config --global user.name 'Mintsuki'
-          git config --global user.email 'mintsuki@protonmail.com'
 
       - name: Package release tarball
         run: |

@@ -21,11 +21,8 @@ jobs:
       - name: Checkout code
         uses: https://code.forgejo.org/actions/checkout@v5
 
-      - name: Git config
-        run: git config --global --add safe.directory "$FORGEJO_WORKSPACE"
-
       - name: Build the bootloader (LLVM, default)
-        run: ./bootstrap && ./configure --enable-werror --enable-all && make all && make maintainer-clean
+        run: ./bootstrap && ./configure --enable-werror --enable-all && make all && make distclean
 
       - name: Set cross GCC version
         run: echo "GCC_VERSION=15.2.0" >> $FORGEJO_ENV
@@ -40,9 +37,6 @@ jobs:
           for pid in $WAITING_ON_PIDS; do
             wait $pid
           done
-
-      - name: Bootstrap source
-        run: ./bootstrap
 
       - name: Build the bootloader (GNU, x86)
         run: export PATH="$(pwd -P)"/gcc-${{ env.GCC_VERSION }}-nolibc/x86_64-linux/bin:"$PATH" && ./configure TOOLCHAIN_FOR_TARGET=x86_64-linux- --enable-werror --enable-bios --enable-uefi-ia32 --enable-uefi-x86-64 && make all -j$(nproc) && make distclean
