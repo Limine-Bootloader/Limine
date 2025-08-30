@@ -90,7 +90,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/PicoEFI/PicoEFI.git \
         picoefi \
-        2690f9a67db1ad05315c044d7ba51d72b6a6ccc3
+        4bd08c13f103de9efd7b215a3e337447f1e2ce37
 
     clone_repo_commit \
         https://github.com/jibsen/tinf.git \
@@ -104,7 +104,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://codeberg.org/Mintsuki/Flanterm.git \
         flanterm \
-        fa3ee697b4a9d0a506e5249a791ae2f830a0bf4c
+        55d228ff16234513b0df0dd12de8bc58160fc196
 
     download_by_hash \
         https://github.com/nothings/stb/raw/5c205738c191bcb0abc65c4febfa9bd25ff35234/stb_image.h \
