@@ -71,12 +71,12 @@ download_by_hash() {
 
 if ! test -f version; then
     clone_repo_commit \
-        https://github.com/osdev0/freestnd-c-hdrs-0bsd.git \
+        https://codeberg.org/OSDev/freestnd-c-hdrs-0bsd.git \
         freestnd-c-hdrs \
         5e4e9e70278fe89ea328d359a58aff4f4a94b165
 
     clone_repo_commit \
-        https://github.com/osdev0/cc-runtime.git \
+        https://codeberg.org/OSDev/cc-runtime.git \
         cc-runtime \
         dae79833b57a01b9fd3e359ee31def69f5ae899b
     cp cc-runtime/src/cc-runtime.c common/cc-runtime.s2.c
@@ -115,7 +115,7 @@ if ! test -f version; then
     rm -f common/lib/stb_image.h.orig
 
     clone_repo_commit \
-        https://github.com/osdev0/libfdt.git \
+        https://codeberg.org/OSDev/libfdt.git \
         libfdt \
         7bf94e6347129d17eca263112296ad170dec28a9
 fi

@@ -19,11 +19,11 @@ that Limine is distributed under:
 A non-binding, informal summary of all projects Limine depends on, and the
 licenses used by said projects, in SPDX format, is as follows:
 
-- [cc-runtime](https://github.com/osdev0/cc-runtime)
+- [cc-runtime](https://codeberg.org/OSDev/cc-runtime)
 (Apache-2.0 WITH LLVM-exception) is used to provide runtime libgcc-like
 routines.
 
-- [0BSD Freestanding C Headers](https://github.com/osdev0/freestnd-c-hdrs-0bsd)
+- [0BSD Freestanding C Headers](https://codeberg.org/OSDev/freestnd-c-hdrs-0bsd)
 (0BSD) provide GCC and Clang compatible freestanding C headers.
 
 - [Limine Boot Protocol](https://codeberg.org/Limine/limine-protocol)
@@ -58,7 +58,7 @@ text related screen drawing.
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) (MIT) is
 used for wallpaper image loading.
 
-- [libfdt](https://github.com/osdev0/libfdt) (BSD-2-Clause) is used for
+- [libfdt](https://codeberg.org/OSDev/libfdt) (BSD-2-Clause) is used for
 manipulating Flat Device Trees.
 
 Note that some of these projects, or parts of them, are provided under
