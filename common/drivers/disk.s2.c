@@ -442,10 +442,6 @@ struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle) {
     EFI_GUID block_io_guid = BLOCK_IO_PROTOCOL;
     EFI_BLOCK_IO *block_io = NULL;
 
-    if (!validate_efi_handle(efi_handle)) {
-        return NULL;
-    }
-
     status = gBS->HandleProtocol(efi_handle, &block_io_guid, (void **)&block_io);
     if (status) {
         return pxe_from_efi_handle(efi_handle);
@@ -474,6 +470,10 @@ struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle) {
 
     // Fallback to read-back method
 fallback:;
+    if (!validate_efi_handle(efi_handle)) {
+        return NULL;
+    }
+
     uint64_t signature = rand64();
     uint64_t new_signature;
     do { new_signature = rand64(); } while (new_signature == signature);
@@ -651,10 +651,6 @@ fail:
 
     for (size_t i = 0; i < handle_count; i++) {
         EFI_BLOCK_IO *drive = NULL;
-
-        if (!validate_efi_handle(handles[i])) {
-            continue;
-        }
 
         status = gBS->HandleProtocol(handles[i], &block_io_guid, (void **)&drive);
 
