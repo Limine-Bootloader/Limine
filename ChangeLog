@@ -1,3 +1,13 @@
+2025-09-06  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.6.6 ***
+
+    Noteworthy changes compared to the previous release, 9.6.5:
+
+    Bug fixes:
+        - Fix regression introduced by 9.6.5 that caused Limine to fail to boot
+          with U-Boot.
+
 2025-08-30  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.6.3 through 9.6.5 ***
