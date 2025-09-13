@@ -1,3 +1,13 @@
+2025-09-13  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 9.6.7 ***
+
+    Noteworthy changes compared to the previous release, 9.6.6:
+
+    Bug fixes:
+        - Relax EFI handle validation before running fallback volume detection.
+          This further addresses issues caused by 9.5.4.
+
 2025-09-06  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 9.6.6 ***
