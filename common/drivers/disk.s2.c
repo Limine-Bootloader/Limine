@@ -408,7 +408,7 @@ static struct volume *volume_by_unique_sector(void *b2b) {
     return NULL;
 }
 
-static bool validate_efi_handle(EFI_HANDLE efi_handle) {
+static bool is_efi_handle_hdd(EFI_HANDLE efi_handle) {
     EFI_STATUS status;
 
     EFI_GUID dp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
@@ -424,11 +424,14 @@ static bool validate_efi_handle(EFI_HANDLE efi_handle) {
             break;
         }
 
-        if (dp->Type != HARDWARE_DEVICE_PATH || dp->SubType != HW_PCI_DP) {
+        if (dp->Type != MEDIA_DEVICE_PATH) {
             continue;
         }
 
-        return true;
+        switch (dp->SubType) {
+            case MEDIA_HARDDRIVE_DP:
+                return true;
+        }
     }
 
     return false;
@@ -470,7 +473,7 @@ struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle) {
 
     // Fallback to read-back method
 fallback:;
-    if (!validate_efi_handle(efi_handle)) {
+    if (!is_efi_handle_hdd(efi_handle)) {
         return NULL;
     }
 
