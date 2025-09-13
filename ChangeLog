@@ -5,7 +5,7 @@
     Noteworthy changes compared to the previous release, 9.6.5:
 
     Bug fixes:
-        - Fix regression introduced by 9.6.5 that caused Limine to fail to boot
+        - Fix regression introduced by 9.5.4 that caused Limine to fail to boot
           with U-Boot.
 
 2025-08-30  Mintsuki  <mintsuki@protonmail.com>
