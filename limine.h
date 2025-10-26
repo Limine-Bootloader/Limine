@@ -35,7 +35,7 @@ extern "C" {
 #  define LIMINE_API_REVISION 0
 #endif
 
-#if LIMINE_API_REVISION > 3
+#if LIMINE_API_REVISION > 4
 #  error "limine.h API revision unsupported"
 #endif
 
@@ -469,6 +469,7 @@ struct LIMINE_MP(request) {
 #  define LIMINE_MEMMAP_KERNEL_AND_MODULES 6
 #endif
 #define LIMINE_MEMMAP_FRAMEBUFFER            7
+#define LIMINE_MEMMAP_ACPI_TABLES            8
 
 struct limine_memmap_entry {
     uint64_t base;
@@ -579,7 +580,7 @@ struct limine_module_request {
 
 struct limine_rsdp_response {
     uint64_t revision;
-#if LIMINE_API_REVISION >= 1
+#if LIMINE_API_REVISION >= 1 && LIMINE_API_REVISION <= 3
     uint64_t address;
 #else
     LIMINE_PTR(void *) address;
