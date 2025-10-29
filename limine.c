@@ -223,7 +223,7 @@ static size_t   block_size;
 static bool device_init(void) {
     size_t guesses[] = { 512, 2048, 4096 };
 
-    for (size_t i = 0; i < sizeof(guesses) / sizeof(size_t); i++) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(guesses); i++) {
         void *tmp = realloc(cache, guesses[i]);
         if (tmp == NULL) {
             perror_wrap("error: device_init(): realloc()");
@@ -728,7 +728,7 @@ static int bios_install(int argc, char *argv[]) {
     struct gpt_table_header gpt_header;
     uint64_t lb_guesses[] = { 512, 4096 };
     uint64_t lb_size = 0;
-    for (size_t i = 0; i < sizeof(lb_guesses) / sizeof(uint64_t); i++) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
         device_read(&gpt_header, lb_guesses[i], sizeof(struct gpt_table_header));
         if (!strncmp(gpt_header.signature, "EFI PART", 8)) {
             lb_size = lb_guesses[i];
@@ -1266,7 +1266,7 @@ cleanup:
     return ret;
 }
 
-#define LIMINE_VERSION "10.2.0"
+#define LIMINE_VERSION "10.2.1"
 #define LIMINE_COPYRIGHT "Copyright (C) 2019-2025 Mintsuki and contributors."
 
 static void version_usage(void) {
