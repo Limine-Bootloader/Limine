@@ -175,8 +175,8 @@ static void blake2b_update(struct blake2b_state *state, const void *in, size_t i
             blake2b_increment_counter(state, BLAKE2B_BLOCK_BYTES);
             blake2b_compress(state, in);
 
-            in += fill;
-            in_len -= fill;
+            in += BLAKE2B_BLOCK_BYTES;
+            in_len -= BLAKE2B_BLOCK_BYTES;
         }
     }
 
