@@ -370,6 +370,8 @@ error:
 }
 
 static bool load_uninstall_data(const char *filename) {
+    size_t loaded_count = 0;
+
     if (!quiet) {
         fprintf(stderr, "Loading uninstall data from file: `%s`...\n", filename);
     }
@@ -382,6 +384,12 @@ static bool load_uninstall_data(const char *filename) {
 
     if (fread(&uninstall_data_i, sizeof(uint64_t), 1, udfile) != 1) {
         goto fread_error;
+    }
+
+    if (uninstall_data_i > UNINSTALL_DATA_MAX) {
+        fprintf(stderr, "error: load_uninstall_data(): too many entries (%zu > %d)\n",
+                (size_t)uninstall_data_i, UNINSTALL_DATA_MAX);
+        goto error;
     }
 
     for (size_t i = 0; i < uninstall_data_i; i++) {
@@ -397,8 +405,10 @@ static bool load_uninstall_data(const char *filename) {
             goto error;
         }
         if (fread(uninstall_data[i].data, uninstall_data[i].count, 1, udfile) != 1) {
+            free(uninstall_data[i].data);
             goto fread_error;
         }
+        loaded_count++;
     }
 
     fclose(udfile);
@@ -408,6 +418,10 @@ fread_error:
     perror_wrap("error: load_uninstall_data(): fread()");
 
 error:
+    // Free any previously allocated uninstall data
+    for (size_t j = 0; j < loaded_count; j++) {
+        free(uninstall_data[j].data);
+    }
     if (udfile != NULL) {
         fclose(udfile);
     }
@@ -437,6 +451,8 @@ static bool _device_read(void *_buffer, uint64_t loc, size_t count) {
 }
 
 static bool _device_write(const void *_buffer, uint64_t loc, size_t count) {
+    struct uninstall_data *ud = NULL;
+
     if (uninstalling) {
         goto skip_save;
     }
@@ -446,7 +462,7 @@ static bool _device_write(const void *_buffer, uint64_t loc, size_t count) {
         return false;
     }
 
-    struct uninstall_data *ud = &uninstall_data[uninstall_data_i];
+    ud = &uninstall_data[uninstall_data_i];
 
     ud->data = malloc(count);
     if (ud->data == NULL) {
@@ -455,6 +471,7 @@ static bool _device_write(const void *_buffer, uint64_t loc, size_t count) {
     }
 
     if (!_device_read(ud->data, loc, count)) {
+        free(ud->data);
         return false;
     }
 
@@ -468,6 +485,9 @@ skip_save:;
         uint64_t block = (loc + progress) / block_size;
 
         if (!device_cache_block(block)) {
+            if (!uninstalling) {
+                free(ud->data);
+            }
             return false;
         }
 
@@ -676,11 +696,11 @@ static int bios_install(int argc, char *argv[]) {
                 fprintf(stderr, "warning: --uninstall already set.\n");
             }
             uninstall_mode = true;
-        } else if (memcmp(argv[i], "--uninstall-data-file=", 21) == 0) {
+        } else if (memcmp(argv[i], "--uninstall-data-file=", 22) == 0) {
             if (uninstall_file != NULL && !quiet) {
                 fprintf(stderr, "warning: --uninstall-data-file already set. Overriding...\n");
             }
-            uninstall_file = argv[i] + 21;
+            uninstall_file = argv[i] + 22;
             if (strlen(uninstall_file) == 0) {
                 fprintf(stderr, "error: Uninstall data file has a zero-length name!\n");
                 return EXIT_FAILURE;
@@ -798,6 +818,13 @@ static int bios_install(int argc, char *argv[]) {
                 continue;
             }
 
+            if (part_to_conv_i == 4) {
+                if (!quiet) {
+                    fprintf(stderr, "GPT contains more than 4 partitions, will not convert.\n");
+                }
+                goto no_mbr_conv;
+            }
+
             if (ENDSWAP(gpt_entry.starting_lba) > UINT32_MAX) {
                 if (!quiet) {
                     fprintf(stderr, "Starting LBA of partition %" PRIi64 " is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
@@ -816,18 +843,18 @@ static int bios_install(int argc, char *argv[]) {
             part_to_conv[part_to_conv_i].lba_end = ENDSWAP(gpt_entry.ending_lba);
             lba2chs(part_to_conv[part_to_conv_i].chs_end, part_to_conv[part_to_conv_i].lba_end);
 
+            if (part_to_conv[part_to_conv_i].lba_end - part_to_conv[part_to_conv_i].lba_start + 1 > UINT32_MAX) {
+                if (!quiet) {
+                    fprintf(stderr, "Sector count of partition %" PRIi64 " is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
+                }
+                goto no_mbr_conv;
+            }
+
             int type = gpt2mbr_type(ENDSWAP(gpt_entry.partition_type_guid[0]),
                                     ENDSWAP(gpt_entry.partition_type_guid[1]));
             if (type == -1) {
                 if (!quiet) {
                     fprintf(stderr, "Cannot convert partition type for partition %" PRIi64 ", will not convert GPT.\n", i + 1);
-                }
-                goto no_mbr_conv;
-            }
-
-            if (part_to_conv_i == 4) {
-                if (!quiet) {
-                    fprintf(stderr, "GPT contains more than 4 partitions, will not convert.\n");
                 }
                 goto no_mbr_conv;
             }
@@ -1008,9 +1035,12 @@ part_too_low:
         uint32_t partition_num;
 
         if (part_ndx != NULL) {
-            sscanf(part_ndx, "%" SCNu32, &partition_num);
+            if (sscanf(part_ndx, "%" SCNu32, &partition_num) != 1) {
+                fprintf(stderr, "error: Invalid partition number format.\n");
+                goto cleanup;
+            }
             partition_num--;
-            if (partition_num > ENDSWAP(gpt_header.number_of_partition_entries)) {
+            if (partition_num >= ENDSWAP(gpt_header.number_of_partition_entries)) {
                 fprintf(stderr, "error: Partition number is too large.\n");
                 goto cleanup;
             }
@@ -1169,10 +1199,10 @@ static int enroll_config(int argc, char *argv[]) {
             enroll_config_usage();
             return EXIT_SUCCESS;
         } else if (strcmp(argv[i], "--quiet") == 0) {
-            remove_arg(&argc, argv, i);
+            remove_arg(&argc, argv, i--);
             quiet = true;
         } else if (strcmp(argv[i], "--reset") == 0) {
-            remove_arg(&argc, argv, i);
+            remove_arg(&argc, argv, i--);
             reset = true;
         }
     }
@@ -1200,8 +1230,19 @@ static int enroll_config(int argc, char *argv[]) {
         perror_wrap("error: enroll_config(): fseek()");
         goto cleanup;
     }
-    size_t bootloader_size = ftell(bootloader_file);
+    long ftell_result = ftell(bootloader_file);
+    if (ftell_result < 0) {
+        perror_wrap("error: enroll_config(): ftell()");
+        goto cleanup;
+    }
+    size_t bootloader_size = (size_t)ftell_result;
     rewind(bootloader_file);
+
+    size_t min_size = (sizeof(CONFIG_B2SUM_SIGNATURE) - 1) + 128;
+    if (bootloader_size < min_size) {
+        fprintf(stderr, "error: Bootloader file too small (need at least %zu bytes)\n", min_size);
+        goto cleanup;
+    }
 
     bootloader = malloc(bootloader_size);
     if (bootloader == NULL) {
@@ -1217,7 +1258,7 @@ static int enroll_config(int argc, char *argv[]) {
     char *checksum_loc = NULL;
     size_t checked_count = 0;
     const char *config_b2sum_sign = CONFIG_B2SUM_SIGNATURE;
-    for (size_t i = 0; i < bootloader_size - ((sizeof(CONFIG_B2SUM_SIGNATURE) - 1) + 128) + 1; i++) {
+    for (size_t i = 0; i < bootloader_size - min_size + 1; i++) {
         if (bootloader[i] != config_b2sum_sign[checked_count]) {
             checked_count = 0;
             continue;
@@ -1266,7 +1307,7 @@ cleanup:
     return ret;
 }
 
-#define LIMINE_VERSION "10.6.2"
+#define LIMINE_VERSION "10.6.3"
 #define LIMINE_COPYRIGHT "Copyright (C) 2019-2026 Mintsuki and contributors."
 
 static void version_usage(void) {
