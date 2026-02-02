@@ -477,6 +477,15 @@ static void riscv_flush_callback(volatile void *base, size_t length) {
         asm volatile("cbo.flush (%0)" :: "r"(ptr) : "memory");
     }
 }
+static void riscv_flush_callback_nozicbom(volatile void *base, size_t length) {
+    volatile uint64_t *p = (volatile uint64_t *)addr;
+    size_t num_words = size / sizeof(uint64_t);
+    size_t stride = 64 / sizeof(uint64_t);
+
+    asm volatile ("fence rw, rw" ::: "memory");
+    for (size_t i = 0; i < num_words; i += stride) p[i] ^= 0;
+    asm volatile ("fence rw, rw" ::: "memory");
+}
 #elif defined (__aarch64__)
 static void aarch64_flush_callback(volatile void *base, size_t length) {
     clean_dcache_poc((uintptr_t)base, (uintptr_t)base + length);
@@ -847,6 +856,8 @@ no_load_font:;
 #if defined (__riscv)
         if (riscv_check_isa_extension("zicbom", NULL, NULL)) {
             flanterm_fb_set_flush_callback(term, riscv_flush_callback);
+        } else {
+            flanterm_fb_set_flush_callback(term, riscv_flush_callback_nozicbom);
         }
 #elif defined (__aarch64__)
         flanterm_fb_set_flush_callback(term, aarch64_flush_callback);
