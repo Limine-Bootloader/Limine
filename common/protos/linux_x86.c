@@ -368,10 +368,15 @@ noreturn void linux_load(char *config, char *cmdline) {
     setup_header->loadflags &= ~(1 << 5);     // print early messages
 
     // load kernel
+    size_t kernel_data_size = kernel_file->size - real_mode_code_size;
+    size_t kernel_alloc_size = kernel_data_size;
+    if (setup_header->version >= 0x20a && setup_header->init_size > kernel_alloc_size) {
+        kernel_alloc_size = setup_header->init_size;
+    }
     uintptr_t kernel_load_addr = 0x100000;
     for (;;) {
         if (memmap_alloc_range(kernel_load_addr,
-                ALIGN_UP(kernel_file->size - real_mode_code_size, 4096),
+                ALIGN_UP(kernel_alloc_size, 4096),
                 MEMMAP_BOOTLOADER_RECLAIMABLE, MEMMAP_USABLE, false, false, false))
             break;
 
