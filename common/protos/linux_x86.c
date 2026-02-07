@@ -549,6 +549,7 @@ set_textmode:;
 
 #if defined (BIOS)
         screen_info->orig_video_isVGA = VIDEO_TYPE_VLFB;
+        screen_info->lfb_size = DIV_ROUNDUP(screen_info->lfb_size, 65536);
 #elif defined (UEFI)
         screen_info->orig_video_isVGA = VIDEO_TYPE_EFI;
 #endif
