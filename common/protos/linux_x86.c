@@ -373,18 +373,22 @@ noreturn void linux_load(char *config, char *cmdline) {
     if (setup_header->version >= 0x20a && setup_header->init_size > kernel_alloc_size) {
         kernel_alloc_size = setup_header->init_size;
     }
-    uintptr_t kernel_load_addr = 0x100000;
+    uintptr_t kernel_align = 0x100000;
+    if (setup_header->version >= 0x205 && setup_header->kernel_alignment > kernel_align) {
+        kernel_align = setup_header->kernel_alignment;
+    }
+    uintptr_t kernel_load_addr = ALIGN_UP(0x100000, kernel_align);
     for (;;) {
         if (memmap_alloc_range(kernel_load_addr,
                 ALIGN_UP(kernel_alloc_size, 4096),
                 MEMMAP_BOOTLOADER_RECLAIMABLE, MEMMAP_USABLE, false, false, false))
             break;
 
-        if (kernel_load_addr == 0xfff00000) {
+        if (kernel_load_addr >= 0xfff00000) {
             panic(true, "linux: Failed to allocate memory for kernel");
         }
 
-        kernel_load_addr += 0x100000;
+        kernel_load_addr += kernel_align;
     }
 
     fread(kernel_file, (void *)kernel_load_addr, real_mode_code_size, kernel_file->size - real_mode_code_size);
