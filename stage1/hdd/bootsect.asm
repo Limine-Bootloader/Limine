@@ -78,6 +78,10 @@ start:
     lgdt [gdt]
 
     cli
+
+    push dword 0
+    mov ebp, 0x10
+
     mov eax, cr0
     bts ax, 0
     mov cr0, eax
@@ -114,16 +118,13 @@ err:
 
 bits 32
 vector:
-    mov eax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
+    mov ds, ebp
+    mov es, ebp
+    mov fs, ebp
+    mov gs, ebp
+    mov ss, ebp
 
     and edx, 0xff
-
-    push 0
 
     push edx
 
