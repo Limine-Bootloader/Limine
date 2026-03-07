@@ -46,6 +46,16 @@ static void remove_arg(int *argc, char *argv[], int index) {
     argv[*argc] = NULL;
 }
 
+static inline bool mul_u64_overflow(uint64_t a, uint64_t b, uint64_t *res) {
+    *res = a * b;
+    return a != 0 && b > UINT64_MAX / a;
+}
+
+static inline bool add_u64_overflow(uint64_t a, uint64_t b, uint64_t *res) {
+    *res = a + b;
+    return a > UINT64_MAX - b;
+}
+
 #ifndef LIMINE_NO_BIOS
 
 static bool quiet = false;
@@ -807,14 +817,14 @@ static int bios_install(int argc, char *argv[]) {
         size_t part_to_conv_i = 0;
 
         uint64_t part_entry_base;
-        if (__builtin_mul_overflow(ENDSWAP(gpt_header.partition_entry_lba), lb_size, &part_entry_base)) {
+        if (mul_u64_overflow(ENDSWAP(gpt_header.partition_entry_lba), lb_size, &part_entry_base)) {
             goto no_mbr_conv;
         }
 
         for (int64_t i = 0; i < (int64_t)ENDSWAP(gpt_header.number_of_partition_entries); i++) {
             struct gpt_entry gpt_entry;
             uint64_t entry_offset = (uint64_t)i * ENDSWAP(gpt_header.size_of_partition_entry);
-            if (__builtin_add_overflow(part_entry_base, entry_offset, &entry_offset)) {
+            if (add_u64_overflow(part_entry_base, entry_offset, &entry_offset)) {
                 goto no_mbr_conv;
             }
             device_read(&gpt_entry, entry_offset, sizeof(struct gpt_entry));
@@ -905,9 +915,9 @@ static int bios_install(int argc, char *argv[]) {
         // Write out the partition entries.
         for (size_t i = 0; i < part_to_conv_i; i++) {
             device_write(&part_to_conv[i].type, 0x1be + i * 16 + 0x04, 1);
-            uint32_t lba_start = ENDSWAP(part_to_conv[i].lba_start);
+            uint32_t lba_start = ENDSWAP((uint32_t)part_to_conv[i].lba_start);
             device_write(&lba_start, 0x1be + i * 16 + 0x08, 4);
-            uint32_t sect_count = ENDSWAP((part_to_conv[i].lba_end - part_to_conv[i].lba_start) + 1);
+            uint32_t sect_count = ENDSWAP((uint32_t)((part_to_conv[i].lba_end - part_to_conv[i].lba_start) + 1));
             device_write(&sect_count, 0x1be + i * 16 + 0x0c, 4);
 
             device_write(part_to_conv[i].chs_start, 0x1be + i * 16 + 1, 3);
@@ -1044,7 +1054,7 @@ part_too_low:
         uint32_t partition_num;
 
         uint64_t gpt_part_entry_base;
-        if (__builtin_mul_overflow(ENDSWAP(gpt_header.partition_entry_lba), lb_size, &gpt_part_entry_base)) {
+        if (mul_u64_overflow(ENDSWAP(gpt_header.partition_entry_lba), lb_size, &gpt_part_entry_base)) {
             fprintf(stderr, "error: GPT partition entry LBA overflows.\n");
             goto cleanup;
         }
@@ -1061,7 +1071,7 @@ part_too_low:
             }
 
             uint64_t entry_off = (uint64_t)partition_num * ENDSWAP(gpt_header.size_of_partition_entry);
-            if (__builtin_add_overflow(gpt_part_entry_base, entry_off, &entry_off)) {
+            if (add_u64_overflow(gpt_part_entry_base, entry_off, &entry_off)) {
                 fprintf(stderr, "error: GPT partition entry offset overflows.\n");
                 goto cleanup;
             }
@@ -1083,7 +1093,7 @@ part_too_low:
             // Try to autodetect the BIOS boot partition
             for (partition_num = 0; partition_num < ENDSWAP(gpt_header.number_of_partition_entries); partition_num++) {
                 uint64_t entry_off = (uint64_t)partition_num * ENDSWAP(gpt_header.size_of_partition_entry);
-                if (__builtin_add_overflow(gpt_part_entry_base, entry_off, &entry_off)) {
+                if (add_u64_overflow(gpt_part_entry_base, entry_off, &entry_off)) {
                     fprintf(stderr, "error: GPT partition entry offset overflows.\n");
                     goto cleanup;
                 }
@@ -1102,13 +1112,30 @@ part_too_low:
             goto cleanup;
         }
 
-bios_boot_autodetected:
-        if (((ENDSWAP(gpt_entry.ending_lba) - ENDSWAP(gpt_entry.starting_lba)) + 1) * lb_size < 32768) {
+bios_boot_autodetected:;
+        uint64_t starting_lba = ENDSWAP(gpt_entry.starting_lba);
+        uint64_t ending_lba = ENDSWAP(gpt_entry.ending_lba);
+
+        if (ending_lba < starting_lba) {
+            fprintf(stderr, "error: Partition %" PRIu32 " has ending LBA less than starting LBA.\n", partition_num + 1);
+            goto cleanup;
+        }
+
+        uint64_t part_size;
+        if (mul_u64_overflow(ending_lba - starting_lba + 1, lb_size, &part_size)) {
+            fprintf(stderr, "error: Partition %" PRIu32 " size overflows.\n", partition_num + 1);
+            goto cleanup;
+        }
+
+        if (part_size < 32768) {
             fprintf(stderr, "error: Partition %" PRIu32 " is smaller than 32KiB.\n", partition_num + 1);
             goto cleanup;
         }
 
-        stage2_loc = ENDSWAP(gpt_entry.starting_lba) * lb_size;
+        if (mul_u64_overflow(starting_lba, lb_size, &stage2_loc)) {
+            fprintf(stderr, "error: Partition %" PRIu32 " starting LBA overflows.\n", partition_num + 1);
+            goto cleanup;
+        }
 
         bool err;
         bool valid = validate_or_force(stage2_loc, force, &err);
@@ -1329,7 +1356,7 @@ cleanup:
     return ret;
 }
 
-#define LIMINE_VERSION "10.8.2"
+#define LIMINE_VERSION "10.8.3"
 #define LIMINE_COPYRIGHT "Copyright (C) 2019-2026 Mintsuki and contributors."
 
 static void version_usage(void) {
