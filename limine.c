@@ -409,7 +409,11 @@ static bool load_uninstall_data(const char *filename) {
         if (fread(&uninstall_data[i].count, sizeof(uint64_t), 1, udfile) != 1) {
             goto fread_error;
         }
-        uninstall_data[i].data = malloc(uninstall_data[i].count);
+        if (uninstall_data[i].count > SIZE_MAX) {
+            fprintf(stderr, "error: load_uninstall_data(): entry size too large\n");
+            goto error;
+        }
+        uninstall_data[i].data = malloc((size_t)uninstall_data[i].count);
         if (uninstall_data[i].data == NULL) {
             perror_wrap("error: load_uninstall_data(): malloc()");
             goto error;
@@ -1356,7 +1360,7 @@ cleanup:
     return ret;
 }
 
-#define LIMINE_VERSION "11.1.0"
+#define LIMINE_VERSION "11.2.0"
 #define LIMINE_COPYRIGHT "Copyright (C) 2019-2026 Mintsuki and contributors."
 
 static void version_usage(void) {
