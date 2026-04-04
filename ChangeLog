@@ -1,3 +1,15 @@
+2026-04-04  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 11.2.1 ***
+
+    Noteworthy changes compared to the previous release, 11.2.0:
+
+    Bug fixes:
+        - Revert Secure Boot enforcement policy for configuration file hash
+          and other file hashes. This broke semantic versioning, so the fair
+          thing to do is to revert it and move on to 12.x afterwards.
+        - Add workaround for VMware optical drive detection on BIOS.
+
 2026-04-02  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 11.2.0 ***
