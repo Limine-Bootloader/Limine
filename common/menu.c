@@ -1030,11 +1030,6 @@ noreturn void _menu(bool first_run) {
     char *hash_mismatch_panic_str = config_get_value(NULL, 0, "HASH_MISMATCH_PANIC");
     hash_mismatch_panic = hash_mismatch_panic_str == NULL || strcmp(hash_mismatch_panic_str, "yes") == 0;
 
-    if (secure_boot_active) {
-        hash_mismatch_panic = true;
-        editor_enabled = false;
-    }
-
     char *randomise_mem_str = config_get_value(NULL, 0, "RANDOMISE_MEMORY");
     if (randomise_mem_str == NULL)
         randomise_mem_str = config_get_value(NULL, 0, "RANDOMIZE_MEMORY");
@@ -1044,7 +1039,7 @@ noreturn void _menu(bool first_run) {
     }
 
     char *editor_enabled_str = config_get_value(NULL, 0, "EDITOR_ENABLED");
-    if (editor_enabled_str != NULL && !secure_boot_active) {
+    if (editor_enabled_str != NULL) {
         editor_enabled = strcmp(editor_enabled_str, "yes") == 0;
     }
 
@@ -1075,9 +1070,9 @@ noreturn void _menu(bool first_run) {
         {
             uint32_t eax, ebx, ecx, edx;
             if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
-                menu_branding = strdup("Limine " LIMINE_VERSION " (ia-32, BIOS)");
+                menu_branding = "Limine " LIMINE_VERSION " (ia-32, BIOS)";
             } else {
-                menu_branding = strdup("Limine " LIMINE_VERSION " (x86-64, BIOS)");
+                menu_branding = "Limine " LIMINE_VERSION " (x86-64, BIOS)";
             }
         }
 #elif defined (UEFI)
@@ -1085,13 +1080,13 @@ noreturn void _menu(bool first_run) {
         {
             uint32_t eax, ebx, ecx, edx;
             if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
-                menu_branding = strdup("Limine " LIMINE_VERSION " (ia-32, UEFI32)");
+                menu_branding = "Limine " LIMINE_VERSION " (ia-32, UEFI32)";
             } else {
-                menu_branding = strdup("Limine " LIMINE_VERSION " (x86-64, UEFI32)");
+                menu_branding = "Limine " LIMINE_VERSION " (x86-64, UEFI32)";
             }
         }
 #else
-        menu_branding = strdup("Limine " LIMINE_VERSION " ("
+        menu_branding = "Limine " LIMINE_VERSION " ("
 #if defined (__x86_64__)
             "x86-64"
 #elif defined (__riscv)
@@ -1101,17 +1096,9 @@ noreturn void _menu(bool first_run) {
 #elif defined (__loongarch64)
             "loongarch64"
 #endif
-            ", UEFI)");
+            ", UEFI)";
 #endif
 #endif
-    }
-
-    if (secure_boot_active) {
-        const char *suffix = ", Secure Boot)";
-        size_t suffix_len = strlen(suffix) + 1;
-        size_t old_len = strlen(menu_branding);
-        menu_branding = pmm_realloc(menu_branding, old_len + 1, old_len + suffix_len);
-        memcpy(menu_branding + old_len - 1, suffix, suffix_len);
     }
 
     {

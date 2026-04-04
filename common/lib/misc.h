@@ -38,7 +38,7 @@ extern struct volume *boot_volume;
 extern bool stage3_loaded;
 #endif
 
-extern bool quiet, serial, editor_enabled, help_hidden, hash_mismatch_panic, secure_boot_active;
+extern bool quiet, serial, editor_enabled, help_hidden, hash_mismatch_panic;
 
 extern uint64_t usec_at_bootloader_entry;
 

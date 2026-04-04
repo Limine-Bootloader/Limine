@@ -252,10 +252,6 @@ struct file_handle *uri_open(char *uri) {
         panic(true, "Resource `%s` not valid.", resource);
     }
 
-    if (secure_boot_active && hash == NULL && ret != NULL) {
-        panic(true, "Secure Boot is active and URI `%#` has no associated hash!", uri);
-    }
-
     if (hash != NULL && ret != NULL) {
         uint8_t out_buf[BLAKE2B_OUT_BYTES];
 #if defined (UEFI) && defined (__x86_64__)

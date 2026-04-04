@@ -14,25 +14,12 @@ A valid config file should also be provided as described in
 [CONFIG.md](CONFIG.md).
 
 ## Secure Boot
-Limine can be booted with Secure Boot if the executable is signed and the key
+Limine can be booted with secure boot if the executable is signed and the key
 used to sign it is added to the firmware's keychain. This should be done in
 combination with enrolling the BLAKE2B hash of the Limine config file into the
 Limine EFI executable image itself for verification purposes.
 For more information see the `limine enroll-config` program and
 [the FAQ](FAQ.md).
-
-When Limine detects that UEFI Secure Boot is active (the `SecureBoot` variable
-is set and `SetupMode` is not), the following security policies are enforced:
-
-* The config file **must** have a BLAKE2B checksum enrolled in the Limine EFI
-  executable. If no checksum is enrolled, Limine will panic.
-* All file paths (kernels, modules, DTBs, fonts, etc.) **must** have a BLAKE2B
-  hash appended (e.g. `boot():/kernel#<hash>`). Loading a file without a hash
-  will cause a panic.
-* Wallpaper files without an associated hash are silently skipped rather than
-  causing a panic.
-* The config editor is unconditionally disabled.
-* `hash_mismatch_panic` is forced to `yes` regardless of the config setting.
 
 ## BIOS/MBR
 In order to install Limine on a MBR device (which can just be a raw image

@@ -115,8 +115,7 @@ Miscellaneous:
   Limine, this will only randomise memory below 4GiB.
 * `randomize_memory` - Alias of `randomise_memory`.
 * `hash_mismatch_panic` - If set to `no`, do not panic if there is a hash
-  mismatch for a file, but print a warning instead. Forced to `yes` when
-  Secure Boot is active.
+  mismatch for a file, but print a warning instead.
 
 Limine interface control options:
 
@@ -196,8 +195,7 @@ These are ignored if using text mode.
 Editor control options:
 
 * `editor_enabled` - If set to `no`, the editor will not be accessible.
-  Defaults to `yes` unless a config hash is enrolled. Unconditionally
-  disabled when Secure Boot is active.
+  Defaults to `yes` unless a config hash is enrolled.
 * `editor_highlighting` - If set to `no`, syntax highlighting in the editor
   will be disabled. Defaults to `yes`.
 * `editor_validation` - If set to `no`, the editor will not alert you about
@@ -344,8 +342,6 @@ A resource can be one of the following:
 A path can optionally be suffixed with a blake2b hash for the referenced file,
 by appending a pound character (`#`) followed by the blake2b hash.
 E.g.: `boot():/somemodule.tar#ca6914d2...446b470a`.
-When Secure Boot is active, all file paths **must** have a hash appended or
-Limine will panic (except for wallpapers, which are silently skipped instead).
 
 ## Macros
 

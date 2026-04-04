@@ -353,10 +353,6 @@ static struct macro *macros = NULL;
 int init_config(size_t config_size) {
     config_b2sum += sizeof(CONFIG_B2SUM_SIGNATURE) - 1;
 
-    if (secure_boot_active && memcmp((void *)config_b2sum, CONFIG_B2SUM_EMPTY, 128) == 0) {
-        panic(false, "!!! SECURE BOOT IS ACTIVE BUT NO CONFIG CHECKSUM IS ENROLLED !!!");
-    }
-
     if (memcmp((void *)config_b2sum, CONFIG_B2SUM_EMPTY, 128) != 0) {
         editor_enabled = false;
 

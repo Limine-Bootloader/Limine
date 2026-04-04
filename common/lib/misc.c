@@ -25,7 +25,6 @@ UINT32 efi_desc_ver = 0;
 
 bool editor_enabled = true;
 bool help_hidden = false;
-bool secure_boot_active = false;
 
 uint64_t usec_at_bootloader_entry;
 

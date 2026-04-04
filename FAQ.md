@@ -27,11 +27,6 @@ checksum of the config file itself. The EFI executable can then get signed with
 a key added to the firmware's keychain. This prevents modifications to the
 config file (and in turn the checksums contained there) from going unnoticed.
 
-Additionally, when Limine detects that UEFI Secure Boot is active, it enforces
-that a config checksum is enrolled, that all loaded files have BLAKE2B hashes
-in their paths, and disables the config editor. See [USAGE.md](USAGE.md) for
-details.
-
 ### I do not want to have a separate FAT boot partition! What can I do?
 
 It is `$year_following_2012` now and most PCs are equipped with UEFI and simply

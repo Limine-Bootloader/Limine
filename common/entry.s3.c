@@ -91,22 +91,6 @@ defer_error:
 
     disk_create_index();
 
-    // Detect UEFI Secure Boot
-    {
-        EFI_GUID global_variable = EFI_GLOBAL_VARIABLE;
-        UINT8 secure_boot = 0;
-        UINTN sb_size = sizeof(secure_boot);
-        EFI_STATUS sb_status = gRT->GetVariable(L"SecureBoot", &global_variable, NULL, &sb_size, &secure_boot);
-        if (sb_status == EFI_SUCCESS && secure_boot == 1) {
-            UINT8 setup_mode = 0;
-            UINTN sm_size = sizeof(setup_mode);
-            EFI_STATUS sm_status = gRT->GetVariable(L"SetupMode", &global_variable, NULL, &sm_size, &setup_mode);
-            if (sm_status != EFI_SUCCESS || setup_mode == 0) {
-                secure_boot_active = true;
-            }
-        }
-    }
-
     boot_volume = NULL;
 
     EFI_HANDLE current_handle = ImageHandle;
