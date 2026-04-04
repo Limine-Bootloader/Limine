@@ -270,6 +270,10 @@ void term_fallback(void) {
         flanterm_context_reinit(term);
 #if defined (UEFI)
 
+        cursor_x = 0;
+        cursor_y = 0;
+        gST->ConOut->SetCursorPosition(gST->ConOut, 0, 0);
+
         term->set_text_fg = fallback_set_text_fg;
         term->set_text_bg = fallback_set_text_bg;
         term->set_text_fg_bright = fallback_set_text_fg_bright;
