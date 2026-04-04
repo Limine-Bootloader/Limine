@@ -7,8 +7,8 @@
     New features:
         - Enforce hash verification of loaded files when UEFI Secure Boot is
           active. When Secure Boot is detected, Limine requires an enrolled
-          config checksum, BLAKE2B hashes on security-critical file paths,
-          disables the config editor, and forces hash_mismatch_panic to yes.
+          config checksum, BLAKE2B hashes on all file paths, disables the
+          config editor, and forces hash_mismatch_panic to yes.
         - Linux boot protocol: Load and concatenate all modules on non-x86, not
           just the first.
         - ISO 9660: Handle Rock Ridge NM continuation entries.
