@@ -510,7 +510,7 @@ noreturn void linux_load(char *config, char *cmdline) {
 #endif
 
     p.kernel_base = ext_mem_alloc_type_aligned(
-                ALIGN_UP(text_offset + kernel_alloc_size, 4096, panic(true, "linux: Alignment overflow")),
+                ALIGN_UP(CHECKED_ADD(text_offset, kernel_alloc_size, panic(true, "linux: Kernel size overflow")), 4096, panic(true, "linux: Alignment overflow")),
                 MEMMAP_KERNEL_AND_MODULES, 2 * 1024 * 1024);
     p.kernel_base += text_offset;
     fread(kernel_file, p.kernel_base, 0, p.kernel_size);
