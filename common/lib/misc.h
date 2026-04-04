@@ -100,7 +100,7 @@ uint64_t strtoui(const char *s, const char **end, int base);
 #define ALIGN_UP(x, a, onerror) ({ \
     __auto_type ALIGN_UP_value = (x); \
     __auto_type ALIGN_UP_align = (a); \
-    ALIGN_UP_value = DIV_ROUNDUP(ALIGN_UP_value, ALIGN_UP_align, onerror) * ALIGN_UP_align; \
+    ALIGN_UP_value = CHECKED_MUL(DIV_ROUNDUP(ALIGN_UP_value, ALIGN_UP_align, onerror), ALIGN_UP_align, onerror); \
     ALIGN_UP_value; \
 })
 
