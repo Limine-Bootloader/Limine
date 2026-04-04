@@ -151,13 +151,14 @@ static void load_module(struct boot_param *p, char *config) {
 
     size_t offset = 0;
     for (size_t i = 0; i < module_count; i++) {
-        fread(modules[i], p->module_base + offset, 0, modules[i]->size);
-        offset += modules[i]->size;
+        size_t module_size = modules[i]->size;
+        fread(modules[i], p->module_base + offset, 0, module_size);
         fclose(modules[i]);
 
         char *module_path = config_get_value(config, i, "MODULE_PATH");
         printv("linux: loaded module `%s` at %p, size %U\n", module_path,
-               p->module_base + offset - modules[i]->size, (uint64_t)modules[i]->size);
+               p->module_base + offset, (uint64_t)module_size);
+        offset += module_size;
     }
 
     pmm_free(modules, module_count * sizeof(struct file_handle *));
