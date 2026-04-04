@@ -28,10 +28,9 @@ is set and `SetupMode` is not), the following security policies are enforced:
   executable. If no checksum is enrolled, Limine will panic.
 * All file paths (kernels, modules, DTBs, fonts, etc.) **must** have a BLAKE2B
   hash appended (e.g. `boot():/kernel#<hash>`). Loading a file without a hash
-  will cause a panic. The exception is EFI chainloading, where the firmware's
-  own Secure Boot image verification is used instead.
-* Wallpaper and font files without an associated hash are silently skipped
-  (falling back to defaults) rather than causing a panic.
+  will cause a panic.
+* Wallpaper files without an associated hash are silently skipped rather than
+  causing a panic.
 * The config editor is unconditionally disabled.
 * `hash_mismatch_panic` is forced to `yes` regardless of the config setting.
 

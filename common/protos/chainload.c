@@ -265,17 +265,9 @@ noreturn void chainload(char *config, char *cmdline) {
         panic(true, "efi: Image path not specified");
     }
 
-    // The firmware's LoadImage will verify the Secure Boot signature of the
-    // chainloaded EFI application, so Limine does not need to enforce its
-    // own hash check here.
-    bool saved_secure_boot_active = secure_boot_active;
-    secure_boot_active = false;
-
     struct file_handle *image;
     if ((image = uri_open(image_path)) == NULL)
         panic(true, "efi: Failed to open image with path `%s`. Is the path correct?", image_path);
-
-    secure_boot_active = saved_secure_boot_active;
 
     EFI_STATUS status;
 

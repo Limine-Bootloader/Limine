@@ -345,8 +345,7 @@ A path can optionally be suffixed with a blake2b hash for the referenced file,
 by appending a pound character (`#`) followed by the blake2b hash.
 E.g.: `boot():/somemodule.tar#ca6914d2...446b470a`.
 When Secure Boot is active, all file paths **must** have a hash appended or
-Limine will panic (except for wallpapers and fonts, which are silently skipped
-instead, falling back to defaults).
+Limine will panic (except for wallpapers, which are silently skipped instead).
 
 ## Macros
 

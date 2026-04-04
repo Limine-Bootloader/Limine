@@ -658,10 +658,6 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
 
     char *menu_font = config_get_value(config, 0, "TERM_FONT");
     if (menu_font != NULL) {
-        if (secure_boot_active && strchr(menu_font, '#') == NULL) {
-            print("Font skipped: Secure Boot is active and no hash is associated.\n");
-            goto config_no_load_font;
-        }
         struct file_handle *f;
         if ((f = uri_open(menu_font)) == NULL) {
             print("menu: Could not open font file.\n");
