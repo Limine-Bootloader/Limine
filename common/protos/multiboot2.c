@@ -40,7 +40,7 @@ static size_t get_multiboot2_info_size(
     uint32_t section_entry_size, uint32_t section_num,
     uint32_t smbios_tag_size
 ) {
-#define OVERFLOW panic(false, "multiboot2: info size overflow")
+#define OVERFLOW panic(true, "multiboot2: info size overflow")
     return ALIGN_UP(sizeof(struct multiboot2_start_tag), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
         ALIGN_UP(sizeof(struct multiboot_tag_string) + strlen(cmdline) + 1, MULTIBOOT_TAG_ALIGN, OVERFLOW) +
         ALIGN_UP(sizeof(struct multiboot_tag_string) + sizeof(LIMINE_BRAND), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
@@ -69,7 +69,7 @@ static size_t get_multiboot2_info_size(
 }
 
 #define append_tag(P, TAG) do { \
-    (P) += ALIGN_UP((TAG)->size, MULTIBOOT_TAG_ALIGN, panic(false, "multiboot2: tag size overflow")); \
+    (P) += ALIGN_UP((TAG)->size, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: tag size overflow")); \
 } while (0)
 
 noreturn void multiboot2_load(char *config, char* cmdline) {
@@ -455,7 +455,7 @@ reloc_fail:
 
         char *module_cmdline = conf_tuple.value2;
         if (!module_cmdline) module_cmdline = "";
-        modules_size += ALIGN_UP(sizeof(struct multiboot_tag_module) + strlen(module_cmdline) + 1, MULTIBOOT_TAG_ALIGN, panic(false, "multiboot2: modules size overflow"));
+        modules_size += ALIGN_UP(sizeof(struct multiboot_tag_module) + strlen(module_cmdline) + 1, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: modules size overflow"));
     }
 
     struct smbios_entry_point_32* smbios_entry_32 = NULL;
@@ -466,9 +466,9 @@ reloc_fail:
     uint32_t smbios_tag_size = 0;
 
     if (smbios_entry_32 != NULL)
-        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_entry_32->length, MULTIBOOT_TAG_ALIGN, panic(false, "multiboot2: tag size overflow"));
+        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_entry_32->length, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: tag size overflow"));
     if (smbios_entry_64 != NULL)
-        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_entry_64->length, MULTIBOOT_TAG_ALIGN, panic(false, "multiboot2: tag size overflow"));
+        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_entry_64->length, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: tag size overflow"));
 
     size_t mb2_info_size = get_multiboot2_info_size(
         cmdline,

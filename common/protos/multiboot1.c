@@ -35,7 +35,7 @@ static size_t get_multiboot1_info_size(
     size_t modules_count, size_t modules_cmdlines_size,
     uint32_t section_entry_size, uint32_t section_num
 ) {
-#define OVERFLOW panic(false, "multiboot1: info size overflow")
+#define OVERFLOW panic(true, "multiboot1: info size overflow")
     return ALIGN_UP(sizeof(struct multiboot1_info), 16, OVERFLOW) +
            ALIGN_UP(strlen(cmdline) + 1, 16, OVERFLOW) +
            ALIGN_UP(sizeof(LIMINE_BRAND), 16, OVERFLOW) +
@@ -48,7 +48,7 @@ static size_t get_multiboot1_info_size(
 
 static void *mb1_info_alloc(void **mb1_info_raw, size_t size) {
     void *ret = *mb1_info_raw;
-    *mb1_info_raw += ALIGN_UP(size, 16, panic(false, "multiboot: info alloc overflow"));
+    *mb1_info_raw += ALIGN_UP(size, 16, panic(true, "multiboot: info alloc overflow"));
     return ret;
 }
 
@@ -191,7 +191,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
         char *module_cmdline = conf_tuple.value2;
         if (!module_cmdline) module_cmdline = "";
-        modules_cmdlines_size += ALIGN_UP(strlen(module_cmdline) + 1, 16, panic(false, "multiboot: info size overflow"));
+        modules_cmdlines_size += ALIGN_UP(strlen(module_cmdline) + 1, 16, panic(true, "multiboot: info size overflow"));
     }
 
     size_t mb1_info_size = get_multiboot1_info_size(
