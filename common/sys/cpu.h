@@ -504,15 +504,6 @@ static inline uint64_t rdtsc_usec(void) {
 }
 
 static inline void stall(uint64_t us) {
-#if defined(BIOS)
-    if (tsc_freq == 0) {
-        // ~1 us per inb on ISA/LPC bus
-        for (uint64_t i = 0; i < us; i++) {
-            inb(0x80);
-        }
-        return;
-    }
-#endif
     uint64_t ticks = (tsc_freq * us + 999999) / 1000000;
     uint64_t next_stop = rdtsc() + ticks;
     while (rdtsc() < next_stop);

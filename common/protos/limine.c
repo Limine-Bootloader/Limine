@@ -1595,7 +1595,6 @@ FEAT_END
 #endif
 
     // Bootloader Performance
-    // rdtsc_usec depends on EFI boot services
 FEAT_START
     if (usec_at_bootloader_entry == 0) {
         break;
