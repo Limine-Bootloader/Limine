@@ -1,4 +1,4 @@
-AC_INIT([Limine], [m4_esyscmd([./version.sh])], [https://codeberg.org/Limine/Limine/issues], [limine], [https://limine-bootloader.org/])
+AC_INIT([Limine], [m4_esyscmd([./version.sh])], [https://github.com/Limine-Bootloader/Limine/issues], [limine], [https://limine-bootloader.org/])
 
 AC_PREREQ([2.69])
 

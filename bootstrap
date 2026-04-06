@@ -71,26 +71,26 @@ download_by_hash() {
 
 if ! test -f version; then
     clone_repo_commit \
-        https://codeberg.org/OSDev/freestnd-c-hdrs-0bsd.git \
+        https://github.com/osdev0/freestnd-c-hdrs-0bsd.git \
         freestnd-c-hdrs \
         097259a899d30f0a4b7a694de2de5fdda942e923
 
     clone_repo_commit \
-        https://codeberg.org/OSDev/cc-runtime.git \
+        https://github.com/osdev0/cc-runtime.git \
         cc-runtime \
         dae79833b57a01b9fd3e359ee31def69f5ae899b
     cp cc-runtime/src/cc-runtime.c common/cc-runtime.s2.c
     cp cc-runtime/src/cc-runtime.c decompressor/cc-runtime.c
 
     clone_repo_commit \
-        https://codeberg.org/Limine/limine-protocol.git \
+        https://github.com/Limine-Bootloader/limine-protocol.git \
         limine-protocol \
-        c5a7f597afa5da2b45f1edb1fd8f22c5ac6c57a7
+        80ef54bed402b8c0b672a707c1df4c532f3428ad
 
     clone_repo_commit \
-        https://codeberg.org/PicoEFI/PicoEFI.git \
+        https://github.com/PicoEFI/PicoEFI.git \
         picoefi \
-        8b79fdaa72ee548a8ea24e3dc4d87bf281312865
+        9c99f66e4c15aebfd72e7becb72358473b484fcf
 
     clone_repo_commit \
         https://github.com/jibsen/tinf.git \
@@ -102,7 +102,7 @@ if ! test -f version; then
     rm -f decompressor/tinf/*.orig
 
     clone_repo_commit \
-        https://codeberg.org/Mintsuki/Flanterm.git \
+        https://github.com/Mintsuki/Flanterm.git \
         flanterm \
         112434532822dde252c84b25a6798a9c00515d66
 
@@ -115,7 +115,7 @@ if ! test -f version; then
     rm -f common/lib/stb_image.h.orig
 
     clone_repo_commit \
-        https://codeberg.org/OSDev/libfdt.git \
+        https://github.com/osdev0/libfdt.git \
         libfdt \
         7bf94e6347129d17eca263112296ad170dec28a9
 fi

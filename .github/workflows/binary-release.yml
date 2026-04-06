@@ -8,18 +8,12 @@ on:
 jobs:
   build:
     name: Build and upload binary artifacts
-    runs-on: codeberg-medium
+    runs-on: ubuntu-latest
     container: archlinux:latest
 
     steps:
-      - name: Create resolv.conf
-        run: |
-          set -ex
-          echo 'nameserver 8.8.8.8' >/etc/resolv.conf
-          echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
-
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S nodejs base-devel gnupg git autoconf automake nasm curl mtools llvm clang lld mingw-w64-gcc
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg git autoconf automake nasm curl mtools llvm clang lld mingw-w64-gcc
 
       - name: Import GPG public key
         run: gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
@@ -30,23 +24,23 @@ jobs:
           MINTSUKI_PRIVATE_KEY: ${{ secrets.MINTSUKI_PRIVATE_KEY }}
 
       - name: Checkout code
-        uses: https://code.forgejo.org/actions/checkout@v6
+        uses: actions/checkout@v6
         with:
           fetch-depth: '0'
 
       - name: Git config
         run: |
           set -e
-          git config --global --add safe.directory "$FORGEJO_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global user.name 'Mintsuki'
           git config --global user.email 'mintsuki@protonmail.com'
           git config --global user.signingkey 05D29860D0A0668AAEFB9D691F3C021BECA23821
 
       - name: Get tag name
-        run: echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $FORGEJO_ENV
+        run: echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $GITHUB_ENV
 
       - name: Get branch name
-        run: echo "BRANCH_NAME=$(echo "$TAG_NAME" | grep -o 'v[0-9]\+\.')x" >> $FORGEJO_ENV
+        run: echo "BRANCH_NAME=$(echo "$TAG_NAME" | grep -o 'v[0-9]\+\.')x" >> $GITHUB_ENV
 
       - name: Regenerate
         run: ./bootstrap
@@ -78,7 +72,7 @@ jobs:
       - name: Push binaries to binary branch
         run: |
           set -e
-          git remote set-url origin https://x-access-token:${{ secrets.FORGEJO_TOKEN }}@codeberg.org/Limine/Limine.git
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Limine-Bootloader/Limine.git
           git fetch --all
           git checkout $BRANCH_NAME-binary || git checkout --orphan $BRANCH_NAME-binary
           rm -rf $(ls -a | grep -v '^\.git$' | grep -v '^\.\.$' | grep -v '^\.$' | grep -v '^build$')
