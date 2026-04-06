@@ -31,6 +31,48 @@ void stage3_common(void);
 extern symbol __slide, __image_base, __image_end;
 extern symbol _start;
 
+#if defined (__x86_64__)
+static void apple_set_os(void) {
+    if (gST->FirmwareVendor == NULL) {
+        return;
+    }
+
+    static const CHAR16 apple[] = L"Apple";
+    for (size_t i = 0; i < SIZEOF_ARRAY(apple) - 1; i++) {
+        if (gST->FirmwareVendor[i] != apple[i]) {
+            return;
+        }
+    }
+
+    EFI_GUID apple_set_os_guid = {
+        0xc5c5da95, 0x7d5c, 0x45e6,
+        { 0xb2, 0xf1, 0x3f, 0xd5, 0x2b, 0xb1, 0x00, 0x77 }
+    };
+
+    struct apple_set_os_iface {
+        uint64_t version;
+        EFI_STATUS (EFIAPI *set_os_version)(const char *version);
+        EFI_STATUS (EFIAPI *set_os_vendor)(const char *vendor);
+    } *set_os = NULL;
+
+    EFI_STATUS status = gBS->LocateProtocol(
+        &apple_set_os_guid, NULL, (void **)&set_os);
+    if (status || set_os == NULL) {
+        return;
+    }
+
+    if (set_os->version >= 2) {
+        set_os->set_os_vendor("Apple Inc.");
+    }
+    if (set_os->version > 0) {
+        set_os->set_os_version("Mac OS X 10.9");
+    }
+
+    printv("apple: Set OS version via Apple set_os protocol (version %u)\n",
+           (uint32_t)set_os->version);
+}
+#endif
+
 noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     gST = SystemTable;
     gBS = SystemTable->BootServices;
@@ -75,6 +117,10 @@ defer_error:
     init_memmap();
 
     term_fallback();
+
+#if defined (__x86_64__)
+    apple_set_os();
+#endif
 
     status = gBS->SetWatchdogTimer(0, 0x10000, 0, NULL);
     if (status) {
