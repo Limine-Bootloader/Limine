@@ -61,7 +61,7 @@ jobs:
         run: |
           set -e
           mkdir /tmp/mingw
-          curl -Lo /tmp/mingw/mingw-i486.tar.xz https://github.com/osdev0/mingw-binary-builds/releases/download/2026-04-08/mingw-i486.tar.xz
+          curl -Lo /tmp/mingw/mingw-i486.tar.xz https://github.com/osdev0/mingw-binary-builds/releases/latest/download/mingw-i486.tar.xz
           cd /tmp/mingw
           tar -xf mingw-i486.tar.xz
 
