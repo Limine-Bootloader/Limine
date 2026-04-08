@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg git autoconf automake nasm curl mtools llvm clang lld mingw-w64-gcc
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Import GPG public key
         run: gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
@@ -57,11 +57,19 @@ jobs:
       - name: Clean limine
         run: rm build/bin/limine
 
+      - name: Fetch MinGW
+        run: |
+          set -e
+          mkdir /tmp/mingw
+          curl -Lo /tmp/mingw/mingw-i486.tar.xz https://github.com/osdev0/mingw-binary-builds/releases/download/2026-04-08/mingw-i486.tar.xz
+          cd /tmp/mingw
+          tar -xf mingw-i486.tar.xz
+
       - name: Build limine for Windows
-        run: make -C build/bin CC="i686-w64-mingw32-gcc" CFLAGS="-O2 -pipe" CPPFLAGS="-D__USE_MINGW_ANSI_STDIO" limine
+        run: make -C build/bin CC="/tmp/mingw-i486/i486-w64-mingw32-gcc" CFLAGS="-O2 -pipe" CPPFLAGS="-D__USE_MINGW_ANSI_STDIO" limine
 
       - name: Strip limine for Windows
-        run: i686-w64-mingw32-strip build/bin/limine.exe
+        run: /tmp/mingw-i486/i486-w64-mingw32-strip build/bin/limine.exe
 
       - name: Copy LICENSE to bin
         run: cp COPYING build/bin/LICENSE
