@@ -1,6 +1,8 @@
 2026-04-09  Mintsuki  <mintsuki@protonmail.com>
 
-    *** Release 11.3.0 ***
+    *** Release 11.3.1 ***
+
+    (Note: 11.3.0 was skipped due to GHA migration issues)
 
     Noteworthy changes compared to the previous release, 11.2.1:
 
