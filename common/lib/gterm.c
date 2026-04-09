@@ -776,7 +776,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
     term_notready();
 
     // We force bpp to 32
-    fb_init(&fbs, &fbs_count, width, height, 32, false);
+    fb_init(&fbs, &fbs_count, width, height, 32, true);
 
     if (_fbs != NULL) {
         *_fbs = fbs;
