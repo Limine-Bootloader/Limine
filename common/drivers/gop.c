@@ -286,6 +286,9 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
                                 &mode_info_size, &mode_info);
 
         if (status == EFI_NOT_STARTED) {
+            if (fbs_count > 0) {
+                continue;
+            }
             status = gop->SetMode(gop, 0);
             if (status) {
                 continue;
