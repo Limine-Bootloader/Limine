@@ -14,6 +14,10 @@ size_t fb_fbs_count = 0;
 void fb_init(struct fb_info **ret, size_t *_fbs_count,
              uint64_t target_width, uint64_t target_height, uint16_t target_bpp,
              bool preserve_screen) {
+    if (quiet) {
+        preserve_screen = true;
+    }
+
 #if defined (BIOS)
     *ret = ext_mem_alloc(sizeof(struct fb_info));
     if (init_vbe(*ret, target_width, target_height, target_bpp, preserve_screen)) {
