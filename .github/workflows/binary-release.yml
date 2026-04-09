@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v11.3.1)'
+        required: true
 
 jobs:
   build:
@@ -27,6 +32,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: '0'
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Git config
         run: |
@@ -60,9 +66,8 @@ jobs:
       - name: Fetch MinGW
         run: |
           set -e
-          mkdir /tmp/mingw
-          curl -Lo /tmp/mingw/mingw-i486.tar.xz https://github.com/osdev0/mingw-binary-builds/releases/latest/download/mingw-i486.tar.xz
-          cd /tmp/mingw
+          curl -Lo /tmp/mingw-i486.tar.xz https://github.com/osdev0/mingw-binary-builds/releases/latest/download/mingw-i486.tar.xz
+          cd /tmp
           tar -xf mingw-i486.tar.xz
 
       - name: Build limine for Windows
