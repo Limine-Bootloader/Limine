@@ -1594,6 +1594,25 @@ FEAT_END
     }
 #endif
 
+    // TSC Frequency
+FEAT_START
+    if (tsc_freq == 0) {
+        break;
+    }
+
+    struct limine_tsc_frequency_request *tsc_freq_request = get_request(LIMINE_TSC_FREQUENCY_REQUEST_ID);
+    if (tsc_freq_request == NULL) {
+        break;
+    }
+
+    struct limine_tsc_frequency_response *tsc_freq_response =
+        ext_mem_alloc(sizeof(struct limine_tsc_frequency_response));
+
+    tsc_freq_response->frequency = tsc_freq;
+
+    tsc_freq_request->response = reported_addr(tsc_freq_response);
+FEAT_END
+
     // Bootloader Performance
 FEAT_START
     if (usec_at_bootloader_entry == 0) {

@@ -85,7 +85,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/Limine-Bootloader/limine-protocol.git \
         limine-protocol \
-        80ef54bed402b8c0b672a707c1df4c532f3428ad
+        72502bba1777afa4723894f04ae88fe9d41ecc3c
 
     clone_repo_commit \
         https://github.com/PicoEFI/PicoEFI.git \

@@ -174,6 +174,12 @@ static volatile struct limine_riscv_bsp_hartid_request _bsp_request = {
 #endif
 
 __attribute__((section(".limine_requests")))
+static volatile struct limine_tsc_frequency_request tsc_freq_request = {
+    .id = LIMINE_TSC_FREQUENCY_REQUEST_ID,
+    .revision = 0, .response = NULL,
+};
+
+__attribute__((section(".limine_requests")))
 static volatile struct limine_bootloader_performance_request _perf_request = {
     .id = LIMINE_BOOTLOADER_PERFORMANCE_REQUEST_ID,
     .revision = 0, .response = NULL,
@@ -670,6 +676,17 @@ FEAT_START
     e9_printf("RISC-V BSP Hart ID: %x", bsp_response->bsp_hartid);
 FEAT_END
 #endif
+
+FEAT_START
+    e9_printf("");
+    struct limine_tsc_frequency_response *tsc_freq_response = tsc_freq_request.response;
+    if (tsc_freq_response == NULL) {
+        e9_printf("TSC frequency not passed");
+        break;
+    }
+    e9_printf("TSC frequency feature, revision %d", tsc_freq_response->revision);
+    e9_printf("Frequency: %d Hz", tsc_freq_response->frequency);
+FEAT_END
 
 FEAT_START
     e9_printf("");
