@@ -945,18 +945,18 @@ FEAT_START
     entrypoint_request->response = reported_addr(entrypoint_response);
 FEAT_END
 
-    // Keep IOMMU feature
+    // x86-64 Keep IOMMU feature
 #if defined (__x86_64__) || defined (__i386__)
     bool keep_iommu = false;
 FEAT_START
-    struct limine_keep_iommu_request *keep_iommu_request =
-        get_request(LIMINE_KEEP_IOMMU_REQUEST_ID);
+    struct limine_x86_64_keep_iommu_request *keep_iommu_request =
+        get_request(LIMINE_X86_64_KEEP_IOMMU_REQUEST_ID);
     if (keep_iommu_request == NULL) {
         break;
     }
 
-    struct limine_keep_iommu_response *keep_iommu_response =
-        ext_mem_alloc(sizeof(struct limine_keep_iommu_response));
+    struct limine_x86_64_keep_iommu_response *keep_iommu_response =
+        ext_mem_alloc(sizeof(struct limine_x86_64_keep_iommu_response));
 
     keep_iommu_request->response = reported_addr(keep_iommu_response);
     keep_iommu = true;
