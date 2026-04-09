@@ -66,10 +66,10 @@ jobs:
           tar -xf mingw-i486.tar.xz
 
       - name: Build limine for Windows
-        run: make -C build/bin CC="/tmp/mingw-i486/i486-w64-mingw32-gcc" CFLAGS="-O2 -pipe" CPPFLAGS="-D__USE_MINGW_ANSI_STDIO" limine
+        run: make -C build/bin CC="/tmp/mingw-i486/bin/i486-w64-mingw32-gcc" CFLAGS="-O2 -pipe" CPPFLAGS="-D__USE_MINGW_ANSI_STDIO" limine
 
       - name: Strip limine for Windows
-        run: /tmp/mingw-i486/i486-w64-mingw32-strip build/bin/limine.exe
+        run: /tmp/mingw-i486/bin/i486-w64-mingw32-strip build/bin/limine.exe
 
       - name: Copy LICENSE to bin
         run: cp COPYING build/bin/LICENSE

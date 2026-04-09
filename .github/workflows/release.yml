@@ -25,6 +25,14 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: '0'
+
+      - name: Git config
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Get tag name
+        run: echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $GITHUB_ENV
 
       - name: Package release tarball
         run: |
