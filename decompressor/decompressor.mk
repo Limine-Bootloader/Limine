@@ -39,7 +39,6 @@ override CFLAGS_FOR_TARGET += \
 
 override CPPFLAGS_FOR_TARGET := \
     -I . \
-    -I tinf \
     -isystem ../freestnd-c-hdrs/include \
     $(CPPFLAGS_FOR_TARGET) \
     -MMD \

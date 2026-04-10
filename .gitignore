@@ -13,7 +13,7 @@
 *.exe
 *.EFI
 *.bin
-*.bin.gz
+*.bin.limlz
 *.tar*
 *.elf
 *.hdd
@@ -32,10 +32,8 @@
 /common/lib/stb_image.h
 /common/cc-runtime.s2.c
 /cc-runtime
-/decompressor/tinf
 /decompressor/cc-runtime.c
 /libfdt
-/tinf
 /edk2-ovmf
 /bochsout.txt
 /bx_enh_dbg.ini
