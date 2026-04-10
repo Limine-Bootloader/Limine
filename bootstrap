@@ -93,15 +93,6 @@ if ! test -f version; then
         9c99f66e4c15aebfd72e7becb72358473b484fcf
 
     clone_repo_commit \
-        https://github.com/jibsen/tinf.git \
-        tinf \
-        57ffa1f1d5e3dde19011b2127bd26d01689b694b
-    mkdir -p decompressor/tinf
-    cp tinf/src/tinf.h tinf/src/tinflate.c tinf/src/tinfgzip.c tinf/src/crc32.c decompressor/tinf/
-    patch -p0 < decompressor/tinf.patch
-    rm -f decompressor/tinf/*.orig
-
-    clone_repo_commit \
         https://github.com/Mintsuki/Flanterm.git \
         flanterm \
         112434532822dde252c84b25a6798a9c00515d66

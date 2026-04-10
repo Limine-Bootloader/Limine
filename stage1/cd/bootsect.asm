@@ -100,7 +100,7 @@ incbin DECOMPRESSOR_PATH
 
 align 16
 stage2:
-%strcat STAGE2_PATH BUILDDIR, '/common-bios/stage2.bin.gz'
+%strcat STAGE2_PATH BUILDDIR, '/common-bios/stage2.bin.limlz'
 incbin STAGE2_PATH
 .size: equ $ - stage2
 

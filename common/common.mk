@@ -304,7 +304,7 @@ override HEADER_DEPS := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(C_FILES:.c=
 .PHONY: all
 
 ifeq ($(TARGET),bios)
-all: $(call MKESCAPE,$(BUILDDIR))/limine-bios.sys $(call MKESCAPE,$(BUILDDIR))/stage2.bin.gz
+all: $(call MKESCAPE,$(BUILDDIR))/limine-bios.sys $(call MKESCAPE,$(BUILDDIR))/stage2.bin.limlz
 endif
 ifeq ($(TARGET),uefi-x86-64)
 all: $(call MKESCAPE,$(BUILDDIR))/BOOTX64.EFI
@@ -324,8 +324,8 @@ endif
 
 ifeq ($(TARGET),bios)
 
-$(call MKESCAPE,$(BUILDDIR))/stage2.bin.gz: $(call MKESCAPE,$(BUILDDIR))/stage2.bin
-	gzip -n -9 < '$(call SHESCAPE,$<)' > '$(call SHESCAPE,$@)'
+$(call MKESCAPE,$(BUILDDIR))/stage2.bin.limlz: $(call MKESCAPE,$(BUILDDIR))/stage2.bin $(LIMLZPACK)
+	'$(call SHESCAPE,$(LIMLZPACK))' '$(call SHESCAPE,$<)' '$(call SHESCAPE,$@)'
 
 $(call MKESCAPE,$(BUILDDIR))/stage2.bin: $(call MKESCAPE,$(BUILDDIR))/limine-bios.sys
 	dd if='$(call SHESCAPE,$<)' bs=$$(( 0x$$("$(READELF_FOR_TARGET)" -S '$(call SHESCAPE,$(BUILDDIR))/limine.elf' | $(GREP) '\.text\.stage3' | $(SED) 's/^.*] //' | $(AWK) '{print $$3}' | $(SED) 's/^0*//') - 0xf000 )) count=1 of='$(call SHESCAPE,$@)' 2>/dev/null

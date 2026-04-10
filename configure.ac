@@ -3,6 +3,7 @@ AC_INIT([Limine], [m4_esyscmd([./version.sh])], [https://github.com/Limine-Bootl
 AC_PREREQ([2.69])
 
 AC_CONFIG_AUX_DIR([build-aux])
+AC_CONFIG_MACRO_DIRS([m4])
 
 SRCDIR="$(cd "$srcdir" && pwd -P)"
 BUILDDIR="$(pwd -P)"
@@ -17,6 +18,7 @@ AC_SUBST([SOURCE_DATE_EPOCH])
 AC_SUBST([SOURCE_DATE_EPOCH_TOUCH])
 
 AC_CANONICAL_HOST
+AC_CANONICAL_BUILD
 
 # Portably convert relative paths into absolute paths.
 rel2abs() {
@@ -51,6 +53,9 @@ test "x${CFLAGS+set}" = "x" && CFLAGS='-g -O2 -pipe'
 AC_LANG([C])
 AC_PROG_CC
 CC="$(rel2abs "$CC")"
+
+AX_PROG_CC_FOR_BUILD
+CC_FOR_BUILD="$(rel2abs "$CC_FOR_BUILD")"
 
 werror_state="no"
 AC_ARG_ENABLE([werror],
@@ -208,7 +213,6 @@ if test "x$BUILD_BIOS" = "xno"; then
 else
     BUILD_BIOS="limine-bios"
     NEED_NASM=yes
-    NEED_GZIP=yes
 fi
 
 AC_SUBST([BUILD_BIOS])
@@ -311,12 +315,6 @@ if test "x$NEED_NASM" = "xyes"; then
     fi
 fi
 
-if test "x$NEED_GZIP" = "xyes"; then
-    AC_CHECK_PROG([GZIP_FOUND], [gzip], [yes])
-    if ! test "x$GZIP_FOUND" = "xyes"; then
-        AC_MSG_ERROR([gzip not found, please install gzip before configuring])
-    fi
-fi
 
 BORROWED_CFLAGS=""
 for cflag in $CFLAGS; do

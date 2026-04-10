@@ -49,9 +49,6 @@ below) provides headers and build-time support for UEFI.
     in case of installed copies, assuming the file has not been otherwise
     removed by the packager.
 
-- [tinf](https://github.com/jibsen/tinf) (Zlib) is used in early x86 BIOS
-stages for GZIP decompression of stage2.
-
 - [Flanterm](https://github.com/Mintsuki/Flanterm) (BSD-2-Clause) is used for
 text related screen drawing.
 

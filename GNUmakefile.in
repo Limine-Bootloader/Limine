@@ -54,6 +54,8 @@ AWK := @AWK@
 export AWK
 
 CC := @CC@
+CC_FOR_BUILD := @CC_FOR_BUILD@
+CFLAGS_FOR_BUILD := @CFLAGS_FOR_BUILD@
 
 CPPFLAGS := @CPPFLAGS@
 CFLAGS := @CFLAGS@
@@ -185,7 +187,7 @@ uninstall:
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(bindir))/limine'
 	rm -rf '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/limine'
 
-$(call MKESCAPE,$(BUILDDIR))/stage1.stamp: $(STAGE1_FILES) $(call MKESCAPE,$(BUILDDIR))/decompressor-build/decompressor.bin $(call MKESCAPE,$(BUILDDIR))/common-bios/stage2.bin.gz
+$(call MKESCAPE,$(BUILDDIR))/stage1.stamp: $(STAGE1_FILES) $(call MKESCAPE,$(BUILDDIR))/decompressor-build/decompressor.bin $(call MKESCAPE,$(BUILDDIR))/common-bios/stage2.bin.limlz
 	$(MKDIR_P) '$(call SHESCAPE,$(BINDIR))'
 	cd '$(call SHESCAPE,$(SRCDIR))/stage1/hdd' && nasm bootsect.asm -Wall -w-unknown-warning -w-reloc $(WERROR_FLAG) -fbin -DBUILDDIR="'"'$(call NASMESCAPE,$(BUILDDIR))'"'" -o '$(call SHESCAPE,$(BINDIR))/limine-bios-hdd.bin'
 ifneq ($(BUILD_BIOS_CD),no)
@@ -301,7 +303,6 @@ dist:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/picoefi/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/cc-runtime"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/libfdt/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/tinf"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/common/lib/stb_image.h.nopatch"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.gitignore"
@@ -327,7 +328,7 @@ distclean: clean
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
-	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf flanterm common/lib/stb_image.h.nopatch common/lib/stb_image.h decompressor/tinf tinf libfdt freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c decompressor/cc-runtime.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
+	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf flanterm common/lib/stb_image.h.nopatch common/lib/stb_image.h libfdt freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c decompressor/cc-runtime.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
 
 .PHONY: common-uefi-x86-64
 common-uefi-x86-64:
@@ -380,14 +381,19 @@ common-uefi-ia32-clean:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))/common-uefi-ia32'
 
 .PHONY: common-bios
-common-bios:
+common-bios: $(call MKESCAPE,$(BINDIR))/limlzpack
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
 		TARGET=bios \
-		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-bios'
+		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-bios' \
+		LIMLZPACK='$(call SHESCAPE,$(BINDIR))/limlzpack'
 
 .PHONY: common-bios-clean
 common-bios-clean:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))/common-bios'
+
+$(call MKESCAPE,$(BINDIR))/limlzpack: $(call MKESCAPE,$(SRCDIR))/tools/limlzpack.c
+	$(MKDIR_P) '$(call SHESCAPE,$(BINDIR))'
+	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) -std=c99 -Wall -Wextra $(WERROR_FLAG) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
 
 .PHONY: decompressor
 decompressor:
