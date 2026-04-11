@@ -12,6 +12,7 @@
 #include <menu.h>
 #include <lib/getchar.h>
 #include <crypt/blake2b.h>
+#include <compress/gzip.h>
 
 // A URI takes the form of: resource(root):/path#hash
 // The following function splits up a URI into its components.
@@ -234,6 +235,11 @@ struct file_handle *uri_open(char *uri) {
         panic(true, "No resource specified for URI `%#`.", uri);
     }
 
+    bool gz_compressed = *resource == '$';
+    if (gz_compressed) {
+        resource++;
+    }
+
     if (!strcmp(resource, "hdd")) {
         ret = uri_hdd_dispatch(root, path);
     } else if (!strcmp(resource, "odd")) {
@@ -277,6 +283,10 @@ struct file_handle *uri_open(char *uri) {
                 print("\n");
             }
         }
+    }
+
+    if (gz_compressed && ret != NULL) {
+        ret = gzip_open(ret);
     }
 
     return ret;

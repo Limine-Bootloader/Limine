@@ -6,6 +6,8 @@
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 
+int memcmp(const void *, const void *, size_t);
+
 __attribute__((section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
@@ -77,12 +79,21 @@ struct limine_internal_module internal_module2 = {
 struct limine_internal_module internal_module3 = {
     .path = "./limine.conf",
     .string = "Third internal module"
+    /*  gzip test depends on this name to find
+        the original to compare against.  */
+};
+
+struct limine_internal_module internal_module4 = {
+    .path = "./limine.conf.gz",
+    .string = "gzip-compressed limine.conf",
+    .flags = LIMINE_INTERNAL_MODULE_COMPRESSED
 };
 
 struct limine_internal_module *internal_modules[] = {
     &internal_module1,
     &internal_module2,
-    &internal_module3
+    &internal_module3,
+    &internal_module4
 };
 
 __attribute__((section(".limine_requests")))
@@ -90,7 +101,7 @@ static volatile struct limine_module_request module_request = {
     .id = LIMINE_MODULE_REQUEST_ID,
     .revision = 1, .response = NULL,
 
-    .internal_module_count = 3,
+    .internal_module_count = 4,
     .internal_modules = internal_modules
 };
 
@@ -527,6 +538,36 @@ FEAT_START
         struct limine_file *f = module_response->modules[i];
         e9_printf("---");
         print_file(f);
+    }
+
+    /*  Gzip decompression test: compare internal_module3 (plain limine.conf)
+        against internal_module4 (limine.conf.gz, decompressed by bootloader).  */
+    {
+        struct limine_file *plain = NULL, *decompressed = NULL;
+        for (size_t i = 0; i < module_response->module_count; i++) {
+            struct limine_file *f = module_response->modules[i];
+            if (f->string != NULL) {
+                /*  Match by the module string we assigned.  */
+                bool is_third = f->string[0] == 'T' && f->string[1] == 'h'
+                             && f->string[2] == 'i' && f->string[3] == 'r'
+                             && f->string[4] == 'd';
+                bool is_gz    = f->string[0] == 'g' && f->string[1] == 'z';
+                if (is_third) plain = f;
+                if (is_gz)    decompressed = f;
+            }
+        }
+        if (plain == NULL) {
+            e9_printf("gzip: FAIL (plain module not found)");
+        } else if (decompressed == NULL) {
+            e9_printf("gzip: FAIL (decompressed module not found)");
+        } else if (plain->size != decompressed->size) {
+            e9_printf("gzip: FAIL (size mismatch: plain=%x, decompressed=%x)",
+                      plain->size, decompressed->size);
+        } else if (memcmp(plain->address, decompressed->address, plain->size) != 0) {
+            e9_printf("gzip: FAIL (content mismatch, size=%x)", plain->size);
+        } else {
+            e9_printf("gzip: pass (size=%x)", plain->size);
+        }
     }
 FEAT_END
 
