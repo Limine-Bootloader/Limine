@@ -49,12 +49,17 @@ bool decwstr_to_size(const wchar_t *buf, size_t buf_size, size_t *value) {
         return false;
     }
 
+    if (buf_size == 0 || buf[0] == L'\0') {
+        return false;
+    }
+
     while (i * 2 < buf_size && buf[i]) {
         wchar_t c = buf[i];
         if (!(c >= L'0' && c <= L'9')) {
             return false;
         }
-        tmp = tmp * 10 + (c - L'0');
+        tmp = CHECKED_MUL(tmp, (size_t)10, return false);
+        tmp = CHECKED_ADD(tmp, (size_t)(c - L'0'), return false);
         i++;
     }
 
@@ -134,7 +139,7 @@ static bool handle_timeout(wchar_t *variable, bool erase, size_t *timeout, bool 
                 attrs,
                 0, NULL);
         }
-        if (getvar_size == 24 && memcmp(timeout_buf, L"menu-force",24) == 0) {
+        if (getvar_size == 22 && memcmp(timeout_buf, L"menu-force", 22) == 0) {
             *skip_timeout = true;
             return true;
         }
@@ -146,6 +151,11 @@ static bool handle_timeout(wchar_t *variable, bool erase, size_t *timeout, bool 
         size_t t;
         if (!decwstr_to_size(timeout_buf, getvar_size, &t)) {
             return false;
+        }
+        // For LoaderConfigTimeoutOneShot, "0" means show menu indefinitely.
+        if (erase && t == 0) {
+            *skip_timeout = true;
+            return true;
         }
         *timeout = t;
         return true;
@@ -179,7 +189,10 @@ static bool handle_entry(wchar_t *variable, bool erase, char *path, size_t buf_s
 
         size_t i;
         for (i = 0; i < buf_size-1 && i * 2 < getvar_size; i++) {
-            path[i] = wide_path[i] & 0xff; // Assume 0x00 - 0x7f
+            if (wide_path[i] > 0x7f) {
+                return false;
+            }
+            path[i] = wide_path[i] & 0x7f;
         }
         path[i] = 0;
 
@@ -198,14 +211,18 @@ bool bli_get_oneshot_entry(char *path, size_t buf_size) {
 
 void bli_set_selected_entry(const char *path) {
     wchar_t wide_path[256];
-    size_t pos = 0;
-    for (; pos < 256 && pos < strlen(path); pos++) {
+    size_t len = strlen(path);
+    if (len > 255) {
+        len = 255;
+    }
+    for (size_t pos = 0; pos < len; pos++) {
         wide_path[pos] = path[pos];
     }
+    wide_path[len] = L'\0';
     gRT->SetVariable(L"LoaderEntrySelected",
             &bli_vendor_guid,
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
-            strlen(path)*2 + 1,
+            (len + 1) * sizeof(wchar_t),
             wide_path);
 }
 
