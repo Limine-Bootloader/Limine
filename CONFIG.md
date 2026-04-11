@@ -97,8 +97,8 @@ Miscellaneous:
   named `Arch Linux`). If unspecified, it is `1`.
 * `remember_last_entry` - If set to `yes`, remember last booted entry.
   (UEFI only).
-* `graphics` - If set to `no`, force CGA text mode for the boot menu, else use
-  a video mode. Ignored with Limine UEFI.
+* `graphics` - If set to `no`, force text mode for the boot menu, else use
+  a video mode.
 * `wallpaper` - Path to a file to use as a wallpaper. BMP, PNG, and JPEG
   formats are supported. There can be multiple of this option, in which case
   the wallpaper will be randomly selected from the provided options.

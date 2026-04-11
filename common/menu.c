@@ -1009,6 +1009,15 @@ noreturn void _menu(bool first_run) {
 #endif
         serial_str != NULL && strcmp(serial_str, "yes") == 0;
 
+#if defined (UEFI)
+    if (!serial) {
+        char *graphics_str = config_get_value(NULL, 0, "GRAPHICS");
+        if (graphics_str != NULL && strcmp(graphics_str, "no") == 0) {
+            serial = true;
+        }
+    }
+#endif
+
 #if defined (BIOS)
     if (serial) {
         char *baudrate_s = config_get_value(NULL, 0, "SERIAL_BAUDRATE");
