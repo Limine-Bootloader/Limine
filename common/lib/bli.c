@@ -91,6 +91,8 @@ void init_bli(void) {
 
     uint64_t features = (1 << 0) | // Timeout control
                         (1 << 1) | // Oneshot timeout control
+                        (1 << 2) | // Default entry control
+                        (1 << 3) | // Oneshot entry control
                         (1 << 13); // menu-disabled support
     gRT->SetVariable(L"LoaderFeatures",
             &bli_vendor_guid,
@@ -158,6 +160,53 @@ bool bli_update_oneshot_timeout(size_t *timeout, bool *skip_timeout) {
 
 bool bli_update_timeout(size_t *timeout, bool *skip_timeout) {
     return handle_timeout(L"LoaderConfigTimeout", false, timeout, skip_timeout);
+}
+
+static bool handle_entry(wchar_t *variable, bool erase, char *path, size_t buf_size) {
+    wchar_t wide_path[256];
+    UINTN getvar_size = sizeof(wide_path) - 2;
+    uint32_t attrs;
+    if (gRT->GetVariable(variable,
+                             &bli_vendor_guid,
+                             &attrs,
+                             &getvar_size,
+                             wide_path) == 0 && getvar_size > 0) {
+        if (erase) {
+            gRT->SetVariable(variable, &bli_vendor_guid,
+                attrs,
+                0, NULL);
+        }
+
+        size_t i;
+        for (i = 0; i < buf_size-1 && i * 2 < getvar_size; i++) {
+            path[i] = wide_path[i] & 0xff; // Assume 0x00 - 0x7f
+        }
+        path[i] = 0;
+
+        return true;
+    }
+    return false;
+}
+
+bool bli_get_default_entry(char *path, size_t buf_size) {
+    return handle_entry(L"LoaderEntryDefault", false, path, buf_size);
+}
+
+bool bli_get_oneshot_entry(char *path, size_t buf_size) {
+    return handle_entry(L"LoaderEntryOneShot", true, path, buf_size);
+}
+
+void bli_set_selected_entry(const char *path) {
+    wchar_t wide_path[256];
+    size_t pos = 0;
+    for (; pos < 256 && pos < strlen(path); pos++) {
+        wide_path[pos] = path[pos];
+    }
+    gRT->SetVariable(L"LoaderEntrySelected",
+            &bli_vendor_guid,
+            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
+            strlen(path)*2 + 1,
+            wide_path);
 }
 
 #endif
