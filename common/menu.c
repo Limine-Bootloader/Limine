@@ -4,6 +4,7 @@
 #include <stdnoreturn.h>
 #include <config.h>
 #include <menu.h>
+#include <lib/bli.h>
 #include <lib/print.h>
 #include <lib/misc.h>
 #include <lib/libc.h>
@@ -1187,13 +1188,29 @@ noreturn void _menu(bool first_run) {
     }
 
     size_t timeout = 5;
-    char *timeout_config = config_get_value(NULL, 0, "TIMEOUT");
-    if (timeout_config != NULL) {
-        if (!strcmp(timeout_config, "no"))
-            skip_timeout = true;
-        else
-            timeout = strtoui(timeout_config, NULL, 10);
+
+    bool has_timeout = false;
+
+#if defined (UEFI)
+    has_timeout = bli_update_oneshot_timeout(&timeout, &skip_timeout);
+#endif
+
+    if (!has_timeout) {
+        char *timeout_config = config_get_value(NULL, 0, "TIMEOUT");
+        if (timeout_config != NULL) {
+            has_timeout = true;
+            if (!strcmp(timeout_config, "no"))
+                skip_timeout = true;
+            else
+                timeout = strtoui(timeout_config, NULL, 10);
+        }
     }
+
+#if defined (UEFI)
+    if (!has_timeout) {
+        has_timeout = bli_update_timeout(&timeout, &skip_timeout);
+    }
+#endif
 
 #if defined(UEFI)
     bool reboot_to_firmware_supported = reboot_to_fw_ui_supported();
