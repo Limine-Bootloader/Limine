@@ -162,6 +162,7 @@ static void text_set_cursor_pos(struct flanterm_context *_ctx, size_t x, size_t 
         }
     }
     ctx->cursor_offset = y * VD_COLS + x * 2;
+    ctx->cursor_overflow = false;
 }
 
 static uint8_t ansi_colours[] = { 0, 4, 2, 6, 1, 5, 3, 7 };
@@ -219,17 +220,32 @@ static void text_set_text_bg_default_bright(struct flanterm_context *_ctx) {
 static void text_putchar(struct flanterm_context *_ctx, uint8_t c) {
     struct textmode_context *ctx = (void *)_ctx;
 
+    // Handle overflow from previous putchar
+    if (ctx->cursor_overflow) {
+        ctx->cursor_overflow = false;
+        if (_ctx->wrap_enabled
+         && (ctx->cursor_offset / VD_COLS < _ctx->scroll_bottom_margin - 1
+             || _ctx->scroll_enabled)) {
+            ctx->cursor_offset -= ctx->cursor_offset % VD_COLS;
+            ctx->cursor_offset += VD_COLS;
+            if (ctx->cursor_offset / VD_COLS == _ctx->scroll_bottom_margin) {
+                ctx->cursor_offset -= VD_COLS;
+                text_scroll(_ctx);
+            }
+            if (ctx->cursor_offset >= VD_ROWS * VD_COLS) {
+                ctx->cursor_offset = (VD_ROWS - 1) * VD_COLS;
+            }
+        } else {
+            ctx->cursor_offset = ctx->cursor_offset - (ctx->cursor_offset % VD_COLS) + VD_COLS - 2;
+        }
+    }
+
     ctx->back_buffer[ctx->cursor_offset] = c;
     ctx->back_buffer[ctx->cursor_offset + 1] = ctx->text_palette;
-    if (ctx->cursor_offset / VD_COLS == _ctx->scroll_bottom_margin - 1
-     && ctx->cursor_offset % VD_COLS == VD_COLS - 2) {
-        if (_ctx->scroll_enabled) {
-            text_scroll(_ctx);
-            ctx->cursor_offset -= ctx->cursor_offset % VD_COLS;
-        }
-    } else if (ctx->cursor_offset >= (VIDEO_BOTTOM - 1)) {
-        ctx->cursor_offset -= ctx->cursor_offset % VD_COLS;
-    } else {
+    if (ctx->cursor_offset % VD_COLS == VD_COLS - 2) {
+        // At last column - flag overflow for next putchar
+        ctx->cursor_overflow = true;
+    } else if (ctx->cursor_offset < (VIDEO_BOTTOM - 1)) {
         ctx->cursor_offset += 2;
     }
 }
@@ -285,6 +301,7 @@ void vga_textmode_init(bool managed) {
     }
 
     ctx->cursor_offset = 0;
+    ctx->cursor_overflow = false;
     ctx->text_palette = 0x07;
 
     ctx->video_mem = (volatile uint8_t *)0xb8000;
