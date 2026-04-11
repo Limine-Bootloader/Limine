@@ -179,10 +179,6 @@ static void putchar_tokencol(int type, char c) {
 static bool editor_no_term_reset = false;
 
 char *config_entry_editor(const char *title, const char *orig_entry) {
-    if (terms[0]->cols < 40 || terms[0]->rows < 16) {
-        return NULL;
-    }
-
     FOR_TERM(TERM->autoflush = false);
 
     FOR_TERM(TERM->cursor_enabled = true);
