@@ -8,9 +8,11 @@
 
 int memcmp(const void *, const void *, size_t);
 
+#ifdef ENABLE_QEMU_SHUTDOWN
 static inline void outw(uint16_t port, uint16_t value) {
     __asm volatile ("outw %%ax, %1"  : : "a" (value), "Nd" (port) : "memory");
 }
+#endif
 
 __attribute__((section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -87,17 +89,21 @@ struct limine_internal_module internal_module3 = {
         the original to compare against.  */
 };
 
+#ifdef ENABLE_GZIP_TEST
 struct limine_internal_module internal_module4 = {
     .path = "./limine.conf.gz",
     .string = "gzip-compressed limine.conf",
     .flags = LIMINE_INTERNAL_MODULE_COMPRESSED
 };
+#endif
 
 struct limine_internal_module *internal_modules[] = {
     &internal_module1,
     &internal_module2,
     &internal_module3,
-    &internal_module4
+#ifdef ENABLE_GZIP_TEST
+    &internal_module4,
+#endif
 };
 
 __attribute__((section(".limine_requests")))
@@ -105,7 +111,7 @@ static volatile struct limine_module_request module_request = {
     .id = LIMINE_MODULE_REQUEST_ID,
     .revision = 1, .response = NULL,
 
-    .internal_module_count = 4,
+    .internal_module_count = sizeof(internal_modules) / sizeof(internal_modules[0]),
     .internal_modules = internal_modules
 };
 
@@ -544,6 +550,7 @@ FEAT_START
         print_file(f);
     }
 
+#ifdef ENABLE_GZIP_TEST
     /*  Gzip decompression test: compare internal_module3 (plain limine.conf)
         against internal_module4 (limine.conf.gz, decompressed by bootloader).  */
     {
@@ -573,6 +580,7 @@ FEAT_START
             e9_printf("gzip: pass (size=%x)", plain->size);
         }
     }
+#endif
 FEAT_END
 
 FEAT_START
@@ -746,6 +754,8 @@ FEAT_START
     e9_printf("Exec time: %d usec", perf_response->exec_usec);
 FEAT_END
 
+#ifdef ENABLE_QEMU_SHUTDOWN
     outw(0x604, 0x2000); /*  QEMU-specific shutdown, used by automated tests.  */
+#endif
     for (;;);
 }

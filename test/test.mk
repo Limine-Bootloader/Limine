@@ -72,7 +72,8 @@ override CFLAGS += \
     -I../flanterm/src \
     -isystem ../freestnd-c-hdrs/include \
     -D_LIMINE_PROTO \
-    -DLIMINE_API_REVISION=4
+    -DLIMINE_API_REVISION=4 \
+    $(EXTRA_CFLAGS)
 
 ifeq ($(ARCH),x86)
 override CFLAGS += \
