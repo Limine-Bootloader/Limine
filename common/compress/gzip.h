@@ -26,7 +26,7 @@
 #ifndef COMPRESS__GZIP_H__
 #define COMPRESS__GZIP_H__
 
-struct file_handle;
+#include <fs/file.h>
 
 /* Check if a file handle points to gzip-compressed data (0x1F 0x8B magic). */
 bool gzip_check(struct file_handle * fd);

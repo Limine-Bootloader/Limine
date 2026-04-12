@@ -30,7 +30,6 @@
 #include <lib/misc.h>
 #include <lib/print.h>
 #include <mm/pmm.h>
-#include <fs/file.h>
 #include <compress/gzip.h>
 
 /*  Various tuning macros. Most are fixed by the DEFLATE RFC,
