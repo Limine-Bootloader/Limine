@@ -310,8 +310,6 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         panic(true, "Secure Boot is active and URI `%#` has no associated hash!", uri);
     }
 
-    // Decode the hex hash up front (panic on parse error matches uri_resolve's
-    // validation, which already accepted the 128 chars as hex).
     uint8_t hash_buf[BLAKE2B_OUT_BYTES];
     if (hash != NULL) {
         for (size_t i = 0; i < sizeof(hash_buf); i++) {
@@ -335,7 +333,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
     uint16_t raw_pxe_port = raw->pxe_port;
 
     // Build the filter chain: raw -> blake2b -> gzip. blake2b hashes on-disk
-    // (compressed) bytes, matching the prior uri.c semantic.
+    // (compressed) bytes.
     struct file_handle *top = raw;
     struct file_handle *hash_fh = NULL;
     if (hash != NULL) {
@@ -489,8 +487,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         }
     }
 
-    // Close the filter chain. fclose cascades: each layer's close() calls
-    // fclose on its source, which frees the wrapper's struct file_handle too.
+    // Close the filter chain. fclose cascades.
     fclose(top);
 
     // Build the returned memfile. Fresh allocation so we never mutate any
