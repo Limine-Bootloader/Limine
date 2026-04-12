@@ -26,7 +26,7 @@ and a [Fluxer community](https://fluxer.gg/ZRviNMvT) if you need support, info, 
 
 ![Reference screenshot](screenshot.png?raw=true "Reference screenshot")
 
-[Photo by Pixabay](https://www.pexels.com/photo/brown-leafed-tree-on-open-field-under-white-clouds-and-blue-sky-35857/)
+[Photo by Levent Simsek](https://www.pexels.com/photo/brown-tabby-cat-in-close-up-photography-3617160/)
 
 ### Supported architectures
 * IA-32 (32-bit x86)

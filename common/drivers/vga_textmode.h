@@ -22,6 +22,7 @@ struct textmode_context {
     size_t cursor_offset;
     size_t old_cursor_offset;
     bool cursor_status;
+    bool cursor_overflow;
     uint8_t text_palette;
 
     uint8_t saved_state_text_palette;

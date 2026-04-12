@@ -225,6 +225,10 @@ static bool dummy_handle(void) {
 }
 
 void term_fallback(void) {
+#if defined (UEFI)
+    int prev_backend = term_backend;
+#endif
+
     term_notready();
 
     terms = ext_mem_alloc(sizeof(void *));
@@ -236,6 +240,9 @@ void term_fallback(void) {
 
 #if defined (UEFI)
     if (!efi_boot_services_exited) {
+        if (prev_backend != FALLBACK && prev_backend != _NOT_READY) {
+            gST->ConOut->Reset(gST->ConOut, true);
+        }
 #endif
 
         // XXX: Ideally we clear the screen, but that gets rid of the BGRT boot logo

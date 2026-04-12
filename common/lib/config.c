@@ -17,7 +17,7 @@
 
 const char *config_b2sum = CONFIG_B2SUM_SIGNATURE CONFIG_B2SUM_EMPTY;
 
-static bool config_get_entry_name(char *ret, size_t index, size_t limit);
+static char *config_get_entry_name(size_t index);
 static char *config_get_entry(size_t *size, size_t index);
 
 #define SEPARATOR '\n'
@@ -252,23 +252,30 @@ bool init_config_smbios(void) {
 #define DIRECT_CHILD   0
 #define INDIRECT_CHILD 1
 
-static int is_child(char *buf, size_t limit,
-                    size_t current_depth, size_t index) {
-    if (!config_get_entry_name(buf, index, limit))
+static int is_child(size_t current_depth, size_t index) {
+    char *buf = config_get_entry_name(index);
+    if (buf == NULL)
         return NOT_CHILD;
-    if (strlen(buf) < current_depth + 1)
-        return NOT_CHILD;
-    for (size_t j = 0; j < current_depth; j++)
-        if (buf[j] != '/')
-            return NOT_CHILD;
-    if (buf[current_depth] == '/')
-        return INDIRECT_CHILD;
-    return DIRECT_CHILD;
+    int ret;
+    if (strlen(buf) < current_depth + 1) {
+        ret = NOT_CHILD;
+    } else {
+        ret = DIRECT_CHILD;
+        for (size_t j = 0; j < current_depth; j++) {
+            if (buf[j] != '/') {
+                ret = NOT_CHILD;
+                break;
+            }
+        }
+        if (ret == DIRECT_CHILD && buf[current_depth] == '/')
+            ret = INDIRECT_CHILD;
+    }
+    pmm_free(buf, strlen(buf) + 1);
+    return ret;
 }
 
-static bool is_directory(char *buf, size_t limit,
-                         size_t current_depth, size_t index) {
-    switch (is_child(buf, limit, current_depth + 1, index + 1)) {
+static bool is_directory(size_t current_depth, size_t index) {
+    switch (is_child(current_depth + 1, index + 1)) {
         default:
         case NOT_CHILD:
             return false;
@@ -285,9 +292,7 @@ static struct menu_entry *create_menu_tree(struct menu_entry *parent,
     struct menu_entry *root = NULL, *prev = NULL;
 
     for (size_t i = index; ; i++) {
-        static char name[64];
-
-        switch (is_child(name, 64, current_depth, i)) {
+        switch (is_child(current_depth, i)) {
             case NOT_CHILD:
                 return root;
             case INDIRECT_CHILD:
@@ -301,7 +306,7 @@ static struct menu_entry *create_menu_tree(struct menu_entry *parent,
         if (root == NULL)
             root = entry;
 
-        config_get_entry_name(name, i, 64);
+        char *name = config_get_entry_name(i);
 
         bool default_expanded = name[current_depth] == '+';
 
@@ -310,12 +315,8 @@ static struct menu_entry *create_menu_tree(struct menu_entry *parent,
             n++;
         }
 
-        size_t n_len = strlen(n);
-        if (n_len >= sizeof(entry->name)) {
-            n_len = sizeof(entry->name) - 1;
-        }
-        memcpy(entry->name, n, n_len);
-        entry->name[n_len] = 0;
+        entry->name = strdup(n);
+        pmm_free(name, strlen(name) + 1);
         entry->parent = parent;
 
         size_t entry_size;
@@ -324,7 +325,7 @@ static struct menu_entry *create_menu_tree(struct menu_entry *parent,
         memcpy(entry->body, config_entry, entry_size);
         entry->body[entry_size] = 0;
 
-        if (is_directory(name, 64, current_depth, i)) {
+        if (is_directory(current_depth, i)) {
             entry->sub = create_menu_tree(entry, current_depth + 1, i + 1);
             entry->expanded = default_expanded;
         }
@@ -604,16 +605,16 @@ overflow:
     return 0;
 }
 
-static bool config_get_entry_name(char *ret, size_t index, size_t limit) {
+static char *config_get_entry_name(size_t index) {
     if (!config_ready)
-        return false;
+        return NULL;
 
     char *p = config_addr;
 
     for (size_t i = 0; i <= index; i++) {
         while (*p != '/') {
             if (!*p)
-                return false;
+                return NULL;
             p++;
         }
         p++;
@@ -623,15 +624,15 @@ static bool config_get_entry_name(char *ret, size_t index, size_t limit) {
 
     p--;
 
-    size_t i;
-    for (i = 0; i < (limit - 1); i++) {
-        if (p[i] == SEPARATOR)
-            break;
-        ret[i] = p[i];
+    size_t len = 0;
+    while (p[len] != SEPARATOR) {
+        len++;
     }
 
-    ret[i] = 0;
-    return true;
+    char *ret = ext_mem_alloc(len + 1);
+    memcpy(ret, p, len);
+    ret[len] = 0;
+    return ret;
 }
 
 static char *config_get_entry(size_t *size, size_t index) {

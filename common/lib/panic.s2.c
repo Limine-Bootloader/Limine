@@ -21,6 +21,8 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
 
     quiet = false;
 
+    FOR_TERM(TERM->autoflush = true);
+
     if (
 #if defined (BIOS)
       stage3_loaded == true &&

@@ -4,6 +4,7 @@
 #include <stdnoreturn.h>
 #include <config.h>
 #include <menu.h>
+#include <lib/bli.h>
 #include <lib/print.h>
 #include <lib/misc.h>
 #include <lib/libc.h>
@@ -45,7 +46,7 @@ static char *menu_branding_colour = NULL;
 no_unwind bool booting_from_editor = false;
 static no_unwind bool booting_from_blank = false;
 static no_unwind char saved_orig_entry[EDITOR_MAX_BUFFER_SIZE];
-static no_unwind char saved_title[64];
+static no_unwind char saved_title[256];
 
 static size_t get_line_offset(size_t *displacement, size_t index, const char *buffer) {
     size_t offset = 0;
@@ -128,7 +129,6 @@ static const char *VALID_KEYS[] = {
 };
 
 static bool validation_enabled = true;
-static bool invalid_syntax = false;
 
 static int validate_line(const char *buffer) {
     if (!validation_enabled) return TOK_KEY;
@@ -143,7 +143,6 @@ static int validate_line(const char *buffer) {
 fail:
     if (i < 64) keybuf[i] = 0;
     if (keybuf[0] == '\n' || (!keybuf[0] && buffer[0] != ':')) return TOK_KEY; // blank line is valid
-    invalid_syntax = true;
     return TOK_BADKEY;
 found_equals:
     if (i < 64) keybuf[i] = 0;
@@ -179,10 +178,6 @@ static void putchar_tokencol(int type, char c) {
 static bool editor_no_term_reset = false;
 
 char *config_entry_editor(const char *title, const char *orig_entry) {
-    if (terms[0]->cols < 40 || terms[0]->rows < 16) {
-        return NULL;
-    }
-
     FOR_TERM(TERM->autoflush = false);
 
     FOR_TERM(TERM->cursor_enabled = true);
@@ -196,11 +191,9 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
 
     size_t cursor_offset  = 0;
     size_t entry_size     = strlen(orig_entry);
-    size_t _window_size   = terms[0]->rows - 8;
+    size_t _window_size   = terms[0]->rows - 7 + (menu_branding[0] == '\0' ? 2 : 0);
     size_t window_offset  = 0;
     size_t line_size      = terms[0]->cols - 2;
-
-    bool display_overflow_error = false;
 
     // Skip leading newlines
     while (*orig_entry == '\n') {
@@ -231,20 +224,31 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
     buffer[entry_size] = 0;
 
 refresh:
-    invalid_syntax = false;
-
     print("\e[2J\e[H");
     FOR_TERM(TERM->cursor_enabled = false);
     {
         size_t x, y;
         print("\n");
+        if (menu_branding[0] != '\0') {
+            terms[0]->get_cursor_pos(terms[0], &x, &y);
+            {
+                size_t branding_len = strlen(menu_branding);
+                size_t max_len = terms[0]->cols - 2;
+                if (branding_len <= max_len) {
+                    set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
+                    print("\e[3%sm%s\e[0m", menu_branding_colour, menu_branding);
+                } else {
+                    set_cursor_pos_helper(1, y);
+                    print("\e[3%sm%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
+                }
+            }
+            print("\n\n");
+        }
         terms[0]->get_cursor_pos(terms[0], &x, &y);
-        set_cursor_pos_helper(terms[0]->cols / 2 - DIV_ROUNDUP(strlen(menu_branding), 2, panic(false, "Alignment overflow")), y);
-        print("\e[3%sm%s\e[0m", menu_branding_colour, menu_branding);
+        set_cursor_pos_helper((terms[0]->cols - 32) / 2, y);
+        print("%sESC\e[0m Discard and Exit    %sF10\e[0m Boot", interface_help_colour, interface_help_colour);
         print("\n\n");
     }
-
-    print("    %sESC\e[0m Discard and Exit    %sF10\e[0m Boot\n\n", interface_help_colour, interface_help_colour);
 
     print(serial ? "/" : "┌");
     for (size_t i = 0; i < terms[0]->cols - 2; i++) {
@@ -257,9 +261,20 @@ refresh:
                 // FALLTHRU
             default: {
                 size_t title_length = strlen(title);
-                if (i == (terms[0]->cols / 2) - DIV_ROUNDUP(title_length, 2, panic(false, "Alignment overflow")) - 1 - 1) {
-                    print(serial ? "|%s|" : "┤%s├", title);
-                    i += (title_length + 2) - 1;
+                size_t max_title = terms[0]->cols - 4;
+                size_t display_length = title_length;
+                bool truncated = false;
+                if (display_length > max_title && max_title > 3) {
+                    display_length = max_title;
+                    truncated = true;
+                }
+                if (i == (terms[0]->cols - display_length - 4) / 2) {
+                    if (truncated) {
+                        print(serial ? "|%S...|" : "┤%S...├", title, (size_t)(display_length - 3));
+                    } else {
+                        print(serial ? "|%s|" : "┤%s├", title);
+                    }
+                    i += (display_length + 2) - 1;
                 } else {
                     print(serial ? "-" : "─");
                 }
@@ -337,7 +352,7 @@ tab_part:
                 printed_early = true;
                 size_t x, y;
                 terms[0]->get_cursor_pos(terms[0], &x, &y);
-                if (y == terms[0]->rows - 3) {
+                if (y >= terms[0]->rows - 2) {
                     print(serial ? ">" : "→");
                     set_cursor_pos_helper(0, y + 1);
                     print(serial ? "\\" : "└");
@@ -409,21 +424,6 @@ tab_part:
         }
     }
 
-    // syntax error alert
-    if (validation_enabled) {
-        size_t x, y;
-        terms[0]->get_cursor_pos(terms[0], &x, &y);
-        set_cursor_pos_helper(0, terms[0]->rows - 1);
-        FOR_TERM(TERM->scroll_enabled = false);
-        if (invalid_syntax) {
-            print("\e[31mConfiguration is INVALID.\e[0m");
-        } else {
-            print("\e[32mConfiguration is valid.\e[0m");
-        }
-        FOR_TERM(TERM->scroll_enabled = true);
-        set_cursor_pos_helper(x, y);
-    }
-
     if (current_line - window_offset < window_size) {
         size_t x, y;
         for (size_t i = 0; i < (window_size - (current_line - window_offset)) - 1; i++) {
@@ -440,28 +440,33 @@ tab_part:
         print(serial ? "\\" : "└");
     }
 
-    for (size_t i = 0; i < terms[0]->cols - 2; i++) {
-        switch (i) {
-            case 1: case 2: case 3:
-                if (current_line - window_offset >= window_size) {
-                    print(serial ? "v" : "↓");
-                    break;
-                }
-                // FALLTHRU
-            default:
-                print(serial ? "-" : "─");
+    {
+        const char *overflow_msg = (strlen(buffer) >= EDITOR_MAX_BUFFER_SIZE - 1) ? "Buffer full" : NULL;
+        size_t overflow_len = overflow_msg ? strlen(overflow_msg) : 0;
+
+        for (size_t i = 0; i < terms[0]->cols - 2; i++) {
+            switch (i) {
+                case 1: case 2: case 3:
+                    if (current_line - window_offset >= window_size) {
+                        print(serial ? "v" : "↓");
+                        break;
+                    }
+                    // FALLTHRU
+                default:
+                    if (overflow_msg != NULL
+                     && i == (terms[0]->cols - overflow_len - 4) / 2) {
+                        print(serial ? "|" : "┤");
+                        print("\e[31m%s\e[0m", overflow_msg);
+                        print(serial ? "|" : "├");
+                        i += (overflow_len + 2) - 1;
+                    } else {
+                        print(serial ? "-" : "─");
+                    }
+            }
         }
     }
     terms[0]->get_cursor_pos(terms[0], &tmpx, &tmpy);
     print(serial ? "/" : "┘");
-    set_cursor_pos_helper(0, tmpy + 1);
-
-    if (display_overflow_error) {
-        FOR_TERM(TERM->scroll_enabled = false);
-        print("\e[31mText buffer not big enough, delete something instead.");
-        FOR_TERM(TERM->scroll_enabled = true);
-        display_overflow_error = false;
-    }
 
     // Hack to redraw the cursor
     set_cursor_pos_helper(cursor_x, cursor_y);
@@ -514,10 +519,13 @@ tab_part:
             saved_orig_entry[buffer_len] = 0;
             size_t title_len = strlen(title);
             if (title_len >= sizeof(saved_title)) {
-                title_len = sizeof(saved_title) - 1;
+                title_len = sizeof(saved_title) - 4;
+                memcpy(saved_title, title, title_len);
+                memcpy(saved_title + title_len, "...", 4);
+            } else {
+                memcpy(saved_title, title, title_len);
+                saved_title[title_len] = 0;
             }
-            memcpy(saved_title, title, title_len);
-            saved_title[title_len] = 0;
             editor_no_term_reset ? editor_no_term_reset = false : reset_term();
             booting_from_editor = true;
             return buffer;
@@ -536,8 +544,6 @@ tab_part:
                     }
                     buffer[cursor_offset++] = c;
                 }
-            } else {
-                display_overflow_error = true;
             }
             break;
     }
@@ -665,19 +671,41 @@ static void get_entry_path(struct menu_entry *entry, char *buf, size_t buf_size,
 // Parse one component from an escaped path string.
 // Writes the unescaped name into name_buf and the duplicate index into *dup_index.
 // Returns a pointer to the remainder of the path (past the separator).
-static const char *parse_path_component(const char *path, char *name_buf, size_t name_buf_size, size_t *dup_index) {
+static const char *parse_path_component(const char *path, char **name_out, size_t *dup_index) {
     *dup_index = 0;
-    if (name_buf_size == 0) {
-        return path;
-    }
-    size_t j = 0;
     const char *p = path;
+
+    // First pass: measure the component length
+    size_t len = 0;
+    const char *scan = path;
+    while (*scan != '\0' && *scan != '/') {
+        if (*scan == '\\' && scan[1] != '\0') {
+            len++;
+            scan += 2;
+            continue;
+        }
+        if (*scan == '#') {
+            const char *q = scan + 1;
+            if (*q >= '0' && *q <= '9') {
+                while (*q >= '0' && *q <= '9') {
+                    q++;
+                }
+                if (*q == '\0' || *q == '/') {
+                    break;
+                }
+            }
+        }
+        len++;
+        scan++;
+    }
+
+    // Allocate and fill
+    char *name_buf = ext_mem_alloc(len + 1);
+    size_t j = 0;
 
     while (*p != '\0' && *p != '/') {
         if (*p == '\\' && p[1] != '\0') {
-            if (j < name_buf_size - 1) {
-                name_buf[j++] = p[1];
-            }
+            name_buf[j++] = p[1];
             p += 2;
             continue;
         }
@@ -695,13 +723,12 @@ static const char *parse_path_component(const char *path, char *name_buf, size_t
                 }
             }
         }
-        if (j < name_buf_size - 1) {
-            name_buf[j++] = *p;
-        }
+        name_buf[j++] = *p;
         p++;
     }
 
     name_buf[j] = '\0';
+    *name_out = name_buf;
 
     if (*p == '/') {
         p++;
@@ -715,13 +742,14 @@ static const char *parse_path_component(const char *path, char *name_buf, size_t
 static bool find_entry_by_path(const char *path, struct menu_entry *current_entry,
                                 size_t base_index, struct menu_entry **found_entry,
                                 size_t *found_index, bool expand_dirs) {
-    char comp_name[64];
+    char *comp_name;
     size_t dup_index = 0;
-    const char *rest = parse_path_component(path, comp_name, sizeof(comp_name), &dup_index);
+    const char *rest = parse_path_component(path, &comp_name, &dup_index);
     bool is_last = (*rest == '\0');
 
     size_t idx = base_index;
     size_t same_name_count = 0;
+    bool ret = false;
 
     while (current_entry != NULL) {
         if (should_skip_entry(current_entry)) {
@@ -737,13 +765,15 @@ static bool find_entry_by_path(const char *path, struct menu_entry *current_entr
                 if (found_index != NULL) {
                     *found_index = idx;
                 }
-                return true;
+                ret = true;
+                break;
             } else if (!is_last && current_entry->sub != NULL) {
                 if (expand_dirs) {
                     current_entry->expanded = true;
                 }
-                return find_entry_by_path(rest, current_entry->sub,
-                                          idx + 1, found_entry, found_index, expand_dirs);
+                ret = find_entry_by_path(rest, current_entry->sub,
+                                         idx + 1, found_entry, found_index, expand_dirs);
+                break;
             }
         }
 
@@ -759,7 +789,8 @@ static bool find_entry_by_path(const char *path, struct menu_entry *current_entr
         current_entry = current_entry->next;
     }
 
-    return false;
+    pmm_free(comp_name, strlen(comp_name) + 1);
+    return ret;
 }
 
 static size_t print_tree(size_t offset, size_t window, const char *shift, size_t level, size_t base_index, size_t selected_entry,
@@ -831,9 +862,21 @@ static size_t print_tree(size_t offset, size_t window, const char *shift, size_t
             *selected_menu_entry = current_entry;
             if (!no_print) print("\e[7m");
         }
-        if (!no_print) print(" %s \e[27m\n", current_entry->name);
-        (*max_height)++;
-        cur_len += 1 + strlen(current_entry->name) + 1;
+        {
+            size_t name_len = strlen(current_entry->name);
+            if (!no_print) {
+                size_t prefix_len = shift ? strlen(shift) : 0;
+                size_t used = prefix_len + cur_len + 1 + 1; // shift + decorations + space before + space after
+                size_t max_name = (terms[0]->cols > used) ? terms[0]->cols - used : 0;
+                if (name_len > max_name && max_name > 3) {
+                    print(" %S...\e[27m\n", current_entry->name, (size_t)(max_name - 3));
+                } else {
+                    print(" %s \e[27m\n", current_entry->name);
+                }
+            }
+            (*max_height)++;
+            cur_len += 1 + name_len + 1;
+        }
 skip_line:
         if (current_entry->sub && current_entry->expanded) {
             max_entries += print_tree(offset, window, shift, level + 1, base_index + max_entries + 1,
@@ -1013,6 +1056,15 @@ noreturn void _menu(bool first_run) {
 #endif
         serial_str != NULL && strcmp(serial_str, "yes") == 0;
 
+#if defined (UEFI)
+    if (!serial) {
+        char *graphics_str = config_get_value(NULL, 0, "GRAPHICS");
+        if (graphics_str != NULL && strcmp(graphics_str, "no") == 0) {
+            serial = true;
+        }
+    }
+#endif
+
 #if defined (BIOS)
     if (serial) {
         char *baudrate_s = config_get_value(NULL, 0, "SERIAL_BAUDRATE");
@@ -1062,12 +1114,14 @@ noreturn void _menu(bool first_run) {
         interface_help_colour_bright[3] = interface_help_colour_str[0];
     }
 
+    bool custom_branding = false;
     {
         char *tmp = config_get_value(NULL, 0, "INTERFACE_BRANDING");
         if (tmp != NULL) {
             size_t len = strlen(tmp) + 1;
             menu_branding = ext_mem_alloc(len);
             memcpy(menu_branding, tmp, len);
+            custom_branding = true;
         }
     }
     if (menu_branding == NULL) {
@@ -1106,7 +1160,7 @@ noreturn void _menu(bool first_run) {
 #endif
     }
 
-    if (secure_boot_active) {
+    if (secure_boot_active && !custom_branding) {
         const char *suffix = ", Secure Boot)";
         size_t suffix_len = strlen(suffix) + 1;
         size_t old_len = strlen(menu_branding);
@@ -1132,56 +1186,92 @@ noreturn void _menu(bool first_run) {
 
     size_t selected_entry = 0;
 
-    char *default_entry = config_get_value(NULL, 0, "DEFAULT_ENTRY");
-    if (default_entry != NULL) {
-        bool is_index = true;
-        for (const char *p = default_entry; *p != '\0'; p++) {
-            if (*p < '0' || *p > '9') {
-                is_index = false;
-                break;
-            }
-        }
-        if (is_index) {
-            selected_entry = strtoui(default_entry, NULL, 10);
-            if (selected_entry)
-                selected_entry--;
-        } else {
-            // Copy the path since find_entry_by_path calls config_get_value
-            // internally (via should_skip_entry), which clobbers the static buffer.
-            char default_entry_path[256];
-            size_t len = strlen(default_entry);
-            if (len >= sizeof(default_entry_path)) {
-                len = sizeof(default_entry_path) - 1;
-            }
-            memcpy(default_entry_path, default_entry, len);
-            default_entry_path[len] = '\0';
+    bool has_entry = false;
+
+#if defined (UEFI)
+    {
+        char path[256];
+        if (bli_get_oneshot_entry(path, 256)) {
+            // Find the entry with this path, expand directories, and get its index.
             struct menu_entry *found_entry = NULL;
             size_t found_index = 0;
-            find_entry_by_path(default_entry_path, menu_tree, 0, &found_entry, &found_index, true);
+            find_entry_by_path(path, menu_tree, 0, &found_entry, &found_index, true);
             if (found_entry != NULL) {
                 selected_entry = found_index;
+                has_entry = true;
+            }
+        }
+    }
+#endif
+
+    if (!has_entry) {
+        char *default_entry = config_get_value(NULL, 0, "DEFAULT_ENTRY");
+        if (default_entry != NULL) {
+            bool is_index = true;
+            for (const char *p = default_entry; *p != '\0'; p++) {
+                if (*p < '0' || *p > '9') {
+                    is_index = false;
+                    break;
+                }
+            }
+            if (is_index) {
+                selected_entry = strtoui(default_entry, NULL, 10);
+                if (selected_entry)
+                    selected_entry--;
+            } else {
+                // Copy the path since find_entry_by_path calls config_get_value
+                // internally (via should_skip_entry), which clobbers the static buffer.
+                char default_entry_path[256];
+                size_t len = strlen(default_entry);
+                if (len >= sizeof(default_entry_path)) {
+                    len = sizeof(default_entry_path) - 1;
+                }
+                memcpy(default_entry_path, default_entry, len);
+                default_entry_path[len] = '\0';
+                struct menu_entry *found_entry = NULL;
+                size_t found_index = 0;
+                find_entry_by_path(default_entry_path, menu_tree, 0, &found_entry, &found_index, true);
+                if (found_entry != NULL) {
+                    selected_entry = found_index;
+                }
             }
         }
     }
 
 #if defined (UEFI)
-    char *remember_last = config_get_value(NULL, 0, "REMEMBER_LAST_ENTRY");
-    if (remember_last != NULL && strcasecmp(remember_last, "yes") == 0) {
-        char last_entry_path[256];
-        UINTN getvar_size = sizeof(last_entry_path);
-        if (gRT->GetVariable(L"LimineLastBootedEntry",
-                             &limine_efi_vendor_guid,
-                             NULL,
-                             &getvar_size,
-                             last_entry_path) == 0 && getvar_size > 0) {
-            // Ensure NUL termination
-            last_entry_path[getvar_size < sizeof(last_entry_path) ? getvar_size : sizeof(last_entry_path) - 1] = '\0';
+    if (!has_entry) {
+        char *remember_last = config_get_value(NULL, 0, "REMEMBER_LAST_ENTRY");
+        if (remember_last != NULL && strcasecmp(remember_last, "yes") == 0) {
+            char last_entry_path[256];
+            UINTN getvar_size = sizeof(last_entry_path);
+            if (gRT->GetVariable(L"LimineLastBootedEntry",
+                                 &limine_efi_vendor_guid,
+                                 NULL,
+                                 &getvar_size,
+                                 last_entry_path) == 0 && getvar_size > 0) {
+                // Ensure NUL termination
+                last_entry_path[getvar_size < sizeof(last_entry_path) ? getvar_size : sizeof(last_entry_path) - 1] = '\0';
+                // Find the entry with this path, expand directories, and get its index.
+                struct menu_entry *found_entry = NULL;
+                size_t found_index = 0;
+                find_entry_by_path(last_entry_path, menu_tree, 0, &found_entry, &found_index, true);
+                if (found_entry != NULL) {
+                    selected_entry = found_index;
+                    has_entry = true;
+                }
+            }
+        }
+    }
+    if (!has_entry) {
+        char path[256];
+        if (bli_get_default_entry(path, 256)) {
             // Find the entry with this path, expand directories, and get its index.
             struct menu_entry *found_entry = NULL;
             size_t found_index = 0;
-            find_entry_by_path(last_entry_path, menu_tree, 0, &found_entry, &found_index, true);
+            find_entry_by_path(path, menu_tree, 0, &found_entry, &found_index, true);
             if (found_entry != NULL) {
                 selected_entry = found_index;
+                has_entry = true;
             }
         }
     }
@@ -1195,13 +1285,32 @@ noreturn void _menu(bool first_run) {
     }
 
     size_t timeout = 5;
-    char *timeout_config = config_get_value(NULL, 0, "TIMEOUT");
-    if (timeout_config != NULL) {
-        if (!strcmp(timeout_config, "no"))
-            skip_timeout = true;
-        else
-            timeout = strtoui(timeout_config, NULL, 10);
+
+    bool has_timeout = false;
+
+#if defined (UEFI)
+    has_timeout = bli_update_oneshot_timeout(&timeout, &skip_timeout);
+#endif
+
+    if (!has_timeout) {
+        char *timeout_config = config_get_value(NULL, 0, "TIMEOUT");
+        if (timeout_config != NULL) {
+            has_timeout = true;
+            if (!strcmp(timeout_config, "no"))
+                skip_timeout = true;
+            else
+                timeout = strtoui(timeout_config, NULL, 10);
+        }
     }
+
+#if defined (UEFI)
+    if (!has_timeout) {
+        has_timeout = bli_update_timeout(&timeout, &skip_timeout);
+    }
+#endif
+
+    if (timeout > 9999)
+        timeout = 9999;
 
 #if defined(UEFI)
     bool reboot_to_firmware_supported = reboot_to_fw_ui_supported();
@@ -1235,10 +1344,18 @@ noreturn void _menu(bool first_run) {
     }
 
     size_t tree_offset = 0;
+    size_t header_offset = (menu_branding[0] != '\0') ? 2 : 0;
+    bool has_secondary_help = editor_enabled;
+#if defined(UEFI)
+    has_secondary_help = has_secondary_help || reboot_to_firmware_supported;
+#endif
+    if (has_secondary_help) {
+        header_offset += 2;
+    }
 
 refresh:
-    if (selected_entry >= tree_offset + terms[0]->rows - 8) {
-        tree_offset = selected_entry - (terms[0]->rows - 9);
+    if (selected_entry >= tree_offset + terms[0]->rows - 8 - header_offset) {
+        tree_offset = selected_entry - (terms[0]->rows - 9 - header_offset);
     }
     if (selected_entry < tree_offset) {
         tree_offset = selected_entry;
@@ -1252,10 +1369,21 @@ refresh:
     {
         size_t x, y;
         print("\n");
-        terms[0]->get_cursor_pos(terms[0], &x, &y);
-        set_cursor_pos_helper(terms[0]->cols / 2 - DIV_ROUNDUP(strlen(menu_branding), 2, panic(false, "Alignment overflow")), y);
-        print("\e[3%sm%s\e[0m", menu_branding_colour, menu_branding);
-        print("\n\n\n\n");
+        if (menu_branding[0] != '\0') {
+            terms[0]->get_cursor_pos(terms[0], &x, &y);
+            {
+                size_t branding_len = strlen(menu_branding);
+                size_t max_len = terms[0]->cols - 2;
+                if (branding_len <= max_len) {
+                    set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
+                    print("\e[3%sm%s\e[0m", menu_branding_colour, menu_branding);
+                } else {
+                    set_cursor_pos_helper(1, y);
+                    print("\e[3%sm%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
+                }
+            }
+            print("\n\n\n\n");
+        }
     }
 
     if (max_entries == 0) {
@@ -1269,28 +1397,30 @@ refresh:
         } else {
             msg = "[config file not found]";
         }
-        set_cursor_pos_helper(terms[0]->cols / 2 - strlen(msg) / 2, terms[0]->rows / 2);
+        set_cursor_pos_helper((terms[0]->cols - strlen(msg)) / 2, terms[0]->rows / 2);
         print("%s\n", msg);
     }
 
     size_t max_tree_len, max_tree_height;
-    max_entries = print_tree(tree_offset, terms[0]->rows - 8, NULL, 0, 0, selected_entry, menu_tree,
+    max_entries = print_tree(tree_offset, terms[0]->rows - 8 - header_offset, NULL, 0, 0, selected_entry, menu_tree,
                              &selected_menu_entry, &max_tree_len, &max_tree_height);
 
     if (max_entries != 0) {
-        size_t half_cols = terms[0]->cols / 2;
-        size_t half_tree = DIV_ROUNDUP(max_tree_len, 2, panic(false, "Alignment overflow"));
-        size_t tree_prefix_len = (half_cols > half_tree + 2) ? (half_cols - half_tree - 2) : 0;
+        size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 2) ? (terms[0]->cols - max_tree_len - 2) / 2 : 1;
         char *tree_prefix = ext_mem_alloc(tree_prefix_len + 1);
         memset(tree_prefix, ' ', tree_prefix_len);
 
-        if (max_tree_height > terms[0]->rows - 10) {
-            max_tree_height = terms[0]->rows - 10;
+        if (max_tree_height > terms[0]->rows - 8 - header_offset) {
+            max_tree_height = terms[0]->rows - 8 - header_offset;
         }
 
-        set_cursor_pos_helper(0, terms[0]->rows / 2 - max_tree_height / 2);
+        size_t tree_start = terms[0]->rows / 2 - max_tree_height / 2;
+        if (tree_start < 4 + header_offset) {
+            tree_start = 4 + header_offset;
+        }
+        set_cursor_pos_helper(0, tree_start);
 
-        max_entries = print_tree(tree_offset, terms[0]->rows - 8, tree_prefix, 0, 0, selected_entry, menu_tree,
+        max_entries = print_tree(tree_offset, terms[0]->rows - 8 - header_offset, tree_prefix, 0, 0, selected_entry, menu_tree,
                                  &selected_menu_entry, NULL, NULL);
 
         pmm_free(tree_prefix, tree_prefix_len + 1);
@@ -1302,38 +1432,53 @@ refresh:
 
         if (max_entries != 0) {
             if (tree_offset > 0) {
-                set_cursor_pos_helper(terms[0]->cols / 2 - 1, 4);
+                set_cursor_pos_helper((terms[0]->cols - 3) / 2, 3 + header_offset);
                 print(serial ? "^^^" : "↑↑↑");
             }
 
-            if (tree_offset + (terms[0]->rows - 8) < max_entries) {
-                set_cursor_pos_helper(terms[0]->cols / 2 - 1, terms[0]->rows - 3);
+            if (tree_offset + (terms[0]->rows - 8 - header_offset) < max_entries) {
+                set_cursor_pos_helper((terms[0]->cols - 3) / 2, terms[0]->rows - 4);
                 print(serial ? "vvv" : "↓↓↓");
             }
         }
 
         if (!help_hidden) {
-            set_cursor_pos_helper(0, 3);
             if (max_entries != 0) {
+                size_t primary_row = 1 + header_offset - (has_secondary_help ? 2 : 0);
                 if (selected_menu_entry->sub == NULL) {
-                    print("    %sARROWS\e[0m Select    %sENTER\e[0m Boot    %s%s",
-                          interface_help_colour, interface_help_colour, interface_help_colour,
-                          editor_enabled ? "E\e[0m Edit" : "\e[0m");
+                    if (editor_enabled) {
+                        set_cursor_pos_helper((terms[0]->cols - 37) / 2, primary_row);
+                        print("%sARROWS\e[0m Select    %sENTER\e[0m Boot    %sE\e[0m Edit",
+                              interface_help_colour, interface_help_colour, interface_help_colour);
+                    } else {
+                        set_cursor_pos_helper((terms[0]->cols - 27) / 2, primary_row);
+                        print("%sARROWS\e[0m Select    %sENTER\e[0m Boot",
+                              interface_help_colour, interface_help_colour);
+                    }
                 } else {
-                    print("    %sARROWS\e[0m Select    %sENTER\e[0m %s",
-                          interface_help_colour, interface_help_colour,
-                          selected_menu_entry->expanded ? "Collapse" : "Expand");
+                    const char *action = selected_menu_entry->expanded ? "Collapse" : "Expand";
+                    size_t len = 23 + strlen(action);
+                    set_cursor_pos_helper((terms[0]->cols - len) / 2, primary_row);
+                    print("%sARROWS\e[0m Select    %sENTER\e[0m %s",
+                          interface_help_colour, interface_help_colour, action);
                 }
             }
+            if (has_secondary_help) {
+                size_t secondary_row = 1 + header_offset;
 #if defined(UEFI)
-            if (reboot_to_firmware_supported) {
-                set_cursor_pos_helper(terms[0]->cols - (editor_enabled ? 37 : 20), 3);
-                print("%sS\e[0m Firmware Setup", interface_help_colour);
-            }
+                if (reboot_to_firmware_supported && editor_enabled) {
+                    set_cursor_pos_helper((terms[0]->cols - 33) / 2, secondary_row);
+                    print("%sS\e[0m Firmware Setup    %sB\e[0m Blank Entry",
+                          interface_help_colour, interface_help_colour);
+                } else if (reboot_to_firmware_supported) {
+                    set_cursor_pos_helper((terms[0]->cols - 16) / 2, secondary_row);
+                    print("%sS\e[0m Firmware Setup", interface_help_colour);
+                } else
 #endif
-            if (editor_enabled) {
-                set_cursor_pos_helper(terms[0]->cols - 17, 3);
-                print("%sB\e[0m Blank Entry", interface_help_colour);
+                if (editor_enabled) {
+                    set_cursor_pos_helper((terms[0]->cols - 13) / 2, secondary_row);
+                    print("%sB\e[0m Blank Entry", interface_help_colour);
+                }
             }
         }
         set_cursor_pos_helper(x, y);
@@ -1347,9 +1492,12 @@ refresh:
     if (skip_timeout == false) {
         print("\n\n");
         for (size_t i = timeout; i; i--) {
-            set_cursor_pos_helper(0, terms[0]->rows - 1);
+            size_t ndigits = 1;
+            for (size_t tmp = i / 10; tmp > 0; tmp /= 10) ndigits++;
+            size_t msg_len = 28 + ndigits;
+            set_cursor_pos_helper((terms[0]->cols - msg_len) / 2, terms[0]->rows - 2);
             FOR_TERM(TERM->scroll_enabled = false);
-            print("\e[2K%sBooting automatically in %s%U%s, press any key to stop the countdown...\e[0m",
+            print("\e[2K%sBooting automatically in %s%U%s...\e[0m",
                   interface_help_colour, interface_help_colour_bright, (uint64_t)i, interface_help_colour);
             FOR_TERM(TERM->scroll_enabled = true);
             FOR_TERM(TERM->double_buffer_flush(TERM));
@@ -1368,10 +1516,17 @@ refresh:
         goto autoboot;
     }
 
-    set_cursor_pos_helper(0, terms[0]->rows - 1);
     if (max_entries != 0 && selected_menu_entry->comment != NULL) {
+        size_t comment_len = strlen(selected_menu_entry->comment);
+        size_t max_len = terms[0]->cols - 2;
         FOR_TERM(TERM->scroll_enabled = false);
-        print("\e[36m%s\e[0m", selected_menu_entry->comment);
+        if (comment_len <= max_len) {
+            set_cursor_pos_helper((terms[0]->cols - comment_len) / 2, terms[0]->rows - 2);
+            print("\e[36m%s\e[0m", selected_menu_entry->comment);
+        } else {
+            set_cursor_pos_helper(1, terms[0]->rows - 2);
+            print("\e[36m%S...\e[0m", selected_menu_entry->comment, (size_t)(max_len - 3));
+        }
         FOR_TERM(TERM->scroll_enabled = true);
     }
 
@@ -1460,6 +1615,7 @@ timeout_aborted:
                                  EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
                                  strlen(entry_path) + 1,
                                  entry_path);
+                bli_set_selected_entry(entry_path);
 #endif
 
                 boot(selected_menu_entry->body);

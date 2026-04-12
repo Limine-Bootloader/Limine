@@ -9,7 +9,7 @@ extern bool config_ready;
 extern bool bad_config;
 
 struct menu_entry {
-    char name[64];
+    char *name;
     char *comment;
     struct menu_entry *parent;
     struct menu_entry *sub;
