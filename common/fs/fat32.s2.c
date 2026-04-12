@@ -615,7 +615,7 @@ struct file_handle *fat32_open(struct volume *part, const char *path) {
     unsigned int current_index = 0;
     char current_part[FAT32_LFN_MAX_FILENAME_LENGTH];
 
-    // skip trailing slashes
+    // skip leading slashes
     while (path[current_index] == '/') {
         current_index++;
     }
