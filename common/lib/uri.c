@@ -430,6 +430,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
                 } else
 #endif
                 {
+                    (void)new_is_high;   /*  Silence unused warning on non-i386.  */
                     memcpy(new_low, buf_low, buf_len);
                 }
 
