@@ -598,7 +598,7 @@ char *fat32_get_label(struct volume *part) {
     return context.label;
 }
 
-static void fat32_read(struct file_handle *handle, void *buf, uint64_t loc, uint64_t count);
+static uint64_t fat32_read(struct file_handle *handle, void *buf, uint64_t loc, uint64_t count);
 static void fat32_close(struct file_handle *file);
 
 struct file_handle *fat32_open(struct volume *part, const char *path) {
@@ -712,11 +712,12 @@ struct file_handle *fat32_open(struct volume *part, const char *path) {
     }
 }
 
-static void fat32_read(struct file_handle *file, void *buf, uint64_t loc, uint64_t count) {
+static uint64_t fat32_read(struct file_handle *file, void *buf, uint64_t loc, uint64_t count) {
     struct fat32_file_handle *f = file->fd;
     if (!read_cluster_chain(&f->context, f->cluster_chain, f->chain_len, buf, loc, count)) {
         panic(false, "fat32: cluster chain read failed (corrupted filesystem?)");
     }
+    return count;
 }
 
 static void fat32_close(struct file_handle *file) {

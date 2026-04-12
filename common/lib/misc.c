@@ -135,10 +135,14 @@ void *get_device_tree_blob(const char *config, size_t extra_size) {
         }
         if (dtb_path != NULL) {
             struct file_handle *dtb_file;
-            if ((dtb_file = uri_open(dtb_path)) == NULL)
+            if ((dtb_file = uri_open(dtb_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+#if defined (__i386__)
+                , NULL, NULL
+#endif
+            )) == NULL)
                 panic(soft_panic, "dtb: Failed to open device tree blob with path `%#`. Is the path correct?", dtb_path);
 
-            dtb = freadall(dtb_file, MEMMAP_BOOTLOADER_RECLAIMABLE);
+            dtb = dtb_file->fd;
             size = dtb_file->size;
             fclose(dtb_file);
             printv("dtb: loaded dtb at %p from file `%#`\n", dtb, dtb_path);

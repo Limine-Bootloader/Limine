@@ -143,9 +143,9 @@ static pagemap_t build_identity_map(void) {
     return pagemap;
 }
 
-void limine_memcpy_to_64_asm(int paging_mode, void *pagemap, uint64_t dst, void *src, size_t count);
+void limine_memcpy_64_asm(int paging_mode, void *pagemap, uint64_t dst, uint64_t src, size_t count);
 
-static void limine_memcpy_to_64(uint64_t dst, void *src, size_t count) {
+static void limine_ensure_identity_map(pagemap_t *out) {
     static bool identity_map_ready = false;
     static pagemap_t identity_map;
 
@@ -153,8 +153,19 @@ static void limine_memcpy_to_64(uint64_t dst, void *src, size_t count) {
         identity_map = build_identity_map();
         identity_map_ready = true;
     }
+    *out = identity_map;
+}
 
-    limine_memcpy_to_64_asm(paging_mode, identity_map.top_level, dst, src, count);
+static void limine_memcpy_to_64(uint64_t dst, void *src, size_t count) {
+    pagemap_t identity_map;
+    limine_ensure_identity_map(&identity_map);
+    limine_memcpy_64_asm(paging_mode, identity_map.top_level, dst, (uint64_t)(uintptr_t)src, count);
+}
+
+static void limine_memcpy_from_64(void *dst, uint64_t src, size_t count) {
+    pagemap_t identity_map;
+    limine_ensure_identity_map(&identity_map);
+    limine_memcpy_64_asm(paging_mode, identity_map.top_level, (uint64_t)(uintptr_t)dst, src, count);
 }
 #endif
 
@@ -367,7 +378,7 @@ static uint64_t reported_addr_64(uint64_t addr) {
     get_phys_addr__r; \
 })
 
-static struct limine_file get_file(struct file_handle *file, char *cmdline, bool kernel) {
+static struct limine_file get_file(struct file_handle *file, char *cmdline) {
     struct limine_file ret = {0};
 
     if (file->pxe) {
@@ -405,15 +416,14 @@ static struct limine_file get_file(struct file_handle *file, char *cmdline, bool
 
     ret.path = reported_addr(path);
 
-    void *freadall_ret = freadall_mode(file, MEMMAP_KERNEL_AND_MODULES, !kernel
 #if defined (__i386__)
-        , limine_memcpy_to_64
-#endif
-    );
-#if defined (__i386__)
-    ret.address = kernel ? reported_addr(freadall_ret) : reported_addr_64(*(uint64_t *)freadall_ret);
+    if (file->is_high_mem) {
+        ret.address = reported_addr_64(file->load_addr_64);
+    } else {
+        ret.address = reported_addr(file->fd);
+    }
 #else
-    ret.address = reported_addr(freadall_ret);
+    ret.address = reported_addr(file->fd);
 #endif
 
     ret.size = file->size;
@@ -472,7 +482,11 @@ noreturn void limine_load(char *config, char *cmdline) {
     print("limine: Loading executable `%#`...\n", kernel_path);
 
     struct file_handle *kernel_file;
-    if ((kernel_file = uri_open(kernel_path)) == NULL)
+    if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+#if defined (__i386__)
+        , NULL, NULL
+#endif
+    )) == NULL)
         panic(true, "limine: Failed to open executable with path `%#`. Is the path correct?", kernel_path);
 
     char *k_path_copy = ext_mem_alloc(strlen(kernel_path) + 1);
@@ -495,7 +509,7 @@ noreturn void limine_load(char *config, char *cmdline) {
         k_path[i] = 0;
     }
 
-    uint8_t *kernel = freadall(kernel_file, MEMMAP_BOOTLOADER_RECLAIMABLE);
+    uint8_t *kernel = kernel_file->fd;
 
     char *kaslr_s = config_get_value(config, 0, "KASLR");
     bool kaslr = false;
@@ -925,7 +939,7 @@ FEAT_END
 #endif
 
     struct limine_file *kf = ext_mem_alloc(sizeof(struct limine_file));
-    *kf = get_file(kernel_file, cmdline, true);
+    *kf = get_file(kernel_file, cmdline);
     fclose(kernel_file);
 
     // Entry point feature
@@ -1281,7 +1295,11 @@ FEAT_START
         print("limine: Loading module `%#`...\n", module_path);
 
         struct file_handle *f;
-        if ((f = uri_open(module_path)) == NULL) {
+        if ((f = uri_open(module_path, MEMMAP_KERNEL_AND_MODULES, true
+#if defined (__i386__)
+            , limine_memcpy_to_64, limine_memcpy_from_64
+#endif
+        )) == NULL) {
             if (module_required) {
                 panic(true, "limine: Failed to open module with path `%#`. Is the path correct?", module_path);
             }
@@ -1296,7 +1314,7 @@ FEAT_START
         }
 
         struct limine_file *l = &modules[final_module_count++];
-        *l = get_file(f, module_cmdline, false);
+        *l = get_file(f, module_cmdline);
 
         fclose(f);
     }

@@ -338,7 +338,7 @@ static struct iso9660_directory_entry *iso9660_find(void *buffer, uint32_t size,
     return NULL;
 }
 
-static void iso9660_read(struct file_handle *handle, void *buf, uint64_t loc, uint64_t count);
+static uint64_t iso9660_read(struct file_handle *handle, void *buf, uint64_t loc, uint64_t count);
 static void iso9660_close(struct file_handle *file);
 
 struct file_handle *iso9660_open(struct volume *vol, const char *path) {
@@ -497,7 +497,8 @@ setup_handle:;
     return handle;
 }
 
-static void iso9660_read(struct file_handle *file, void *buf, uint64_t loc, uint64_t count) {
+static uint64_t iso9660_read(struct file_handle *file, void *buf, uint64_t loc, uint64_t count) {
+    uint64_t requested = count;
     struct iso9660_file_handle *f = file->fd;
 
     // Find which extent 'loc' falls into and read across extents as needed
@@ -529,6 +530,7 @@ static void iso9660_read(struct file_handle *file, void *buf, uint64_t loc, uint
     if (count > 0) {
         panic(false, "iso9660: read beyond end of file");
     }
+    return requested;
 }
 
 static void iso9660_close(struct file_handle *file) {

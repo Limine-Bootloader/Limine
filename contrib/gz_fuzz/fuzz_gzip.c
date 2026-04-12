@@ -47,11 +47,13 @@ static void run_one(const uint8_t * data, size_t size) {
     fuzz_drain_allocs();
     return;
   }
-  uint64_t total = dec->size, n;
-  if (total > MAX_OUTPUT) total = MAX_OUTPUT;
-  for (uint64_t pos = 0; pos < total; pos += n) {
-    if ((n = total - pos) > sizeof(out_chunk)) n = sizeof(out_chunk);
-    fread(dec, out_chunk, pos, n);
+  uint64_t pos = 0;
+  while (pos < MAX_OUTPUT) {
+    uint64_t want = MAX_OUTPUT - pos;
+    if (want > sizeof(out_chunk)) want = sizeof(out_chunk);
+    uint64_t got = fread(dec, out_chunk, pos, want);
+    if (got == 0) break;
+    pos += got;
   }
   fuzz_panic_armed = 0;
   fuzz_drain_allocs();

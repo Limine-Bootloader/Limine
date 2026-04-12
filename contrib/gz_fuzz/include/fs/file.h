@@ -15,19 +15,21 @@ struct volume;
 struct file_handle {
     bool       is_memfile;
     bool       readall;
+    bool       is_high_mem;
     struct volume *vol;
     char      *path;
     size_t     path_len;
     void      *fd;
-    void     (*read)(void *fd, void *buf, uint64_t loc, uint64_t count);
+    uint64_t (*read)(void *fd, void *buf, uint64_t loc, uint64_t count);
     void     (*close)(void *fd);
     uint64_t   size;
+    uint64_t   load_addr_64;
     bool       pxe;
     uint32_t   pxe_ip;
     uint16_t   pxe_port;
 };
 
-void fread(struct file_handle *fd, void *buf, uint64_t loc, uint64_t count);
+uint64_t fread(struct file_handle *fd, void *buf, uint64_t loc, uint64_t count);
 void fclose(struct file_handle *fd);
 
 #endif

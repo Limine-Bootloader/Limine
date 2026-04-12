@@ -65,10 +65,14 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
     print("multiboot1: Loading executable `%#`...\n", kernel_path);
 
-    if ((kernel_file = uri_open(kernel_path)) == NULL)
+    if ((kernel_file = uri_open(kernel_path, MEMMAP_KERNEL_AND_MODULES, false
+#if defined (__i386__)
+        , NULL, NULL
+#endif
+    )) == NULL)
         panic(true, "multiboot1: Failed to open executable with path `%#`. Is the path correct?", kernel_path);
 
-    uint8_t *kernel = freadall(kernel_file, MEMMAP_KERNEL_AND_MODULES);
+    uint8_t *kernel = kernel_file->fd;
 
     size_t kernel_file_size = kernel_file->size;
 
@@ -321,7 +325,11 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
             print("multiboot1: Loading module `%#`...\n", module_path);
 
             struct file_handle *f;
-            if ((f = uri_open(module_path)) == NULL)
+            if ((f = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+#if defined (__i386__)
+                , NULL, NULL
+#endif
+            )) == NULL)
                 panic(true, "multiboot1: Failed to open module with path `%#`. Is the path correct?", module_path);
 
             char *module_cmdline = conf_tuple.value2;
@@ -331,7 +339,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
             char *lowmem_modstr = mb1_info_alloc(&mb1_info_raw, strlen(module_cmdline) + 1);
             strcpy(lowmem_modstr, module_cmdline);
 
-            void *module_addr = freadall(f, MEMMAP_BOOTLOADER_RECLAIMABLE);
+            void *module_addr = f->fd;
             uint64_t module_target = (uint64_t)-1; /* no target preference, use top */
 
             if (!elsewhere_append(true /* flexible target */,

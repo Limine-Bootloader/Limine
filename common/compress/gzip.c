@@ -628,17 +628,19 @@ static void gz_rewind(struct gzip_handle * gh) {
   gh->dec_pos = 0;
 }
 
-static void gzip_read(struct file_handle * file, void * buf, uint64_t loc, uint64_t count) {
+static uint64_t gzip_read(struct file_handle * file, void * buf, uint64_t loc, uint64_t count) {
   struct gzip_handle * gh = file->fd;
   /*  Rewind if the caller seeks backward.  */
   if (loc < gh->dec_pos) { gz_rewind(gh); }
-  /*  Skip forward to reach the requested offset.  */
+  /*  Skip forward to reach the requested offset. EOS during seek means
+      the requested location is past end-of-stream - return 0 bytes.  */
   while (gh->dec_pos < loc) {
     uint8_t discard[4096];
     uint64_t gap = loc - gh->dec_pos;
     size_t chunk = gap > sizeof(discard) ? sizeof(discard) : (size_t)gap;
     int64_t n = gz_decompress(gh->gz, discard, chunk);
-    if (n <= 0) panic(false, "gzip: decompression error during seek");
+    if (n < 0) panic(false, "gzip: decompression error during seek");
+    if (n == 0) return 0;
     gh->dec_pos += (uint64_t)n;
   }
   /*  Decompress the requested data.  */
@@ -654,6 +656,7 @@ static void gzip_read(struct file_handle * file, void * buf, uint64_t loc, uint6
     remaining -= (uint64_t)n;
     gh->dec_pos += (uint64_t)n;
   }
+  return count - remaining;
 }
 
 static void gzip_close(struct file_handle * file) {
@@ -671,21 +674,11 @@ bool gzip_check(struct file_handle * fd) {
 }
 
 struct file_handle * gzip_open(struct file_handle * compressed) {
-  if (compressed->size < 18)
-    panic(false, "gzip: file too small to be a valid gzip stream");
   crc32_init_table();
-  /*  Read decompressed size from the gzip trailer (ISIZE, LE).
-      This is populated into the size field of the resulting descriptor.
-      Caveat Emptor: by virtue of being 4-byte, it can not represent
-      sizes larger than 4GiB.  This is a specification defect with
-      the Gzip format. Hence, the `size` value should probably be seen
-      only as an "approximation". */
-  uint8_t isize_bytes[4];
-  fread(compressed, isize_bytes, compressed->size - 4, 4);
-  uint64_t dec_size = (uint64_t)isize_bytes[0]
-                    | ((uint64_t)isize_bytes[1] << 8)
-                    | ((uint64_t)isize_bytes[2] << 16)
-                    | ((uint64_t)isize_bytes[3] << 24);
+  /*  The decompressed size is not known up front. The 4-byte ISIZE
+      trailer is unreliable (modulo 2^32, spec defect) and callers must
+      instead drain until gzip_read returns 0 bytes (EOS). Advertise an
+      unknown size via UINT64_MAX.  */
   gz_state_t * gz = ext_mem_alloc(sizeof(gz_state_t));
   gz_state_init(gz, compressed);
   struct gzip_handle * gh = ext_mem_alloc(sizeof(struct gzip_handle));
@@ -697,7 +690,7 @@ struct file_handle * gzip_open(struct file_handle * compressed) {
   ret->fd = gh;
   ret->read = (void *) gzip_read;
   ret->close = (void *) gzip_close;
-  ret->size = dec_size;
+  ret->size = UINT64_MAX;
   ret->vol = compressed->vol;
   if (compressed->path != NULL && compressed->path_len > 0) {
     ret->path = ext_mem_alloc(compressed->path_len);

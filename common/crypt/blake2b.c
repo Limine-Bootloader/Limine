@@ -7,6 +7,8 @@
 #include <crypt/blake2b.h>
 #include <fs/file.h>
 #include <lib/libc.h>
+#include <lib/misc.h>
+#include <mm/pmm.h>
 
 #define BLAKE2B_BLOCK_BYTES 128
 #define BLAKE2B_KEY_BYTES 64
@@ -220,24 +222,72 @@ void blake2b(void *out, const void *in, size_t in_len) {
     blake2b_final(&state, out);
 }
 
-bool blake2b_verify_file(struct file_handle *fd, const uint8_t expected[BLAKE2B_OUT_BYTES]) {
-    uint8_t out_buf[BLAKE2B_OUT_BYTES];
-
-    if (fd->is_memfile) {
-        blake2b(out_buf, fd->fd, fd->size);
-        return memcmp(out_buf, expected, BLAKE2B_OUT_BYTES) == 0;
-    }
-    
+/*  Streaming filter: wraps a source file_handle and hashes bytes as
+    they are read sequentially. The hash is finalized and compared via
+    blake2b_check_hash(). Non-sequential reads panic -- the filter is
+    meant to sit underneath the gzip bitreader or uri_open's drain loop,
+    both of which advance monotonically.  */
+struct blake2b_handle {
+    struct file_handle  *source;
     struct blake2b_state state;
-    blake2b_init(&state);
-    char chunk_buf[4096];
-    
-    for (uint64_t r = fd->size, off = 0, sz; r > 0; off += sz, r -= sz) {
-        fd->read(fd, chunk_buf, off, sz = r < 4096 ? r : 4096);
-        blake2b_update(&state, chunk_buf, sz);
-    }
-    
-    blake2b_final(&state, out_buf);
+    uint64_t             pos;
+    bool                 finalized;
+    uint8_t              digest[BLAKE2B_OUT_BYTES];
+};
 
-    return memcmp(out_buf, expected, BLAKE2B_OUT_BYTES) == 0;
+static uint64_t blake2b_read(struct file_handle *fh, void *buf, uint64_t loc, uint64_t count) {
+    struct blake2b_handle *h = fh->fd;
+    if (loc != h->pos) {
+        panic(false, "blake2b filter: non-sequential read (pos=%x, loc=%x)",
+              (uint64_t)h->pos, loc);
+    }
+    uint64_t got = fread(h->source, buf, loc, count);
+    blake2b_update(&h->state, buf, got);
+    h->pos += got;
+    return got;
+}
+
+static void blake2b_close(struct file_handle *fh) {
+    struct blake2b_handle *h = fh->fd;
+    fclose(h->source);
+    pmm_free(h, sizeof(struct blake2b_handle));
+}
+
+struct file_handle *blake2b_open(struct file_handle *source) {
+    struct blake2b_handle *h = ext_mem_alloc(sizeof(struct blake2b_handle));
+    blake2b_init(&h->state);
+    h->source = source;
+    h->pos = 0;
+    h->finalized = false;
+
+    struct file_handle *ret = ext_mem_alloc(sizeof(struct file_handle));
+    ret->fd = h;
+    ret->read = (void *)blake2b_read;
+    ret->close = (void *)blake2b_close;
+    ret->size = source->size;
+    ret->vol = source->vol;
+    if (source->path != NULL && source->path_len > 0) {
+        ret->path = ext_mem_alloc(source->path_len);
+        memcpy(ret->path, source->path, source->path_len);
+        ret->path_len = source->path_len;
+    }
+#if defined (UEFI)
+    ret->efi_part_handle = source->efi_part_handle;
+#endif
+    ret->pxe = source->pxe;
+    ret->pxe_ip = source->pxe_ip;
+    ret->pxe_port = source->pxe_port;
+    return ret;
+}
+
+bool blake2b_check_hash(struct file_handle *fh, void *reference_hash) {
+    if (fh->read != (void *)blake2b_read) {
+        panic(false, "blake2b_check_hash: not a blake2b filter handle");
+    }
+    struct blake2b_handle *h = fh->fd;
+    if (!h->finalized) {
+        blake2b_final(&h->state, h->digest);
+        h->finalized = true;
+    }
+    return memcmp(h->digest, reference_hash, BLAKE2B_OUT_BYTES) == 0;
 }

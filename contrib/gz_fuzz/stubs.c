@@ -55,14 +55,14 @@ void fuzz_drain_allocs(void) {
 }
 
 /*  Copied from Limine.  */
-void fread(struct file_handle * fd, void * buf, uint64_t loc, uint64_t count) {
+uint64_t fread(struct file_handle * fd, void * buf, uint64_t loc, uint64_t count) {
   if (fd->is_memfile) {
     if (loc > fd->size || count > fd->size - loc)
       panic(false, "stubs: memfile read out of bounds");
     memcpy(buf, (uint8_t *)fd->fd + loc, (size_t)count);
-    return;
+    return count;
   }
-  fd->read(fd, buf, loc, count);
+  return fd->read(fd, buf, loc, count);
 }
 
 void fclose(struct file_handle * fd) { }

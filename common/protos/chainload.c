@@ -272,7 +272,11 @@ noreturn void chainload(char *config, char *cmdline) {
     secure_boot_active = false;
 
     struct file_handle *image;
-    if ((image = uri_open(image_path)) == NULL)
+    if ((image = uri_open(image_path, MEMMAP_RESERVED, false
+#if defined (__i386__)
+        , NULL, NULL
+#endif
+    )) == NULL)
         panic(true, "efi: Failed to open image with path `%s`. Is the path correct?", image_path);
 
     secure_boot_active = saved_secure_boot_active;
@@ -281,7 +285,7 @@ noreturn void chainload(char *config, char *cmdline) {
 
     EFI_HANDLE efi_part_handle = image->efi_part_handle;
 
-    void *ptr = freadall(image, MEMMAP_RESERVED);
+    void *ptr = image->fd;
     size_t image_size = image->size;
 
     memmap_alloc_range_in(untouched_memmap, &untouched_memmap_entries,

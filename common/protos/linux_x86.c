@@ -302,7 +302,11 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     print("linux: Loading kernel `%#`...\n", kernel_path);
 
-    if ((kernel_file = uri_open(kernel_path)) == NULL)
+    if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+#if defined (__i386__)
+        , NULL, NULL
+#endif
+    )) == NULL)
         panic(true, "linux: Failed to open kernel with path `%#`. Is the path correct?", kernel_path);
 
     // Minimum size check: need at least 0x206 bytes for signature at 0x202
@@ -439,7 +443,11 @@ noreturn void linux_load(char *config, char *cmdline) {
         print("linux: Loading module `%#`...\n", module_path);
 
         struct file_handle *module;
-        if ((module = uri_open(module_path)) == NULL)
+        if ((module = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+#if defined (__i386__)
+            , NULL, NULL
+#endif
+        )) == NULL)
             panic(true, "linux: Failed to open module with path `%s`. Is the path correct?", module_path);
 
         size_of_all_modules = CHECKED_ADD(size_of_all_modules, module->size,
