@@ -36,7 +36,7 @@
 /*  Various tuning macros. Most are fixed by the DEFLATE RFC,
     but different values of HUFF_BITS and INBUF_SIZE are permissible.  */
 #define HUFF_BITS            9
-#define INBUF_SIZE           (1 << 16)
+#define INBUF_SIZE           (1 << 14)
 
 #define HUFF_SIZE            (1 << HUFF_BITS)
 #define HUFF_MASK            (HUFF_SIZE - 1)
@@ -142,10 +142,16 @@ static inline uint32_t br_read_u32(bitreader_t * br) {
   return v;
 }
 
-/*  CRC-32 decompression code, slicing-by-4.  */
-static uint32_t crc_table[4][256], crc_ready = 0;
+/*  CRC-32 decompression code, slicing-by-4.
+    The 4 KiB table lives in bootloader-reclaimable memory so the
+    booted kernel gets it back via the memory map.  It is allocated
+    once on first use and reused across every gzip stream for the
+    lifetime of the bootloader.  */
+static uint32_t (*crc_table)[256] = NULL;
 
 static void crc32_init_table(void) {
+  if (crc_table != NULL) return;
+  crc_table = ext_mem_alloc(sizeof(uint32_t) * 4 * 256);
   for (uint32_t i = 0; i < 256; i++) {
     uint32_t c = i;
     for (int j = 0; j < 8; j++)
@@ -271,22 +277,6 @@ static int huff_build(huff_table_t * ht, const uint8_t * lengths, int count) {
   return 0;
 }
 
-static huff_table_t fixed_litlen, fixed_dist;
-static int fixed_built = 0;
-
-static void build_fixed_tables(void) {
-  if (fixed_built) return;
-  uint8_t ll[288];  int i;
-  for (i =   0; i <= 143; i++) ll[i] = 8;
-  for (i = 144; i <= 255; i++) ll[i] = 9;
-  for (i = 256; i <= 279; i++) ll[i] = 7;
-  for (i = 280; i <= 287; i++) ll[i] = 8;
-  huff_build(&fixed_litlen, ll, 288);
-  uint8_t dd[32];
-  for (i = 0; i < 32; i++) dd[i] = 5;
-  huff_build(&fixed_dist, dd, 32);
-  fixed_built = 1;
-}
 
 static inline int huff_decode(bitreader_t * br, const huff_table_t * ht) {
   br_need(br, MAX_BITS);
@@ -342,6 +332,21 @@ typedef struct {
   huff_table_t ht_litbuf, ht_distbuf;
   uint16_t match_len, match_dist, match_pos;
 } gz_state_t;
+
+/*  Rebuild the RFC1951 fixed-Huffman tables into the per-stream buffers.
+    Done lazily on each BTYPE=01 block: fixed blocks are rare in modern
+    gzip streams, and this keeps the tables out of .bss entirely.  */
+static void build_fixed_tables(gz_state_t * gz) {
+  uint8_t ll[288];  int i;
+  for (i =   0; i <= 143; i++) ll[i] = 8;
+  for (i = 144; i <= 255; i++) ll[i] = 9;
+  for (i = 256; i <= 279; i++) ll[i] = 7;
+  for (i = 280; i <= 287; i++) ll[i] = 8;
+  huff_build(&gz->ht_litbuf, ll, 288);
+  uint8_t dd[32];
+  for (i = 0; i < 32; i++) dd[i] = 5;
+  huff_build(&gz->ht_distbuf, dd, 32);
+}
 
 /*  Hardened Gzip header handling.  */
 #define GZ_MAGIC1            0x1F
@@ -458,9 +463,9 @@ static int64_t gz_decompress(gz_state_t * gz, void * dst, size_t n) {
         gz->state = S_STORED_HDR;
         break;
       case 1:
-        build_fixed_tables();
-        gz->ht_lit  = &fixed_litlen;
-        gz->ht_dist = &fixed_dist;
+        build_fixed_tables(gz);
+        gz->ht_lit  = &gz->ht_litbuf;
+        gz->ht_dist = &gz->ht_distbuf;
         gz->state   = S_DECODE;
         break;
       case 2:
@@ -612,7 +617,6 @@ struct gzip_handle {
 };
 
 static void gz_state_init(gz_state_t * gz, struct file_handle * source) {
-  if (!crc_ready) { crc32_init_table();  crc_ready = 1; }
   memset(gz, 0, sizeof(*gz));
   br_init(&gz->br, source);
   gz->wpos = WINDOW_SIZE;  /*  Semi-space streaming decoding.  */
@@ -670,7 +674,7 @@ bool gzip_check(struct file_handle * fd) {
 struct file_handle * gzip_open(struct file_handle * compressed) {
   if (compressed->size < 18)
     panic(false, "gzip: file too small to be a valid gzip stream");
-  if (!crc_ready) { crc32_init_table();  crc_ready = 1; }
+  crc32_init_table();
   /*  Read decompressed size from the gzip trailer (ISIZE, LE).
       This is populated into the size field of the resulting descriptor.
       Caveat Emptor: by virtue of being 4-byte, it can not represent
@@ -709,3 +713,8 @@ struct file_handle * gzip_open(struct file_handle * compressed) {
   ret->pxe_port = compressed->pxe_port;
   return ret;
 }
+
+/*  The peak memory usage of this (fast) Gzip decoder is estimated
+    to be around ~519 KiB per stream. This can be improved by increasing
+    Huffman table bits up from 9, decreasing the buffer sizes, etc.
+    TABLE_BITS: 9 - 519KiB, 10 - 308KiB, 11 - 212KiB.  */

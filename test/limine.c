@@ -9,7 +9,7 @@
 int memcmp(const void *, const void *, size_t);
 
 static inline void outw(uint16_t port, uint16_t value) {
-    asm volatile ("outw %%ax, %1"  : : "a" (value), "Nd" (port) : "memory");
+    __asm volatile ("outw %%ax, %1"  : : "a" (value), "Nd" (port) : "memory");
 }
 
 __attribute__((section(".limine_requests")))
