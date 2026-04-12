@@ -8,6 +8,10 @@
 
 int memcmp(const void *, const void *, size_t);
 
+static inline void outw(uint16_t port, uint16_t value) {
+    asm volatile ("outw %%ax, %1"  : : "a" (value), "Nd" (port) : "memory");
+}
+
 __attribute__((section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
@@ -742,5 +746,6 @@ FEAT_START
     e9_printf("Exec time: %d usec", perf_response->exec_usec);
 FEAT_END
 
+    outw(0x604, 0x2000); /*  QEMU-specific shutdown, used by automated tests.  */
     for (;;);
 }
