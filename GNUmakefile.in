@@ -207,8 +207,8 @@ $(call MKESCAPE,$(BINDIR))/limine-uefi-cd.bin: $(if $(BUILD_UEFI_IA32),$(call MK
 ifneq ($(BUILD_UEFI_CD),no)
 	$(MKDIR_P) '$(call SHESCAPE,$(BINDIR))'
 	rm -f '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin'
-	dd if=/dev/zero of='$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' bs=512 count=5760 2>/dev/null
-	mformat -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' -f 2880 -N 12345678 ::
+	dd if=/dev/zero of='$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' bs=512 count=32768 2>/dev/null
+	mformat -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' -h 64 -t 32 -s 16 -N 12345678 ::
 	LIMINE_UEFI_CD_TMP="$$(mktemp -d)"; \
 		mkdir -p "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT; \
 		cp '$(call SHESCAPE,$(BUILDDIR))/common-uefi-aarch64/BOOTAA64.EFI' "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT/ 2>/dev/null; \
