@@ -395,12 +395,12 @@ static int build_dynamic_tables(gz_state_t * gz) {
   uint8_t cl_lengths[MAX_CL_CODES] = {0};
   for (int i = 0; i < hclen; i++)
     cl_lengths[cl_order[i]] = (uint8_t)br_read(br, 3);
-  huff_table_t *ht_cl = ext_mem_alloc(sizeof(huff_table_t));
+  huff_table_t * ht_cl = ext_mem_alloc(sizeof(huff_table_t));
   if (huff_build(ht_cl, cl_lengths, MAX_CL_CODES) < 0) {
     pmm_free(ht_cl, sizeof(huff_table_t));  return -1;
   }
   int total = hlit + hdist, idx = 0;
-  uint8_t all_lengths[MAX_LITLEN_CODES + MAX_DIST_CODES] = {0};
+  uint8_t all_lengths[MAX_LITLEN_CODES + MAX_DIST_CODES] = { 0 };
   while (idx < total) {
     int sym = huff_decode(br, ht_cl);
     if (sym < 0) { pmm_free(ht_cl, sizeof(huff_table_t));  return -1; }
@@ -667,7 +667,7 @@ bool gzip_check(struct file_handle * fd) {
   return magic[0] == 0x1F && magic[1] == 0x8B;
 }
 
-struct file_handle *gzip_open(struct file_handle * compressed) {
+struct file_handle * gzip_open(struct file_handle * compressed) {
   if (compressed->size < 18)
     panic(false, "gzip: file too small to be a valid gzip stream");
   if (!crc_ready) { crc32_init_table();  crc_ready = 1; }
