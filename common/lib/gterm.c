@@ -753,8 +753,12 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
     static size_t prev_width, prev_height;
 
     if (prev_valid && config == prev_config && width == prev_width && height == prev_height) {
-        *_fbs = fbs;
-        *_fbs_count = fbs_count;
+        if (_fbs != NULL) {
+            *_fbs = fbs;
+        }
+        if (_fbs_count != NULL) {
+            *_fbs_count = fbs_count;
+        }
         reset_term();
         return true;
     }
