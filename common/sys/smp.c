@@ -38,6 +38,8 @@ struct trampoline_passed_info {
     uint64_t smp_tpl_temp_stack;
 } __attribute__((packed));
 
+#define TEMP_STACK_SIZE 8192
+
 static bool smp_start_ap(uint32_t lapic_id, struct gdtr *gdtr,
                          struct limine_mp_info *info_struct,
                          int paging_mode, uint32_t pagemap,
@@ -52,7 +54,7 @@ static bool smp_start_ap(uint32_t lapic_id, struct gdtr *gdtr,
 
     static void *temp_stack = NULL;
     if (temp_stack == NULL) {
-        temp_stack = ext_mem_alloc(8192);
+        temp_stack = ext_mem_alloc(TEMP_STACK_SIZE);
     }
 
     static struct trampoline_passed_info *passed_info = NULL;
@@ -71,7 +73,7 @@ static bool smp_start_ap(uint32_t lapic_id, struct gdtr *gdtr,
     passed_info->smp_tpl_hhdm = hhdm;
     passed_info->smp_tpl_bsp_apic_addr_msr = rdmsr(0x1b);
     passed_info->smp_tpl_mtrr_restore = (uint64_t)(uintptr_t)mtrr_restore;
-    passed_info->smp_tpl_temp_stack = (uint64_t)(uintptr_t)temp_stack;
+    passed_info->smp_tpl_temp_stack = (uint64_t)(uintptr_t)temp_stack + TEMP_STACK_SIZE;
 
     asm volatile ("" ::: "memory");
 
