@@ -1322,7 +1322,7 @@ noreturn void _menu(bool first_run) {
     }
 
     if (!skip_timeout && !timeout) {
-        if (max_entries == 0 || selected_menu_entry->sub != NULL) {
+        if (max_entries == 0 || selected_menu_entry == NULL || selected_menu_entry->sub != NULL) {
             quiet = false;
             print("Default entry is not valid or directory, booting to menu.\n");
             skip_timeout = true;

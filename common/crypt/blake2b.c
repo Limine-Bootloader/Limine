@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <crypt/blake2b.h>
-#include <fs/file.h>
 #include <lib/libc.h>
 #include <lib/misc.h>
 #include <mm/pmm.h>
