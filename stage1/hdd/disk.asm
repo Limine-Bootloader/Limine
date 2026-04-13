@@ -34,7 +34,7 @@ read_sectors:
     mov si, .drive_params
     mov word [si], 30       ; buf_size
     int 0x13
-    jc .done
+    pushf
     movzx ebp, word [si+24] ; bytes_per_sect
 
     ; ECX byte count to CX sector count
@@ -46,10 +46,12 @@ read_sectors:
     setnz cl
     add cx, ax
 
+    popf
     pop edx
     pop eax
 
     pop si
+    jc .done
 
     ; EBP:EAX address to DAP LBA sector
     push eax
