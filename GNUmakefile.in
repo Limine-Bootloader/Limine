@@ -323,7 +323,7 @@ dist:
 
 .PHONY: distclean
 distclean: clean
-	rm -rf edk2-ovmf config.log config.status GNUmakefile config.h man/man1/limine.1
+	rm -rf .cache compiler_commands.json edk2-ovmf config.log config.status GNUmakefile config.h man/man1/limine.1
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
