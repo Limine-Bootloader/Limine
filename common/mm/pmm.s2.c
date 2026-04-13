@@ -111,7 +111,7 @@ static bool align_entry(uint64_t *base, uint64_t *length) {
     *length -= (*base - orig_base);
     *length =  ALIGN_DOWN(*length, PAGE_SIZE);
 
-    if (!length)
+    if (*length == 0)
         return false;
 
     return true;
