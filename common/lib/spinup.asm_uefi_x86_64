@@ -51,7 +51,7 @@ common_spinup:
 
     mov rbp, rsp
 
-    cmp esi, 4
+    sub esi, 4
     jle .no_stack_args
 
 .push_stack_args:
