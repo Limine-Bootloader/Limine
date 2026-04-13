@@ -219,9 +219,8 @@ static inline uint64_t tsc_freq_arch(void) {
     __auto_type locked_write__ret = val; \
     asm volatile ( \
         "lock xchg %0, %1" \
-        : "+r" ((locked_write__ret)) \
-        : "m" (*(var)) \
-        : "memory" \
+        : "+r" ((locked_write__ret)), "+m" (*(var)) \
+        :: "memory" \
     ); \
 } while (0)
 
