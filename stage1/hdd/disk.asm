@@ -35,14 +35,13 @@ read_sectors:
     mov word [si], 30       ; buf_size
     int 0x13
     jc .done
-    mov bp, word [si+24]    ; bytes_per_sect
+    movzx ebp, word [si+24] ; bytes_per_sect
 
     ; ECX byte count to CX sector count
-    mov ax, cx
-    shr ecx, 16
-    mov dx, cx
+    mov eax, ecx
+    xor edx, edx
+    div ebp
     xor cx, cx
-    div bp
     test dx, dx
     setnz cl
     add cx, ax
@@ -52,10 +51,15 @@ read_sectors:
 
     pop si
 
-    ; EBP:EAX address to EAX LBA sector
+    ; EBP:EAX address to DAP LBA sector
+    push eax
+    mov eax, edx            ; divide high dword first
+    xor edx, edx
     div ebp
-    mov dword [si+8],  eax
-    mov dword [si+12], 0
+    mov dword [si+12], eax
+    pop eax
+    div ebp                 ; divide low dword next along with remainder of high dword
+    mov dword [si+8], eax
 
     pop dx
 
@@ -67,10 +71,8 @@ read_sectors:
     jc .done
 
     add word  [si+4], bp
-    xor ebx, ebx
-    inc dword [si+8]
-    seto bl
-    add dword [si+12], ebx
+    add dword [si+8], 1
+    adc dword [si+12], 0
 
     loop .loop
 
