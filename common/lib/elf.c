@@ -215,7 +215,7 @@ struct elf_section_hdr_info elf64_section_hdr_info(uint8_t *elf, size_t file_siz
 
     elf64_validate(hdr);
 
-    if (CHECKED_ADD(CHECKED_MUL(hdr->sh_num, hdr->shdr_size, return info),
+    if (CHECKED_ADD((uint64_t)hdr->sh_num * hdr->shdr_size,
             hdr->shoff, return info) > file_size) {
         return info;
     }
@@ -235,7 +235,7 @@ struct elf_section_hdr_info elf32_section_hdr_info(uint8_t *elf, size_t file_siz
 
     elf32_validate(hdr);
 
-    if (CHECKED_ADD(CHECKED_MUL(hdr->sh_num, hdr->shdr_size, return info),
+    if (CHECKED_ADD((uint64_t)hdr->sh_num * hdr->shdr_size,
             hdr->shoff, return info) > file_size) {
         return info;
     }
