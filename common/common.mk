@@ -127,7 +127,8 @@ ifeq ($(TARGET),uefi-ia32)
         -march=i686 \
         -mabi=sysv \
         -mno-80387 \
-        -mno-mmx
+        -mno-mmx \
+        -malign-double
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
         $(CPPFLAGS_FOR_TARGET) \
