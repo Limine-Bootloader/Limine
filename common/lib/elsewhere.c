@@ -72,7 +72,7 @@ retry:
                 if (!flexible_target) {
                     return false;
                 }
-                *target += 0x1000;
+                *target = ALIGN_UP(top, 4096, return false);
                 goto retry;
             }
         }
