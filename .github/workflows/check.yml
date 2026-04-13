@@ -5,27 +5,21 @@ on: [push, pull_request]
 jobs:
   build:
     name: Check for compilation failures
-    runs-on: codeberg-small
+    runs-on: ubuntu-latest
     container: archlinux:latest
 
     steps:
-      - name: Create resolv.conf
-        run: |
-          set -ex
-          echo 'nameserver 8.8.8.8' >/etc/resolv.conf
-          echo 'nameserver 8.8.4.4' >>/etc/resolv.conf
-
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S nodejs base-devel git autoconf automake nasm curl mtools llvm clang lld
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Checkout code
-        uses: https://code.forgejo.org/actions/checkout@v6
+        uses: actions/checkout@v6
 
       - name: Build the bootloader (LLVM, default)
         run: ./bootstrap && ./configure --enable-werror --enable-all && make all && make distclean
 
       - name: Set cross GCC version
-        run: echo "GCC_VERSION=15.2.0" >> $FORGEJO_ENV
+        run: echo "GCC_VERSION=15.2.0" >> $GITHUB_ENV
 
       - name: Download GCC cross toolchains
         run: |
