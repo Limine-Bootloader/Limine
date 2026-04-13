@@ -175,7 +175,7 @@ del_mm0:
             if (i < count - 1) {
                 m[i] = m[count - 1];
             }
-            count--; i--;
+            count--; i = (size_t)-1; // restart outer loop
         }
     }
 
