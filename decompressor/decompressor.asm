@@ -134,6 +134,6 @@ _start:
 section .rodata progbits alloc noexec nowrite align=1
 
 errmsg: db "limine integrity error"
-.len: equ $ - errmsg - 1
+.len: equ $ - errmsg
 
 section .note.GNU-stack noalloc noexec nowrite progbits
