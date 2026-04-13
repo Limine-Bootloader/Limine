@@ -190,8 +190,8 @@ static char *get_memmap_type(uint64_t type) {
             return "Usable";
         case LIMINE_MEMMAP_RESERVED:
             return "Reserved";
-        case LIMINE_MEMMAP_ACPI_TABLES:
-            return "ACPI tables";
+        case LIMINE_MEMMAP_RESERVED_MAPPED:
+            return "Reserved (Mapped)";
         case LIMINE_MEMMAP_ACPI_RECLAIMABLE:
             return "ACPI reclaimable";
         case LIMINE_MEMMAP_ACPI_NVS:

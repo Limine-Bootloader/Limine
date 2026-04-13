@@ -20,7 +20,7 @@ struct memmap_entry {
 #define MEMMAP_BOOTLOADER_RECLAIMABLE 0x1000
 #define MEMMAP_KERNEL_AND_MODULES     0x1001
 #define MEMMAP_FRAMEBUFFER            0x1002
-#define MEMMAP_ACPI_TABLES            0x1003
+#define MEMMAP_RESERVED_MAPPED        0x1003
 #define MEMMAP_EFI_RECLAIMABLE        0x2000
 
 struct meminfo {

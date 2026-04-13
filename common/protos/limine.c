@@ -1583,8 +1583,8 @@ FEAT_START
             case MEMMAP_USABLE:
                 _memmap[i].type = LIMINE_MEMMAP_USABLE;
                 break;
-            case MEMMAP_ACPI_TABLES:
-                _memmap[i].type = LIMINE_MEMMAP_ACPI_TABLES;
+            case MEMMAP_RESERVED_MAPPED:
+                _memmap[i].type = LIMINE_MEMMAP_RESERVED_MAPPED;
                 break;
             case MEMMAP_ACPI_RECLAIMABLE:
                 _memmap[i].type = LIMINE_MEMMAP_ACPI_RECLAIMABLE;

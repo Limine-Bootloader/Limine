@@ -253,7 +253,7 @@ static void map_single_table(uint64_t addr, uint32_t len) {
     uint64_t memmap_type = pmm_check_type(addr);
 
     if (memmap_type != MEMMAP_ACPI_RECLAIMABLE && memmap_type != MEMMAP_ACPI_NVS) {
-        memmap_alloc_range(addr, length, MEMMAP_ACPI_TABLES, 0, true, false, true);
+        memmap_alloc_range(addr, length, MEMMAP_RESERVED_MAPPED, 0, true, false, true);
     }
 }
 

@@ -69,8 +69,8 @@ static const char *memmap_type(uint32_t type) {
             return "Usable RAM";
         case MEMMAP_RESERVED:
             return "Reserved";
-        case MEMMAP_ACPI_TABLES:
-            return "ACPI tables";
+        case MEMMAP_RESERVED_MAPPED:
+            return "Reserved (Mapped)";
         case MEMMAP_ACPI_RECLAIMABLE:
             return "ACPI reclaimable";
         case MEMMAP_ACPI_NVS:
@@ -210,10 +210,10 @@ del_mm1:
         m[p] = min_e;
     }
 
-    // Merge contiguous bootloader-reclaimable, ACPI tables, usable entries
+    // Merge contiguous bootloader-reclaimable, reserved (mapped), usable entries
     for (size_t i = 0; i < count - 1; i++) {
         if (m[i].type != MEMMAP_BOOTLOADER_RECLAIMABLE
-         && m[i].type != MEMMAP_ACPI_TABLES
+         && m[i].type != MEMMAP_RESERVED_MAPPED
          && m[i].type != MEMMAP_USABLE)
             continue;
 
