@@ -4,9 +4,9 @@ section .text
 global multiboot_spinup_32:
 multiboot_spinup_32:
     sub esp, 6
-    mov word [esp-2], 0x3ff
-    mov dword [esp], 0
-    lidt [esp-2]
+    mov word [esp], 0x3ff
+    mov dword [esp+2], 0
+    lidt [esp]
     add esp, 6
 
     add esp, 4 ; return address
