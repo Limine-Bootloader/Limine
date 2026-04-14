@@ -41,7 +41,7 @@ void calibrate_tsc(void) {
     // Calibrate TSC using PIT channel 2.
     // PIT oscillator frequency: 1193182 Hz
     // Count of 11932 gives ~10ms calibration interval.
-    // Run multiple rounds and take the highest (least SMI-disrupted) result.
+    // Run multiple rounds and take the smallest (least SMI-disrupted) result.
     #define PIT_CALIBRATION_COUNT 11932
     #define PIT_CALIBRATION_ROUNDS 3
 
