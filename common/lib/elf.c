@@ -513,7 +513,7 @@ end_of_pt_segment:
             continue;
 
         // It's inside it, calculate where it is
-        uint64_t *ptr = (uint64_t *)((buffer - vaddr) + relocation->r_addr);
+        uint64_t *ptr = (uint64_t *)(buffer + (relocation->r_addr - vaddr));
 
         switch (relocation->r_info) {
 #if defined (__x86_64__) || defined (__i386__)
