@@ -124,7 +124,7 @@ limine:
 	$(MAKE) '$(call SHESCAPE,$(BINDIR))/limine'
 
 .PHONY: clean
-clean: limine-bios-clean limine-uefi-ia32-clean limine-uefi-x86-64-clean limine-uefi-aarch64-clean limine-uefi-riscv64-clean limine-uefi-loongarch64-clean
+clean: tools-clean limine-bios-clean limine-uefi-ia32-clean limine-uefi-x86-64-clean limine-uefi-aarch64-clean limine-uefi-riscv64-clean limine-uefi-loongarch64-clean
 	rm -rf '$(call SHESCAPE,$(BINDIR))' '$(call SHESCAPE,$(BUILDDIR))/stage1.stamp'
 
 .PHONY: install
@@ -187,7 +187,9 @@ uninstall:
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(bindir))/limine'
 	rm -rf '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/limine'
 
-$(call MKESCAPE,$(BUILDDIR))/stage1.stamp: $(STAGE1_FILES) $(call MKESCAPE,$(BUILDDIR))/decompressor-build/decompressor.bin $(call MKESCAPE,$(BUILDDIR))/common-bios/stage2.bin.limlz
+$(call MKESCAPE,$(BUILDDIR))/stage1.stamp: $(STAGE1_FILES) $(call MKESCAPE,$(BUILDDIR))/common-bios/stage2.bin.limlz
+	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))/decompressor-build'
+	cd '$(call SHESCAPE,$(SRCDIR))/stage1' && nasm decompressor.asm -Wall -w-unknown-warning -w-reloc $(WERROR_FLAG) -fbin -o '$(call SHESCAPE,$(BUILDDIR))/decompressor-build/decompressor.bin'
 	$(MKDIR_P) '$(call SHESCAPE,$(BINDIR))'
 	cd '$(call SHESCAPE,$(SRCDIR))/stage1/hdd' && nasm bootsect.asm -Wall -w-unknown-warning -w-reloc $(WERROR_FLAG) -fbin -DBUILDDIR="'"'$(call NASMESCAPE,$(BUILDDIR))'"'" -o '$(call SHESCAPE,$(BINDIR))/limine-bios-hdd.bin'
 ifneq ($(BUILD_BIOS_CD),no)
@@ -200,7 +202,7 @@ endif
 	touch '$(call SHESCAPE,$(BUILDDIR))/stage1.stamp'
 
 .PHONY: limine-bios
-limine-bios: common-bios decompressor
+limine-bios: common-bios
 	$(MAKE) '$(call SHESCAPE,$(BUILDDIR))/stage1.stamp'
 
 $(call MKESCAPE,$(BINDIR))/limine-uefi-cd.bin: $(if $(BUILD_UEFI_IA32),$(call MKESCAPE,$(BUILDDIR))/common-uefi-ia32/BOOTIA32.EFI) $(if $(BUILD_UEFI_X86_64),$(call MKESCAPE,$(BUILDDIR))/common-uefi-x86-64/BOOTX64.EFI) $(if $(BUILD_UEFI_AARCH64),$(call MKESCAPE,$(BUILDDIR))/common-uefi-aarch64/BOOTAA64.EFI) $(if $(BUILD_UEFI_RISCV64),$(call MKESCAPE,$(BUILDDIR))/common-uefi-riscv64/BOOTRISCV64.EFI) $(if $(BUILD_UEFI_LOONGARCH64),$(call MKESCAPE,$(BUILDDIR))/common-uefi-loongarch64/BOOTLOONGARCH64.EFI)
@@ -328,7 +330,7 @@ distclean: clean
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
-	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf flanterm common/lib/stb_image.h.nopatch common/lib/stb_image.h libfdt freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c decompressor/cc-runtime.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
+	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf flanterm common/lib/stb_image.h.nopatch common/lib/stb_image.h libfdt freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
 
 .PHONY: common-uefi-x86-64
 common-uefi-x86-64:
@@ -381,27 +383,26 @@ common-uefi-ia32-clean:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))/common-uefi-ia32'
 
 .PHONY: common-bios
-common-bios: $(call MKESCAPE,$(BINDIR))/limlzpack
+common-bios: $(call MKESCAPE,$(BUILDDIR))/tools-build/limlzpack
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/common' -f common.mk \
 		TARGET=bios \
 		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/common-bios' \
-		LIMLZPACK='$(call SHESCAPE,$(BINDIR))/limlzpack'
+		LIMLZPACK='$(call SHESCAPE,$(BUILDDIR))/tools-build/limlzpack'
 
 .PHONY: common-bios-clean
 common-bios-clean:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))/common-bios'
 
-$(call MKESCAPE,$(BINDIR))/limlzpack: $(call MKESCAPE,$(SRCDIR))/tools/limlzpack.c
-	$(MKDIR_P) '$(call SHESCAPE,$(BINDIR))'
+$(call MKESCAPE,$(BUILDDIR))/tools-build/limlzpack: $(call MKESCAPE,$(SRCDIR))/tools/limlzpack.c
+	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))/tools-build'
 	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) -std=c99 -Wall -Wextra $(WERROR_FLAG) '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
-
-.PHONY: decompressor
-decompressor:
-	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/decompressor' -f decompressor.mk \
-		BUILDDIR='$(call SHESCAPE,$(BUILDDIR))/decompressor-build'
 
 .PHONY: decompressor-clean
 decompressor-clean:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))/decompressor-build'
+
+.PHONY: tools-clean
+tools-clean:
+	rm -rf '$(call SHESCAPE,$(BUILDDIR))/tools-build'
 
 -include test.mk

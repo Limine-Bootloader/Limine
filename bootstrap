@@ -80,7 +80,6 @@ if ! test -f version; then
         cc-runtime \
         dae79833b57a01b9fd3e359ee31def69f5ae899b
     cp cc-runtime/src/cc-runtime.c common/cc-runtime.s2.c
-    cp cc-runtime/src/cc-runtime.c decompressor/cc-runtime.c
 
     clone_repo_commit \
         https://github.com/Limine-Bootloader/limine-protocol.git \

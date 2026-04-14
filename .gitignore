@@ -31,7 +31,6 @@
 /common/lib/stb_image.h
 /common/cc-runtime.s2.c
 /cc-runtime
-/decompressor/cc-runtime.c
 /libfdt
 /edk2-ovmf
 /bochsout.txt
@@ -55,6 +54,7 @@
 /common-uefi-riscv64
 /common-uefi-loongarch64
 /decompressor-build
+/tools-build
 /stage1.stamp
 
 

@@ -22,9 +22,8 @@
 ; OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ; OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+org 0x70000
 bits 32
-
-section .entry progbits alloc exec nowrite align=16
 
 global _start
 _start:
@@ -131,9 +130,5 @@ _start:
     cli
     hlt
 
-section .rodata progbits alloc noexec nowrite align=1
-
 errmsg: db "limine integrity error"
 .len: equ $ - errmsg
-
-section .note.GNU-stack noalloc noexec nowrite progbits
