@@ -1330,9 +1330,11 @@ FEAT_END
     }
 
     for (size_t i = 0; i < fbs_count; i++) {
-        memmap_alloc_range(fbs[i].framebuffer_addr,
+        if (!memmap_alloc_range(fbs[i].framebuffer_addr,
                            (uint64_t)fbs[i].framebuffer_pitch * fbs[i].framebuffer_height,
-                           MEMMAP_FRAMEBUFFER, 0, false, false, true);
+                           MEMMAP_FRAMEBUFFER, 0, false, false, true)) {
+            panic(true, "limine: Failed to register framebuffer in memory map");
+        }
     }
 
     // Check for page-level overlaps between framebuffer and other memory regions.
