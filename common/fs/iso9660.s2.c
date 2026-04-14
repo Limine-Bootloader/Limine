@@ -173,13 +173,12 @@ static struct iso9660_context *iso9660_get_context(struct volume *vol) {
 }
 
 static bool load_name(char *buf, size_t limit, struct iso9660_directory_entry *entry) {
-    unsigned char* sysarea = ((unsigned char*)entry) + sizeof(struct iso9660_directory_entry) + entry->filename_size;
-
     // Validate entry->length is large enough
     if (entry->length < sizeof(struct iso9660_directory_entry) + entry->filename_size) {
         goto use_iso_name;
     }
 
+    unsigned char* sysarea = ((unsigned char*)entry) + sizeof(struct iso9660_directory_entry) + entry->filename_size;
     size_t sysarea_len = entry->length - sizeof(struct iso9660_directory_entry) - entry->filename_size;
     if ((entry->filename_size & 0x1) == 0) {
         if (sysarea_len == 0) {
