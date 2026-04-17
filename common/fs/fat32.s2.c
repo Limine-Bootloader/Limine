@@ -505,6 +505,13 @@ static int fat32_open_in(struct fat32_context* context, struct fat32_directory_e
         }
 
         if (directory_entries[i].attribute == FAT32_LFN_ATTRIBUTE) {
+            // Skip deleted LFN entries, otherwise their 0xE5 sequence_number
+            // would be interpreted as a first-of-chain marker.
+            if ((uint8_t)directory_entries[i].file_name_and_ext[0] == 0xE5) {
+                lfn_expected = 0;
+                continue;
+            }
+
             struct fat32_lfn_entry* lfn = (struct fat32_lfn_entry*) &directory_entries[i];
 
             const unsigned int seq_num = lfn->sequence_number & 0b00011111;
