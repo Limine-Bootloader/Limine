@@ -425,10 +425,23 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
             uint64_t total_size = entry->extent_size.little;
             struct iso9660_directory_entry *e = entry;
 
+            char base_name[256];
+            if (!load_name(base_name, sizeof(base_name), entry)) {
+                base_name[0] = '\0';
+            }
+
             while (e->flags & ISO9660_FLAG_MULTI_EXTENT) {
                 struct iso9660_directory_entry *next = iso9660_next_entry(e, buffer_end);
                 if (next == NULL)
                     break;
+                // Per ECMA-119, multi-extent continuation records must share
+                // the file identifier of the first record. Refuse to splice
+                // in unrelated entries.
+                char next_name[256];
+                if (!load_name(next_name, sizeof(next_name), next)
+                 || strcmp(base_name, next_name) != 0) {
+                    break;
+                }
                 e = next;
                 extent_count++;
                 total_size += e->extent_size.little;
