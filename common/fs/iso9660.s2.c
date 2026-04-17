@@ -25,6 +25,7 @@ struct iso9660_file_handle {
     struct iso9660_extent *extents;
 };
 
+#define ISO9660_FLAG_DIRECTORY    0x02
 #define ISO9660_FLAG_MULTI_EXTENT 0x80
 
 #define ISO9660_FIRST_VOLUME_DESCRIPTOR 0x10
@@ -406,6 +407,14 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
 
         next_sector = entry->extent.little;
         next_size = entry->extent_size.little;
+
+        if (*path != '\0' && !(entry->flags & ISO9660_FLAG_DIRECTORY)) {
+            if (!first) {
+                pmm_free(current, current_size);
+            }
+            pmm_free(ret, sizeof(struct iso9660_file_handle));
+            return NULL;
+        }
 
         if (*path == '\0') {
             // Found the file - collect all extents for multi-extent files
