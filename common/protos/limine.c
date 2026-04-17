@@ -604,6 +604,10 @@ noreturn void limine_load(char *config, char *cmdline) {
             if (limine_reqs[i] == 0) {
                 break;
             }
+            if (limine_reqs[i] < virtual_base
+             || limine_reqs[i] - virtual_base >= image_size_before_bss) {
+                panic(true, "limine: .limine_reqs entry outside kernel image");
+            }
             requests[i] = (void *)(uintptr_t)((limine_reqs[i] - virtual_base) + physical_base);
             requests_count++;
         }
