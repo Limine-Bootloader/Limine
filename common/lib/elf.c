@@ -448,6 +448,9 @@ end_of_pt_segment:
         if (rela_ent < sizeof(struct elf64_rela)) {
             panic(true, "elf: rela_ent < sizeof(struct elf64_rela)");
         }
+        if (rela_size % rela_ent != 0) {
+            panic(true, "elf: rela_size not a multiple of rela_ent");
+        }
         relocs_i += rela_size / rela_ent;
     }
     if (dt_pltrelsz != 0) {
