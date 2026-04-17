@@ -62,7 +62,7 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 
 static inline uint64_t paging_mode_higher_half(int paging_mode) {
     if (paging_mode == PAGING_MODE_AARCH64_5LVL) {
-        return 0xffe0000000000000;
+        return 0xfff0000000000000;
     } else {
         return 0xffff000000000000;
     }
