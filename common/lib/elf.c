@@ -460,6 +460,9 @@ end_of_pt_segment:
         if (rela_ent == 0) {
             panic(true, "elf: dt_pltrelsz != 0 but rela_ent == 0");
         }
+        if (dt_pltrelsz % rela_ent != 0) {
+            panic(true, "elf: dt_pltrelsz not a multiple of rela_ent");
+        }
         relocs_i += dt_pltrelsz / rela_ent;
     }
     struct elf64_rela **relocs = ext_mem_alloc_counted(relocs_i, sizeof(struct elf64_rela *));
