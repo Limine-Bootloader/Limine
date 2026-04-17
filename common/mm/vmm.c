@@ -295,7 +295,7 @@ level4:
 #define PT_IS_LARGE(x)      (((x) & (PT_FLAG_VALID | PT_FLAG_RWX)) > PT_FLAG_VALID)
 #define PT_TO_VMM_FLAGS(x)  (pt_to_vmm_flags_internal(x))
 
-#define pte_new(addr, flags)    (((pt_entry_t)(addr) >> 2) | (flags))
+#define pte_new(addr, flags)    ((((pt_entry_t)(addr) >> 2) & PT_PADDR_MASK) | (flags))
 #define pte_addr(pte)           (((pte) & PT_PADDR_MASK) << 2)
 
 static uint64_t pt_to_vmm_flags_internal(pt_entry_t entry) {
