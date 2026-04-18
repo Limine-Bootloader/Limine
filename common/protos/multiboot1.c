@@ -254,6 +254,11 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
         int bits = elf_bits(kernel, kernel_file_size);
 
+        if ((bits == 64 && section_hdr_info.section_entry_size < sizeof(struct elf64_shdr)) ||
+            (bits == 32 && section_hdr_info.section_entry_size < sizeof(struct elf32_shdr))) {
+            panic(true, "multiboot1: ELF section entry size too small");
+        }
+
         for (size_t i = 0; i < section_hdr_info.num; i++) {
             if (bits == 64) {
                 struct elf64_shdr *shdr = (void *)sections + i * section_hdr_info.section_entry_size;
