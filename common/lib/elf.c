@@ -571,8 +571,10 @@ end_of_pt_segment:
                     panic(true, "elf: Symtab vaddr translation failed");
                 }
                 // Validate symbol index is within bounds
-                uint64_t sym_offset = symtab_ent * (uint64_t)relocation->r_symbol;
-                if (sym_offset + sizeof(struct elf64_sym) > symtab_size) {
+                uint64_t sym_offset = CHECKED_MUL(symtab_ent, (uint64_t)relocation->r_symbol,
+                    panic(true, "elf: Symbol offset overflow"));
+                if (symtab_size < sizeof(struct elf64_sym)
+                 || sym_offset > symtab_size - sizeof(struct elf64_sym)) {
                     panic(true, "elf: Symbol index %u out of bounds", relocation->r_symbol);
                 }
                 struct elf64_sym *s = (void *)elf + symtab_offset + sym_offset;
@@ -614,8 +616,10 @@ end_of_pt_segment:
                     panic(true, "elf: Symtab vaddr translation failed");
                 }
                 // Validate symbol index is within bounds
-                uint64_t sym_offset = symtab_ent * (uint64_t)relocation->r_symbol;
-                if (sym_offset + sizeof(struct elf64_sym) > symtab_size) {
+                uint64_t sym_offset = CHECKED_MUL(symtab_ent, (uint64_t)relocation->r_symbol,
+                    panic(true, "elf: Symbol offset overflow"));
+                if (symtab_size < sizeof(struct elf64_sym)
+                 || sym_offset > symtab_size - sizeof(struct elf64_sym)) {
                     panic(true, "elf: Symbol index %u out of bounds", relocation->r_symbol);
                 }
                 struct elf64_sym *s = (void *)elf + symtab_offset + sym_offset;
