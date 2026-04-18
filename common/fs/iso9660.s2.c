@@ -143,8 +143,10 @@ static void iso9660_cache_root(struct volume *vol,
 
     *root_size = pv.root.extent_size.little;
 
-    // Validate root directory size to prevent memory exhaustion
-    if (*root_size == 0 || *root_size > ISO9660_MAX_DIR_SIZE) {
+    // Validate root directory size to prevent memory exhaustion, and require
+    // sector alignment so directory-traversal sector-skip arithmetic is sound.
+    if (*root_size == 0 || *root_size > ISO9660_MAX_DIR_SIZE
+     || *root_size % ISO9660_SECTOR_SIZE != 0) {
         panic(false, "ISO9660: Invalid root directory size");
     }
 
@@ -490,8 +492,11 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
             pmm_free(current, current_size);
         }
 
-        // Validate directory size to prevent memory exhaustion
-        if (next_size == 0 || next_size > ISO9660_MAX_DIR_SIZE) {
+        // Validate directory size to prevent memory exhaustion, and require
+        // sector alignment so directory-traversal sector-skip arithmetic is
+        // sound.
+        if (next_size == 0 || next_size > ISO9660_MAX_DIR_SIZE
+         || next_size % ISO9660_SECTOR_SIZE != 0) {
             pmm_free(ret, sizeof(struct iso9660_file_handle));
             return NULL;
         }
