@@ -32,6 +32,9 @@
 /common/cc-runtime.s2.c
 /cc-runtime
 /decompressor/cc-runtime.c
+/common/compress/pdgzip.c
+/common/compress/pdgzip.h
+/pdgzip
 /libfdt
 /edk2-ovmf
 /bochsout.txt

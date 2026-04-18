@@ -58,6 +58,9 @@ used for wallpaper image loading.
 - [libfdt](https://github.com/osdev0/libfdt) (BSD-2-Clause) is used for
 manipulating Flat Device Trees.
 
+- [pdgzip](https://github.com/iczelia/pdgzip) (0BSD) is used to provide the
+transparent gzip decompression layer for loaded files.
+
 Note that some of these projects, or parts of them, are provided under
 dual-licensing, in which case, in the above list, the only license mentioned is
 the one chosen by the Limine developers. Refer to each individual project's
