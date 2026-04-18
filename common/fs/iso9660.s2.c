@@ -284,6 +284,11 @@ static struct iso9660_directory_entry *iso9660_next_entry(void *current, void *b
     if (entry->length < sizeof(struct iso9660_directory_entry))
         return NULL;
 
+    // Validate that the entire entry (as declared by its length field) is
+    // within the buffer, so callers can safely read all entry->length bytes.
+    if ((size_t)entry->length > (size_t)((uint8_t *)buffer_end - (uint8_t *)entry))
+        return NULL;
+
     return entry;
 }
 
