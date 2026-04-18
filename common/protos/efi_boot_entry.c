@@ -8,16 +8,19 @@
 #include <lib/misc.h>
 #include <stdbool.h>
 
-static bool uefi_string_matches(CHAR16 *desc, CHAR16 *target) {
+static bool uefi_string_matches(CHAR16 *desc, size_t desc_max_chars, CHAR16 *target) {
     while (*target) {
+        if (desc_max_chars == 0)
+            return false;
         CHAR16 a = *desc >= L'a' && *desc <= L'z' ? *desc - 32 : *desc;
         CHAR16 b = *target >= L'a' && *target <= L'z' ? *target - 32 : *target;
         if (a != b)
             return false;
         desc++;
         target++;
+        desc_max_chars--;
     }
-    return *desc == L'\0';
+    return desc_max_chars > 0 && *desc == L'\0';
 }
 
 static void format_boot_var(CHAR16 *out, UINT16 num) {
@@ -67,8 +70,10 @@ static bool find_boot_entry(CHAR16 *entry, uint16_t *out) {
             pmm_free(buf, buf_size);
             continue;
         }
-        CHAR16 *desc = (CHAR16 *)(buf + sizeof(uint32_t) + sizeof(uint16_t));
-        if (uefi_string_matches(desc, entry)) {
+        size_t desc_offset = sizeof(uint32_t) + sizeof(uint16_t);
+        CHAR16 *desc = (CHAR16 *)(buf + desc_offset);
+        size_t desc_max_chars = (buf_size - desc_offset) / sizeof(CHAR16);
+        if (uefi_string_matches(desc, desc_max_chars, entry)) {
             *out = boot_order[i];
             pmm_free(buf, buf_size);
             return true;

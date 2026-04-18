@@ -4,11 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to build (e.g. v11.3.1)'
-        required: true
 
 jobs:
   build:
@@ -18,7 +13,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg git autoconf automake nasm curl mtools llvm clang lld
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg gzip xz zip git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Import GPG public key
         run: gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
@@ -30,23 +25,12 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v6
-        with:
-          fetch-depth: '0'
-          ref: ${{ inputs.tag || github.ref }}
 
       - name: Git config
-        run: |
-          set -e
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config --global user.name 'Mintsuki'
-          git config --global user.email 'mintsuki@protonmail.com'
-          git config --global user.signingkey 05D29860D0A0668AAEFB9D691F3C021BECA23821
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Get tag name
         run: echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $GITHUB_ENV
-
-      - name: Get branch name
-        run: echo "BRANCH_NAME=$(echo "$TAG_NAME" | grep -o 'v[0-9]\+\.')x" >> $GITHUB_ENV
 
       - name: Regenerate
         run: ./bootstrap
@@ -71,10 +55,12 @@ jobs:
           tar -xf mingw-i486.tar.xz
 
       - name: Build limine for Windows
-        run: make -C build/bin CC="/tmp/mingw-i486/bin/i486-w64-mingw32-gcc" CFLAGS="-O2 -pipe" CPPFLAGS="-D__USE_MINGW_ANSI_STDIO" limine
-
-      - name: Strip limine for Windows
-        run: /tmp/mingw-i486/bin/i486-w64-mingw32-strip build/bin/limine.exe
+        run: |
+          set -e
+          make -C build/bin CC="/tmp/mingw-i486/bin/i486-w64-mingw32-gcc" CFLAGS="-O2 -pipe" CPPFLAGS="-D__USE_MINGW_ANSI_STDIO" limine
+          /tmp/mingw-i486/bin/i486-w64-mingw32-strip build/bin/limine.exe
+          mkdir build/bin/limine-tool-windows-x86
+          mv build/bin/limine.exe build/bin/limine-tool-windows-x86/
 
       - name: Copy LICENSE to bin
         run: cp COPYING build/bin/LICENSE
@@ -82,17 +68,28 @@ jobs:
       - name: Remove limine-bios-hdd.bin
         run: rm build/bin/limine-bios-hdd.bin
 
-      - name: Push binaries to binary branch
+      - name: Create binary release zip and tarballs
         run: |
           set -e
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Limine-Bootloader/Limine.git
-          git fetch --all
-          git checkout $BRANCH_NAME-binary || git checkout --orphan $BRANCH_NAME-binary
-          rm -rf $(ls -a | grep -v '^\.git$' | grep -v '^\.\.$' | grep -v '^\.$' | grep -v '^build$')
-          cp -r build/bin/. ./
-          rm -rf build
-          git add -f .
-          git commit -m "Binary release $TAG_NAME" -S
-          git push origin $BRANCH_NAME-binary
-          git tag $TAG_NAME-binary -s -m $TAG_NAME-binary
-          git push origin $TAG_NAME-binary
+          TARBALL_DIRNAME=$(echo ${TAG_NAME} | sed 's/^v//g')
+          mv build/bin ./limine-binary-${TARBALL_DIRNAME}
+          zip -r limine-binary-${TARBALL_DIRNAME}.zip limine-binary-${TARBALL_DIRNAME}
+          tar -cvf limine-binary-${TARBALL_DIRNAME}.tar limine-binary-${TARBALL_DIRNAME}
+          gzip < limine-binary-${TARBALL_DIRNAME}.tar > limine-binary-${TARBALL_DIRNAME}.tar.gz
+          xz < limine-binary-${TARBALL_DIRNAME}.tar > limine-binary-${TARBALL_DIRNAME}.tar.xz
+          rm limine-binary-${TARBALL_DIRNAME}.tar
+
+      - name: Sign release tarball
+        run: |
+          set -e
+          for f in limine-binary-*.*; do \
+            gpg --batch --default-key 05D29860D0A0668AAEFB9D691F3C021BECA23821 --detach-sign $f; \
+          done
+
+      - name: Add binary tarball to the release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
+        with:
+          files: |
+            limine-binary-*.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

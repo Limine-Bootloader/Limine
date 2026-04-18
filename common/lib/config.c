@@ -407,6 +407,7 @@ skip_loop:
             for (size_t j = i; j < config_size - skip; j++)
                 config_addr[j] = config_addr[j + skip];
             config_size -= skip;
+            i--; // re-examine character shifted into position i
         }
     }
 

@@ -25,8 +25,6 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v6
-        with:
-          fetch-depth: '0'
 
       - name: Git config
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -52,8 +50,6 @@ jobs:
         run: |
           cat <<EOF >rel_notes.txt
           Changelog can be found [here](https://github.com/Limine-Bootloader/Limine/blob/$TAG_NAME/ChangeLog).
-
-          Binary release can be found [here](https://github.com/Limine-Bootloader/Limine/tree/$TAG_NAME-binary).
           EOF
           cat <<'EOF' >>rel_notes.txt
 
@@ -71,7 +67,7 @@ jobs:
           EOF
 
       - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:
           body_path: rel_notes.txt
           files: |

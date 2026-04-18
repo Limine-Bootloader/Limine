@@ -90,12 +90,12 @@ first_run:
                 }
                 if ((!strncmp(path, "..\0", 3))
                 ||  (!strncmp(path, "../\0", 4))) {
-                    while (*path_ptr != '/') path_ptr--;
+                    while (path_ptr > orig_ptr && *path_ptr != '/') path_ptr--;
                     if (path_ptr == orig_ptr) path_ptr++;
                     goto term;
                 }
                 if (!strncmp(path, "../", 3)) {
-                    while (*path_ptr != '/') path_ptr--;
+                    while (path_ptr > orig_ptr && *path_ptr != '/') path_ptr--;
                     if (path_ptr == orig_ptr) path_ptr++;
                     path += 2;
                     *path_ptr = 0;
@@ -105,7 +105,7 @@ first_run:
                     path += 1;
                     continue;
                 }
-                if (((path_ptr - 1) != orig_ptr) && (*(path_ptr - 1) != '/')) {
+                if (path_ptr > orig_ptr && ((path_ptr - 1) != orig_ptr) && (*(path_ptr - 1) != '/')) {
                     if (path_ptr >= end_ptr) return false;
                     *path_ptr = '/';
                     path_ptr++;
@@ -113,7 +113,7 @@ first_run:
                 continue;
             case '\0':
 term:
-                if ((*(path_ptr - 1) == '/') && ((path_ptr - 1) != orig_ptr))
+                if (path_ptr > orig_ptr && (*(path_ptr - 1) == '/') && ((path_ptr - 1) != orig_ptr))
                     path_ptr--;
                 *path_ptr = 0;
                 return true;

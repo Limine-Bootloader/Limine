@@ -69,27 +69,21 @@ All Limine releases since 7.x use [Semantic Versioning](https://semver.org/spec/
 ## Binary releases
 
 For convenience, for point releases, binaries are distributed. These binaries
-are shipped in the `-binary` branches and tags of this repository
-(see [branches](https://github.com/Limine-Bootloader/Limine/branches/all) and
-[tags](https://github.com/Limine-Bootloader/Limine/tags)).
+are shipped as assets as part of the
+[Limine GitHub releases](https://github.com/Limine-Bootloader/Limine/releases)
+(see the `limine-binary-*` files).
 
-For example, to clone the latest binary release of the `11.x` branch, one can do:
-```bash
-git clone https://github.com/Limine-Bootloader/Limine.git --branch=v11.x-binary --depth=1
-```
-or, to clone a specific binary point release (for example `11.3.1`):
-```bash
-git clone https://github.com/Limine-Bootloader/Limine.git --branch=v11.3.1-binary --depth=1
-```
+The `limine` host tool is shipped in highly portable source form as part of the
+binary release package. For most/all UNIX-like OSes, in order to rebuild it,
+simply run `make` in the unpacked binary release directory. Alternatively, it
+can be built stand-alone using any C99 compatible compiler.
 
-In order to rebuild host utilities like `limine`, simply run `make` in the binary
-release directory.
-
-Host utility binaries are provided for Windows.
+`limine` host tool binaries for x86 Windows are provided as part of the binary
+release package.
 
 ## Build and Install Instructions
 
-*The following steps are not necessary if cloning a binary release.*
+*The following steps are not necessary if using a binary release.*
 
 See [INSTALL.md](INSTALL.md).
 

@@ -31,7 +31,6 @@
 /common/lib/stb_image.h
 /common/cc-runtime.s2.c
 /cc-runtime
-/decompressor/cc-runtime.c
 /common/compress/pdgzip.c
 /common/compress/pdgzip.h
 /pdgzip
@@ -58,6 +57,7 @@
 /common-uefi-riscv64
 /common-uefi-loongarch64
 /decompressor-build
+/tools-build
 /stage1.stamp
 
 
