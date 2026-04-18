@@ -164,6 +164,10 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                 if (request->size < sizeof(struct multiboot_header_tag_information_request)) {
                     panic(true, "multiboot2: Invalid information request tag size");
                 }
+                size_t tag_remaining = (uintptr_t)header + header->header_length - (uintptr_t)tag;
+                if (request->size > tag_remaining) {
+                    panic(true, "multiboot2: Information request tag exceeds header bounds");
+                }
                 uint32_t size = (request->size - sizeof(struct multiboot_header_tag_information_request)) / sizeof(uint32_t);
 
                 for (uint32_t i = 0; i < size; i++) {
