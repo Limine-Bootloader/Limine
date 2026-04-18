@@ -1,3 +1,25 @@
+2026-04-19  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 11.4.0 ***
+
+    Noteworthy changes compared to the previous release, 11.3.1:
+
+    New features:
+        - Revamped BIOS early-stage decompressor, replacing gzip (tinf) with a
+          simpler, smaller, faster, and more auditable compressor/decompressor
+          using a fixed-width LZ77 encoding purpose-tailored for x86 code mixed
+          with data by Kamila Szewczyk.
+        - Implement timeout and entry control of the Boot Loader Interface
+          (BLI).
+        - Make `graphics: no` functional on UEFI ports as well.
+
+    Bug fixes:
+        - Revert the "Call Apple set_os protocol on UEFI" change from 11.3.1 as
+          that seems to have been causing issues relating to input devices on
+          certain other Apple systems, pending investigation and usefulness
+          assessment.
+        - Many assorted bug fixes and improvements.
+
 2026-04-09  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 11.3.1 ***
