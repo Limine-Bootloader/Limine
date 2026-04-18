@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdnoreturn.h>
 
+#define MENU_PATH_MAX 1024
+
 #if defined(UEFI)
 bool reboot_to_fw_ui_supported(void);
 noreturn void reboot_to_fw_ui(void);

@@ -8,6 +8,7 @@
 #include <lib/bli.h>
 #include <lib/guid.h>
 #include <lib/misc.h>
+#include <menu.h>
 
 #define LIMINE_BRAND L"Limine " LIMINE_VERSION
 
@@ -210,10 +211,10 @@ bool bli_get_oneshot_entry(char *path, size_t buf_size) {
 }
 
 void bli_set_selected_entry(const char *path) {
-    wchar_t wide_path[256];
+    wchar_t wide_path[MENU_PATH_MAX];
     size_t len = strlen(path);
-    if (len > 255) {
-        len = 255;
+    if (len > MENU_PATH_MAX - 1) {
+        len = MENU_PATH_MAX - 1;
     }
     for (size_t pos = 0; pos < len; pos++) {
         wide_path[pos] = path[pos];

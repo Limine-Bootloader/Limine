@@ -1129,8 +1129,8 @@ noreturn void _menu(bool first_run) {
 
 #if defined (UEFI)
     {
-        char path[256];
-        if (bli_get_oneshot_entry(path, 256)) {
+        char path[MENU_PATH_MAX];
+        if (bli_get_oneshot_entry(path, MENU_PATH_MAX)) {
             // Find the entry with this path, expand directories, and get its index.
             struct menu_entry *found_entry = NULL;
             size_t found_index = 0;
@@ -1160,7 +1160,7 @@ noreturn void _menu(bool first_run) {
             } else {
                 // Copy the path since find_entry_by_path calls config_get_value
                 // internally (via should_skip_entry), which clobbers the static buffer.
-                char default_entry_path[256];
+                char default_entry_path[MENU_PATH_MAX];
                 size_t len = strlen(default_entry);
                 if (len >= sizeof(default_entry_path)) {
                     len = sizeof(default_entry_path) - 1;
@@ -1181,7 +1181,7 @@ noreturn void _menu(bool first_run) {
     if (!has_entry) {
         char *remember_last = config_get_value(NULL, 0, "REMEMBER_LAST_ENTRY");
         if (remember_last != NULL && strcasecmp(remember_last, "yes") == 0) {
-            char last_entry_path[256];
+            char last_entry_path[MENU_PATH_MAX];
             UINTN getvar_size = sizeof(last_entry_path);
             if (gRT->GetVariable(L"LimineLastBootedEntry",
                                  &limine_efi_vendor_guid,
@@ -1202,8 +1202,8 @@ noreturn void _menu(bool first_run) {
         }
     }
     if (!has_entry) {
-        char path[256];
-        if (bli_get_default_entry(path, 256)) {
+        char path[MENU_PATH_MAX];
+        if (bli_get_default_entry(path, MENU_PATH_MAX)) {
             // Find the entry with this path, expand directories, and get its index.
             struct menu_entry *found_entry = NULL;
             size_t found_index = 0;
@@ -1497,7 +1497,7 @@ timeout_aborted:
 
 #if defined (UEFI)
                 // Save the entry's path so it can persist between boots.
-                char entry_path[256];
+                char entry_path[MENU_PATH_MAX];
                 size_t pos = 0;
                 get_entry_path(selected_menu_entry, entry_path, sizeof(entry_path), &pos);
                 gRT->SetVariable(L"LimineLastBootedEntry",
