@@ -14,9 +14,13 @@ if ! command -v gzip >/dev/null 2>&1; then
   exit 1
 fi
 TEST_CFLAGS="-DENABLE_QEMU_SHUTDOWN -DENABLE_GZIP_TEST"
-make limine-bios limine-uefi-x86-64 2>&1 | tail -1
-make edk2-ovmf 2>&1 | tail -1
-make -C test -f test.mk ARCH=x86 EXTRA_CFLAGS="$TEST_CFLAGS" test.elf 2>&1 | tail -1
+export CC_FOR_TARGET="${CC_FOR_TARGET:-clang}"
+export LD_FOR_TARGET="${LD_FOR_TARGET:-ld}"
+export GREP="${GREP:-grep}"
+make limine-bios limine-uefi-x86-64
+make edk2-ovmf
+make -C test -f test.mk clean
+make -C test -f test.mk ARCH=x86 EXTRA_CFLAGS="$TEST_CFLAGS" test.elf
 IMG=test_uefi.img
 rm -f "$IMG"
 mformat -i "$IMG" -C -F -T 131072 :: 2>/dev/null
