@@ -219,9 +219,8 @@ static inline uint64_t tsc_freq_arch(void) {
     __auto_type locked_write__ret = val; \
     asm volatile ( \
         "lock xchg %0, %1" \
-        : "+r" ((locked_write__ret)) \
-        : "m" (*(var)) \
-        : "memory" \
+        : "+r" ((locked_write__ret)), "+m" (*(var)) \
+        :: "memory" \
     ); \
 } while (0)
 
@@ -434,6 +433,7 @@ static inline uint32_t iocsr_read32(uint64_t reg) {
         "iocsrrd.w %0, %1"
         : "=r"(val)
         : "r"(reg)
+        : "memory"
     );
     return val;
 }
@@ -443,6 +443,7 @@ static inline void iocsr_write32(uint32_t val, uint64_t reg) {
         "iocsrwr.w %0, %1"
         :
         : "r"(val), "r"(reg)
+        : "memory"
     );
 }
 
@@ -452,6 +453,7 @@ static inline uint64_t iocsr_read64(uint64_t reg) {
         "iocsrrd.d %0, %1"
         : "=r"(val)
         : "r"(reg)
+        : "memory"
     );
     return val;
 }
@@ -461,6 +463,7 @@ static inline void iocsr_write64(uint64_t val, uint64_t reg) {
         "iocsrwr.d %0, %1"
         :
         : "r"(val), "r"(reg)
+        : "memory"
     );
 }
 

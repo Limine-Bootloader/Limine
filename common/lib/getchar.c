@@ -284,6 +284,7 @@ int pit_sleep_and_quit_on_keypress(int seconds) {
         events[0] = exproto->WaitForKeyEx;
     }
 
+restart:
     gBS->CreateEvent(EVT_TIMER, TPL_CALLBACK, NULL, NULL, &events[1]);
 
     gBS->SetTimer(events[1], TimerRelative, (uint64_t)10000000 * seconds);
@@ -339,17 +340,16 @@ again:
         }
 
         gBS->CloseEvent(events[1]);
-        gBS->CreateEvent(EVT_TIMER, TPL_CALLBACK, NULL, NULL, &events[1]);
-        gBS->SetTimer(events[1], TimerRelative, (uint64_t)10000000 * seconds);
 
         if (status != EFI_SUCCESS) {
-            goto again;
+            goto restart;
         }
 
         if (kd.Key.UnicodeChar == '[') {
-            gBS->CloseEvent(events[1]);
             return input_sequence(!use_sproto, exproto, sproto);
         }
+
+        goto restart;
     }
 
     int ret = getchar_internal(kd.Key.ScanCode, kd.Key.UnicodeChar,

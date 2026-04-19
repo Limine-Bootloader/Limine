@@ -27,6 +27,7 @@ void mtrr_save(void) {
     uint64_t ia32_mtrrcap = rdmsr(0xfe);
 
     uint8_t var_reg_count = ia32_mtrrcap & 0xff;
+    bool fix_supported = !!(ia32_mtrrcap & ((uint64_t)1 << 8));
 
     if (saved_mtrrs == NULL) {
         saved_mtrrs = ext_mem_alloc((
@@ -42,18 +43,20 @@ void mtrr_save(void) {
         saved_mtrrs[i + 1] = rdmsr(0x200 + i + 1);
     }
 
-    /* save fixed range MTRRs */
-    saved_mtrrs[var_reg_count * 2 + 0] = rdmsr(0x250);
-    saved_mtrrs[var_reg_count * 2 + 1] = rdmsr(0x258);
-    saved_mtrrs[var_reg_count * 2 + 2] = rdmsr(0x259);
-    saved_mtrrs[var_reg_count * 2 + 3] = rdmsr(0x268);
-    saved_mtrrs[var_reg_count * 2 + 4] = rdmsr(0x269);
-    saved_mtrrs[var_reg_count * 2 + 5] = rdmsr(0x26a);
-    saved_mtrrs[var_reg_count * 2 + 6] = rdmsr(0x26b);
-    saved_mtrrs[var_reg_count * 2 + 7] = rdmsr(0x26c);
-    saved_mtrrs[var_reg_count * 2 + 8] = rdmsr(0x26d);
-    saved_mtrrs[var_reg_count * 2 + 9] = rdmsr(0x26e);
-    saved_mtrrs[var_reg_count * 2 + 10] = rdmsr(0x26f);
+    /* save fixed range MTRRs, if supported by the CPU */
+    if (fix_supported) {
+        saved_mtrrs[var_reg_count * 2 + 0] = rdmsr(0x250);
+        saved_mtrrs[var_reg_count * 2 + 1] = rdmsr(0x258);
+        saved_mtrrs[var_reg_count * 2 + 2] = rdmsr(0x259);
+        saved_mtrrs[var_reg_count * 2 + 3] = rdmsr(0x268);
+        saved_mtrrs[var_reg_count * 2 + 4] = rdmsr(0x269);
+        saved_mtrrs[var_reg_count * 2 + 5] = rdmsr(0x26a);
+        saved_mtrrs[var_reg_count * 2 + 6] = rdmsr(0x26b);
+        saved_mtrrs[var_reg_count * 2 + 7] = rdmsr(0x26c);
+        saved_mtrrs[var_reg_count * 2 + 8] = rdmsr(0x26d);
+        saved_mtrrs[var_reg_count * 2 + 9] = rdmsr(0x26e);
+        saved_mtrrs[var_reg_count * 2 + 10] = rdmsr(0x26f);
+    }
 
     /* save MTRR default type */
     saved_mtrrs[var_reg_count * 2 + 11] = rdmsr(0x2ff);
@@ -70,6 +73,7 @@ void mtrr_restore(void) {
     uint64_t ia32_mtrrcap = rdmsr(0xfe);
 
     uint8_t var_reg_count = ia32_mtrrcap & 0xff;
+    bool fix_supported = !!(ia32_mtrrcap & ((uint64_t)1 << 8));
 
     if (saved_mtrrs == NULL) {
         panic(true, "mtrr: Attempted restore without prior save");
@@ -103,18 +107,20 @@ void mtrr_restore(void) {
         wrmsr(0x200 + i + 1, saved_mtrrs[i + 1]);
     }
 
-    /* restore fixed range MTRRs */
-    wrmsr(0x250, saved_mtrrs[var_reg_count * 2 + 0]);
-    wrmsr(0x258, saved_mtrrs[var_reg_count * 2 + 1]);
-    wrmsr(0x259, saved_mtrrs[var_reg_count * 2 + 2]);
-    wrmsr(0x268, saved_mtrrs[var_reg_count * 2 + 3]);
-    wrmsr(0x269, saved_mtrrs[var_reg_count * 2 + 4]);
-    wrmsr(0x26a, saved_mtrrs[var_reg_count * 2 + 5]);
-    wrmsr(0x26b, saved_mtrrs[var_reg_count * 2 + 6]);
-    wrmsr(0x26c, saved_mtrrs[var_reg_count * 2 + 7]);
-    wrmsr(0x26d, saved_mtrrs[var_reg_count * 2 + 8]);
-    wrmsr(0x26e, saved_mtrrs[var_reg_count * 2 + 9]);
-    wrmsr(0x26f, saved_mtrrs[var_reg_count * 2 + 10]);
+    /* restore fixed range MTRRs, if supported by the CPU */
+    if (fix_supported) {
+        wrmsr(0x250, saved_mtrrs[var_reg_count * 2 + 0]);
+        wrmsr(0x258, saved_mtrrs[var_reg_count * 2 + 1]);
+        wrmsr(0x259, saved_mtrrs[var_reg_count * 2 + 2]);
+        wrmsr(0x268, saved_mtrrs[var_reg_count * 2 + 3]);
+        wrmsr(0x269, saved_mtrrs[var_reg_count * 2 + 4]);
+        wrmsr(0x26a, saved_mtrrs[var_reg_count * 2 + 5]);
+        wrmsr(0x26b, saved_mtrrs[var_reg_count * 2 + 6]);
+        wrmsr(0x26c, saved_mtrrs[var_reg_count * 2 + 7]);
+        wrmsr(0x26d, saved_mtrrs[var_reg_count * 2 + 8]);
+        wrmsr(0x26e, saved_mtrrs[var_reg_count * 2 + 9]);
+        wrmsr(0x26f, saved_mtrrs[var_reg_count * 2 + 10]);
+    }
 
     /* restore MTRR default type */
     wrmsr(0x2ff, saved_mtrrs[var_reg_count * 2 + 11]);

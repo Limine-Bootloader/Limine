@@ -324,7 +324,7 @@ endif
 
 ifeq ($(TARGET),bios)
 
-$(call MKESCAPE,$(BUILDDIR))/stage2.bin.limlz: $(call MKESCAPE,$(BUILDDIR))/stage2.bin $(LIMLZPACK)
+$(call MKESCAPE,$(BUILDDIR))/stage2.bin.limlz: $(call MKESCAPE,$(BUILDDIR))/stage2.bin
 	'$(call SHESCAPE,$(LIMLZPACK))' '$(call SHESCAPE,$<)' '$(call SHESCAPE,$@)'
 
 $(call MKESCAPE,$(BUILDDIR))/stage2.bin: $(call MKESCAPE,$(BUILDDIR))/limine-bios.sys

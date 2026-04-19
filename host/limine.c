@@ -676,6 +676,7 @@ static int bios_install(int argc, char *argv[]) {
     const uint8_t *bootloader_img = binary_limine_hdd_bin_data;
     size_t   bootloader_file_size = sizeof(binary_limine_hdd_bin_data);
     uint8_t  orig_mbr[70], timestamp[6];
+    void *empty_lba = NULL;
     const char *part_ndx = NULL;
 
 #ifndef __BYTE_ORDER__
@@ -885,7 +886,7 @@ static int bios_install(int argc, char *argv[]) {
         }
 
         // Nuke the GPTs.
-        void *empty_lba = calloc(1, lb_size);
+        empty_lba = calloc(1, lb_size);
         if (empty_lba == NULL) {
             perror_wrap("error: bios_install(): malloc()");
             goto cleanup;
@@ -903,8 +904,6 @@ static int bios_install(int argc, char *argv[]) {
                 device_write(empty_lba, (alt_lba - 32 + i) * lb_size, lb_size);
             }
         }
-
-        free(empty_lba);
 
         // We're no longer GPT.
         gpt = 0;
@@ -1214,6 +1213,8 @@ cleanup:
     }
 uninstall_mode_cleanup:
     free_uninstall_data();
+    if (empty_lba)
+        free(empty_lba);
     if (cache)
         free(cache);
     if (device != NULL)

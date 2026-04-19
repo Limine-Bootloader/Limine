@@ -215,7 +215,7 @@ struct elf_section_hdr_info elf64_section_hdr_info(uint8_t *elf, size_t file_siz
 
     elf64_validate(hdr);
 
-    if (CHECKED_ADD(CHECKED_MUL(hdr->sh_num, hdr->shdr_size, return info),
+    if (CHECKED_ADD((uint64_t)hdr->sh_num * hdr->shdr_size,
             hdr->shoff, return info) > file_size) {
         return info;
     }
@@ -235,7 +235,7 @@ struct elf_section_hdr_info elf32_section_hdr_info(uint8_t *elf, size_t file_siz
 
     elf32_validate(hdr);
 
-    if (CHECKED_ADD(CHECKED_MUL(hdr->sh_num, hdr->shdr_size, return info),
+    if (CHECKED_ADD((uint64_t)hdr->sh_num * hdr->shdr_size,
             hdr->shoff, return info) > file_size) {
         return info;
     }
@@ -448,6 +448,9 @@ end_of_pt_segment:
         if (rela_ent < sizeof(struct elf64_rela)) {
             panic(true, "elf: rela_ent < sizeof(struct elf64_rela)");
         }
+        if (rela_size % rela_ent != 0) {
+            panic(true, "elf: rela_size not a multiple of rela_ent");
+        }
         relocs_i += rela_size / rela_ent;
     }
     if (dt_pltrelsz != 0) {
@@ -456,6 +459,9 @@ end_of_pt_segment:
         }
         if (rela_ent == 0) {
             panic(true, "elf: dt_pltrelsz != 0 but rela_ent == 0");
+        }
+        if (dt_pltrelsz % rela_ent != 0) {
+            panic(true, "elf: dt_pltrelsz not a multiple of rela_ent");
         }
         relocs_i += dt_pltrelsz / rela_ent;
     }
@@ -513,7 +519,7 @@ end_of_pt_segment:
             continue;
 
         // It's inside it, calculate where it is
-        uint64_t *ptr = (uint64_t *)((buffer - vaddr) + relocation->r_addr);
+        uint64_t *ptr = (uint64_t *)(buffer + (relocation->r_addr - vaddr));
 
         switch (relocation->r_info) {
 #if defined (__x86_64__) || defined (__i386__)
@@ -1059,7 +1065,6 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t *entry_point,
         panic(true, "elf: Program header table extends beyond file bounds");
     }
 
-    size_t image_size = 0;
     uint64_t min_paddr = (uint64_t)-1;
     uint64_t max_paddr = 0;
     for (uint16_t i = 0; i < hdr->ph_num; i++) {
@@ -1078,7 +1083,11 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t *entry_point,
             max_paddr = top;
         }
     }
-    image_size = max_paddr - min_paddr;
+    uint64_t image_size_64 = max_paddr - min_paddr;
+    if (image_size_64 > SIZE_MAX) {
+        panic(true, "elf: Image size exceeds address space");
+    }
+    size_t image_size = (size_t)image_size_64;
 
     void *elsewhere = ext_mem_alloc(image_size);
 

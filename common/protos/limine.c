@@ -560,7 +560,7 @@ noreturn void limine_load(char *config, char *cmdline) {
     bool base_revision_found = false;
     uint64_t *base_rev_p1_ptr = NULL;
     uint64_t *base_rev_p2_ptr = NULL;
-    for (size_t i = 0; i < ALIGN_DOWN(image_size_before_bss, 8); i += 8) {
+    for (size_t i = 0; i + 32 <= image_size_before_bss; i += 8) {
         uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
         // Check if start marker hit
@@ -618,12 +618,16 @@ noreturn void limine_load(char *config, char *cmdline) {
             if (limine_reqs[i] == 0) {
                 break;
             }
+            if (limine_reqs[i] < virtual_base
+             || limine_reqs[i] - virtual_base >= image_size_before_bss) {
+                panic(true, "limine: .limine_reqs entry outside kernel image");
+            }
             requests[i] = (void *)(uintptr_t)((limine_reqs[i] - virtual_base) + physical_base);
             requests_count++;
         }
     } else {
         uint64_t common_magic[2] = { LIMINE_COMMON_MAGIC };
-        for (size_t i = 0; i < ALIGN_DOWN(image_size_before_bss, 8); i += 8) {
+        for (size_t i = 0; i + 32 <= image_size_before_bss; i += 8) {
             uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
             // Check if start marker hit
@@ -1349,9 +1353,11 @@ FEAT_END
     }
 
     for (size_t i = 0; i < fbs_count; i++) {
-        memmap_alloc_range(fbs[i].framebuffer_addr,
+        if (!memmap_alloc_range(fbs[i].framebuffer_addr,
                            (uint64_t)fbs[i].framebuffer_pitch * fbs[i].framebuffer_height,
-                           MEMMAP_FRAMEBUFFER, 0, false, false, true);
+                           MEMMAP_FRAMEBUFFER, 0, false, false, true)) {
+            panic(true, "limine: Failed to register framebuffer in memory map");
+        }
     }
 
     // Check for page-level overlaps between framebuffer and other memory regions.

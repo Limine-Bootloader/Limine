@@ -25,6 +25,7 @@ struct iso9660_file_handle {
     struct iso9660_extent *extents;
 };
 
+#define ISO9660_FLAG_DIRECTORY    0x02
 #define ISO9660_FLAG_MULTI_EXTENT 0x80
 
 #define ISO9660_FIRST_VOLUME_DESCRIPTOR 0x10
@@ -173,13 +174,12 @@ static struct iso9660_context *iso9660_get_context(struct volume *vol) {
 }
 
 static bool load_name(char *buf, size_t limit, struct iso9660_directory_entry *entry) {
-    unsigned char* sysarea = ((unsigned char*)entry) + sizeof(struct iso9660_directory_entry) + entry->filename_size;
-
     // Validate entry->length is large enough
     if (entry->length < sizeof(struct iso9660_directory_entry) + entry->filename_size) {
         goto use_iso_name;
     }
 
+    unsigned char* sysarea = ((unsigned char*)entry) + sizeof(struct iso9660_directory_entry) + entry->filename_size;
     size_t sysarea_len = entry->length - sizeof(struct iso9660_directory_entry) - entry->filename_size;
     if ((entry->filename_size & 0x1) == 0) {
         if (sysarea_len == 0) {
@@ -408,6 +408,14 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
         next_sector = entry->extent.little;
         next_size = entry->extent_size.little;
 
+        if (*path != '\0' && !(entry->flags & ISO9660_FLAG_DIRECTORY)) {
+            if (!first) {
+                pmm_free(current, current_size);
+            }
+            pmm_free(ret, sizeof(struct iso9660_file_handle));
+            return NULL;
+        }
+
         if (*path == '\0') {
             // Found the file - collect all extents for multi-extent files
             void *buffer_end = (uint8_t *)current + current_size;
@@ -417,10 +425,23 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
             uint64_t total_size = entry->extent_size.little;
             struct iso9660_directory_entry *e = entry;
 
+            char base_name[256];
+            if (!load_name(base_name, sizeof(base_name), entry)) {
+                base_name[0] = '\0';
+            }
+
             while (e->flags & ISO9660_FLAG_MULTI_EXTENT) {
                 struct iso9660_directory_entry *next = iso9660_next_entry(e, buffer_end);
                 if (next == NULL)
                     break;
+                // Per ECMA-119, multi-extent continuation records must share
+                // the file identifier of the first record. Refuse to splice
+                // in unrelated entries.
+                char next_name[256];
+                if (!load_name(next_name, sizeof(next_name), next)
+                 || strcmp(base_name, next_name) != 0) {
+                    break;
+                }
                 e = next;
                 extent_count++;
                 total_size += e->extent_size.little;

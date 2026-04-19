@@ -7,6 +7,12 @@ void *memset(void *, int, size_t);
 void *memcpy(void *restrict, const void *restrict, size_t);
 int memcmp(const void *, const void *, size_t);
 void *memmove(void *, const void *, size_t);
+
+#define memset __builtin_memset
+#define memcpy __builtin_memcpy
+#define memcmp __builtin_memcmp
+#define memmove __builtin_memmove
+
 void *memchr(const void *, int, size_t);
 
 char *strcpy(char *, const char *);

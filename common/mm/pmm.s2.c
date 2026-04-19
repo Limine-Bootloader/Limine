@@ -175,7 +175,7 @@ del_mm0:
             if (i < count - 1) {
                 m[i] = m[count - 1];
             }
-            count--; i--;
+            count--; i = (size_t)-1; // restart outer loop
         }
     }
 
@@ -586,6 +586,8 @@ void pmm_free_size_t(void *ptr, size_t length) {
 }
 
 void pmm_free(void *ptr, uint64_t count) {
+    if ((uintptr_t)ptr % 4096 != 0)
+        panic(false, "pmm_free: Unaligned pointer %p", ptr);
     count = ALIGN_UP(count, 4096, panic(false, "Alignment overflow"));
     if (allocations_disallowed)
         panic(false, "Memory allocations disallowed");
