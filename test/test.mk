@@ -71,7 +71,8 @@ override CFLAGS += \
     -I../limine-protocol/include \
     -I../flanterm/src \
     -isystem ../freestnd-c-hdrs/include \
-    -D_LIMINE_PROTO
+    -D_LIMINE_PROTO \
+    $(EXTRA_CFLAGS)
 
 ifeq ($(ARCH),x86)
 override CFLAGS += \
