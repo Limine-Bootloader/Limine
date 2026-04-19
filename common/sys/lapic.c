@@ -64,8 +64,9 @@ void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid, bool x2apic) {
 
                 struct madt_lapic_nmi *nmi = (void *)madt_ptr;
 
-                // Match all processors (0xff) or specific UID
-                if (nmi->acpi_processor_uid != 0xff && nmi->acpi_processor_uid != (uint8_t)acpi_uid) {
+                // Match all processors (0xff) or specific UID.
+                if (nmi->acpi_processor_uid != 0xff
+                 && (acpi_uid > 0xfe || nmi->acpi_processor_uid != acpi_uid)) {
                     continue;
                 }
 
