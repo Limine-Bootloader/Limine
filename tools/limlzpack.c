@@ -28,8 +28,59 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef unsigned char byte;
+
+static uint16_t endswap16(uint16_t value) {
+    uint16_t ret = 0;
+    ret |= (value >> 8) & 0x00ff;
+    ret |= (value << 8) & 0xff00;
+    return ret;
+}
+
+static uint32_t endswap32(uint32_t value) {
+    uint32_t ret = 0;
+    ret |= (value >> 24) & 0x000000ff;
+    ret |= (value >> 8)  & 0x0000ff00;
+    ret |= (value << 8)  & 0x00ff0000;
+    ret |= (value << 24) & 0xff000000;
+    return ret;
+}
+
+static uint64_t endswap64(uint64_t value) {
+    uint64_t ret = 0;
+    ret |= (value >> 56) & 0x00000000000000ff;
+    ret |= (value >> 40) & 0x000000000000ff00;
+    ret |= (value >> 24) & 0x0000000000ff0000;
+    ret |= (value >> 8)  & 0x00000000ff000000;
+    ret |= (value << 8)  & 0x000000ff00000000;
+    ret |= (value << 24) & 0x0000ff0000000000;
+    ret |= (value << 40) & 0x00ff000000000000;
+    ret |= (value << 56) & 0xff00000000000000;
+    return ret;
+}
+
+#ifdef __BYTE_ORDER__
+
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define bigendian true
+#else
+#define bigendian false
+#endif
+
+#else /* !__BYTE_ORDER__ */
+
+static bool bigendian = false;
+
+#endif /* !__BYTE_ORDER__ */
+
+#define ENDSWAP(VALUE) (bigendian ? (                    \
+    sizeof(VALUE) == 1 ? (VALUE)          :              \
+    sizeof(VALUE) == 2 ? endswap16(VALUE) :              \
+    sizeof(VALUE) == 4 ? endswap32(VALUE) :              \
+    sizeof(VALUE) == 8 ? endswap64(VALUE) : (abort(), 1) \
+) : (VALUE))
 
 /*  Higher -> better compression with exponentally dimnishing gains.  */
 #define LIMLZ_SA_NEIGHBORS 32
@@ -295,6 +346,11 @@ static uint32_t crc32_nibble(const byte *data, size_t len) {
 }
 
 int main(int argc, char *argv[]) {
+#ifndef __BYTE_ORDER__
+  uint32_t endcheck = 0x12345678;
+  uint8_t endbyte = *((uint8_t *)&endcheck);
+  bigendian = endbyte == 0x12;
+#endif
   if (argc != 3) {
     fprintf(stderr, "? %s <input> <output>\n", argv[0]);  return 1;
   }
@@ -318,7 +374,7 @@ int main(int argc, char *argv[]) {
   if (!outsz) {
     fprintf(stderr, "? limlzpack\n");  return 1;
   }
-  uint32_t crc = crc32_nibble(inbuf, insz);
+  uint32_t crc = ENDSWAP(crc32_nibble(inbuf, insz));
   fwrite(&crc, sizeof(crc), 1, fout);
   fwrite(outbuf, 1, outsz, fout);
   fclose(fout);
