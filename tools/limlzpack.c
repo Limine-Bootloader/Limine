@@ -218,6 +218,7 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
     dp[i] = best_cost;  pick[i].lit = best_lit;
     pick[i].mlen = best_len;  pick[i].off = best_off;
   }
+  int terminated = 0;
   for (i = 0; i < srcsz; ) {
     byte * tokenp;
     size_t lit = pick[i].lit, ml = pick[i].mlen;
@@ -241,6 +242,7 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
     i += lit;
     if (i >= srcsz) {
       *tokenp = (byte)(token_hi << 3);
+      terminated = 1;
       break;
     }
     unsigned mode_bit = (off > 255) ? 1u : 0u;
@@ -259,6 +261,14 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
     if (encode_len_tail_ml(&out, out_end, ml - 4))
       goto fail;
     i += ml;
+  }
+  /* A match-ended parse leaves no trailing token; the decompressor keys
+   * termination off a zero-or-more-byte literal copy reaching ipe, so always
+   * emit a final lit=0 token when the main loop didn't already. */
+  if (!terminated) {
+    if (out >= out_end)
+      goto fail;
+    *out++ = 0;
   }
   free(mch);  free(pick);  free(bestm);  free(dp);
   return (size_t)(out - dstp);
