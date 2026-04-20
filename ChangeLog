@@ -1,3 +1,17 @@
+2026-04-20  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 11.4.1 ***
+
+    Noteworthy changes compared to the previous release, 11.4.0:
+
+    Bug fixes:
+        - Fix an issue with the limlz compressor/decompressor that could cause
+          spurious failures ("limine integrity error") on the legacy x86 BIOS
+          port.
+        - Portability fixes for the `limlzpack` build-time tool (mainly fixing
+          it on big-endian build systems).
+        - Miscellaneous bug fixes.
+
 2026-04-19  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 11.4.0 ***
