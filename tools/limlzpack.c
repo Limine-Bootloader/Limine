@@ -85,29 +85,29 @@ static bool bigendian = false;
 /*  Higher -> better compression with exponentally dimnishing gains.  */
 #define LIMLZ_SA_NEIGHBORS 32
 
-struct sa_cmp_ctx { int * rank; size_t n, k; };
+struct sa_cmp_ctx { int32_t *rank; size_t n, k; };
 static struct sa_cmp_ctx g_sa_ctx;
 
-static int sa_cmp_idx(int i, int j) {
-  int ri, rj;
+static int32_t sa_cmp_idx(int32_t i, int32_t j) {
+  int32_t ri, rj;
   if (g_sa_ctx.rank[i] != g_sa_ctx.rank[j])
     return g_sa_ctx.rank[i] - g_sa_ctx.rank[j];
-  ri = (i + (int)g_sa_ctx.k < (int)g_sa_ctx.n) ? g_sa_ctx.rank[i + g_sa_ctx.k] : -1;
-  rj = (j + (int)g_sa_ctx.k < (int)g_sa_ctx.n) ? g_sa_ctx.rank[j + g_sa_ctx.k] : -1;
+  ri = (i + (int32_t)g_sa_ctx.k < (int32_t)g_sa_ctx.n) ? g_sa_ctx.rank[i + g_sa_ctx.k] : -1;
+  rj = (j + (int32_t)g_sa_ctx.k < (int32_t)g_sa_ctx.n) ? g_sa_ctx.rank[j + g_sa_ctx.k] : -1;
   return ri - rj;
 }
 
 static int sa_qsort_cmp(const void * a, const void * b) {
-  int i = *(const int *) a, j = *(const int *) b;
-  return sa_cmp_idx(i, j);
+  int32_t d = sa_cmp_idx(*(const int32_t *)a, *(const int32_t *)b);
+  return (d > 0) - (d < 0);
 }
 
-static int saca(const byte * s, size_t n, int * sa, int * rank, int * tmp) {
+static int saca(const byte * s, size_t n, int32_t * sa, int32_t * rank, int32_t * tmp) {
   size_t i;
   if (!n)
     return 0;
   for (i = 0; i < n; ++i) {
-    sa[i] = (int)i;  rank[i] = (int)s[i];
+    sa[i] = (int32_t)i;  rank[i] = (int32_t)s[i];
   }
   for (g_sa_ctx.k = 1;; g_sa_ctx.k <<= 1) {
     g_sa_ctx.rank = rank;  g_sa_ctx.n = n;
@@ -133,7 +133,7 @@ struct match_choice { uint32_t len;  uint16_t off; };
 struct parse_choice { uint32_t lit, mlen;  uint16_t off; };
 
 static int longest_matches(const byte * src, size_t n, struct match_choice * mch) {
-  int * sa, * rank, * tmp, * inv;
+  int32_t *sa, *rank, *tmp, *inv;
   size_t i;
   if (!n)
     return 0;
@@ -146,9 +146,10 @@ static int longest_matches(const byte * src, size_t n, struct match_choice * mch
     return -1;
   }
   for (i = 0; i < n; ++i)
-    inv[sa[i]] = (int)i;
+    inv[sa[i]] = (int32_t)i;
   for (i = 0; i < n; ++i) {
-    int r = inv[i], d, rr;
+    int32_t r = inv[i], rr;
+    int d;
     size_t best_len = 0;
     uint16_t best_off = 0;
     for (d = -LIMLZ_SA_NEIGHBORS; d <= LIMLZ_SA_NEIGHBORS; ++d) {
@@ -156,7 +157,7 @@ static int longest_matches(const byte * src, size_t n, struct match_choice * mch
       if (!d)
         continue;
       rr = r + d;
-      if (rr < 0 || rr >= (int)n)
+      if (rr < 0 || rr >= (int32_t)n)
         continue;
       j = (size_t)sa[rr];
       if (j >= i)
