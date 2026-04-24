@@ -75,6 +75,8 @@ _start:
     mov    esi, ecx
     lea    ecx, [eax+0x4]            ; count = matchlen + 4
     rep    movsb                     ; copy match
+    cmp    edx, ebx                  ; guard against streams that end on a match
+    jae    .Lcrc
     jmp    .Ltoken
     ; CRC32 verification
 .Lcrc:

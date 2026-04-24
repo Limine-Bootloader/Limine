@@ -28,35 +28,86 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef unsigned char byte;
+
+static uint16_t endswap16(uint16_t value) {
+    uint16_t ret = 0;
+    ret |= (value >> 8) & 0x00ff;
+    ret |= (value << 8) & 0xff00;
+    return ret;
+}
+
+static uint32_t endswap32(uint32_t value) {
+    uint32_t ret = 0;
+    ret |= (value >> 24) & 0x000000ff;
+    ret |= (value >> 8)  & 0x0000ff00;
+    ret |= (value << 8)  & 0x00ff0000;
+    ret |= (value << 24) & 0xff000000;
+    return ret;
+}
+
+static uint64_t endswap64(uint64_t value) {
+    uint64_t ret = 0;
+    ret |= (value >> 56) & 0x00000000000000ff;
+    ret |= (value >> 40) & 0x000000000000ff00;
+    ret |= (value >> 24) & 0x0000000000ff0000;
+    ret |= (value >> 8)  & 0x00000000ff000000;
+    ret |= (value << 8)  & 0x000000ff00000000;
+    ret |= (value << 24) & 0x0000ff0000000000;
+    ret |= (value << 40) & 0x00ff000000000000;
+    ret |= (value << 56) & 0xff00000000000000;
+    return ret;
+}
+
+#ifdef __BYTE_ORDER__
+
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define bigendian true
+#else
+#define bigendian false
+#endif
+
+#else /* !__BYTE_ORDER__ */
+
+static bool bigendian = false;
+
+#endif /* !__BYTE_ORDER__ */
+
+#define ENDSWAP(VALUE) (bigendian ? (                    \
+    sizeof(VALUE) == 1 ? (VALUE)          :              \
+    sizeof(VALUE) == 2 ? endswap16(VALUE) :              \
+    sizeof(VALUE) == 4 ? endswap32(VALUE) :              \
+    sizeof(VALUE) == 8 ? endswap64(VALUE) : (abort(), 1) \
+) : (VALUE))
 
 /*  Higher -> better compression with exponentally dimnishing gains.  */
 #define LIMLZ_SA_NEIGHBORS 32
 
-struct sa_cmp_ctx { int * rank; size_t n, k; };
+struct sa_cmp_ctx { int32_t *rank; size_t n, k; };
 static struct sa_cmp_ctx g_sa_ctx;
 
-static int sa_cmp_idx(int i, int j) {
-  int ri, rj;
+static int32_t sa_cmp_idx(int32_t i, int32_t j) {
+  int32_t ri, rj;
   if (g_sa_ctx.rank[i] != g_sa_ctx.rank[j])
     return g_sa_ctx.rank[i] - g_sa_ctx.rank[j];
-  ri = (i + (int)g_sa_ctx.k < (int)g_sa_ctx.n) ? g_sa_ctx.rank[i + g_sa_ctx.k] : -1;
-  rj = (j + (int)g_sa_ctx.k < (int)g_sa_ctx.n) ? g_sa_ctx.rank[j + g_sa_ctx.k] : -1;
+  ri = (i + (int32_t)g_sa_ctx.k < (int32_t)g_sa_ctx.n) ? g_sa_ctx.rank[i + g_sa_ctx.k] : -1;
+  rj = (j + (int32_t)g_sa_ctx.k < (int32_t)g_sa_ctx.n) ? g_sa_ctx.rank[j + g_sa_ctx.k] : -1;
   return ri - rj;
 }
 
 static int sa_qsort_cmp(const void * a, const void * b) {
-  int i = *(const int *) a, j = *(const int *) b;
-  return sa_cmp_idx(i, j);
+  int32_t d = sa_cmp_idx(*(const int32_t *)a, *(const int32_t *)b);
+  return (d > 0) - (d < 0);
 }
 
-static int saca(const byte * s, size_t n, int * sa, int * rank, int * tmp) {
+static int saca(const byte * s, size_t n, int32_t * sa, int32_t * rank, int32_t * tmp) {
   size_t i;
   if (!n)
     return 0;
   for (i = 0; i < n; ++i) {
-    sa[i] = (int)i;  rank[i] = (int)s[i];
+    sa[i] = (int32_t)i;  rank[i] = (int32_t)s[i];
   }
   for (g_sa_ctx.k = 1;; g_sa_ctx.k <<= 1) {
     g_sa_ctx.rank = rank;  g_sa_ctx.n = n;
@@ -82,7 +133,7 @@ struct match_choice { uint32_t len;  uint16_t off; };
 struct parse_choice { uint32_t lit, mlen;  uint16_t off; };
 
 static int longest_matches(const byte * src, size_t n, struct match_choice * mch) {
-  int * sa, * rank, * tmp, * inv;
+  int32_t *sa, *rank, *tmp, *inv;
   size_t i;
   if (!n)
     return 0;
@@ -95,9 +146,10 @@ static int longest_matches(const byte * src, size_t n, struct match_choice * mch
     return -1;
   }
   for (i = 0; i < n; ++i)
-    inv[sa[i]] = (int)i;
+    inv[sa[i]] = (int32_t)i;
   for (i = 0; i < n; ++i) {
-    int r = inv[i], d, rr;
+    int32_t r = inv[i], rr;
+    int d;
     size_t best_len = 0;
     uint16_t best_off = 0;
     for (d = -LIMLZ_SA_NEIGHBORS; d <= LIMLZ_SA_NEIGHBORS; ++d) {
@@ -105,7 +157,7 @@ static int longest_matches(const byte * src, size_t n, struct match_choice * mch
       if (!d)
         continue;
       rr = r + d;
-      if (rr < 0 || rr >= (int)n)
+      if (rr < 0 || rr >= (int32_t)n)
         continue;
       j = (size_t)sa[rr];
       if (j >= i)
@@ -218,6 +270,7 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
     dp[i] = best_cost;  pick[i].lit = best_lit;
     pick[i].mlen = best_len;  pick[i].off = best_off;
   }
+  int terminated = 0;
   for (i = 0; i < srcsz; ) {
     byte * tokenp;
     size_t lit = pick[i].lit, ml = pick[i].mlen;
@@ -241,6 +294,7 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
     i += lit;
     if (i >= srcsz) {
       *tokenp = (byte)(token_hi << 3);
+      terminated = 1;
       break;
     }
     unsigned mode_bit = (off > 255) ? 1u : 0u;
@@ -259,6 +313,14 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
     if (encode_len_tail_ml(&out, out_end, ml - 4))
       goto fail;
     i += ml;
+  }
+  /* A match-ended parse leaves no trailing token; the decompressor keys
+   * termination off a zero-or-more-byte literal copy reaching ipe, so always
+   * emit a final lit=0 token when the main loop didn't already. */
+  if (!terminated) {
+    if (out >= out_end)
+      goto fail;
+    *out++ = 0;
   }
   free(mch);  free(pick);  free(bestm);  free(dp);
   return (size_t)(out - dstp);
@@ -285,6 +347,11 @@ static uint32_t crc32_nibble(const byte *data, size_t len) {
 }
 
 int main(int argc, char *argv[]) {
+#ifndef __BYTE_ORDER__
+  uint32_t endcheck = 0x12345678;
+  uint8_t endbyte = *((uint8_t *)&endcheck);
+  bigendian = endbyte == 0x12;
+#endif
   if (argc != 3) {
     fprintf(stderr, "? %s <input> <output>\n", argv[0]);  return 1;
   }
@@ -308,7 +375,7 @@ int main(int argc, char *argv[]) {
   if (!outsz) {
     fprintf(stderr, "? limlzpack\n");  return 1;
   }
-  uint32_t crc = crc32_nibble(inbuf, insz);
+  uint32_t crc = ENDSWAP(crc32_nibble(inbuf, insz));
   fwrite(&crc, sizeof(crc), 1, fout);
   fwrite(outbuf, 1, outsz, fout);
   fclose(fout);

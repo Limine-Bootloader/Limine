@@ -101,7 +101,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/Mintsuki/Flanterm.git \
         flanterm \
-        112434532822dde252c84b25a6798a9c00515d66
+        f3221ad399f08437efd6de77a5f0d9a5607a8649
 
     download_by_hash \
         https://github.com/nothings/stb/raw/5c205738c191bcb0abc65c4febfa9bd25ff35234/stb_image.h \

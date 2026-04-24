@@ -493,6 +493,10 @@ noreturn void limine_load(char *config, char *cmdline) {
     strcpy(k_path_copy, kernel_path);
     char *k_resource = NULL, *k_root = NULL, *k_path = NULL, *k_hash = NULL;
     uri_resolve(k_path_copy, &k_resource, &k_root, &k_path, &k_hash);
+    // Strip the gzip `$` marker so reuse for module paths doesn't double-prefix.
+    if (k_resource[0] == '$') {
+        k_resource++;
+    }
     // Copy k_resource and k_root since uri_resolve returns pointers to a static
     // buffer that gets overwritten by subsequent uri_open/uri_resolve calls
     k_resource = strdup(k_resource);

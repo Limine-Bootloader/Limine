@@ -37,13 +37,10 @@ bool gzip_check(struct file_handle * fd);
  * decompresses the data.  The returned handle takes ownership of
  * `compressed` and will close it when itself is closed.
  *
- * WARNING: Due to a Gzip format deficiency, ->size of the resulting
- * file_handle is only an approximation (i.e., it is not correct for
- * files larger than 4 GiB and doesn't necessarily have to reflect
- * the genuine decompressed size at all in adversarial circumstances).
- * 
- * The real decompressed size can only be authoritatively obtained by
- * fully decompressing the file.
+ * NOTE: ->size on the returned handle is set to UINT64_MAX as a
+ * sentinel for "unknown". The gzip ISIZE trailer is decompressed-size
+ * mod 2^32 and is not parsed here. Callers must drive ->read until
+ * it returns 0 (end-of-stream) to discover the true size.
  *
  * Supports very fast sequential reads and random-access reads (with
  * an implicit rewind + skip penalty inherent to the gzip format).

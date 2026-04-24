@@ -56,9 +56,9 @@ static size_t gz_source_read(void * user, void * buf, size_t len) {
   uint64_t avail = gh->source->size - gh->src_pos;
   if ((uint64_t)len > avail) len = (size_t)avail;
   if (len == 0) return 0;
-  fread(gh->source, buf, gh->src_pos, len);
-  gh->src_pos += len;
-  return len;
+  size_t got = fread(gh->source, buf, gh->src_pos, len);
+  gh->src_pos += got;
+  return got;
 }
 
 /*  (Re)initialize the decoder for a fresh pass over the compressed stream.

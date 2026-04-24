@@ -83,6 +83,9 @@ void fclose(struct file_handle *fd) {
 
 uint64_t fread(struct file_handle *fd, void *buf, uint64_t loc, uint64_t count) {
     if (fd->is_memfile) {
+        if (fd->is_high_mem) {
+            panic(false, "fread: memfile resides above 4 GiB; caller must use load_addr_64 directly");
+        }
         if (loc >= fd->size || count > fd->size - loc) {
             panic(false, "fread: attempted out of bounds read");
         }
