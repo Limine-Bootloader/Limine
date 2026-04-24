@@ -76,7 +76,10 @@ Miscellaneous:
 
 * `timeout` - Specifies the timeout in seconds before the first *entry* is
   automatically booted. If set to `no`, disable automatic boot. If set to `0`,
-  boots default entry instantly (see `default_entry` option).
+  boot the default entry (see `default_entry` option) after a brief (~1 second)
+  window during which pressing any key reveals the menu. This window matches
+  the systemd-boot behaviour of allowing the user to hold a key (space is a
+  good choice) to bring up the menu at zero timeout.
 * `quiet` - If set to `yes`, enable quiet mode, where all screen output except
   panics and important warnings is suppressed. If `timeout` is not 0, the
   `timeout` still occurs, and pressing any key during the timeout will reveal

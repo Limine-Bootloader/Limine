@@ -1326,8 +1326,13 @@ noreturn void _menu(bool first_run) {
             quiet = false;
             print("Default entry is not valid or directory, booting to menu.\n");
             skip_timeout = true;
-        } else {
+        } else if (pit_sleep_and_quit_on_keypress(1) == 0) {
             goto autoboot;
+        } else {
+            /*  systemd-boot-esque: key pressed in the brief boot window; reveal the
+                menu instead of booting the default entry.  */
+            skip_timeout = true;
+            quiet = false;
         }
     }
 
@@ -1581,7 +1586,6 @@ timeout_aborted:
                 goto refresh;
             case GETCHAR_CURSOR_RIGHT:
             case '\n':
-            case ' ':
             autoboot:
                 if (max_entries == 0) {
                     break;
@@ -1656,6 +1660,37 @@ timeout_aborted:
                     }
                     booting_from_blank = false;
                     goto refresh;
+                }
+                break;
+            }
+            default: {
+                /*  Cycle the selection to the next visible entry whose name starts
+                    with the pressed letter  */
+                if (max_entries == 0)
+                    break;
+                if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
+                    break;
+                char target = (char)c;
+                if (target >= 'A' && target <= 'Z') {
+                    target = (char)(target - 'A' + 'a');
+                }
+                for (size_t step = 1; step <= max_entries; step++) {
+                    size_t idx = (selected_entry + step) % max_entries;
+                    struct menu_entry * candidate = NULL;
+                    print_tree(0, 0, NULL, 0, 0, idx, menu_tree,
+                               &candidate, NULL, NULL);
+                    if (candidate == NULL || candidate->name == NULL
+                     || candidate->name[0] == 0) {
+                        continue;
+                    }
+                    char first = candidate->name[0];
+                    if (first >= 'A' && first <= 'Z') {
+                        first = (char)(first - 'A' + 'a');
+                    }
+                    if (first == target) {
+                        selected_entry = idx;
+                        goto refresh;
+                    }
                 }
                 break;
             }
