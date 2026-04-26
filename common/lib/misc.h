@@ -150,4 +150,14 @@ struct mem_range {
     uint64_t permissions;
 };
 
+static inline const char *current_firmware(void) {
+#if defined (UEFI)
+    return "UEFI";
+#elif defined (BIOS)
+    return "BIOS";
+#else
+#error "Unspecified firmware type"
+#endif
+}
+
 #endif

@@ -621,40 +621,13 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
     }
     char *cur_entry_if_fw_type = config_get_value(entry->body, 0, "IF_FW_TYPE");
     if (cur_entry_if_fw_type) {
-#if defined (UEFI)
-        if (strcmp(cur_entry_if_fw_type, "efi") != 0
-         && strcmp(cur_entry_if_fw_type, "uefi") != 0) {
-#elif defined (BIOS)
-        if (strcmp(cur_entry_if_fw_type, "bios") != 0) {
-#else
-#error "Unspecified firmware type"
-#endif
+        if (strcmp(cur_entry_if_fw_type, current_firmware()) != 0) {
             return true;
         }
     }
     char *cur_entry_if_arch = config_get_value(entry->body, 0, "IF_ARCH");
     if (cur_entry_if_arch) {
-        const char *arch;
-#if defined (__x86_64__)
-        arch = "x86-64";
-#elif defined (__i386__)
-        {
-        uint32_t eax, ebx, ecx, edx;
-        if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
-            arch = "ia-32";
-        } else {
-            arch = "x86-64";
-        }
-        }
-#elif defined (__aarch64__)
-        arch = "aarch64";
-#elif defined (__riscv)
-        arch = "riscv64";
-#elif defined (__loongarch64)
-        arch = "loongarch64";
-#else
-#error "Unspecified architecture"
-#endif
+        const char *arch = current_arch();
         char *cur_arch = cur_entry_if_arch;
         bool skip = true;
         while (*cur_arch) {
