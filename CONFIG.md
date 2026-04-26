@@ -208,7 +208,7 @@ Editor control options:
   Can be omitted.
 * `kernel_cmdline` - Alias of `cmdline`.
 * `if_fw_type` - Hide the entry if the firmware does not match. Valid values
-  are: `bios`, `efi` (or `uefi`)
+  are: `BIOS`, `UEFI`
 * `if_arch` - Hide the entry if the current CPU architecture is not in the
   space separated list of permitted architectures
     * see the `ARCH` macro in [Built-in macros](#built-in-macros) for a list of possible architectures
