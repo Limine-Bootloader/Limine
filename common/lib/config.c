@@ -412,13 +412,13 @@ skip_loop:
     // Load macros
     struct macro *arch_macro = ext_mem_alloc(sizeof(struct macro));
     strcpy(arch_macro->name, "ARCH");
-	strcpy(arch_macro->value, current_arch());
+    strcpy(arch_macro->value, current_arch());
     arch_macro->next = macros;
     macros = arch_macro;
 
     struct macro *fw_type_macro = ext_mem_alloc(sizeof(struct macro));
     strcpy(fw_type_macro->name, "FW_TYPE");
-	strcpy(fw_type_macro->value, current_firmware());
+    strcpy(fw_type_macro->value, current_firmware());
     fw_type_macro->next = macros;
     macros = fw_type_macro;
 
