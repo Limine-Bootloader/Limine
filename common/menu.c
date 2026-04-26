@@ -621,7 +621,7 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
     }
     char *cur_entry_if_fw_type = config_get_value(entry->body, 0, "IF_FW_TYPE");
     if (cur_entry_if_fw_type) {
-        if (strcmp(cur_entry_if_fw_type, current_firmware()) != 0) {
+        if (strcasecmp(cur_entry_if_fw_type, current_firmware()) != 0) {
             return true;
         }
     }
