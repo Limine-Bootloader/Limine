@@ -111,6 +111,7 @@ static void fb_flush_riscv(volatile void *base, size_t length) {
     for (uintptr_t ptr = start; ptr < end; ptr += cbom_block_size) {
         asm volatile("cbo.flush (%0)" :: "r"(ptr) : "memory");
     }
+    asm volatile ("fence rw, rw" ::: "memory");
 }
 
 static void fb_flush_riscv_nozicbom(volatile void *base, size_t length) {

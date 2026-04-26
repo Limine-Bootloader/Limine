@@ -297,6 +297,7 @@ dist:
 	cp -r '$(call SHESCAPE,$(SRCDIR))'/.git '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)"/
 	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && git checkout .
 	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && ./bootstrap
+	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/contrib"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/freestnd-c-hdrs/.git"
@@ -305,7 +306,8 @@ dist:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/picoefi/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/cc-runtime"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/libfdt/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/common/lib/stb_image.h.nopatch"
+	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/stbi-hardened"
+	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/pdgzip"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.github"
@@ -330,7 +332,7 @@ distclean: clean
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
-	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf flanterm common/lib/stb_image.h.nopatch common/lib/stb_image.h libfdt freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
+	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf flanterm stbi-hardened common/lib/stb_image.h pdgzip common/compress/pdgzip.c common/compress/pdgzip.h libfdt freestnd-c-hdrs cc-runtime common/cc-runtime.s2.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
 
 .PHONY: common-uefi-x86-64
 common-uefi-x86-64:

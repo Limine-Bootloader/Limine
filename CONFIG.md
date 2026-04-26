@@ -130,25 +130,19 @@ Limine interface control options:
   It can be any of the following values: `0`, `90`, `180`, `270`. Default is `0`.
 * `interface_branding` - A string that will be displayed on top of the Limine
   interface.
-* `interface_branding_colour` - A value between 0 and 7 specifying the colour
-  of the branding string. See below for a table of colours. Default is `6`.
+* `interface_branding_colour` - An `RRGGBB` hexadecimal value specifying the
+  colour of the branding string. Default is `00aaaa`.
 * `interface_branding_color` - Alias of `interface_branding_colour`.
 * `interface_help_hidden` - Hides the help text located at the top of the
   screen showing the key bindings.
-* `interface_help_colour` - A value between 0 and 7 specifying the colour
-  of the help strings. See below for a table of colours. Default is `2`.
+* `interface_help_colour` - An `RRGGBB` hexadecimal value specifying the
+  colour of the help strings. Default is `00aa00`.
 * `interface_help_color` - Alias of `interface_help_colour`.
-
- | Code | Color   |
- |------|---------|
- | 0    | Black   |
- | 1    | Red     |
- | 2    | Green   |
- | 3    | Yellow  |
- | 4    | Blue    |
- | 5    | Magenta |
- | 6    | Cyan    |
- | 7    | Gray    |
+* `interface_help_colour_bright` - An `RRGGBB` hexadecimal value specifying
+  the brighter accent colour used for the auto-boot countdown digit. If
+  unspecified, it is derived from `interface_help_colour` by adding `0x55`
+  to each channel (saturating at `0xff`).
+* `interface_help_color_bright` - Alias of `interface_help_colour_bright`.
 
 Limine graphical terminal control options:
 

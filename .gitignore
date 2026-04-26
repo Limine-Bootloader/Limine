@@ -27,7 +27,7 @@
 /picoefi
 /freestnd-c-hdrs
 /flanterm
-/common/lib/stb_image.h.nopatch
+/stbi-hardened
 /common/lib/stb_image.h
 /common/cc-runtime.s2.c
 /cc-runtime

@@ -52,7 +52,7 @@ below) provides headers and build-time support for UEFI.
 - [Flanterm](https://github.com/Mintsuki/Flanterm) (BSD-2-Clause) is used for
 text related screen drawing.
 
-- [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h) (MIT) is
+- [stb_image (hardened)](https://github.com/Mintsuki/stbi-hardened) (MIT) is
 used for wallpaper image loading.
 
 - [libfdt](https://github.com/osdev0/libfdt) (BSD-2-Clause) is used for

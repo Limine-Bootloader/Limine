@@ -38,11 +38,59 @@ EFI_GUID limine_efi_vendor_guid =
 #define TOK_BADKEY 3
 #define TOK_COMMENT 4
 
-static char interface_help_colour[] = "\e[32m";
-static char interface_help_colour_bright[] = "\e[92m";
+static char interface_help_colour[24] = "\e[38;2;0;170;0m";
+static char interface_help_colour_bright[24] = "\e[38;2;85;255;85m";
+static char menu_branding_colour[24] = "\e[38;2;0;170;170m";
 
 static char *menu_branding = NULL;
-static char *menu_branding_colour = NULL;
+
+static char *write_uint8_dec(char *p, uint8_t v) {
+    if (v >= 100) {
+        *p++ = '0' + v / 100;
+        *p++ = '0' + (v / 10) % 10;
+        *p++ = '0' + v % 10;
+    } else if (v >= 10) {
+        *p++ = '0' + v / 10;
+        *p++ = '0' + v % 10;
+    } else {
+        *p++ = '0' + v;
+    }
+    return p;
+}
+
+static void format_fg_rgb_escape(char *buf, uint32_t rgb) {
+    char *p = buf;
+    *p++ = '\e'; *p++ = '['; *p++ = '3'; *p++ = '8'; *p++ = ';';
+    *p++ = '2'; *p++ = ';';
+    p = write_uint8_dec(p, (rgb >> 16) & 0xff);
+    *p++ = ';';
+    p = write_uint8_dec(p, (rgb >> 8) & 0xff);
+    *p++ = ';';
+    p = write_uint8_dec(p, rgb & 0xff);
+    *p++ = 'm';
+    *p = '\0';
+}
+
+static bool parse_rgb_colour_value(const char *str, uint32_t *out) {
+    const char *end;
+    uint32_t v = strtoui(str, &end, 16);
+    if (end == str) {
+        return false;
+    }
+    *out = v & 0xffffff;
+    return true;
+}
+
+static uint32_t brighten_rgb(uint32_t rgb) {
+    uint32_t r = (rgb >> 16) & 0xff;
+    uint32_t g = (rgb >> 8) & 0xff;
+    uint32_t b = rgb & 0xff;
+    r = r + 0x55 > 0xff ? 0xff : r + 0x55;
+    g = g + 0x55 > 0xff ? 0xff : g + 0x55;
+    b = b + 0x55 > 0xff ? 0xff : b + 0x55;
+    return (r << 16) | (g << 8) | b;
+}
+
 no_unwind bool booting_from_editor = false;
 static no_unwind bool booting_from_blank = false;
 static no_unwind char saved_orig_entry[EDITOR_MAX_BUFFER_SIZE];
@@ -236,10 +284,10 @@ refresh:
                 size_t max_len = terms[0]->cols - 2;
                 if (branding_len <= max_len) {
                     set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
-                    print("\e[3%sm%s\e[0m", menu_branding_colour, menu_branding);
+                    print("%s%s\e[0m", menu_branding_colour, menu_branding);
                 } else {
                     set_cursor_pos_helper(1, y);
-                    print("\e[3%sm%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
+                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
                 }
             }
             print("\n\n");
@@ -1105,14 +1153,25 @@ noreturn void _menu(bool first_run) {
         help_hidden = strcmp(help_hidden_str, "yes") == 0;
     }
 
+    uint32_t help_rgb = 0x00aa00;
     char *interface_help_colour_str = config_get_value(NULL, 0, "INTERFACE_HELP_COLOUR");
     if (interface_help_colour_str == NULL) {
         interface_help_colour_str = config_get_value(NULL, 0, "INTERFACE_HELP_COLOR");
     }
-    if (interface_help_colour_str != NULL && interface_help_colour_str[0] != '\0') {
-        interface_help_colour[3] = interface_help_colour_str[0];
-        interface_help_colour_bright[3] = interface_help_colour_str[0];
+    if (interface_help_colour_str != NULL) {
+        parse_rgb_colour_value(interface_help_colour_str, &help_rgb);
     }
+    format_fg_rgb_escape(interface_help_colour, help_rgb);
+
+    uint32_t help_bright_rgb = brighten_rgb(help_rgb);
+    char *interface_help_colour_bright_str = config_get_value(NULL, 0, "INTERFACE_HELP_COLOUR_BRIGHT");
+    if (interface_help_colour_bright_str == NULL) {
+        interface_help_colour_bright_str = config_get_value(NULL, 0, "INTERFACE_HELP_COLOR_BRIGHT");
+    }
+    if (interface_help_colour_bright_str != NULL) {
+        parse_rgb_colour_value(interface_help_colour_bright_str, &help_bright_rgb);
+    }
+    format_fg_rgb_escape(interface_help_colour_bright, help_bright_rgb);
 
     bool custom_branding = false;
     {
@@ -1173,11 +1232,10 @@ noreturn void _menu(bool first_run) {
         if (tmp == NULL)
             tmp = config_get_value(NULL, 0, "INTERFACE_BRANDING_COLOR");
         if (tmp != NULL) {
-            size_t len = strlen(tmp) + 1;
-            menu_branding_colour = ext_mem_alloc(len);
-            memcpy(menu_branding_colour, tmp, len);
-        } else {
-            menu_branding_colour = "6";
+            uint32_t rgb;
+            if (parse_rgb_colour_value(tmp, &rgb)) {
+                format_fg_rgb_escape(menu_branding_colour, rgb);
+            }
         }
     }
 
@@ -1376,10 +1434,10 @@ refresh:
                 size_t max_len = terms[0]->cols - 2;
                 if (branding_len <= max_len) {
                     set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
-                    print("\e[3%sm%s\e[0m", menu_branding_colour, menu_branding);
+                    print("%s%s\e[0m", menu_branding_colour, menu_branding);
                 } else {
                     set_cursor_pos_helper(1, y);
-                    print("\e[3%sm%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
+                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
                 }
             }
             print("\n\n\n\n");

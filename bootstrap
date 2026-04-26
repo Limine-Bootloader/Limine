@@ -35,40 +35,6 @@ clone_repo_commit() {
     fi
 }
 
-download_by_hash() {
-    DOWNLOAD_COMMAND="curl -Lo"
-    if ! command -v "${DOWNLOAD_COMMAND%% *}" >/dev/null 2>&1; then
-        DOWNLOAD_COMMAND="wget -O"
-        if ! command -v "${DOWNLOAD_COMMAND%% *}" >/dev/null 2>&1; then
-            set +x
-            echo "error: Neither curl nor wget found" 1>&2
-            exit 1
-        fi
-    fi
-    SHA256_COMMAND="sha256sum"
-    if ! command -v "${SHA256_COMMAND%% *}" >/dev/null 2>&1; then
-        SHA256_COMMAND="sha256"
-        if ! command -v "${SHA256_COMMAND%% *}" >/dev/null 2>&1; then
-            set +x
-            echo "error: Cannot find sha256(sum) command" 1>&2
-            exit 1
-        fi
-    fi
-    if ! test -f "$2" || ! $SHA256_COMMAND "$2" | grep $3 >/dev/null 2>&1; then
-        rm -f "$2"
-        mkdir -p "$2" && rm -rf "$2"
-        $DOWNLOAD_COMMAND "$2" $1
-        if ! $SHA256_COMMAND "$2" | grep $3 >/dev/null 2>&1; then
-            set +x
-            echo "error: Cannot download file '$2' by hash" 1>&2
-            echo "incorrect hash:" 1>&2
-            $SHA256_COMMAND "$2" 1>&2
-            rm -f "$2"
-            exit 1
-        fi
-    fi
-}
-
 if ! test -f version; then
     clone_repo_commit \
         https://github.com/osdev0/freestnd-c-hdrs-0bsd.git \
@@ -84,7 +50,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/iczelia/pdgzip.git \
         pdgzip \
-        16c41d9af067c4185c136622c58ad4188609a3d1
+        632b51b66537e23c532b9be7b3b6c839036e1a19
     cp pdgzip/pdgzip.c common/compress/pdgzip.c
     cp pdgzip/pdgzip.h common/compress/pdgzip.h
 
@@ -101,13 +67,13 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/Mintsuki/Flanterm.git \
         flanterm \
-        f3221ad399f08437efd6de77a5f0d9a5607a8649
+        dfa1922c0749faf64c4423a81b233a20c08a7db7
 
-    download_by_hash \
-        https://github.com/nothings/stb/raw/5c205738c191bcb0abc65c4febfa9bd25ff35234/stb_image.h \
-        common/lib/stb_image.h.nopatch \
-        594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
-    cp common/lib/stb_image.h.nopatch common/lib/stb_image.h
+    clone_repo_commit \
+        https://github.com/Mintsuki/stbi-hardened.git \
+        stbi-hardened \
+        b85b7e87f6f87300f32f7de3d94e1ed083a71263
+    cp stbi-hardened/include/stb_image.h common/lib/stb_image.h
     patch -p0 < common/stb_image.patch
     rm -f common/lib/stb_image.h.orig
 
