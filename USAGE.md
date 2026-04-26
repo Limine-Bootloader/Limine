@@ -22,10 +22,11 @@ For more information see the `limine enroll-config` program and
 [the FAQ](FAQ.md).
 
 When Limine detects that UEFI Secure Boot is active (the `SecureBoot` variable
-is set and `SetupMode` is not), the following security policies are enforced:
+is set and `SetupMode` is not) **and** a config BLAKE2B checksum is enrolled
+in the Limine EFI executable, the following security policies are enforced:
 
-* The config file **must** have a BLAKE2B checksum enrolled in the Limine EFI
-  executable. If no checksum is enrolled, Limine will panic.
+* The config file is verified against the enrolled checksum on every boot.
+  Any mismatch will cause a panic.
 * All file paths (kernels, modules, DTBs, fonts, etc.) **must** have a BLAKE2B
   hash appended (e.g. `boot():/kernel#<hash>`). Loading a file without a hash
   will cause a panic. The exception is EFI chainloading, where the firmware's
@@ -34,6 +35,12 @@ is set and `SetupMode` is not), the following security policies are enforced:
   (falling back to defaults) rather than causing a panic.
 * The config editor is unconditionally disabled.
 * `hash_mismatch_panic` is forced to `yes` regardless of the config setting.
+
+If no config checksum is enrolled, Limine treats Secure Boot as inactive and
+none of the above hardening is applied. Enrolling a checksum is the explicit
+opt-in to Secure Boot enforcement; an unenrolled image can still be signed
+and booted under Secure Boot, but it provides no integrity guarantees beyond
+those of the firmware itself.
 
 ## BIOS/MBR
 In order to install Limine on a MBR device (which can just be a raw image

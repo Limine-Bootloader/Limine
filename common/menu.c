@@ -173,6 +173,8 @@ static const char *VALID_KEYS[] = {
     "IMAGE_PATH",
 	"DTB_PATH",
     "ENTRY",
+    "IF_FW_TYPE",
+    "IF_ARCH",
     NULL
 };
 
@@ -614,6 +616,43 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
          || strcmp(cur_entry_protocol, "efi_chainload") == 0
          || strcmp(cur_entry_protocol, "efi_boot_entry") == 0) {
 #endif
+            return true;
+        }
+    }
+    char *cur_entry_if_fw_type = config_get_value(entry->body, 0, "IF_FW_TYPE");
+    if (cur_entry_if_fw_type) {
+        if (strcasecmp(cur_entry_if_fw_type, current_firmware()) != 0) {
+            return true;
+        }
+    }
+    char *cur_entry_if_arch = config_get_value(entry->body, 0, "IF_ARCH");
+    if (cur_entry_if_arch) {
+        const char *arch = current_arch();
+        char *cur_arch = cur_entry_if_arch;
+        bool skip = true;
+        while (*cur_arch) {
+            char *cur_arch_end = cur_arch;
+            while (*cur_arch_end && !isspace(*cur_arch_end)) {
+                ++cur_arch_end;
+            }
+            if (cur_arch == cur_arch_end) {
+                ++cur_arch;
+                continue;
+            }
+            char buf[16];
+            if (cur_arch_end - cur_arch >= 16) {
+                cur_arch = cur_arch_end;
+                continue;
+            }
+            memcpy(buf, cur_arch, cur_arch_end - cur_arch);
+            buf[cur_arch_end - cur_arch] = '\0';
+            if (strcasecmp(buf, arch) == 0) {
+                skip = false;
+                break;
+            }
+            cur_arch = cur_arch_end;
+        }
+        if (skip) {
             return true;
         }
     }
@@ -1455,7 +1494,7 @@ refresh:
         } else {
             msg = "[config file not found]";
         }
-        set_cursor_pos_helper((terms[0]->cols - strlen(msg)) / 2, terms[0]->rows / 2);
+        set_cursor_pos_helper((terms[0]->cols - strlen(msg)) / 2, (terms[0]->rows - 1) / 2);
         print("%s\n", msg);
     }
 
@@ -1464,7 +1503,7 @@ refresh:
                              &selected_menu_entry, &max_tree_len, &max_tree_height);
 
     if (max_entries != 0) {
-        size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 2) ? (terms[0]->cols - max_tree_len - 2) / 2 : 1;
+        size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 3) ? (terms[0]->cols - max_tree_len - 3) / 2 : 1;
         char *tree_prefix = ext_mem_alloc(tree_prefix_len + 1);
         memset(tree_prefix, ' ', tree_prefix_len);
 
@@ -1472,7 +1511,7 @@ refresh:
             max_tree_height = terms[0]->rows - 8 - header_offset;
         }
 
-        size_t tree_start = terms[0]->rows / 2 - max_tree_height / 2;
+        size_t tree_start = (terms[0]->rows - max_tree_height) / 2;
         if (tree_start < 4 + header_offset) {
             tree_start = 4 + header_offset;
         }

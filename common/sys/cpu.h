@@ -512,4 +512,25 @@ static inline void stall(uint64_t us) {
     while (rdtsc() < next_stop);
 }
 
+static inline const char *current_arch(void) {
+#if defined (__x86_64__)
+    return "x86-64";
+#elif defined (__i386__)
+    uint32_t eax, ebx, ecx, edx;
+    if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
+        return "ia-32";
+    } else {
+        return "x86-64";
+    }
+#elif defined (__aarch64__)
+    return "aarch64";
+#elif defined (__riscv)
+    return "riscv64";
+#elif defined (__loongarch64)
+    return "loongarch64";
+#else
+#error "Unspecified architecture"
+#endif
+}
+
 #endif

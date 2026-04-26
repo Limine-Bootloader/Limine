@@ -1,3 +1,23 @@
+2026-04-26  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.0.2 ***
+
+    Noteworthy changes compared to the previous release, 12.0.1:
+
+    Bug fixes:
+        - Make centering bias consistently left and up across all UI elements.
+
+    Miscellaneous;
+        - Release binary tarballs without version suffixes.
+
+2026-04-25  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.0.1 ***
+
+    Same as 12.0.0, but re-released due to a botched binary release whose
+    fixed assets that cannot be amended into 12.0.0 afterwards due to release
+    immutability.
+
 2026-04-25  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.0.0 ***
@@ -7,12 +27,14 @@
     Breaking changes:
         - Re-introduce hash verification enforcement for files loaded under
           UEFI Secure Boot (originally shipped in 11.2.0 and reverted in 11.2.1
-          pending the next major version bump). When Secure Boot is active,
-          Limine now requires an enrolled config checksum, BLAKE2B hashes on
+          pending the next major version bump). When Secure Boot is active and
+          a config checksum is enrolled, Limine now requires BLAKE2B hashes on
           all loaded file paths (with EFI chainloads exempted, as they rely on
           firmware-side Secure Boot verification, and wallpaper and font files
           silently skipped on a missing hash), unconditionally disables the
-          config editor, and forces `hash_mismatch_panic` to `yes`.
+          config editor, and forces `hash_mismatch_panic` to `yes`. Enrolling
+          a config checksum is the explicit opt-in to this hardening; without
+          one, Secure Boot enforcement is not applied.
         - The `interface_branding_colour` and `interface_help_colour` config
           options now take an `RRGGBB` hexadecimal value instead of a 0-7
           colour index. A new `interface_help_colour_bright` option has been

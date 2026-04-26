@@ -226,8 +226,10 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
 
     struct file_handle *handle = ext_mem_alloc(sizeof(struct file_handle));
 
+    uint64_t expected_size = file_size;
+
     handle->efi_part_handle = part->efi_handle;
-    handle->size = file_size;
+    handle->size = expected_size;
     handle->is_memfile = true;
 
     handle->pxe = true;
@@ -254,7 +256,7 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
             NULL,
             false);
 
-    if (status) {
+    if (status || file_size != expected_size) {
         pmm_free(handle->fd, handle->size);
         pmm_free(handle->path, handle->path_len);
         pmm_free(handle, sizeof(struct file_handle));

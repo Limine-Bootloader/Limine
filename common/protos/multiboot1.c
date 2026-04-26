@@ -137,14 +137,15 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
         uint32_t bss_size = 0;
         if (header.bss_end_addr) {
-            uintptr_t bss_addr = header.load_addr + load_size;
+            uintptr_t bss_addr = CHECKED_ADD((uintptr_t)header.load_addr, load_size,
+                panic(true, "multiboot1: load_addr + load_size overflow"));
             if (header.bss_end_addr < bss_addr)
                 panic(true, "multiboot1: Illegal bss end address");
 
             bss_size = header.bss_end_addr - bss_addr;
         }
 
-        if (load_src + load_size > kernel_file_size) {
+        if (load_src > kernel_file_size || load_size > kernel_file_size - load_src) {
             panic(true, "multiboot1: load_src + load_size exceeds kernel file size");
         }
 

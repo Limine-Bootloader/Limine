@@ -354,11 +354,9 @@ static struct macro *macros = NULL;
 int init_config(size_t config_size) {
     config_b2sum += sizeof(CONFIG_B2SUM_SIGNATURE) - 1;
 
-    if (secure_boot_active && memcmp((void *)config_b2sum, CONFIG_B2SUM_EMPTY, 128) == 0) {
-        panic(false, "!!! SECURE BOOT IS ACTIVE BUT NO CONFIG CHECKSUM IS ENROLLED !!!");
-    }
-
-    if (memcmp((void *)config_b2sum, CONFIG_B2SUM_EMPTY, 128) != 0) {
+    if (memcmp((void *)config_b2sum, CONFIG_B2SUM_EMPTY, 128) == 0) {
+        secure_boot_active = false;
+    } else {
         editor_enabled = false;
 
         uint8_t out_buf[BLAKE2B_OUT_BYTES];
@@ -414,36 +412,13 @@ skip_loop:
     // Load macros
     struct macro *arch_macro = ext_mem_alloc(sizeof(struct macro));
     strcpy(arch_macro->name, "ARCH");
-#if defined (__x86_64__)
-    strcpy(arch_macro->value, "x86-64");
-#elif defined (__i386__)
-    {
-    uint32_t eax, ebx, ecx, edx;
-    if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
-        strcpy(arch_macro->value, "ia-32");
-    } else {
-        strcpy(arch_macro->value, "x86-64");
-    }
-    }
-#elif defined (__aarch64__)
-    strcpy(arch_macro->value, "aarch64");
-#elif defined (__riscv)
-    strcpy(arch_macro->value, "riscv64");
-#elif defined (__loongarch64)
-    strcpy(arch_macro->value, "loongarch64");
-#else
-#error "Unspecified architecture"
-#endif
+    strcpy(arch_macro->value, current_arch());
     arch_macro->next = macros;
     macros = arch_macro;
 
     struct macro *fw_type_macro = ext_mem_alloc(sizeof(struct macro));
     strcpy(fw_type_macro->name, "FW_TYPE");
-#if defined (UEFI)
-    strcpy(fw_type_macro->value, "UEFI");
-#else
-    strcpy(fw_type_macro->value, "BIOS");
-#endif
+    strcpy(fw_type_macro->value, current_firmware());
     fw_type_macro->next = macros;
     macros = fw_type_macro;
 

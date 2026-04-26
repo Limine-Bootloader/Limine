@@ -207,6 +207,11 @@ Editor control options:
 * `cmdline` - The command line string to be passed to the kernel/executable.
   Can be omitted.
 * `kernel_cmdline` - Alias of `cmdline`.
+* `if_fw_type` - Hide the entry if the firmware does not match. Valid values
+  are: `BIOS`, `UEFI`
+* `if_arch` - Hide the entry if the current CPU architecture is not in the
+  space separated list of permitted architectures
+    * see the `ARCH` macro in [Built-in macros](#built-in-macros) for a list of possible architectures
 
 > **NOTE:** `uefi` and `efi_chainload` are aliases of the `efi` protocol
 > option. `bios_chainload` is an alias of the `bios` protocol option.
