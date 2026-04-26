@@ -646,7 +646,7 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
             }
             memcpy(buf, cur_arch, cur_arch_end - cur_arch);
             buf[cur_arch_end - cur_arch] = '\0';
-            if (strcmp(buf, arch) == 0) {
+            if (strcasecmp(buf, arch) == 0) {
                 skip = false;
                 break;
             }
