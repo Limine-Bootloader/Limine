@@ -210,7 +210,7 @@ Editor control options:
 * `if_fw_type` - Hide the entry if the firmware does not match. Valid values
   are: `bios`, `efi` (or `uefi`)
 * `if_arch` - Hide the entry if the current CPU architecture is not in the
-  space seperated list of permitted architecutres
+  space separated list of permitted architectures
     * see the `ARCH` macro in [Built-in macros](#built-in-macros) for a list of possible architectures
 
 > **NOTE:** `uefi` and `efi_chainload` are aliases of the `efi` protocol
