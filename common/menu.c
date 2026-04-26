@@ -622,10 +622,10 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
     char *cur_entry_if_fw_type = config_get_value(entry->body, 0, "IF_FW_TYPE");
     if (cur_entry_if_fw_type) {
 #if defined (UEFI)
-        if (strcmp(cur_entry_protocol, "efi") != 0
-         && strcmp(cur_entry_protocol, "uefi") != 0) {
+        if (strcmp(cur_entry_if_fw_type, "efi") != 0
+         && strcmp(cur_entry_if_fw_type, "uefi") != 0) {
 #elif defined (BIOS)
-        if (strcmp(cur_entry_protocol, "bios") != 0) {
+        if (strcmp(cur_entry_if_fw_type, "bios") != 0) {
 #else
 #error "Unspecified firmware type"
 #endif
@@ -633,14 +633,6 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
         }
     }
     char *cur_entry_if_arch = config_get_value(entry->body, 0, "IF_ARCH");
-    uint64_t val;
-    (void) val;
-#define wait \
-    val = 0; \
-    asm volatile( \
-        "___loop: cmp %1, %0\n" \
-        "jne ___loop\n" \
-        "nop\n"::"m"(val), "N"(1):"memory");
     if (cur_entry_if_arch) {
         const char *arch;
 #if defined (__x86_64__)
