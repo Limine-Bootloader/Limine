@@ -1,4 +1,4 @@
-# Limine [![Matrix Server](https://img.shields.io/matrix/limine:matrix.org?color=000000&label=Matrix&logo=matrix)](https://matrix.to/#/#limine:matrix.org) [![Fluxer](https://img.shields.io/badge/Fluxer-Chat-4f3cc9?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0Ij4KICA8cGF0aCBkPSJNMyA3LjVjMi41LTMgNS0zIDcuNSAwczUgMyA3LjUgMCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8cGF0aCBkPSJNMyAxNi41YzIuNS0zIDUtMyA3LjUgMHM1IDMgNy41IDAiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBmaWxsPSJub25lIi8+Cjwvc3ZnPgo=&style=flat)](https://fluxer.gg/ZRviNMvT)
+# Limine [![Matrix Server](https://img.shields.io/matrix/limine:matrix.org?color=000000&label=Matrix&logo=matrix)](https://matrix.to/#/#limine:matrix.org)
 
 <p align="center">
     <img src="https://github.com/Limine-Bootloader/Limine/blob/trunk/logo.png?raw=true" alt="Limine's logo"/>
@@ -19,8 +19,7 @@ If you want to support the work I ([@mintsuki](https://github.com/Mintsuki)) do 
 Donations welcome, but absolutely not mandatory!
 
 #### Community
-We have a Matrix room at [`#limine:matrix.org`](https://matrix.to/#/#limine:matrix.org)
-and a [Fluxer community](https://fluxer.gg/ZRviNMvT) if you need support, info, or you just want to hang out with us.
+We have a Matrix room at [`#limine:matrix.org`](https://matrix.to/#/#limine:matrix.org) if you need support, info, or you just want to hang out with us.
 
 ### Limine's boot menu
 

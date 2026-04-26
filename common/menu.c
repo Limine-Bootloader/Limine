@@ -1529,7 +1529,7 @@ refresh:
         } else {
             msg = "[config file not found]";
         }
-        set_cursor_pos_helper((terms[0]->cols - strlen(msg)) / 2, terms[0]->rows / 2);
+        set_cursor_pos_helper((terms[0]->cols - strlen(msg)) / 2, (terms[0]->rows - 1) / 2);
         print("%s\n", msg);
     }
 
@@ -1538,7 +1538,7 @@ refresh:
                              &selected_menu_entry, &max_tree_len, &max_tree_height);
 
     if (max_entries != 0) {
-        size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 2) ? (terms[0]->cols - max_tree_len - 2) / 2 : 1;
+        size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 3) ? (terms[0]->cols - max_tree_len - 3) / 2 : 1;
         char *tree_prefix = ext_mem_alloc(tree_prefix_len + 1);
         memset(tree_prefix, ' ', tree_prefix_len);
 
@@ -1546,7 +1546,7 @@ refresh:
             max_tree_height = terms[0]->rows - 8 - header_offset;
         }
 
-        size_t tree_start = terms[0]->rows / 2 - max_tree_height / 2;
+        size_t tree_start = (terms[0]->rows - max_tree_height) / 2;
         if (tree_start < 4 + header_offset) {
             tree_start = 4 + header_offset;
         }

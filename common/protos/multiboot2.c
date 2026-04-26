@@ -298,7 +298,8 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
     if (addresstag != NULL) {
         size_t header_offset = (size_t)header - (size_t)kernel;
 
-        uintptr_t load_src, load_addr;
+        size_t load_src;
+        uintptr_t load_addr;
         if (addresstag->load_addr != (uint32_t)-1) {
             if (addresstag->load_addr > addresstag->header_addr) {
                 panic(true, "multiboot2: Illegal load address");
@@ -333,7 +334,8 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
         size_t bss_size = 0;
         if (addresstag->bss_end_addr != 0) {
-            uintptr_t bss_addr = load_addr + load_size;
+            uintptr_t bss_addr = CHECKED_ADD(load_addr, load_size,
+                panic(true, "multiboot2: load_addr + load_size overflow"));
             if (addresstag->bss_end_addr < bss_addr) {
                 panic(true, "multiboot2: Illegal bss end address");
             }
@@ -341,7 +343,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
             bss_size = addresstag->bss_end_addr - bss_addr;
         }
 
-        if (load_src + load_size > kernel_file_size) {
+        if (load_src > kernel_file_size || load_size > kernel_file_size - load_src) {
             panic(true, "multiboot2: load_src + load_size exceeds kernel file size");
         }
 

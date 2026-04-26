@@ -114,10 +114,9 @@ $(call MKESCAPE,$(BINDIR))/limine: $(call MKESCAPE,$(BINDIR))/Makefile $(call MK
 		LDFLAGS="$(LDFLAGS)" \
 		LIBS="$(LIBS)"
 
-$(call MKESCAPE,$(BINDIR))/Makefile: $(call MKESCAPE,$(SRCDIR))/host/host.mk $(call MKESCAPE,$(SRCDIR))/host/.gitignore
+$(call MKESCAPE,$(BINDIR))/Makefile: $(call MKESCAPE,$(SRCDIR))/host/host.mk
 	mkdir -p '$(call SHESCAPE,$(BINDIR))'
 	cp '$(call SHESCAPE,$(SRCDIR))/host/host.mk' '$(call SHESCAPE,$(BINDIR))/Makefile'
-	cp '$(call SHESCAPE,$(SRCDIR))/host/.gitignore' '$(call SHESCAPE,$(BINDIR))/'
 
 .PHONY: limine
 limine:

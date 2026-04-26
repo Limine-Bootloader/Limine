@@ -4,16 +4,22 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v12.0.0)'
+        required: true
+        type: string
 
 jobs:
   build:
-    name: Build and upload release tarball
+    name: Build and upload release artifacts
     runs-on: ubuntu-latest
     container: archlinux:latest
 
     steps:
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg gzip bzip2 xz git autoconf automake nasm curl mtools llvm clang lld
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg gzip bzip2 xz zip git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Import GPG public key
         run: gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
@@ -25,25 +31,72 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Git config
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Get tag name
-        run: echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $GITHUB_ENV
-
-      - name: Package release tarball
         run: |
-          set -e
-          ./bootstrap
-          ./configure
-          make dist
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "TAG_NAME=${{ inputs.tag }}" >> $GITHUB_ENV
+          else
+            echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $GITHUB_ENV
+          fi
 
-      - name: Sign release tarball
+      - name: Regenerate
+        run: ./bootstrap
+
+      - name: Create build dir
+        run: mkdir -p build
+
+      - name: Configure
+        run: cd build && ../configure --enable-all
+
+      - name: Package source release tarball
         run: |
-          set -e
-          for f in limine-*.tar.*; do \
-            gpg --batch --default-key 05D29860D0A0668AAEFB9D691F3C021BECA23821 --detach-sign $f; \
+          make -C build dist
+          mv build/limine-*.tar.* ./
+
+      - name: Build the bootloader
+        run: make -C build -j$(nproc)
+
+      - name: Clean limine
+        run: rm build/bin/limine
+
+      - name: Fetch MinGW
+        run: |
+          curl -Lo /tmp/mingw-i486.tar.xz https://github.com/osdev0/mingw-binary-builds/releases/latest/download/mingw-i486.tar.xz
+          cd /tmp
+          tar -xf mingw-i486.tar.xz
+
+      - name: Build limine for Windows
+        run: |
+          make -C build/bin CC="/tmp/mingw-i486/bin/i486-w64-mingw32-gcc" CFLAGS="-O2 -pipe" CPPFLAGS="-D__USE_MINGW_ANSI_STDIO" limine
+          /tmp/mingw-i486/bin/i486-w64-mingw32-strip build/bin/limine.exe
+          mkdir build/bin/limine-tool-windows-x86
+          mv build/bin/limine.exe build/bin/limine-tool-windows-x86/
+
+      - name: Copy LICENSE to bin
+        run: cp COPYING build/bin/LICENSE
+
+      - name: Remove limine-bios-hdd.bin
+        run: rm build/bin/limine-bios-hdd.bin
+
+      - name: Create binary release zip and tarballs
+        run: |
+          mv build/bin ./limine-binary
+          zip -r limine-binary.zip limine-binary
+          tar -cvf limine-binary.tar limine-binary
+          gzip < limine-binary.tar > limine-binary.tar.gz
+          xz < limine-binary.tar > limine-binary.tar.xz
+          rm -rf limine-binary.tar limine-binary
+
+      - name: Sign release tarballs
+        run: |
+          for f in limine-*.tar.* limine-binary.zip; do
+            gpg --batch --default-key 05D29860D0A0668AAEFB9D691F3C021BECA23821 --detach-sign "$f"
           done
 
       - name: Create release notes
@@ -69,8 +122,10 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:
+          tag_name: ${{ env.TAG_NAME }}
           body_path: rel_notes.txt
           files: |
             limine-*.tar.*
+            limine-binary.zip*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
