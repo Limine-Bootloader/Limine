@@ -74,6 +74,75 @@ static void format_fg_rgb_escape(char *buf, uint32_t rgb) {
     *p = '\0';
 }
 
+static size_t help_action_len(const char *label) {
+    return 2 + strlen(label);
+}
+
+static void add_help_action_len(size_t *len, size_t *count, const char *label) {
+    *len += help_action_len(label);
+    if ((*count)++ != 0) {
+        *len += 4;
+    }
+}
+
+static void print_help_action(const char *key, const char *label, bool *need_separator) {
+    if (*need_separator) {
+        print("    ");
+    }
+    *need_separator = true;
+    print("%s%s\e[0m %s", interface_help_colour, key, label);
+}
+
+static void print_secondary_help(size_t row, bool firmware_setup, bool uefi_shell, bool blank_entry) {
+    const char *firmware_setup_label = "Firmware Setup";
+    const char *uefi_shell_label = "UEFI Shell";
+    const char *blank_entry_label = "Blank Entry";
+
+    size_t len = 0;
+    size_t count = 0;
+
+    if (firmware_setup) {
+        add_help_action_len(&len, &count, firmware_setup_label);
+    }
+    if (uefi_shell) {
+        add_help_action_len(&len, &count, uefi_shell_label);
+    }
+    if (blank_entry) {
+        add_help_action_len(&len, &count, blank_entry_label);
+    }
+
+    if (len > terms[0]->cols) {
+        firmware_setup_label = "Setup";
+        uefi_shell_label = "Shell";
+        blank_entry_label = "Blank";
+
+        len = 0;
+        count = 0;
+        if (firmware_setup) {
+            add_help_action_len(&len, &count, firmware_setup_label);
+        }
+        if (uefi_shell) {
+            add_help_action_len(&len, &count, uefi_shell_label);
+        }
+        if (blank_entry) {
+            add_help_action_len(&len, &count, blank_entry_label);
+        }
+    }
+
+    set_cursor_pos_helper((terms[0]->cols > len) ? (terms[0]->cols - len) / 2 : 0, row);
+
+    bool need_separator = false;
+    if (firmware_setup) {
+        print_help_action("S", firmware_setup_label, &need_separator);
+    }
+    if (uefi_shell) {
+        print_help_action("U", uefi_shell_label, &need_separator);
+    }
+    if (blank_entry) {
+        print_help_action("B", blank_entry_label, &need_separator);
+    }
+}
+
 static bool parse_rgb_colour_value(const char *str, uint32_t *out) {
     const char *end;
     uint32_t v = strtoui(str, &end, 16);
@@ -1034,6 +1103,87 @@ static void menu_init_term(void) {
 }
 
 #if defined(UEFI)
+static struct volume *uefi_shell_volume = NULL;
+
+static char *append_string(char *p, const char *s) {
+    while (*s != '\0') {
+        *p++ = *s++;
+    }
+    *p = '\0';
+    return p;
+}
+
+static char *append_uint_dec(char *p, uint64_t val) {
+    char buf[20];
+    size_t i = 0;
+
+    do {
+        buf[i++] = '0' + (val % 10);
+        val /= 10;
+    } while (val != 0);
+
+    while (i != 0) {
+        *p++ = buf[--i];
+    }
+    *p = '\0';
+    return p;
+}
+
+static const char *uefi_shell_filename(void) {
+#if defined (__x86_64__)
+    return "shellx64.efi";
+#elif defined (__i386__)
+    return "shellia32.efi";
+#elif defined (__aarch64__)
+    return "shellaa64.efi";
+#elif defined (__riscv)
+    return "shellriscv64.efi";
+#elif defined (__loongarch64)
+    return "shellloongarch64.efi";
+#else
+#error Unknown UEFI architecture
+#endif
+}
+
+static bool uefi_shell_available(void) {
+    if (uefi_shell_volume == NULL || uefi_shell_volume->pxe) {
+        return false;
+    }
+
+    bool old_cif = case_insensitive_fopen;
+    case_insensitive_fopen = true;
+    struct file_handle *f = fopen(uefi_shell_volume, uefi_shell_filename());
+    case_insensitive_fopen = old_cif;
+
+    if (f == NULL) {
+        return false;
+    }
+
+    fclose(f);
+    return true;
+}
+
+noreturn static void boot_uefi_shell(void) {
+    char shell_entry[160];
+    char *p = shell_entry;
+
+    p = append_string(p, "PROTOCOL: efi\nPATH: ");
+    p = append_string(p, uefi_shell_volume->is_optical ? "odd" : "hdd");
+    *p++ = '(';
+    p = append_uint_dec(p, uefi_shell_volume->index);
+    *p++ = ':';
+    p = append_uint_dec(p, uefi_shell_volume->partition);
+    p = append_string(p, "):/");
+    p = append_string(p, uefi_shell_filename());
+    *p++ = '\n';
+    *p = '\0';
+
+    if (!quiet) {
+        reset_term();
+    }
+    boot(shell_entry);
+}
+
 bool reboot_to_fw_ui_supported(void) {
     uint64_t os_indications_supported;
     UINTN size = sizeof(os_indications_supported);
@@ -1082,6 +1232,10 @@ noreturn void _menu(bool first_run) {
 #if defined (BIOS)
     size_t s2_data_size = (uintptr_t)s2_data_end - (uintptr_t)s2_data_begin;
     size_t bss_size = (uintptr_t)bss_end - (uintptr_t)bss_begin;
+#endif
+
+#if defined (UEFI)
+    uefi_shell_volume = boot_volume;
 #endif
 
     if (rewound_memmap != NULL) {
@@ -1434,6 +1588,7 @@ noreturn void _menu(bool first_run) {
 
 #if defined(UEFI)
     bool reboot_to_firmware_supported = reboot_to_fw_ui_supported();
+    bool uefi_shell_supported = uefi_shell_available();
 #endif
 
     if (!first_run) {
@@ -1467,7 +1622,7 @@ noreturn void _menu(bool first_run) {
     size_t header_offset = (menu_branding[0] != '\0') ? 2 : 0;
     bool has_secondary_help = editor_enabled;
 #if defined(UEFI)
-    has_secondary_help = has_secondary_help || reboot_to_firmware_supported;
+    has_secondary_help = has_secondary_help || reboot_to_firmware_supported || uefi_shell_supported;
 #endif
     if (has_secondary_help) {
         header_offset += 2;
@@ -1586,19 +1741,10 @@ refresh:
             if (has_secondary_help) {
                 size_t secondary_row = 1 + header_offset;
 #if defined(UEFI)
-                if (reboot_to_firmware_supported && editor_enabled) {
-                    set_cursor_pos_helper((terms[0]->cols - 33) / 2, secondary_row);
-                    print("%sS\e[0m Firmware Setup    %sB\e[0m Blank Entry",
-                          interface_help_colour, interface_help_colour);
-                } else if (reboot_to_firmware_supported) {
-                    set_cursor_pos_helper((terms[0]->cols - 16) / 2, secondary_row);
-                    print("%sS\e[0m Firmware Setup", interface_help_colour);
-                } else
+                print_secondary_help(secondary_row, reboot_to_firmware_supported, uefi_shell_supported, editor_enabled);
+#else
+                print_secondary_help(secondary_row, false, false, editor_enabled);
 #endif
-                if (editor_enabled) {
-                    set_cursor_pos_helper((terms[0]->cols - 13) / 2, secondary_row);
-                    print("%sB\e[0m Blank Entry", interface_help_colour);
-                }
             }
         }
         set_cursor_pos_helper(x, y);
@@ -1664,7 +1810,7 @@ refresh:
 timeout_aborted:
         if (max_entries == 0) {
             switch (c) {
-                case 'b': case 'B': case 's': case 'S':
+                case 'b': case 'B': case 's': case 'S': case 'u': case 'U':
                     break;
                 default:
                     continue;
@@ -1760,6 +1906,13 @@ timeout_aborted:
             case 'S': {
                 if (reboot_to_firmware_supported) {
                     reboot_to_fw_ui();
+                }
+                break;
+            }
+            case 'u':
+            case 'U': {
+                if (uefi_shell_supported) {
+                    boot_uefi_shell();
                 }
                 break;
             }
