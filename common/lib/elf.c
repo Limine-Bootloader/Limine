@@ -303,6 +303,14 @@ static bool elf64_translate_vaddr(uint8_t *elf, size_t file_size,
     return false;
 }
 
+static void elf64_add_relocation_count(size_t *count, uint64_t add) {
+    if (add > SIZE_MAX - *count) {
+        panic(true, "elf: relocation count overflow");
+    }
+
+    *count += (size_t)add;
+}
+
 static bool elf64_apply_relocations(uint8_t *elf, size_t file_size, struct elf64_hdr *hdr, void *buffer, uint64_t vaddr, size_t size, uint64_t slide) {
     if (hdr->phdr_size < sizeof(struct elf64_phdr)) {
         panic(true, "elf: phdr_size < sizeof(struct elf64_phdr)");
@@ -437,9 +445,9 @@ end_of_pt_segment:
             uint64_t entry = *((uint64_t *)(elf + relr_offset + i * relr_ent));
 
             if ((entry & 1) == 0) {
-                relocs_i++;
+                elf64_add_relocation_count(&relocs_i, 1);
             } else {
-                relocs_i += __builtin_popcountll(entry) - 1;
+                elf64_add_relocation_count(&relocs_i, __builtin_popcountll(entry) - 1);
             }
         }
     }
@@ -451,7 +459,7 @@ end_of_pt_segment:
         if (rela_size % rela_ent != 0) {
             panic(true, "elf: rela_size not a multiple of rela_ent");
         }
-        relocs_i += rela_size / rela_ent;
+        elf64_add_relocation_count(&relocs_i, rela_size / rela_ent);
     }
     if (dt_pltrelsz != 0) {
         if (dt_pltrel != DT_RELA) {
@@ -463,7 +471,7 @@ end_of_pt_segment:
         if (dt_pltrelsz % rela_ent != 0) {
             panic(true, "elf: dt_pltrelsz not a multiple of rela_ent");
         }
-        relocs_i += dt_pltrelsz / rela_ent;
+        elf64_add_relocation_count(&relocs_i, dt_pltrelsz / rela_ent);
     }
     struct elf64_rela **relocs = ext_mem_alloc_counted(relocs_i, sizeof(struct elf64_rela *));
 

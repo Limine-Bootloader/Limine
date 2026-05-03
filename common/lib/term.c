@@ -6,6 +6,7 @@
 #include <lib/misc.h>
 #include <lib/fb.h>
 #include <mm/pmm.h>
+#include <mm/mtrr.h>
 #include <drivers/vga_textmode.h>
 #include <flanterm_backends/fb.h>
 
@@ -19,6 +20,10 @@ size_t terms_i = 0;
 int term_backend = _NOT_READY;
 
 void term_notready(void) {
+#if defined (__i386__) || defined (__x86_64__)
+    mtrr_wc_clear_fb_ranges();
+#endif
+
     for (size_t i = 0; i < terms_i; i++) {
         struct flanterm_context *term = terms[i];
 

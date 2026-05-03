@@ -1,3 +1,39 @@
+2026-05-01  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.1.0 ***
+
+    Noteworthy changes compared to the previous release, 12.0.2:
+
+    New features:
+        - Implement Measured Boot support.
+        - Limine boot protocol: Expose the TCG2 event log to the kernel via a
+          new "TPM Event Log" feature.
+        - Linux boot protocol: Publish the TCG2 event log to the kernel via the
+          LINUX_EFI_TPM_EVENT_LOG configuration table.
+        - Linux boot protocol: Publish EFI RNG entropy to the kernel via the
+          LINUX_EFI_RANDOM_SEED configuration table.
+        - Linux boot protocol: Report UEFI Secure Boot state to the kernel on
+          x86.
+        - Re-introduce logic to enable WC on the framebuffer using x86 MTRRs
+          where the firmware leaves it as UC.
+        - Add support for the QOI image format for wallpapers and other image
+          resources.
+        - Add `IF_FW_TYPE` and `IF_ARCH` menu entry options to hide entries
+          based on firmware type (BIOS/UEFI) or processor architecture.
+
+    Bug fixes:
+        - Cap menu nesting depth to prevent stack exhaustion on crafted
+          configuration files.
+        - Validate user-supplied DTB before invoking libfdt to avoid
+          out-of-bounds accesses in the FDT helpers.
+        - Reject ELF images with no non-empty PT_LOAD segments in the Multiboot
+          elsewhere loader, avoiding bogus min/max range arithmetic.
+        - Reject Multiboot address-tag ranges whose address or file-offset
+          arithmetic overflows before the copy.
+        - Fix a TOCTOU on UEFI PXE/TFTP reads by enforcing the byte count
+          returned by the size query against the actual transfer size.
+        - Miscellaneous bug fixes.
+
 2026-04-26  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.0.2 ***

@@ -30,7 +30,7 @@ bool efi_exit_boot_services(void);
 bool is_efi_serial_present(void);
 #endif
 
-void *get_device_tree_blob(const char *config, size_t extra_size);
+void *get_device_tree_blob(const char *config, size_t extra_size, bool measure);
 
 extern struct volume *boot_volume;
 
@@ -38,7 +38,7 @@ extern struct volume *boot_volume;
 extern bool stage3_loaded;
 #endif
 
-extern bool quiet, serial, editor_enabled, help_hidden, hash_mismatch_panic, secure_boot_active;
+extern bool quiet, serial, editor_enabled, help_hidden, hash_mismatch_panic, secure_boot_active, measured_boot;
 
 extern uint64_t usec_at_bootloader_entry;
 

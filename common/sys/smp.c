@@ -798,7 +798,7 @@ struct limine_mp_info *init_smp(const char *config,
         return info;
 
     // No RSDP means no ACPI, try device trees in that case.
-    void *dtb = get_device_tree_blob(config, 0);
+    void *dtb = get_device_tree_blob(config, 0, false);
     if (dtb) {
         info = try_dtb_smp(dtb,
                            cpu_count, bsp_mpidr, pagemap,
@@ -1212,7 +1212,7 @@ struct limine_mp_info *init_smp(size_t *cpu_count, uint32_t *bsp_phys_id,
     if (acpi_get_rsdp() && (info = try_acpi_smp(cpu_count, bsp_phys_id, pagemap, hhdm_offset)))
         return info;
 
-    void *dtb = get_device_tree_blob(NULL, 0);
+    void *dtb = get_device_tree_blob(NULL, 0, false);
     if (dtb) {
         info = try_dtb_smp(dtb, cpu_count, bsp_phys_id, pagemap, hhdm_offset);
         pmm_free(dtb, fdt_totalsize(dtb));

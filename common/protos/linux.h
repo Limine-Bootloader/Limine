@@ -70,4 +70,8 @@ struct screen_info {
 
 noreturn void linux_load(char *config, char *cmdline);
 
+#if defined (UEFI)
+void linux_install_efi_tpm_event_log(void);
+#endif
+
 #endif

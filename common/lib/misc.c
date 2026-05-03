@@ -9,6 +9,8 @@
 #include <lib/config.h>
 #include <lib/uri.h>
 #include <lib/bli.h>
+#include <lib/rng_seed.h>
+#include <lib/tpm.h>
 #include <fs/file.h>
 #include <mm/pmm.h>
 #include <libfdt.h>
@@ -116,7 +118,8 @@ size_t get_trailing_zeros(uint64_t val) {
     return 64;
 }
 
-void *get_device_tree_blob(const char *config, size_t extra_size) {
+void *get_device_tree_blob(const char *config, size_t extra_size,
+                           bool measure) {
     int ret;
 
     size_t size = 0;
@@ -145,6 +148,20 @@ void *get_device_tree_blob(const char *config, size_t extra_size) {
             dtb = dtb_file->fd;
             size = dtb_file->size;
             fclose(dtb_file);
+
+            ret = fdt_check_full(dtb, size);
+            if (ret != 0) {
+                panic(soft_panic, "dtb: Invalid device tree blob at `%#`: '%s'", dtb_path, fdt_strerror(ret));
+            }
+
+#if defined (UEFI)
+            if (measure) {
+                tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "dtb_path: ", dtb_path);
+                tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                            dtb, size, "dtb_path: ", dtb_path);
+            }
+#endif
+
             printv("dtb: loaded dtb at %p from file `%#`\n", dtb, dtb_path);
         }
     }
@@ -157,6 +174,10 @@ void *get_device_tree_blob(const char *config, size_t extra_size) {
             if (memcmp(&cur_table->VendorGuid, &dtb_guid, sizeof(EFI_GUID)))
                 continue;
             size = fdt_totalsize(cur_table->VendorTable);
+            if (measure) {
+                tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                            cur_table->VendorTable, size, "efi_dtb", NULL);
+            }
             dtb = ext_mem_alloc(size);
             ret = fdt_open_into(cur_table->VendorTable, dtb, size);
             if (ret < 0) {
@@ -166,6 +187,8 @@ void *get_device_tree_blob(const char *config, size_t extra_size) {
             break;
         }
     }
+#else
+    (void)measure;
 #endif
 
     if (extra_size == 0) {
@@ -254,6 +277,10 @@ no_unwind bool efi_boot_services_exited = false;
 
 bool efi_exit_boot_services(void) {
     EFI_STATUS status;
+
+    // Pull entropy from EFI_RNG_PROTOCOL while it's still callable and
+    // publish it for the kernel to mix into its early RNG state.
+    rng_seed_install();
 
     EFI_MEMORY_DESCRIPTOR tmp_mmap[1];
     efi_mmap_size = sizeof(tmp_mmap);

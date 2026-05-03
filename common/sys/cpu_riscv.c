@@ -313,7 +313,7 @@ void init_riscv(const char *config) {
     if (!prioritise_dtb && acpi_get_rsdp()) {
         init_riscv_acpi();
     } else {
-        riscv_fdt = get_device_tree_blob(config, 0);
+        riscv_fdt = get_device_tree_blob(config, 0, false);
         if (riscv_fdt != NULL) {
             init_riscv_fdt(riscv_fdt);
         } else {

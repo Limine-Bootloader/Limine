@@ -275,6 +275,10 @@ bool pe64_load(uint8_t *image, size_t file_size, uint64_t *entry_point, uint64_t
     uint64_t image_size = nt_hdrs->OptionalHeader.SizeOfImage;
     uint64_t alignment = nt_hdrs->OptionalHeader.SectionAlignment;
 
+    if (alignment == 0) {
+        panic(true, "pe: SectionAlignment is zero");
+    }
+
     if (alignment > 1 && (alignment & (alignment - 1)) != 0) {
         panic(true, "pe: SectionAlignment is not a power of 2");
     }

@@ -10,6 +10,7 @@
 #include <lib/print.h>
 #include <pxe/tftp.h>
 #include <crypt/blake2b.h>
+#include <lib/tpm.h>
 #include <sys/cpu.h>
 
 #define CONFIG_B2SUM_SIGNATURE "++CONFIG_B2SUM_SIGNATURE++"
@@ -26,6 +27,18 @@ bool config_ready = false;
 no_unwind bool bad_config = false;
 
 static char *config_addr;
+
+#if defined (UEFI)
+// Snapshot of the on-disk config bytes, kept across the in-place mutations
+// in init_config so the menu can measure them once measured_boot is known.
+static char *config_raw_addr;
+static size_t config_raw_size;
+
+const char *config_get_raw(size_t *size_out) {
+    *size_out = config_raw_size;
+    return config_raw_addr;
+}
+#endif
 
 #if defined (UEFI)
 
@@ -287,8 +300,15 @@ static bool is_directory(size_t current_depth, size_t index) {
     }
 }
 
+#define MAX_MENU_NESTING 64
+
 static struct menu_entry *create_menu_tree(struct menu_entry *parent,
                                            size_t current_depth, size_t index) {
+    if (current_depth > MAX_MENU_NESTING) {
+        bad_config = true;
+        panic(true, "config: Menu nesting too deep (max %u)", MAX_MENU_NESTING);
+    }
+
     struct menu_entry *root = NULL, *prev = NULL;
 
     for (size_t i = index; ; i++) {
@@ -376,6 +396,14 @@ int init_config(size_t config_size) {
             panic(false, "!!! CHECKSUM MISMATCH FOR CONFIG FILE !!!");
         }
     }
+
+#if defined (UEFI)
+    // Snapshot the raw bytes; the menu measures them once measured_boot
+    // is final.
+    config_raw_size = config_size - 2;
+    config_raw_addr = ext_mem_alloc(config_raw_size);
+    memcpy(config_raw_addr, config_addr, config_raw_size);
+#endif
 
     // add trailing newline if not present
     config_addr[config_size - 2] = '\n';

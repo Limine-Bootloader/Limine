@@ -12,6 +12,7 @@
 #include <lib/config.h>
 #include <lib/print.h>
 #include <lib/uri.h>
+#include <lib/tpm.h>
 #include <lib/fb.h>
 #include <lib/term.h>
 #include <lib/elsewhere.h>
@@ -55,6 +56,13 @@ static void *mb1_info_alloc(void **mb1_info_raw, size_t size) {
 noreturn void multiboot1_load(char *config, char *cmdline) {
     struct file_handle *kernel_file;
 
+#if defined (UEFI)
+    if (cmdline != NULL) {
+        tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
+                    cmdline, strlen(cmdline), "cmdline: ", cmdline);
+    }
+#endif
+
     char *kernel_path = config_get_value(config, 0, "PATH");
     if (kernel_path == NULL) {
         kernel_path = config_get_value(config, 0, "KERNEL_PATH");
@@ -75,6 +83,12 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     uint8_t *kernel = kernel_file->fd;
 
     size_t kernel_file_size = kernel_file->size;
+
+#if defined (UEFI)
+    tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
+    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                kernel, kernel_file_size, "path: ", kernel_path);
+#endif
 
     fclose(kernel_file);
 
@@ -347,6 +361,12 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
             void *module_addr = f->fd;
             uint64_t module_target = (uint64_t)-1; /* no target preference, use top */
+
+#if defined (UEFI)
+            tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
+            tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                        module_addr, f->size, "module_path: ", module_path);
+#endif
 
             if (!elsewhere_append(true /* flexible target */,
                     ranges, &ranges_count, ranges_max,

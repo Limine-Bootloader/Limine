@@ -99,7 +99,7 @@ Miscellaneous:
   (UEFI only).
 * `graphics` - If set to `no`, force text mode for the boot menu, else use
   a video mode.
-* `wallpaper` - Path to a file to use as a wallpaper. BMP, PNG, and JPEG
+* `wallpaper` - Path to a file to use as a wallpaper. BMP, PNG, JPEG, and QOI
   formats are supported. There can be multiple of this option, in which case
   the wallpaper will be randomly selected from the provided options.
 * `wallpaper_style` - The style which will be used to display the wallpaper
@@ -117,6 +117,10 @@ Miscellaneous:
 * `hash_mismatch_panic` - If set to `no`, do not panic if there is a hash
   mismatch for a file, but print a warning instead. Forced to `yes` when
   Secure Boot is active.
+* `measured_boot` - If set to `yes`, opt in to measured boot. Forced to `yes`
+  when Secure Boot is active, and forced back to `no` if the firmware does
+  not expose a TPM 2.0/CC measurement interface. See
+  [USAGE.md](USAGE.md#measured-boot).
 
 Limine interface control options:
 
@@ -346,6 +350,12 @@ E.g.: `boot():/somemodule.tar#ca6914d2...446b470a`.
 When Secure Boot is active, all file paths **must** have a hash appended or
 Limine will panic (except for wallpapers and fonts, which are silently skipped
 instead, falling back to defaults).
+
+A gzip-compressed resource is indicated by inserting a dollar character (`$`)
+before the resource string. This allows for transparent decompression. For
+such resources, the hash covers the consumed compressed gzip member bytes,
+not the decompressed data and not trailing bytes outside the consumed member.
+The hash thus authenticates the on-disk payload bytes Limine uses.
 
 ## Macros
 

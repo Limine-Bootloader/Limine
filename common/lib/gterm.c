@@ -10,6 +10,7 @@
 #include <lib/image.h>
 #include <lib/rand.h>
 #include <mm/pmm.h>
+#include <mm/mtrr.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <lib/term.h>
@@ -808,6 +809,19 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
     if (fbs_count == 0) {
         return false;
     }
+
+#if defined (__i386__) || defined (__x86_64__)
+    for (size_t i = 0; i < fbs_count; i++) {
+        if (fbs[i].framebuffer_bpp != 32) {
+            continue;
+        }
+        uint64_t fb_size = (uint64_t)fbs[i].framebuffer_pitch * fbs[i].framebuffer_height;
+        if (fb_size == 0) {
+            continue;
+        }
+        mtrr_wc_add_fb_range(fbs[i].framebuffer_addr, fb_size);
+    }
+#endif
 
     struct gterm_config cfg;
     gterm_parse_config(config, &cfg);

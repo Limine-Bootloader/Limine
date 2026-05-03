@@ -134,6 +134,12 @@ static volatile struct limine_efi_system_table_request est_request = {
 };
 
 __attribute__((section(".limine_requests")))
+static volatile struct limine_tpm_event_log_request tpm_event_log_request = {
+    .id = LIMINE_TPM_EVENT_LOG_REQUEST_ID,
+    .revision = 0, .response = NULL
+};
+
+__attribute__((section(".limine_requests")))
 static volatile struct limine_efi_memmap_request efi_memmap_request = {
     .id = LIMINE_EFI_MEMMAP_REQUEST_ID,
     .revision = 0, .response = NULL
@@ -615,6 +621,20 @@ FEAT_START
     struct limine_efi_system_table_response *est_response = est_request.response;
     e9_printf("EFI system table feature, revision %d", est_response->revision);
     e9_printf("EFI system table at: %x", est_response->address);
+FEAT_END
+
+FEAT_START
+    e9_printf("");
+    if (tpm_event_log_request.response == NULL) {
+        e9_printf("TPM event log not passed");
+        break;
+    }
+    struct limine_tpm_event_log_response *tpm_event_log_response = tpm_event_log_request.response;
+    e9_printf("TPM event log feature, revision %d", tpm_event_log_response->revision);
+    e9_printf("Format: %d (TCG_%s)", tpm_event_log_response->format,
+              tpm_event_log_response->format == LIMINE_TPM_EVENT_LOG_FORMAT_TCG_2 ? "2" : "1.2");
+    e9_printf("Size: %x bytes", tpm_event_log_response->size);
+    e9_printf("Address: %x", tpm_event_log_response->address);
 FEAT_END
 
 FEAT_START

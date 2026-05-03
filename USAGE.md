@@ -42,6 +42,88 @@ opt-in to Secure Boot enforcement; an unenrolled image can still be signed
 and booted under Secure Boot, but it provides no integrity guarantees beyond
 those of the firmware itself.
 
+## Measured Boot
+Measured boot is opt-in. Limine performs measurements only when the
+`measured_boot` config option is set to `yes` (also forced on under UEFI
+Secure Boot) **and** the firmware exposes `EFI_TCG2_PROTOCOL` (or
+`EFI_CC_MEASUREMENT_PROTOCOL` on confidential computing platforms such as
+Intel TDX and AMD SEV-SNP). With either condition unmet, no PCR is extended
+by the bootloader; firmware's pre-boot event log is still captured and
+relayed if a TPM is present, since it carries useful PCR 0-7 information
+regardless of what Limine does.
+
+When measured boot is active, Limine extends the platform PCRs with the
+artifacts it loads, following the GRUB convention from the
+[UAPI Linux TPM PCR Registry](https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/):
+
+* **PCR 8** receives, in order, the kernel command line of the booted entry
+  (from its `cmdline` config option, exactly as Limine will hand it to the
+  kernel), the kernel image's path, each module/initrd's path in the order
+  they appear in the config, and the DTB's path when the booted protocol
+  consumes one specified via `dtb_path` or `global_dtb`. Any trailing
+  `#<hash>` integrity suffix is stripped before measurement so PCR 8 stays
+  stable across kernel/module/DTB updates; the `$` decompression prefix is
+  preserved as part of the policy.
+* **PCR 9** receives, in order, the on-disk `limine.conf` bytes (before any
+  in-memory cleanup), the kernel image as read from disk, each module/initrd
+  in the order they appear in the config, and, when the booted protocol
+  consumes a device tree blob, the DTB as loaded (taken from
+  `dtb_path`/`global_dtb` if set, otherwise from the firmware's
+  `EFI_DTB_TABLE_GUID` table) before Limine's `/chosen` and memory-node
+  fixups.
+
+All measurements use event type `EV_IPL` (`0x0000000d`). Each event's payload
+in the TCG log is the NUL-terminated description identifying what was
+measured: `cmdline: <cmdline>` for command lines, `path: <kernel_path>` for
+the kernel image, `module_path: <module_path>` for modules and initrds,
+`dtb_path: <dtb_path>` for a DTB loaded from a file, `efi_dtb` for the
+firmware-provided DTB, and `limine_cfg` for the `limine.conf` blob.
+
+On confidential computing platforms each PCR index is translated to the
+corresponding Memory Reference (MR) register via
+`EFI_CC_MEASUREMENT_PROTOCOL.MapPcrToMrIndex`; the rest of the contract is
+unchanged.
+
+The captured TCG event log is published to the operating system via the
+`LINUX_EFI_TPM_EVENT_LOG` configuration table (for the Linux protocol), or
+via the TPM Event Log feature (for the Limine boot protocol).
+
+The following additional behaviours also apply, so that the PCR state at
+handoff is consistent across attempts:
+
+* Any panic halts the system unconditionally; there is no return to the menu,
+  so a partially-extended PCR chain cannot be re-extended on a second attempt.
+* On the IA-32 UEFI port, modules **must** fit below 4 GiB. Firmware's
+  `HashLogExtendEvent` cannot reach addresses above 4 GiB on a 32-bit
+  firmware, so an above-4-GiB allocation would result in an unmeasured module.
+
+### Reproducing the digests
+For an external verifier to recompute a PCR extend, hash exactly these bytes:
+
+For PCR 8:
+
+* `cmdline: <cmdline>`: the kernel command line bytes, without trailing
+  NUL, i.e. `strlen(cmdline)` bytes.
+* `path: <kernel_path>`: the kernel image's path string with any trailing
+  `#<hash>` suffix stripped, without trailing NUL.
+* `module_path: <module_path>`: the module/initrd's path string with any
+  trailing `#<hash>` suffix stripped, without trailing NUL.
+* `dtb_path: <dtb_path>`: the DTB file's path string with any trailing
+  `#<hash>` suffix stripped, without trailing NUL.
+
+For PCR 9:
+
+* `limine_cfg`: the on-disk `limine.conf` file bytes verbatim (no trailing
+  newline added, no NUL appended).
+* `path: <kernel_path>`: the full file bytes of the kernel image as opened
+  by Limine (post-decompression for `$`-prefixed paths, after BLAKE2B hash
+  verification when Secure Boot is active).
+* `module_path: <module_path>`: the full file bytes of the module/initrd as
+  loaded.
+* `dtb_path: <dtb_path>`/`efi_dtb`: the device tree blob bytes as loaded,
+  before Limine's `/chosen` and memory-node fixups (i.e. exactly the bytes
+  on disk or in the firmware's `EFI_DTB_TABLE_GUID` table).
+
 ## BIOS/MBR
 In order to install Limine on a MBR device (which can just be a raw image
 file), run `limine bios-install` as such:

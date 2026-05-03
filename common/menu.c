@@ -9,6 +9,9 @@
 #include <lib/misc.h>
 #include <lib/libc.h>
 #include <lib/config.h>
+#if defined (UEFI)
+#  include <lib/tpm.h>
+#endif
 #include <lib/term.h>
 #include <lib/gterm.h>
 #include <lib/getchar.h>
@@ -1173,6 +1176,26 @@ noreturn void _menu(bool first_run) {
         hash_mismatch_panic = true;
         editor_enabled = false;
     }
+
+#if defined (UEFI)
+    char *measured_boot_str = config_get_value(NULL, 0, "MEASURED_BOOT");
+    measured_boot = measured_boot_str != NULL && strcmp(measured_boot_str, "yes") == 0;
+    if (secure_boot_active) {
+        measured_boot = true;
+    }
+    // Cannot do measured boot without a TPM/CC interface.
+    if (!tpm_present()) {
+        measured_boot = false;
+    }
+
+    // Measure the on-disk config bytes now that measured_boot is final.
+    size_t raw_size;
+    const char *raw = config_get_raw(&raw_size);
+    if (raw != NULL) {
+        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                    raw, raw_size, "limine_cfg", NULL);
+    }
+#endif
 
     char *randomise_mem_str = config_get_value(NULL, 0, "RANDOMISE_MEMORY");
     if (randomise_mem_str == NULL)

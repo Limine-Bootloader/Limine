@@ -9,6 +9,7 @@
 #include <lib/config.h>
 #include <lib/trace.h>
 #include <lib/bli.h>
+#include <lib/tpm.h>
 #include <sys/e820.h>
 #include <sys/a20.h>
 #include <sys/idt.h>
@@ -106,6 +107,8 @@ defer_error:
             }
         }
     }
+
+    tpm_init();
 
     boot_volume = NULL;
 

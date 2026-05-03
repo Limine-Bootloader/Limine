@@ -16,6 +16,7 @@
 #include <lib/fdt.h>
 #include <libfdt.h>
 #include <lib/uri.h>
+#include <lib/tpm.h>
 #include <sys/smp.h>
 #include <sys/cpu.h>
 #include <sys/gdt.h>
@@ -456,6 +457,13 @@ static void *_get_request(uint64_t id[4]) {
 #define FEAT_END } while (0);
 
 noreturn void limine_load(char *config, char *cmdline) {
+#if defined (UEFI)
+    if (cmdline != NULL) {
+        tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
+                    cmdline, strlen(cmdline), "cmdline: ", cmdline);
+    }
+#endif
+
 #if defined (__x86_64__) || defined (__i386__)
     uint32_t eax, ebx, ecx, edx;
 #endif
@@ -514,6 +522,12 @@ noreturn void limine_load(char *config, char *cmdline) {
     }
 
     uint8_t *kernel = kernel_file->fd;
+
+#if defined (UEFI)
+    tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
+    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                kernel, kernel_file->size, "path: ", kernel_path);
+#endif
 
     char *kaslr_s = config_get_value(config, 0, "KASLR");
     bool kaslr = false;
@@ -1135,42 +1149,6 @@ FEAT_START
 FEAT_END
 #endif
 
-    // Device tree blob feature
-FEAT_START
-    struct limine_dtb_request *dtb_request = get_request(LIMINE_DTB_REQUEST_ID);
-    if (dtb_request == NULL) {
-        break; // next feature
-    }
-
-    void *dtb = get_device_tree_blob(config, 0);
-
-    if (dtb) {
-        // Delete all /memory@... nodes.
-        // The executable must use the given UEFI memory map instead.
-        while (true) {
-            int offset = fdt_subnode_offset_namelen(dtb, 0, "memory@", 7);
-
-            if (offset == -FDT_ERR_NOTFOUND) {
-                break;
-            }
-
-            if (offset < 0) {
-                panic(true, "limine: failed to find node: '%s'", fdt_strerror(offset));
-            }
-
-            int ret = fdt_del_node(dtb, offset);
-            if (ret < 0) {
-                panic(true, "limine: failed to delete memory node: '%s'", fdt_strerror(ret));
-            }
-        }
-
-        struct limine_dtb_response *dtb_response =
-            ext_mem_alloc(sizeof(struct limine_dtb_response));
-        dtb_response->dtb_ptr = reported_addr(dtb);
-        dtb_request->response = reported_addr(dtb_response);
-    }
-FEAT_END
-
     // Stack size
     uint64_t stack_size = 65536;
 FEAT_START
@@ -1303,9 +1281,15 @@ FEAT_START
         print("limine: Loading module `%#`...\n", module_path);
 
         struct file_handle *f;
-        if ((f = uri_open(module_path, MEMMAP_KERNEL_AND_MODULES, true
+        // On IA-32 under measured boot, refuse >4 GiB allocations: firmware's
+        // HashLogExtendEvent can't reach them, so we'd be unable to measure
+        // the module. Elsewhere, the firmware can address all of physical
+        // memory and high allocations remain measurable.
+        if ((f = uri_open(module_path, MEMMAP_KERNEL_AND_MODULES,
 #if defined (__i386__)
-            , limine_memcpy_to_64, limine_memcpy_from_64
+            !measured_boot, limine_memcpy_to_64, limine_memcpy_from_64
+#else
+            true
 #endif
         )) == NULL) {
             if (module_required) {
@@ -1317,12 +1301,18 @@ FEAT_START
             }
             continue;
         }
+        struct limine_file *l = &modules[final_module_count++];
+        *l = get_file(f, module_cmdline);
+
+#if defined (UEFI)
+        tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
+        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                    f->fd, f->size, "module_path: ", module_path);
+#endif
+
         if (module_path_allocated) {
             pmm_free(module_path, 1024);
         }
-
-        struct limine_file *l = &modules[final_module_count++];
-        *l = get_file(f, module_cmdline);
 
         fclose(f);
     }
@@ -1336,6 +1326,42 @@ FEAT_START
     module_response->modules = reported_addr(modules_list);
 
     module_request->response = reported_addr(module_response);
+FEAT_END
+
+    // Device tree blob feature
+FEAT_START
+    struct limine_dtb_request *dtb_request = get_request(LIMINE_DTB_REQUEST_ID);
+    if (dtb_request == NULL) {
+        break; // next feature
+    }
+
+    void *dtb = get_device_tree_blob(config, 0, true);
+
+    if (dtb) {
+        // Delete all /memory@... nodes.
+        // The executable must use the given UEFI memory map instead.
+        while (true) {
+            int offset = fdt_subnode_offset_namelen(dtb, 0, "memory@", 7);
+
+            if (offset == -FDT_ERR_NOTFOUND) {
+                break;
+            }
+
+            if (offset < 0) {
+                panic(true, "limine: failed to find node: '%s'", fdt_strerror(offset));
+            }
+
+            int ret = fdt_del_node(dtb, offset);
+            if (ret < 0) {
+                panic(true, "limine: failed to delete memory node: '%s'", fdt_strerror(ret));
+            }
+        }
+
+        struct limine_dtb_response *dtb_response =
+            ext_mem_alloc(sizeof(struct limine_dtb_response));
+        dtb_response->dtb_ptr = reported_addr(dtb);
+        dtb_request->response = reported_addr(dtb_response);
+    }
 FEAT_END
 
     size_t req_width = 0, req_height = 0, req_bpp = 0;
@@ -1395,12 +1421,15 @@ FEAT_END
                 continue;
             }
 
-            // There is a page-level overlap. Only USABLE regions can be trimmed.
-            if (memmap[j].type != MEMMAP_USABLE) {
+            // There is a page-level overlap. Only USABLE and RESERVED regions
+            // can be trimmed; everything else describes firmware- or
+            // kernel-asserted content that we must not silently shrink.
+            if (memmap[j].type != MEMMAP_USABLE
+             && memmap[j].type != MEMMAP_RESERVED) {
                 panic(false, "limine: Framebuffer page-level overlap with non-trimmable memory type %x", memmap[j].type);
             }
 
-            // Trim the usable region to not overlap with the framebuffer's
+            // Trim the region to not overlap with the framebuffer's
             // page-aligned extent.
             if (region_base < fb_aligned_base && region_top > fb_aligned_base) {
                 // Region extends before the framebuffer - trim end.
@@ -1663,6 +1692,33 @@ FEAT_START
 FEAT_END
 
 #if defined (UEFI)
+    // TPM event log feature. Processed last so GetEventLog snapshots a log
+    // containing all of Limine's extends; later extends would land in the
+    // final-events table instead.
+FEAT_START
+    struct limine_tpm_event_log_request *tpm_event_log_request = get_request(LIMINE_TPM_EVENT_LOG_REQUEST_ID);
+    if (tpm_event_log_request == NULL) {
+        break; // next feature
+    }
+
+    uint32_t tpm_event_log_format;
+    void *tpm_event_log_addr;
+    size_t tpm_event_log_size;
+    if (!tpm_get_event_log(&tpm_event_log_format, &tpm_event_log_addr, &tpm_event_log_size)) {
+        break; // no TPM or capture failed
+    }
+
+    struct limine_tpm_event_log_response *tpm_event_log_response =
+        ext_mem_alloc(sizeof(struct limine_tpm_event_log_response));
+
+    tpm_event_log_response->format = tpm_event_log_format;
+    tpm_event_log_response->size = tpm_event_log_size;
+    tpm_event_log_response->address = tpm_event_log_size > 0
+        ? reported_addr(tpm_event_log_addr) : 0;
+
+    tpm_event_log_request->response = reported_addr(tpm_event_log_response);
+FEAT_END
+
     efi_exit_boot_services();
 #endif
 

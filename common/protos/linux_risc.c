@@ -11,6 +11,7 @@
 #include <lib/config.h>
 #include <lib/print.h>
 #include <lib/uri.h>
+#include <lib/tpm.h>
 #include <mm/pmm.h>
 #include <sys/idt.h>
 #include <lib/fb.h>
@@ -156,6 +157,11 @@ static void load_module(struct boot_param *p, char *config) {
         fclose(modules[i]);
 
         char *module_path = config_get_value(config, i, "MODULE_PATH");
+
+        tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
+        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                    p->module_base + offset, module_size, "module_path: ", module_path);
+
         printv("linux: loaded module `%s` at %p, size %U\n", module_path,
                p->module_base + offset, (uint64_t)module_size);
         offset += module_size;
@@ -211,12 +217,9 @@ static void prepare_device_tree_blob(struct boot_param *p) {
         panic(true, "linux: failed to set UEFI system table pointer: '%s'", fdt_strerror(ret));
     }
 
-    // This property is not required by mainline Linux, but is required by
-    // Debian (and derivative) kernels, because Debian has a patch that adds
-    // this flag, and the existing logic that deals with it will just outright
-    // fail if any of the properties is missing.  We don't care about Debian's
-    // hardening or whatever, so just always report that secure boot is off.
-    ret = fdt_set_chosen_uint32(dtb, "linux,uefi-secure-boot", 0);
+    // Report UEFI Secure Boot state via the /chosen FDT property. Values
+    // match Linux's efi_secureboot_mode enum: 2 = disabled, 3 = enabled.
+    ret = fdt_set_chosen_uint32(dtb, "linux,uefi-secure-boot", secure_boot_active ? 3 : 2);
     if (ret < 0) {
         panic(true, "linux: failed to set UEFI secure boot state: '%s'", fdt_strerror(ret));
     }
@@ -339,6 +342,7 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
         }
     }
 
+    linux_install_efi_tpm_event_log();
     efi_exit_boot_services();
 }
 
@@ -467,7 +471,11 @@ noreturn void linux_load(char *config, char *cmdline) {
     struct boot_param p;
     memset(&p, 0, sizeof(p));
     p.cmdline = cmdline;
-    p.dtb = get_device_tree_blob(config, 0x1000);
+
+    if (cmdline != NULL) {
+        tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
+                    cmdline, strlen(cmdline), "cmdline: ", cmdline);
+    }
 
     struct file_handle *kernel_file;
 
@@ -518,7 +526,13 @@ noreturn void linux_load(char *config, char *cmdline) {
     fclose(kernel_file);
     printv("linux: loaded kernel `%s` at %p, size %U\n", kernel_path, p.kernel_base, (uint64_t)p.kernel_size);
 
+    tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
+    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                p.kernel_base, p.kernel_size, "path: ", kernel_path);
+
     load_module(&p, config);
+
+    p.dtb = get_device_tree_blob(config, 0x1000, true);
 
     prepare_device_tree_blob(&p);
 

@@ -19,6 +19,14 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
 
     va_start(args, fmt);
 
+#if defined (UEFI)
+    // Don't return to the menu under measured boot: a partial boot may
+    // have already dirtied the TPM PCRs.
+    if (measured_boot) {
+        allow_menu = false;
+    }
+#endif
+
     quiet = false;
 
     FOR_TERM(TERM->autoflush = true);

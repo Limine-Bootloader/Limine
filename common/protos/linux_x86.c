@@ -12,6 +12,7 @@
 #include <lib/config.h>
 #include <lib/print.h>
 #include <lib/uri.h>
+#include <lib/tpm.h>
 #include <mm/pmm.h>
 #include <sys/idt.h>
 #include <lib/fb.h>
@@ -292,6 +293,13 @@ struct boot_params {
 noreturn void linux_load(char *config, char *cmdline) {
     struct file_handle *kernel_file;
 
+#if defined (UEFI)
+    if (cmdline != NULL) {
+        tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
+                    cmdline, strlen(cmdline), "cmdline: ", cmdline);
+    }
+#endif
+
     char *kernel_path = config_get_value(config, 0, "PATH");
     if (kernel_path == NULL) {
         kernel_path = config_get_value(config, 0, "KERNEL_PATH");
@@ -415,6 +423,12 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     fread(kernel_file, (void *)kernel_load_addr, real_mode_code_size, kernel_file->size - real_mode_code_size);
 
+#if defined (UEFI)
+    tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
+    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                kernel_file->fd, kernel_file->size, "path: ", kernel_path);
+#endif
+
     fclose(kernel_file);
 
     ///////////////////////////////////////
@@ -501,6 +515,12 @@ noreturn void linux_load(char *config, char *cmdline) {
             break;
 
         fread(modules[i], (void *)_modules_mem_base, 0, modules[i]->size);
+
+#if defined (UEFI)
+        tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
+        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                    (void *)_modules_mem_base, modules[i]->size, "module_path: ", module_path);
+#endif
 
         _modules_mem_base += modules[i]->size;
 
@@ -607,6 +627,7 @@ no_fb:;
     // UEFI
     ///////////////////////////////////////
 #if defined (UEFI)
+    linux_install_efi_tpm_event_log();
     efi_exit_boot_services();
 
 #if defined (__x86_64__)
@@ -622,6 +643,8 @@ no_fb:;
     boot_params->efi_info.efi_memmap_size     = efi_mmap_size;
     boot_params->efi_info.efi_memdesc_size    = efi_desc_size;
     boot_params->efi_info.efi_memdesc_version = efi_desc_ver;
+
+    boot_params->secure_boot = secure_boot_active ? 3 : 2;
 #endif
 
     ///////////////////////////////////////

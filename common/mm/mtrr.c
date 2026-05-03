@@ -143,4 +143,168 @@ void mtrr_restore(void) {
     asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
 }
 
+#define MTRR_TYPE_WC 1
+#define WC_MAX_SLOTS 4
+
+static struct {
+    uint8_t  slot;
+    uint64_t saved_base;
+    uint64_t saved_mask;
+} wc_saved[WC_MAX_SLOTS];
+static size_t wc_n_saved = 0;
+
+bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
+    if (size == 0 || !mtrr_supported()) {
+        return false;
+    }
+    if (wc_n_saved >= WC_MAX_SLOTS) {
+        return false;
+    }
+
+    uint64_t mtrrcap = rdmsr(0xfe);
+    if (!(mtrrcap & ((uint64_t)1 << 10))) {
+        return false;
+    }
+    uint8_t var_reg_count = mtrrcap & 0xff;
+
+    uint32_t eax, ebx, ecx, edx;
+    if (!cpuid(0x80000008, 0, &eax, &ebx, &ecx, &edx)) {
+        return false;
+    }
+    uint8_t maxphysaddr = eax & 0xff;
+    if (maxphysaddr < 32 || maxphysaddr > 52) {
+        return false;
+    }
+
+    base &= ~(uint64_t)0xfff;
+
+    uint64_t aligned_size = 0x1000;
+    while (aligned_size < size) {
+        aligned_size <<= 1;
+        if (aligned_size == 0) {
+            return false;
+        }
+    }
+    size = aligned_size;
+
+    // MTRR match is (addr & mask) == (base & mask); only correct when base is size-aligned.
+    if (base & (size - 1)) {
+        return false;
+    }
+
+    uint64_t mask = (((uint64_t)1 << maxphysaddr) - 1) & ~(size - 1);
+
+    for (uint8_t i = 0; i < var_reg_count; i++) {
+        uint64_t mb = rdmsr(0x200 + i * 2);
+        uint64_t mm = rdmsr(0x200 + i * 2 + 1);
+        if (!(mm & ((uint64_t)1 << 11))) {
+            continue;
+        }
+        uint64_t exist_mask = mm & ~(uint64_t)0xfff;
+        uint64_t exist_base = mb & ~(uint64_t)0xfff;
+        for (uint64_t a = base; a < base + size; a += 0x1000) {
+            if ((a & exist_mask) == (exist_base & exist_mask)) {
+                return false;
+            }
+        }
+    }
+
+    uint8_t slot;
+    bool found = false;
+    for (uint8_t i = 0; i < var_reg_count; i++) {
+        uint64_t mm = rdmsr(0x200 + i * 2 + 1);
+        if (!(mm & ((uint64_t)1 << 11))) {
+            slot = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        return false;
+    }
+
+#if defined (UEFI)
+    asm volatile ("cli");
+#endif
+
+    uintptr_t old_cr0;
+    asm volatile ("mov %%cr0, %0" : "=r"(old_cr0) :: "memory");
+    uintptr_t new_cr0 = (old_cr0 | (1U << 30)) & ~((uintptr_t)1 << 29);
+    asm volatile ("mov %0, %%cr0" :: "r"(new_cr0) : "memory");
+    asm volatile ("wbinvd" ::: "memory");
+
+    uintptr_t cr3;
+    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
+    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+
+    uint64_t mtrr_def = rdmsr(0x2ff);
+    wrmsr(0x2ff, mtrr_def & ~((uint64_t)1 << 11));
+
+    wc_saved[wc_n_saved].slot       = slot;
+    wc_saved[wc_n_saved].saved_base = rdmsr(0x200 + slot * 2);
+    wc_saved[wc_n_saved].saved_mask = rdmsr(0x200 + slot * 2 + 1);
+    wc_n_saved++;
+
+    wrmsr(0x200 + slot * 2,     base | MTRR_TYPE_WC);
+    wrmsr(0x200 + slot * 2 + 1, mask | ((uint64_t)1 << 11));
+
+    wrmsr(0x2ff, mtrr_def | ((uint64_t)1 << 11));
+
+    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
+    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    asm volatile ("wbinvd" ::: "memory");
+    asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
+
+#if defined (UEFI)
+    asm volatile ("sti");
+#endif
+
+    return true;
+}
+
+void mtrr_wc_clear_fb_ranges(void) {
+    if (wc_n_saved == 0) {
+        return;
+    }
+    if (!mtrr_supported()) {
+        wc_n_saved = 0;
+        return;
+    }
+
+#if defined (UEFI)
+    asm volatile ("cli");
+#endif
+
+    uintptr_t old_cr0;
+    asm volatile ("mov %%cr0, %0" : "=r"(old_cr0) :: "memory");
+    uintptr_t new_cr0 = (old_cr0 | (1U << 30)) & ~((uintptr_t)1 << 29);
+    asm volatile ("mov %0, %%cr0" :: "r"(new_cr0) : "memory");
+    asm volatile ("wbinvd" ::: "memory");
+
+    uintptr_t cr3;
+    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
+    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+
+    uint64_t mtrr_def = rdmsr(0x2ff);
+    wrmsr(0x2ff, mtrr_def & ~((uint64_t)1 << 11));
+
+    for (size_t i = 0; i < wc_n_saved; i++) {
+        wrmsr(0x200 + wc_saved[i].slot * 2,     wc_saved[i].saved_base);
+        wrmsr(0x200 + wc_saved[i].slot * 2 + 1, wc_saved[i].saved_mask);
+    }
+
+    wrmsr(0x2ff, mtrr_def);
+
+    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
+    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    asm volatile ("wbinvd" ::: "memory");
+    asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
+
+#if defined (UEFI)
+    asm volatile ("sti");
+#endif
+
+    wc_n_saved = 0;
+}
+
 #endif
