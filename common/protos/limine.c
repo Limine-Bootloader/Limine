@@ -1374,10 +1374,11 @@ FEAT_END
     struct fb_info *fbs;
     size_t fbs_count;
 
-    term_notready();
-
     bool preserve_screen = get_request(LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID) != NULL;
-    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, preserve_screen);
+
+    term_notready(preserve_screen);
+
+    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp);
     if (fbs_count == 0) {
         goto no_fb;
     }

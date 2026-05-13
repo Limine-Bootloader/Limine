@@ -267,7 +267,7 @@ static void text_deinit(struct flanterm_context *_ctx, void (*_free)(void *, siz
 }
 
 void vga_textmode_init(bool managed) {
-    term_notready();
+    term_notready(true);
 
     if (quiet) {
         return;

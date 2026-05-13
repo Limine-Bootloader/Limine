@@ -126,8 +126,7 @@ bool gop_force_16 = false;
 
 static bool try_mode(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop,
                      size_t mode, uint64_t width, uint64_t height, int bpp,
-                     struct fb_info *fbs, size_t fbs_count,
-                     bool preserve_screen) {
+                     struct fb_info *fbs, size_t fbs_count) {
     EFI_STATUS status;
 
     if (!mode_to_fb_info(ret, gop, mode)) {
@@ -179,10 +178,6 @@ static bool try_mode(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop,
 
     ret->framebuffer_addr = gop->Mode->FrameBufferBase;
 
-    if (!preserve_screen) {
-        fb_clear(ret);
-    }
-
     return true;
 }
 
@@ -213,8 +208,7 @@ no_unwind static int preset_modes[MAX_PRESET_MODES];
 no_unwind static bool preset_modes_initialised = false;
 
 void init_gop(struct fb_info **ret, size_t *_fbs_count,
-              uint64_t target_width, uint64_t target_height, uint16_t target_bpp,
-              bool preserve_screen) {
+              uint64_t target_width, uint64_t target_height, uint16_t target_bpp) {
     if (preset_modes_initialised == false) {
         for (size_t i = 0; i < MAX_PRESET_MODES; i++) {
             preset_modes[i] = -1;
@@ -321,7 +315,7 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
 
 retry:
         for (size_t j = 0; j < modes_count; j++) {
-            if (try_mode(fb, gop, j, _target_width, _target_height, _target_bpp, *ret, fbs_count, preserve_screen)) {
+            if (try_mode(fb, gop, j, _target_width, _target_height, _target_bpp, *ret, fbs_count)) {
                 goto success;
             }
         }
@@ -348,7 +342,7 @@ fallback:
         if (current_fallback == 1) {
             current_fallback++;
 
-            if (try_mode(fb, gop, preset_modes[i], 0, 0, 0, *ret, fbs_count, preserve_screen)) {
+            if (try_mode(fb, gop, preset_modes[i], 0, 0, 0, *ret, fbs_count)) {
                 goto success;
             }
         }

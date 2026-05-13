@@ -405,7 +405,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     multiboot1_info->bootloader_name = (uint32_t)(size_t)lowmem_bootname - mb1_info_slide;
     multiboot1_info->flags |= (1 << 9);
 
-    term_notready();
+    term_notready(false);
 
     size_t req_width = 0;
     size_t req_height = 0;
@@ -436,7 +436,7 @@ modeset:;
 
             struct fb_info *fbs;
             size_t fbs_count;
-            fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false);
+            fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp);
             if (fbs_count == 0) {
 #if defined (UEFI)
                 goto skip_modeset;

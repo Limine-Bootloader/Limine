@@ -12,15 +12,10 @@ struct fb_info *fb_fbs;
 size_t fb_fbs_count = 0;
 
 void fb_init(struct fb_info **ret, size_t *_fbs_count,
-             uint64_t target_width, uint64_t target_height, uint16_t target_bpp,
-             bool preserve_screen) {
-    if (quiet) {
-        preserve_screen = true;
-    }
-
+             uint64_t target_width, uint64_t target_height, uint16_t target_bpp) {
 #if defined (BIOS)
     *ret = ext_mem_alloc(sizeof(struct fb_info));
-    if (init_vbe(*ret, target_width, target_height, target_bpp, preserve_screen)) {
+    if (init_vbe(*ret, target_width, target_height, target_bpp)) {
         *_fbs_count = 1;
 
         (*ret)->edid = get_edid_info();
@@ -32,7 +27,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
         pmm_free(*ret, sizeof(struct fb_info));
     }
 #elif defined (UEFI)
-    init_gop(ret, _fbs_count, target_width, target_height, target_bpp, preserve_screen);
+    init_gop(ret, _fbs_count, target_width, target_height, target_bpp);
 #endif
 
     fb_fbs = *ret;

@@ -211,7 +211,7 @@ noreturn void stage3_common(void) {
 #endif
 #endif
 
-    term_notready();
+    term_notready(true);
 
 #if defined (UEFI)
     init_bli();

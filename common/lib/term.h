@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <lib/print.h>
 #include <flanterm.h>
 
@@ -52,7 +53,7 @@ static inline void set_cursor_pos_helper(size_t x, size_t y) {
     print("\e[%u;%uH", (int)y + 1, (int)x + 1);
 }
 
-void term_notready(void);
+void term_notready(bool preserve_screen);
 void term_fallback(void);
 void _term_write(struct flanterm_context *term, uint64_t buf, uint64_t count);
 
