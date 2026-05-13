@@ -160,6 +160,10 @@ static inline uint64_t rdtsc(void) {
     return ((uint64_t)edx << 32) | eax;
 }
 
+static inline void invlpg(uintptr_t va) {
+    asm volatile ("invlpg (%0)" :: "r"(va) : "memory");
+}
+
 static inline uint64_t tsc_freq_arch(void) {
     uint32_t eax, ebx, ecx, edx;
     if (!cpuid(0x15, 0, &eax, &ebx, &ecx, &edx))

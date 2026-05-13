@@ -11,6 +11,7 @@
 #include <lib/rand.h>
 #include <mm/pmm.h>
 #include <mm/mtrr.h>
+#include <mm/efi_pt.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <lib/term.h>
@@ -820,6 +821,9 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
             continue;
         }
         mtrr_wc_add_fb_range(fbs[i].framebuffer_addr, fb_size);
+#if defined (__x86_64__) && defined (UEFI)
+        efi_pt_set_fb_uc_minus(fbs[i].framebuffer_addr, fb_size);
+#endif
     }
 #endif
 
