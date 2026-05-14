@@ -144,20 +144,48 @@ void mtrr_restore(void) {
 }
 
 #define MTRR_TYPE_WC 1
-#define WC_MAX_SLOTS 4
+#define MTRR_VAR_MAX 256
 
-static struct {
-    uint8_t  slot;
-    uint64_t saved_base;
-    uint64_t saved_mask;
-} wc_saved[WC_MAX_SLOTS];
-static size_t wc_n_saved = 0;
+static no_unwind uint64_t wc_full_saved_var[MTRR_VAR_MAX * 2];
+static no_unwind uint8_t wc_full_saved_var_i = 0;
+static no_unwind bool wc_full_saved_valid = false;
+
+static bool wc_add_mtrr(uint64_t base, uint64_t size, uint8_t type,
+                        uint8_t maxphysaddr, uint8_t var_reg_count) {
+    uint8_t slot = 0xff;
+    for (uint8_t i = 0; i < var_reg_count; i++) {
+        if (!(rdmsr(0x200 + i * 2 + 1) & ((uint64_t)1 << 11))) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot == 0xff) {
+        return false;
+    }
+    uint64_t mask = (((uint64_t)1 << maxphysaddr) - 1) & ~(size - 1);
+    wrmsr(0x200 + slot * 2, base | type);
+    wrmsr(0x200 + slot * 2 + 1, mask | ((uint64_t)1 << 11));
+    return true;
+}
+
+static bool wc_add_chunks(uint64_t base, uint64_t span, uint8_t type,
+                          uint8_t maxphysaddr, uint8_t var_reg_count) {
+    while (span > 0) {
+        uint64_t align_k = base != 0 ? ((uint64_t)1 << __builtin_ctzll(base)) : span;
+        uint64_t size_k = (uint64_t)1 << (63 - __builtin_clzll(span));
+        uint64_t k = align_k < size_k ? align_k : size_k;
+
+        if (!wc_add_mtrr(base, k, type, maxphysaddr, var_reg_count)) {
+            return false;
+        }
+        base += k;
+        span -= k;
+    }
+    return true;
+}
 
 bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
     if (size == 0 || !mtrr_supported()) {
-        return false;
-    }
-    if (wc_n_saved >= WC_MAX_SLOTS) {
         return false;
     }
 
@@ -176,23 +204,9 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
         return false;
     }
 
+    uint64_t end = (base + size + 0xfff) & ~(uint64_t)0xfff;
     base &= ~(uint64_t)0xfff;
-
-    uint64_t aligned_size = 0x1000;
-    while (aligned_size < size) {
-        aligned_size <<= 1;
-        if (aligned_size == 0) {
-            return false;
-        }
-    }
-    size = aligned_size;
-
-    // MTRR match is (addr & mask) == (base & mask); only correct when base is size-aligned.
-    if (base & (size - 1)) {
-        return false;
-    }
-
-    uint64_t mask = (((uint64_t)1 << maxphysaddr) - 1) & ~(size - 1);
+    size = end - base;
 
     for (uint8_t i = 0; i < var_reg_count; i++) {
         uint64_t mb = rdmsr(0x200 + i * 2);
@@ -202,73 +216,20 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
         }
         uint64_t exist_mask = mm & ~(uint64_t)0xfff;
         uint64_t exist_base = mb & ~(uint64_t)0xfff;
-        for (uint64_t a = base; a < base + size; a += 0x1000) {
+        for (uint64_t a = base; a < end; a += 0x1000) {
             if ((a & exist_mask) == (exist_base & exist_mask)) {
                 return false;
             }
         }
     }
 
-    uint8_t slot;
-    bool found = false;
-    for (uint8_t i = 0; i < var_reg_count; i++) {
-        uint64_t mm = rdmsr(0x200 + i * 2 + 1);
-        if (!(mm & ((uint64_t)1 << 11))) {
-            slot = i;
-            found = true;
-            break;
+    if (!wc_full_saved_valid) {
+        for (uint8_t i = 0; i < var_reg_count; i++) {
+            wc_full_saved_var[i * 2] = rdmsr(0x200 + i * 2);
+            wc_full_saved_var[i * 2 + 1] = rdmsr(0x200 + i * 2 + 1);
         }
-    }
-    if (!found) {
-        return false;
-    }
-
-#if defined (UEFI)
-    asm volatile ("cli");
-#endif
-
-    uintptr_t old_cr0;
-    asm volatile ("mov %%cr0, %0" : "=r"(old_cr0) :: "memory");
-    uintptr_t new_cr0 = (old_cr0 | (1U << 30)) & ~((uintptr_t)1 << 29);
-    asm volatile ("mov %0, %%cr0" :: "r"(new_cr0) : "memory");
-    asm volatile ("wbinvd" ::: "memory");
-
-    uintptr_t cr3;
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
-
-    uint64_t mtrr_def = rdmsr(0x2ff);
-    wrmsr(0x2ff, mtrr_def & ~((uint64_t)1 << 11));
-
-    wc_saved[wc_n_saved].slot       = slot;
-    wc_saved[wc_n_saved].saved_base = rdmsr(0x200 + slot * 2);
-    wc_saved[wc_n_saved].saved_mask = rdmsr(0x200 + slot * 2 + 1);
-    wc_n_saved++;
-
-    wrmsr(0x200 + slot * 2,     base | MTRR_TYPE_WC);
-    wrmsr(0x200 + slot * 2 + 1, mask | ((uint64_t)1 << 11));
-
-    wrmsr(0x2ff, mtrr_def | ((uint64_t)1 << 11));
-
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
-    asm volatile ("wbinvd" ::: "memory");
-    asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
-
-#if defined (UEFI)
-    asm volatile ("sti");
-#endif
-
-    return true;
-}
-
-void mtrr_wc_clear_fb_ranges(void) {
-    if (wc_n_saved == 0) {
-        return;
-    }
-    if (!mtrr_supported()) {
-        wc_n_saved = 0;
-        return;
+        wc_full_saved_var_i = var_reg_count;
+        wc_full_saved_valid = true;
     }
 
 #if defined (UEFI)
@@ -288,10 +249,7 @@ void mtrr_wc_clear_fb_ranges(void) {
     uint64_t mtrr_def = rdmsr(0x2ff);
     wrmsr(0x2ff, mtrr_def & ~((uint64_t)1 << 11));
 
-    for (size_t i = 0; i < wc_n_saved; i++) {
-        wrmsr(0x200 + wc_saved[i].slot * 2,     wc_saved[i].saved_base);
-        wrmsr(0x200 + wc_saved[i].slot * 2 + 1, wc_saved[i].saved_mask);
-    }
+    bool ok = wc_add_chunks(base, size, MTRR_TYPE_WC, maxphysaddr, var_reg_count);
 
     wrmsr(0x2ff, mtrr_def);
 
@@ -304,7 +262,51 @@ void mtrr_wc_clear_fb_ranges(void) {
     asm volatile ("sti");
 #endif
 
-    wc_n_saved = 0;
+    return ok;
+}
+
+void mtrr_wc_clear_fb_ranges(void) {
+    if (!wc_full_saved_valid) {
+        return;
+    }
+    if (!mtrr_supported()) {
+        wc_full_saved_valid = false;
+        return;
+    }
+
+#if defined (UEFI)
+    asm volatile ("cli");
+#endif
+
+    uintptr_t old_cr0;
+    asm volatile ("mov %%cr0, %0" : "=r"(old_cr0) :: "memory");
+    uintptr_t new_cr0 = (old_cr0 | (1U << 30)) & ~((uintptr_t)1 << 29);
+    asm volatile ("mov %0, %%cr0" :: "r"(new_cr0) : "memory");
+    asm volatile ("wbinvd" ::: "memory");
+
+    uintptr_t cr3;
+    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
+    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+
+    uint64_t mtrr_def = rdmsr(0x2ff);
+    wrmsr(0x2ff, mtrr_def & ~((uint64_t)1 << 11));
+
+    for (uint8_t i = 0; i < wc_full_saved_var_i; i++) {
+        wrmsr(0x200 + i * 2, wc_full_saved_var[i * 2]);
+        wrmsr(0x200 + i * 2 + 1, wc_full_saved_var[i * 2 + 1]);
+    }
+    wrmsr(0x2ff, mtrr_def);
+
+    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
+    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    asm volatile ("wbinvd" ::: "memory");
+    asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
+
+#if defined (UEFI)
+    asm volatile ("sti");
+#endif
+
+    wc_full_saved_valid = false;
 }
 
 #endif
