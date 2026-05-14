@@ -33,7 +33,7 @@ void term_notready(bool preserve_screen) {
     }
 
 #if defined (__i386__) || defined (__x86_64__)
-    mtrr_wc_clear_fb_ranges();
+    mtrr_restore();
 #endif
 
     for (size_t i = 0; i < terms_i; i++) {

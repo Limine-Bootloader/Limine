@@ -17,9 +17,20 @@ static bool mtrr_supported(void) {
     return !!(edx & (1 << 12));
 }
 
-uint64_t *saved_mtrrs = NULL;
+// Sized for the architectural maximum MTRRCAP.VCNT (8 bits -> 256), plus the
+// 11 fixed-range MTRRs and the default-type MSR. .no_unwind so the snapshot
+// survives a panic-rewind: the MSR state we mutated persists across the
+// rewind, and so does the data we need to undo it.
+#define SAVED_MTRRS_MAX (256 * 2 + 11 + 1)
+
+no_unwind uint64_t saved_mtrrs[SAVED_MTRRS_MAX];
+static no_unwind uint8_t saved_mtrrs_var_count = 0;
+static no_unwind bool saved_mtrrs_valid = false;
 
 void mtrr_save(void) {
+    if (saved_mtrrs_valid) {
+        return;
+    }
     if (!mtrr_supported()) {
         return;
     }
@@ -28,14 +39,6 @@ void mtrr_save(void) {
 
     uint8_t var_reg_count = ia32_mtrrcap & 0xff;
     bool fix_supported = !!(ia32_mtrrcap & ((uint64_t)1 << 8));
-
-    if (saved_mtrrs == NULL) {
-        saved_mtrrs = ext_mem_alloc((
-            (var_reg_count * 2) /* variable MTRRs, 2 MSRs each */
-          + 11                  /* 11 fixed MTRRs */
-          + 1                   /* 1 default type MTRR */
-        ) * sizeof(uint64_t));
-    }
 
     /* save variable range MTRRs */
     for (uint8_t i = 0; i < var_reg_count * 2; i += 2) {
@@ -63,6 +66,9 @@ void mtrr_save(void) {
 
     /* make sure that the saved MTRR default has MTRRs off */
     saved_mtrrs[var_reg_count * 2 + 11] &= ~((uint64_t)1 << 11);
+
+    saved_mtrrs_var_count = var_reg_count;
+    saved_mtrrs_valid = true;
 }
 
 void mtrr_restore(void) {
@@ -70,14 +76,14 @@ void mtrr_restore(void) {
         return;
     }
 
+    if (!saved_mtrrs_valid) {
+        return;
+    }
+
     uint64_t ia32_mtrrcap = rdmsr(0xfe);
 
-    uint8_t var_reg_count = ia32_mtrrcap & 0xff;
+    uint8_t var_reg_count = saved_mtrrs_var_count;
     bool fix_supported = !!(ia32_mtrrcap & ((uint64_t)1 << 8));
-
-    if (saved_mtrrs == NULL) {
-        panic(true, "mtrr: Attempted restore without prior save");
-    }
 
     /* according to the Intel SDM 12.11.7.2 "MemTypeSet() Function",
        we need to follow this procedure before changing MTRR set up */
@@ -144,11 +150,6 @@ void mtrr_restore(void) {
 }
 
 #define MTRR_TYPE_WC 1
-#define MTRR_VAR_MAX 256
-
-static no_unwind uint64_t wc_full_saved_var[MTRR_VAR_MAX * 2];
-static no_unwind uint8_t wc_full_saved_var_i = 0;
-static no_unwind bool wc_full_saved_valid = false;
 
 static bool wc_add_mtrr(uint64_t base, uint64_t size, uint8_t type,
                         uint8_t maxphysaddr, uint8_t var_reg_count) {
@@ -223,14 +224,7 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
         }
     }
 
-    if (!wc_full_saved_valid) {
-        for (uint8_t i = 0; i < var_reg_count; i++) {
-            wc_full_saved_var[i * 2] = rdmsr(0x200 + i * 2);
-            wc_full_saved_var[i * 2 + 1] = rdmsr(0x200 + i * 2 + 1);
-        }
-        wc_full_saved_var_i = var_reg_count;
-        wc_full_saved_valid = true;
-    }
+    mtrr_save();
 
 #if defined (UEFI)
     asm volatile ("cli");
@@ -263,50 +257,6 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
 #endif
 
     return ok;
-}
-
-void mtrr_wc_clear_fb_ranges(void) {
-    if (!wc_full_saved_valid) {
-        return;
-    }
-    if (!mtrr_supported()) {
-        wc_full_saved_valid = false;
-        return;
-    }
-
-#if defined (UEFI)
-    asm volatile ("cli");
-#endif
-
-    uintptr_t old_cr0;
-    asm volatile ("mov %%cr0, %0" : "=r"(old_cr0) :: "memory");
-    uintptr_t new_cr0 = (old_cr0 | (1U << 30)) & ~((uintptr_t)1 << 29);
-    asm volatile ("mov %0, %%cr0" :: "r"(new_cr0) : "memory");
-    asm volatile ("wbinvd" ::: "memory");
-
-    uintptr_t cr3;
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
-
-    uint64_t mtrr_def = rdmsr(0x2ff);
-    wrmsr(0x2ff, mtrr_def & ~((uint64_t)1 << 11));
-
-    for (uint8_t i = 0; i < wc_full_saved_var_i; i++) {
-        wrmsr(0x200 + i * 2, wc_full_saved_var[i * 2]);
-        wrmsr(0x200 + i * 2 + 1, wc_full_saved_var[i * 2 + 1]);
-    }
-    wrmsr(0x2ff, mtrr_def);
-
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
-    asm volatile ("wbinvd" ::: "memory");
-    asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
-
-#if defined (UEFI)
-    asm volatile ("sti");
-#endif
-
-    wc_full_saved_valid = false;
 }
 
 #endif
