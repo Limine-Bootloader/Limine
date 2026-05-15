@@ -56,6 +56,7 @@ uint8_t int_to_bcd(uint8_t val);
 noreturn void panic(bool allow_menu, const char *fmt, ...);
 
 int pit_sleep_and_quit_on_keypress(int seconds);
+int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds);
 
 uint64_t strtoui(const char *s, const char **end, int base);
 

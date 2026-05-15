@@ -75,8 +75,9 @@ Some options take *paths* as strings; these are described in the next section.
 Miscellaneous:
 
 * `timeout` - Specifies the timeout in seconds before the first *entry* is
-  automatically booted. If set to `no`, disable automatic boot. If set to `0`,
-  boots default entry instantly (see `default_entry` option).
+  automatically booted. Decimal values such as `0.25` are accepted. If set to
+  `no`, disable automatic boot. If set to `0`, boots default entry instantly
+  (see `default_entry` option).
 * `quiet` - If set to `yes`, enable quiet mode, where all screen output except
   panics and important warnings is suppressed. If `timeout` is not 0, the
   `timeout` still occurs, and pressing any key during the timeout will reveal

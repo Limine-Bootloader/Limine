@@ -40,12 +40,29 @@ EFI_GUID limine_efi_vendor_guid =
 #define TOK_VALUE 2
 #define TOK_BADKEY 3
 #define TOK_COMMENT 4
+#define TIMEOUT_MAX_MS (UINT64_C(9999) * 1000)
 
 static char interface_help_colour[24] = "\e[38;2;0;170;0m";
 static char interface_help_colour_bright[24] = "\e[38;2;85;255;85m";
 static char menu_branding_colour[24] = "\e[38;2;0;170;170m";
 
 static char *menu_branding = NULL;
+
+static char *append_uint_dec(char *p, uint64_t val) {
+    char buf[20];
+    size_t i = 0;
+
+    do {
+        buf[i++] = '0' + (val % 10);
+        val /= 10;
+    } while (val != 0);
+
+    while (i != 0) {
+        *p++ = buf[--i];
+    }
+    *p = '\0';
+    return p;
+}
 
 static char *write_uint8_dec(char *p, uint8_t v) {
     if (v >= 100) {
@@ -59,6 +76,73 @@ static char *write_uint8_dec(char *p, uint8_t v) {
         *p++ = '0' + v;
     }
     return p;
+}
+
+static uint64_t parse_timeout_ms(const char *str) {
+    uint64_t seconds = 0;
+    uint64_t milliseconds = 0;
+    bool any = false;
+
+    while (isdigit(*str)) {
+        any = true;
+        if (seconds <= TIMEOUT_MAX_MS / 1000) {
+            seconds *= 10;
+            seconds += *str - '0';
+        }
+        str++;
+    }
+
+    if (*str == '.') {
+        uint64_t multiplier = 100;
+
+        str++;
+
+        while (isdigit(*str)) {
+            any = true;
+
+            if (multiplier != 0) {
+                milliseconds += (*str - '0') * multiplier;
+                multiplier /= 10;
+            } else if (*str != '0' && milliseconds < 999) {
+                milliseconds++;
+            }
+
+            str++;
+        }
+    }
+
+    if (!any) {
+        return 0;
+    }
+
+    if (seconds > TIMEOUT_MAX_MS / 1000) {
+        return UINT64_MAX;
+    }
+
+    return seconds * 1000 + milliseconds;
+}
+
+static size_t format_timeout_ms(char *buf, uint64_t milliseconds) {
+    char *p = append_uint_dec(buf, milliseconds / 1000);
+    uint64_t subsecond = milliseconds % 1000;
+
+    if (subsecond != 0) {
+        char *last;
+
+        *p++ = '.';
+        *p++ = '0' + subsecond / 100;
+        *p++ = '0' + (subsecond / 10) % 10;
+        *p++ = '0' + subsecond % 10;
+
+        last = p - 1;
+        while (*last == '0') {
+            last--;
+        }
+        p = last + 1;
+    }
+
+    *p = '\0';
+    return p - buf;
 }
 
 static void format_fg_rgb_escape(char *buf, uint32_t rgb) {
@@ -1113,22 +1197,6 @@ static char *append_string(char *p, const char *s) {
     return p;
 }
 
-static char *append_uint_dec(char *p, uint64_t val) {
-    char buf[20];
-    size_t i = 0;
-
-    do {
-        buf[i++] = '0' + (val % 10);
-        val /= 10;
-    } while (val != 0);
-
-    while (i != 0) {
-        *p++ = buf[--i];
-    }
-    *p = '\0';
-    return p;
-}
-
 static const char *uefi_shell_filename(void) {
 #if defined (__x86_64__)
     return "shellx64.efi";
@@ -1559,11 +1627,15 @@ noreturn void _menu(bool first_run) {
     }
 
     size_t timeout = 5;
+    uint64_t timeout_ms = timeout * 1000;
 
     bool has_timeout = false;
 
 #if defined (UEFI)
     has_timeout = bli_update_oneshot_timeout(&timeout, &skip_timeout);
+    if (has_timeout) {
+        timeout_ms = (uint64_t)timeout * 1000;
+    }
 #endif
 
     if (!has_timeout) {
@@ -1573,18 +1645,19 @@ noreturn void _menu(bool first_run) {
             if (!strcmp(timeout_config, "no"))
                 skip_timeout = true;
             else
-                timeout = strtoui(timeout_config, NULL, 10);
+                timeout_ms = parse_timeout_ms(timeout_config);
         }
     }
 
 #if defined (UEFI)
     if (!has_timeout) {
         has_timeout = bli_update_timeout(&timeout, &skip_timeout);
+        timeout_ms = (uint64_t)timeout * 1000;
     }
 #endif
 
-    if (timeout > 9999)
-        timeout = 9999;
+    if (timeout_ms > TIMEOUT_MAX_MS)
+        timeout_ms = TIMEOUT_MAX_MS;
 
 #if defined(UEFI)
     bool reboot_to_firmware_supported = reboot_to_fw_ui_supported();
@@ -1596,7 +1669,7 @@ noreturn void _menu(bool first_run) {
         skip_timeout = true;
     }
 
-    if (!skip_timeout && !timeout) {
+    if (!skip_timeout && !timeout_ms) {
         if (max_entries == 0 || selected_menu_entry == NULL || selected_menu_entry->sub != NULL) {
             quiet = false;
             print("Default entry is not valid or directory, booting to menu.\n");
@@ -1757,17 +1830,23 @@ refresh:
 
     if (skip_timeout == false) {
         print("\n\n");
-        for (size_t i = timeout; i; i--) {
-            size_t ndigits = 1;
-            for (size_t tmp = i / 10; tmp > 0; tmp /= 10) ndigits++;
-            size_t msg_len = 28 + ndigits;
+        while (timeout_ms != 0) {
+            char timeout_buf[24];
+            uint64_t sleep_ms = timeout_ms % 1000;
+            size_t timeout_len = format_timeout_ms(timeout_buf, timeout_ms);
+            size_t msg_len = 28 + timeout_len;
             set_cursor_pos_helper((terms[0]->cols - msg_len) / 2, terms[0]->rows - 2);
             FOR_TERM(TERM->scroll_enabled = false);
-            print("\e[2K%sBooting automatically in %s%U%s...\e[0m",
-                  interface_help_colour, interface_help_colour_bright, (uint64_t)i, interface_help_colour);
+            print("\e[2K%sBooting automatically in %s%s%s...\e[0m",
+                  interface_help_colour, interface_help_colour_bright, timeout_buf, interface_help_colour);
             FOR_TERM(TERM->scroll_enabled = true);
             FOR_TERM(TERM->double_buffer_flush(TERM));
-            if ((c = pit_sleep_and_quit_on_keypress(1))) {
+
+            if (sleep_ms == 0) {
+                sleep_ms = 1000;
+            }
+
+            if ((c = pit_sleep_ms_and_quit_on_keypress(sleep_ms))) {
                 skip_timeout = true;
                 if (quiet) {
                     quiet = false;
@@ -1778,6 +1857,7 @@ refresh:
                 FOR_TERM(TERM->double_buffer_flush(TERM));
                 goto timeout_aborted;
             }
+            timeout_ms -= sleep_ms;
         }
         goto autoboot;
     }

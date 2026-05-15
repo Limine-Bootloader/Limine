@@ -156,12 +156,21 @@ static int input_sequence(void) {
     return 0;
 }
 
-int pit_sleep_and_quit_on_keypress(int seconds) {
-    if (!serial) {
-        return _pit_sleep_and_quit_on_keypress(seconds * 18);
+int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
+    uint64_t ticks64 = milliseconds > (UINT64_MAX - 999) / 18
+                     ? UINT64_MAX
+                     : (milliseconds * 18 + 999) / 1000;
+    uint32_t ticks = ticks64 > UINT32_MAX ? UINT32_MAX : ticks64;
+
+    if (ticks == 0) {
+        return 0;
     }
 
-    for (int i = 0; i < seconds * 18; i++) {
+    if (!serial) {
+        return _pit_sleep_and_quit_on_keypress(ticks);
+    }
+
+    for (uint32_t i = 0; i < ticks; i++) {
         int ret = _pit_sleep_and_quit_on_keypress(1);
 
         if (ret != 0) {
@@ -194,6 +203,10 @@ again:
     }
 
     return 0;
+}
+
+int pit_sleep_and_quit_on_keypress(int seconds) {
+    return pit_sleep_ms_and_quit_on_keypress((uint64_t)seconds * 1000);
 }
 #endif
 
@@ -254,7 +267,7 @@ static int input_sequence(bool ext,
     return 0;
 }
 
-int pit_sleep_and_quit_on_keypress(int seconds) {
+int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
     EFI_KEY_DATA kd;
 
     UINTN which;
@@ -287,7 +300,8 @@ int pit_sleep_and_quit_on_keypress(int seconds) {
 restart:
     gBS->CreateEvent(EVT_TIMER, TPL_CALLBACK, NULL, NULL, &events[1]);
 
-    gBS->SetTimer(events[1], TimerRelative, (uint64_t)10000000 * seconds);
+    gBS->SetTimer(events[1], TimerRelative,
+                  milliseconds > UINT64_MAX / 10000 ? UINT64_MAX : milliseconds * 10000);
 
 again:
     memset(&kd, 0, sizeof(EFI_KEY_DATA));
@@ -361,5 +375,9 @@ again:
 
     gBS->CloseEvent(events[1]);
     return ret;
+}
+
+int pit_sleep_and_quit_on_keypress(int seconds) {
+    return pit_sleep_ms_and_quit_on_keypress((uint64_t)seconds * 1000);
 }
 #endif
