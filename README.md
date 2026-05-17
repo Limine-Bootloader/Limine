@@ -7,7 +7,7 @@
 ### What is Limine?
 
 Limine (pronounced as demonstrated [here](https://www.merriam-webster.com/dictionary/in%20limine))
-is a modern, advanced, portable, multiprotocol bootloader and boot manager, also used
+is a modern, secure, portable, multiprotocol bootloader and boot manager, also used
 as the reference implementation for the [Limine boot protocol](https://github.com/Limine-Bootloader/limine-protocol/blob/trunk/PROTOCOL.md).
 
 ### Community, Support, and Donations
