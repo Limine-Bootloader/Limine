@@ -27,10 +27,7 @@ void mtrr_save(void) {
         return;
     }
 
-    /* IRQs off across the MSR work; re-enable only if they were on */
-    uintptr_t eflags;
-    asm volatile ("pushf\n\tpop %0" : "=r"(eflags) :: "memory");
-    asm volatile ("cli" ::: "memory");
+    bool ints = disable_interrupts();
 
     uint64_t ia32_mtrrcap = rdmsr(0xfe);
 
@@ -70,8 +67,8 @@ void mtrr_save(void) {
     /* make sure that the saved MTRR default has MTRRs off */
     saved_mtrrs[var_reg_count * 2 + 11] &= ~((uint64_t)1 << 11);
 
-    if (eflags & ((uintptr_t)1 << 9)) {
-        asm volatile ("sti" ::: "memory");
+    if (ints) {
+        enable_interrupts();
     }
 }
 
@@ -89,10 +86,7 @@ void mtrr_restore(void) {
         return;
     }
 
-    /* IRQs off across the MSR/cache dance; re-enable only if they were on */
-    uintptr_t eflags;
-    asm volatile ("pushf\n\tpop %0" : "=r"(eflags) :: "memory");
-    asm volatile ("cli" ::: "memory");
+    bool ints = disable_interrupts();
 
     /* according to the Intel SDM 12.11.7.2 "MemTypeSet() Function",
        we need to follow this procedure before changing MTRR set up */
@@ -157,8 +151,8 @@ void mtrr_restore(void) {
     /* restore old value of cr0 */
     asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
 
-    if (eflags & ((uintptr_t)1 << 9)) {
-        asm volatile ("sti" ::: "memory");
+    if (ints) {
+        enable_interrupts();
     }
 }
 
