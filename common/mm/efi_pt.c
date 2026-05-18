@@ -289,7 +289,7 @@ void efi_pt_set_fb_wc(uint64_t base, uint64_t size) {
         saved_pte_val = ext_mem_alloc(SAVED_PTES_MAX * sizeof(uint64_t));
     }
 
-    asm volatile ("cli");
+    bool ints = disable_interrupts();
 
     if (!ensure_wc_pat_slot()) {
         goto out;
@@ -310,7 +310,9 @@ void efi_pt_set_fb_wc(uint64_t base, uint64_t size) {
     wp_on(old_cr0);
 
 out:
-    asm volatile ("sti");
+    if (ints) {
+        enable_interrupts();
+    }
 }
 
 void efi_pt_restore(void) {
@@ -318,7 +320,7 @@ void efi_pt_restore(void) {
         goto out;
     }
 
-    asm volatile ("cli");
+    bool ints = disable_interrupts();
 
     if (saved_pte_i != 0) {
         uint64_t old_cr0;
@@ -336,7 +338,9 @@ void efi_pt_restore(void) {
         cache_on(old_cr0);
     }
 
-    asm volatile ("sti");
+    if (ints) {
+        enable_interrupts();
+    }
 
     saved_pte_i = 0;
     pat_modified = false;

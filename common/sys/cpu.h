@@ -154,6 +154,32 @@ static inline void wrmsr(uint32_t msr, uint64_t value) {
                   : "memory");
 }
 
+static inline bool disable_interrupts(void) {
+    uintptr_t flags;
+    asm volatile (
+        "pushf\n\t"
+        "pop %0\n\t"
+        "cli\n\t"
+        : "=r" (flags)
+        :
+        : "memory"
+    );
+    return !!(flags & ((uintptr_t)1 << 9));
+}
+
+static inline bool enable_interrupts(void) {
+    uintptr_t flags;
+    asm volatile (
+        "pushf\n\t"
+        "pop %0\n\t"
+        "sti\n\t"
+        : "=r" (flags)
+        :
+        : "memory"
+    );
+    return !!(flags & ((uintptr_t)1 << 9));
+}
+
 static inline uint64_t rdtsc(void) {
     uint32_t edx, eax;
     asm volatile ("rdtsc" : "=a" (eax), "=d" (edx) :: "memory");
