@@ -1,3 +1,19 @@
+2026-05-18  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.3.0 ***
+
+    Noteworthy changes compared to the previous release, 12.2.0:
+
+    New features:
+        - Add support for fractional timeout values.
+
+    Miscellaneous:
+        - Significantly improve framebuffer performance on some machines by
+          using the Write Combining caching mode via PAT and page tables on
+          x86-64/UEFI instead of MTRRs.
+        - Improve reliability of the MTRR framebuffer Write Combining path on
+          IA-32 (UEFI and BIOS).
+
 2026-05-07  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.2.0 ***
