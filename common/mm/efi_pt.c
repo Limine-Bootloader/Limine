@@ -27,6 +27,11 @@ static bool la57_enabled(void) {
     return !!(cr4 & ((uint64_t)1 << 12));
 }
 
+static bool gib_pages_supported(void) {
+    uint32_t eax, ebx, ecx, edx;
+    return cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) && !!(edx & (1 << 26));
+}
+
 // Firmware PTEs we overwrote, replayed by efi_pt_restore() to undo the FB WC.
 // On overflow we stop applying WC so the undo stays complete.
 #define SAVED_PTES_MAX 1024
@@ -38,6 +43,7 @@ static uint64_t saved_pat = 0;
 static bool pat_modified = false;
 
 static int wc_pat_index = -1;
+static bool gib_supported = false;
 
 static bool save_pte(uint64_t *slot) {
     if (saved_pte_i >= SAVED_PTES_MAX) {
@@ -235,7 +241,7 @@ static void wc_walk(uint64_t *table, int lvl, uint64_t tbl_va,
         bool is_leaf = (lvl == 1) || (present && lvl <= 3 && (*e & PTE_PS));
         bool fully = va >= base && va + step <= end;
 
-        if (fully && lvl <= 3) {
+        if (fully && lvl <= 3 && (lvl < 3 || gib_supported)) {
             uint64_t leaf;
             if (present && is_leaf) {
                 leaf = (*e & PT_ADDR_MASK & ~(step - 1))
@@ -296,6 +302,7 @@ void efi_pt_set_fb_wc(uint64_t base, uint64_t size) {
     asm volatile ("mov %%cr3, %0" : "=r"(cr3));
     uint64_t *top = (uint64_t *)(cr3 & PT_ADDR_MASK);
     int levels = la57_enabled() ? 5 : 4;
+    gib_supported = gib_pages_supported();
 
     uint64_t old_cr0;
     wp_off(&old_cr0);
