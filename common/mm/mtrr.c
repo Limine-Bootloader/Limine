@@ -17,18 +17,10 @@ static bool mtrr_supported(void) {
     return !!(edx & (1 << 12));
 }
 
-// Sized for the architectural maximum MTRRCAP.VCNT (8 bits -> 256), plus the
-// 11 fixed-range MTRRs and the default-type MSR. .no_unwind so the snapshot
-// survives a panic-rewind: the MSR state we mutated persists across the
-// rewind, and so does the data we need to undo it.
-#define SAVED_MTRRS_MAX (256 * 2 + 11 + 1)
-
-no_unwind uint64_t saved_mtrrs[SAVED_MTRRS_MAX];
-static no_unwind uint8_t saved_mtrrs_var_count = 0;
-static no_unwind bool saved_mtrrs_valid = false;
+uint64_t *saved_mtrrs = NULL;
 
 void mtrr_save(void) {
-    if (saved_mtrrs_valid) {
+    if (saved_mtrrs != NULL) {
         return;
     }
     if (!mtrr_supported()) {
@@ -39,6 +31,12 @@ void mtrr_save(void) {
 
     uint8_t var_reg_count = ia32_mtrrcap & 0xff;
     bool fix_supported = !!(ia32_mtrrcap & ((uint64_t)1 << 8));
+
+    saved_mtrrs = ext_mem_alloc((
+        (var_reg_count * 2) /* variable MTRRs, 2 MSRs each */
+      + 11                  /* 11 fixed MTRRs */
+      + 1                   /* 1 default type MTRR */
+    ) * sizeof(uint64_t));
 
     /* save variable range MTRRs */
     for (uint8_t i = 0; i < var_reg_count * 2; i += 2) {
@@ -66,9 +64,6 @@ void mtrr_save(void) {
 
     /* make sure that the saved MTRR default has MTRRs off */
     saved_mtrrs[var_reg_count * 2 + 11] &= ~((uint64_t)1 << 11);
-
-    saved_mtrrs_var_count = var_reg_count;
-    saved_mtrrs_valid = true;
 }
 
 void mtrr_restore(void) {
@@ -76,14 +71,14 @@ void mtrr_restore(void) {
         return;
     }
 
-    if (!saved_mtrrs_valid) {
-        return;
-    }
-
     uint64_t ia32_mtrrcap = rdmsr(0xfe);
 
-    uint8_t var_reg_count = saved_mtrrs_var_count;
+    uint8_t var_reg_count = ia32_mtrrcap & 0xff;
     bool fix_supported = !!(ia32_mtrrcap & ((uint64_t)1 << 8));
+
+    if (saved_mtrrs == NULL) {
+        return;
+    }
 
     /* according to the Intel SDM 12.11.7.2 "MemTypeSet() Function",
        we need to follow this procedure before changing MTRR set up */
