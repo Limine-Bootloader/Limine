@@ -757,7 +757,7 @@ reloc_fail:
 
         tag->common.type = MULTIBOOT_TAG_TYPE_FRAMEBUFFER;
 
-        term_notready(false);
+        term_notready();
 
         size_t req_width = 0;
         size_t req_height = 0;
@@ -786,7 +786,7 @@ modeset:;
 
             struct fb_info *fbs;
             size_t fbs_count;
-            fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp);
+            fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
             if (fbs_count == 0) {
 #if defined (BIOS)
 textmode:

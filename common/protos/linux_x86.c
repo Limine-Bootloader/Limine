@@ -544,7 +544,7 @@ no_modules:;
     // Video
     ///////////////////////////////////////
 
-    term_notready(false);
+    term_notready();
 
     struct screen_info *screen_info = &boot_params->screen_info;
 
@@ -569,7 +569,7 @@ no_modules:;
 #if defined (UEFI)
     gop_force_16 = true;
 #endif
-    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp);
+    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
     if (fbs_count == 0) {
 #if defined (UEFI)
         goto no_fb;

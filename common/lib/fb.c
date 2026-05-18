@@ -6,13 +6,20 @@
 #include <drivers/vbe.h>
 #include <drivers/gop.h>
 #include <mm/pmm.h>
+#include <mm/mtrr.h>
+#include <mm/efi_pt.h>
 #include <sys/cpu.h>
 
 struct fb_info *fb_fbs;
 size_t fb_fbs_count = 0;
 
 void fb_init(struct fb_info **ret, size_t *_fbs_count,
-             uint64_t target_width, uint64_t target_height, uint16_t target_bpp) {
+             uint64_t target_width, uint64_t target_height, uint16_t target_bpp,
+             bool preserve_screen, bool keep_wc) {
+    if (quiet) {
+        preserve_screen = true;
+    }
+
 #if defined (BIOS)
     *ret = ext_mem_alloc(sizeof(struct fb_info));
     if (init_vbe(*ret, target_width, target_height, target_bpp)) {
@@ -32,6 +39,45 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
 
     fb_fbs = *ret;
     fb_fbs_count = *_fbs_count;
+
+    // Map the framebuffers as write-combining so the clear (and, when kept,
+    // terminal rendering) is fast. keep_wc leaves it active for the caller.
+    bool want_wc = keep_wc || !preserve_screen;
+
+#if defined (__i386__) || defined (__x86_64__)
+    if (want_wc) {
+        for (size_t i = 0; i < *_fbs_count; i++) {
+            uint64_t fb_size = (uint64_t)(*ret)[i].framebuffer_pitch
+                             * (*ret)[i].framebuffer_height;
+            if (fb_size == 0) {
+                continue;
+            }
+#if defined (__x86_64__) && defined (UEFI)
+            efi_pt_set_fb_wc((*ret)[i].framebuffer_addr, fb_size);
+#else
+            mtrr_wc_add_fb_range((*ret)[i].framebuffer_addr, fb_size);
+#endif
+        }
+    }
+#endif
+
+    if (!preserve_screen) {
+        for (size_t i = 0; i < *_fbs_count; i++) {
+            fb_clear(&(*ret)[i]);
+        }
+    }
+
+#if defined (__i386__) || defined (__x86_64__)
+    if (want_wc && !keep_wc) {
+#if defined (__x86_64__) && defined (UEFI)
+        efi_pt_restore();
+#else
+        mtrr_restore();
+#endif
+    }
+#else
+    (void)want_wc;
+#endif
 }
 
 void fb_clear(struct fb_info *fb) {

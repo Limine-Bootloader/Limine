@@ -67,7 +67,7 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
         getchar();
 
         // This fixes a crash
-        term_notready(true);
+        term_notready();
 
         menu(false);
 /*

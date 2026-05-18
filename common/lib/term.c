@@ -20,19 +20,7 @@ size_t terms_i = 0;
 
 int term_backend = _NOT_READY;
 
-void term_notready(bool preserve_screen) {
-    if (quiet) {
-        preserve_screen = true;
-    }
-
-    if (!preserve_screen) {
-        for (size_t i = 0; i < fb_fbs_count; i++) {
-            if (fb_fbs[i].framebuffer_bpp == 32) {
-                fb_clear(&fb_fbs[i]);
-            }
-        }
-    }
-
+void term_notready(void) {
 #if defined (__i386__) || defined (__x86_64__)
 #if defined (__x86_64__) && defined (UEFI)
     efi_pt_restore();
@@ -251,7 +239,7 @@ void term_fallback(void) {
     int prev_backend = term_backend;
 #endif
 
-    term_notready(true);
+    term_notready();
 
     terms = ext_mem_alloc(sizeof(void *));
     terms_i = 1;
