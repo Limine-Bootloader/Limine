@@ -820,9 +820,10 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
         if (fb_size == 0) {
             continue;
         }
-        mtrr_wc_add_fb_range(fbs[i].framebuffer_addr, fb_size);
 #if defined (__x86_64__) && defined (UEFI)
-        efi_pt_set_fb_uc_minus(fbs[i].framebuffer_addr, fb_size);
+        efi_pt_set_fb_wc(fbs[i].framebuffer_addr, fb_size);
+#else
+        mtrr_wc_add_fb_range(fbs[i].framebuffer_addr, fb_size);
 #endif
     }
 #endif

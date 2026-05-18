@@ -7,6 +7,7 @@
 #include <lib/fb.h>
 #include <mm/pmm.h>
 #include <mm/mtrr.h>
+#include <mm/efi_pt.h>
 #include <drivers/vga_textmode.h>
 #include <flanterm_backends/fb.h>
 
@@ -33,7 +34,11 @@ void term_notready(bool preserve_screen) {
     }
 
 #if defined (__i386__) || defined (__x86_64__)
+#if defined (__x86_64__) && defined (UEFI)
+    efi_pt_restore();
+#else
     mtrr_restore();
+#endif
 #endif
 
     for (size_t i = 0; i < terms_i; i++) {
