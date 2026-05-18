@@ -69,31 +69,7 @@ void fb_clear(struct fb_info *fb) {
              (size_t)fb->framebuffer_pitch * fb->framebuffer_height);
 }
 
-#if defined (__x86_64__) || defined (__i386__)
-static void fb_flush_x86(volatile void *base, size_t length) {
-    static size_t clsz = 0;
-    if (clsz == 0) {
-        uint32_t eax, ebx, ecx, edx;
-        if (!cpuid(1, 0, &eax, &ebx, &ecx, &edx))
-            return;
-        clsz = ((ebx >> 8) & 0xFF) * 8;
-        if (clsz == 0)
-            return;
-    }
-
-    uintptr_t start = ALIGN_DOWN((uintptr_t)base, clsz);
-    uintptr_t end = ALIGN_UP((uintptr_t)base + length, clsz, panic(false, "fb: Alignment overflow"));
-    for (uintptr_t ptr = start; ptr < end; ptr += clsz) {
-        asm volatile ("clflush (%0)" :: "r"(ptr) : "memory");
-    }
-}
-
-static void fb_flush_x86_wbinvd(volatile void *base, size_t length) {
-    (void)base;
-    (void)length;
-    asm volatile ("wbinvd" ::: "memory");
-}
-#elif defined (__aarch64__)
+#if defined (__aarch64__)
 static void fb_flush_aarch64(volatile void *base, size_t length) {
     clean_dcache_poc((uintptr_t)base, (uintptr_t)base + length);
 }
@@ -145,14 +121,7 @@ void fb_flush(volatile void *base, size_t length) {
     static flush_fn fn = NULL;
 
     if (fn == NULL) {
-#if defined (__x86_64__) || defined (__i386__)
-        uint32_t eax, ebx, ecx, edx;
-        if (cpuid(1, 0, &eax, &ebx, &ecx, &edx) && ((edx >> 19) & 1)) {
-            fn = fb_flush_x86;
-        } else {
-            fn = fb_flush_x86_wbinvd;
-        }
-#elif defined (__aarch64__)
+#if defined (__aarch64__)
         fn = fb_flush_aarch64;
 #elif defined (__riscv)
         if (riscv_check_isa_extension("zicbom", NULL, NULL)) {
@@ -165,5 +134,7 @@ void fb_flush(volatile void *base, size_t length) {
 #endif
     }
 
-    fn(base, length);
+    if (fn != NULL) {
+        fn(base, length);
+    }
 }
