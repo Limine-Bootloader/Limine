@@ -208,8 +208,6 @@ $(call MKESCAPE,$(BINDIR))/limine-uefi-cd.bin: $(if $(BUILD_UEFI_IA32),$(call MK
 ifneq ($(BUILD_UEFI_CD),no)
 	$(MKDIR_P) '$(call SHESCAPE,$(BINDIR))'
 	rm -f '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin'
-	dd if=/dev/zero of='$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' bs=512 count=32768 2>/dev/null
-	mformat -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' -h 64 -t 32 -s 16 -N 12345678 ::
 	LIMINE_UEFI_CD_TMP="$$(mktemp -d)"; \
 		mkdir -p "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT; \
 		cp '$(call SHESCAPE,$(BUILDDIR))/common-uefi-aarch64/BOOTAA64.EFI' "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT/ 2>/dev/null; \
@@ -218,6 +216,9 @@ ifneq ($(BUILD_UEFI_CD),no)
 		cp '$(call SHESCAPE,$(BUILDDIR))/common-uefi-x86-64/BOOTX64.EFI' "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT/ 2>/dev/null; \
 		cp '$(call SHESCAPE,$(BUILDDIR))/common-uefi-ia32/BOOTIA32.EFI' "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT/ 2>/dev/null; \
 		find "$$LIMINE_UEFI_CD_TMP" -exec touch -t $(SOURCE_DATE_EPOCH_TOUCH) '{}' + && \
+		LIMINE_UEFI_CD_SIZE="$$(du -sk "$$LIMINE_UEFI_CD_TMP" | $(AWK) '{ print $$1 }')" && \
+		LIMINE_UEFI_CD_SECTORS="$$(( (($$LIMINE_UEFI_CD_SIZE + 1023) / 1024 + 1) * 2048 ))" && \
+		mformat -C -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' -h 64 -s 16 -T "$$LIMINE_UEFI_CD_SECTORS" -N 12345678 :: && \
 		mcopy -D o -s -m -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' "$$LIMINE_UEFI_CD_TMP"/EFI :: && \
 		rm -rf "$$LIMINE_UEFI_CD_TMP"
 endif
