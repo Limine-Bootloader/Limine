@@ -218,7 +218,7 @@ ifneq ($(BUILD_UEFI_CD),no)
 		find "$$LIMINE_UEFI_CD_TMP" -exec touch -t $(SOURCE_DATE_EPOCH_TOUCH) '{}' + && \
 		LIMINE_UEFI_CD_SIZE="$$(du -sk "$$LIMINE_UEFI_CD_TMP" | $(AWK) '{ print $$1 }')" && \
 		LIMINE_UEFI_CD_SECTORS="$$(( (($$LIMINE_UEFI_CD_SIZE + 1023) / 1024 + 1) * 2048 ))" && \
-		mformat -C -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' -h 64 -s 16 -T "$$LIMINE_UEFI_CD_SECTORS" -N 12345678 :: && \
+		mformat -C -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' -T "$$LIMINE_UEFI_CD_SECTORS" -N 12345678 :: && \
 		mcopy -D o -s -m -i '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin' "$$LIMINE_UEFI_CD_TMP"/EFI :: && \
 		rm -rf "$$LIMINE_UEFI_CD_TMP"
 endif
