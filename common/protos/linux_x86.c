@@ -407,12 +407,29 @@ noreturn void linux_load(char *config, char *cmdline) {
     if (setup_header->version >= 0x205 && setup_header->kernel_alignment > kernel_align) {
         kernel_align = setup_header->kernel_alignment;
     }
-    uintptr_t kernel_load_addr = ALIGN_UP(0x100000, kernel_align, panic(true, "linux: Alignment overflow"));
+    // Start at pref_address: the decompressor relocates itself up to
+    // LOAD_PHYSICAL_ADDR (= pref_address) and scribbles init_size bytes from
+    // there, so loading below it would leave that range unreserved.
+    uintptr_t kernel_search_start = 0x100000;
+    if (setup_header->version >= 0x20a
+     && setup_header->pref_address >= 0x100000
+     && setup_header->pref_address + (uint64_t)kernel_alloc_size <= UINTPTR_MAX) {
+        kernel_search_start = (uintptr_t)setup_header->pref_address;
+    }
+    // Non-relocatable kernels must be loaded at their required address; do
+    // not step up on failure.
+    bool relocatable_kernel = setup_header->version >= 0x205
+                           && setup_header->relocatable_kernel != 0;
+    uintptr_t kernel_load_addr = ALIGN_UP(kernel_search_start, kernel_align, panic(true, "linux: Alignment overflow"));
     for (;;) {
         if (memmap_alloc_range(kernel_load_addr,
                 ALIGN_UP(kernel_alloc_size, 4096, panic(true, "linux: Alignment overflow")),
                 MEMMAP_BOOTLOADER_RECLAIMABLE, MEMMAP_USABLE, false, false, false))
             break;
+
+        if (!relocatable_kernel) {
+            panic(true, "linux: Non-relocatable kernel could not be loaded at required address %X", (uint64_t)kernel_load_addr);
+        }
 
         if (kernel_load_addr >= 0xfff00000) {
             panic(true, "linux: Failed to allocate memory for kernel");
