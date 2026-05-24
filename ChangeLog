@@ -1,3 +1,18 @@
+2026-05-24  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.3.1 ***
+
+    Noteworthy changes compared to the previous release, 12.3.0:
+
+    Bug fixes:
+        - Fix x86(_64) Linux protocol loader miscompliance that could cause
+          boot failures on some setups showing an "invalid magic at start of
+          compressed archive" error.
+
+    Miscellaneous:
+        - Shrink the size of `limine-uefi-cd.bin` to avoid wasting space when
+          unnecessary.
+
 2026-05-18  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.3.0 ***
