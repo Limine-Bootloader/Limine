@@ -36,16 +36,14 @@ struct image *image_open(struct file_handle *file) {
 
     image->type = IMAGE_TILED;
 
-    void *src = ext_mem_alloc(file->size);
-
-    fread(file, src, 0, file->size);
+    const uint8_t *src = file->fd;
 
     int x = 0, y = 0;
     image->isQoi = file->size >= 4
-                  && ((const uint8_t *)src)[0] == 'q'
-                  && ((const uint8_t *)src)[1] == 'o'
-                  && ((const uint8_t *)src)[2] == 'i'
-                  && ((const uint8_t *)src)[3] == 'f';
+                  && src[0] == 'q'
+                  && src[1] == 'o'
+                  && src[2] == 'i'
+                  && src[3] == 'f';
 
     if (image->isQoi) {
         image->img = qoi_decode(src, file->size, &x, &y);
@@ -53,8 +51,6 @@ struct image *image_open(struct file_handle *file) {
         int bpp;
         image->img = stbi_load_from_memory(src, file->size, &x, &y, &bpp, 4);
     }
-
-    pmm_free(src, file->size);
 
     if (image->img == NULL || x == 0 || y == 0) {
         free_image_data(image);
