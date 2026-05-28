@@ -588,9 +588,11 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
                 print("Wallpaper skipped: Secure Boot is active and no hash is associated.\n");
             } else {
                 struct file_handle *bg_file;
-                if ((bg_file = uri_open(background_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+                if ((bg_file = uri_open(background_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
 #if defined (__i386__)
-                    , NULL, NULL
+                    false, NULL, NULL
+#else
+                    true
 #endif
                 )) != NULL) {
                     background = image_open(bg_file);
@@ -667,9 +669,11 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
             goto config_no_load_font;
         }
         struct file_handle *f;
-        if ((f = uri_open(menu_font, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+        if ((f = uri_open(menu_font, MEMMAP_BOOTLOADER_RECLAIMABLE,
 #if defined (__i386__)
-            , NULL, NULL
+            false, NULL, NULL
+#else
+            true
 #endif
         )) == NULL) {
             print("menu: Could not open font file.\n");
