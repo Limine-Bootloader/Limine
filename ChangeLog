@@ -1,3 +1,14 @@
+2026-05-28  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.3.2 ***
+
+    Noteworthy changes compared to the previous release, 12.3.1:
+
+    Bug fixes:
+        - Fix regression introduced when switching to the streamed file reads
+          to the preloaded ones, which caused memory exhaustion when loading
+          large files on machines with little/fragmented below-4GiB memory.
+
 2026-05-24  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.3.1 ***
