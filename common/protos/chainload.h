@@ -5,4 +5,6 @@
 
 noreturn void chainload(char *config, char *cmdline);
 
+noreturn void chainload_handover(char *config, char *cmdline);
+
 #endif

@@ -770,7 +770,8 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
         if (strcmp(cur_entry_protocol, "efi") == 0
          || strcmp(cur_entry_protocol, "uefi") == 0
          || strcmp(cur_entry_protocol, "efi_chainload") == 0
-         || strcmp(cur_entry_protocol, "efi_boot_entry") == 0) {
+         || strcmp(cur_entry_protocol, "efi_boot_entry") == 0
+         || strcmp(cur_entry_protocol, "efi_handover") == 0)	 {
 #endif
             return true;
         }
@@ -2072,6 +2073,9 @@ noreturn void boot(char *config) {
 #if defined (UEFI)
     else if (!strcmp(proto, "efi_boot_entry")) {
         efi_boot_entry(config);
+    }
+    else if (!strcmp(proto, "efi_handover")) {
+	    chainload_handover(config, cmdline);
     }
 #endif
 

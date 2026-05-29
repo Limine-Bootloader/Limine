@@ -256,6 +256,99 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
     return device_path;
 }
 
+
+noreturn void chainload_handover(char *config, char *cmdline) {
+    // 1. Retrieve the target image path from config
+    char *image_path = config_get_value(config, 0, "PATH");
+    if (image_path == NULL) {
+        image_path = config_get_value(config, 0, "IMAGE_PATH");
+    }
+
+    if (image_path == NULL) {
+        panic(true, "efi-handover: Image path not specified");
+    }
+
+    // Disable Limine's SB checks; LoadImage does its own hardware verification.
+    bool saved_secure_boot_active = secure_boot_active;
+    secure_boot_active = false;
+
+    struct file_handle *image;
+#if defined (__i386__)
+    image = uri_open(image_path, MEMMAP_RESERVED, false, NULL, NULL);
+#else
+    image = uri_open(image_path, MEMMAP_RESERVED, false);
+#endif
+
+    if (image == NULL) {
+        panic(true, "efi-handover: Failed to open image `%s`", image_path);
+    }
+
+    secure_boot_active = saved_secure_boot_active;
+
+    // 3. Resolve native UEFI Device Path and partition handle before closing the file
+    EFI_DEVICE_PATH_PROTOCOL *efi_file_path = build_relative_efi_file_path(image);
+    EFI_HANDLE efi_part_handle = image->efi_part_handle;
+
+    fclose(image);
+    term_notready();
+
+    // 4. Prepare command line options for the target UEFI image
+    size_t cmdline_len = strlen(cmdline);
+    CHAR16 *new_cmdline = NULL;
+    EFI_STATUS status = gBS->AllocatePool(EfiLoaderData, (cmdline_len + 1) * sizeof(CHAR16), (void **)&new_cmdline);
+    if (status) {
+        panic(true, "efi-handover: Memory allocation failure for boot options");
+    }
+    for (size_t i = 0; i < cmdline_len + 1; i++) {
+        new_cmdline[i] = cmdline[i];
+    }
+
+    pmm_release_uefi_mem();
+
+    EFI_HANDLE new_handle = 0;
+
+    // 5. Load the image natively via firmware filesystem drivers using raw EFI_DEVICE_PATH.
+    // This ensures that the TPM measures the actual file on disk, keeping PCR 4 clean
+    // and preventing Windows BitLocker from tripping on dual-boot setups.
+    status = gBS->LoadImage(FALSE, efi_image_handle,
+                            efi_file_path,
+                            NULL, 0, &new_handle);
+    if (status) {
+        panic(false, "efi-handover: LoadImage failure (%X). CheckSecure Boot keys!", (uint64_t)status);
+    }
+
+    // 6. Retrieve Loaded Image Protocol to pass custom load options (cmdline)
+    EFI_GUID loaded_img_prot_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_LOADED_IMAGE_PROTOCOL *new_handle_loaded_image = NULL;
+    status = gBS->HandleProtocol(new_handle, &loaded_img_prot_guid, (void **)&new_handle_loaded_image);
+    if (status) {
+        panic(false, "efi-handover: HandleProtocol failure (%X)", (uint64_t)status);
+    }
+
+    if (efi_part_handle != 0) {
+        new_handle_loaded_image->DeviceHandle = efi_part_handle;
+    }
+
+    new_handle_loaded_image->FilePath = efi_file_path;
+    new_handle_loaded_image->LoadOptionsSize = (cmdline_len + 1) * sizeof(CHAR16); 
+    new_handle_loaded_image->LoadOptions = new_cmdline;
+
+    bli_on_boot();
+
+    // 7. Execute the UEFI image
+    UINTN exit_data_size = 0;
+    CHAR16 *exit_data = NULL;
+    EFI_STATUS exit_status = gBS->StartImage(new_handle, &exit_data_size, &exit_data);
+
+    status = gBS->Exit(efi_image_handle, exit_status, exit_data_size, exit_data);
+    if (status) {
+        panic(false, "efi-handover: Exit failure (%X)", (uint64_t)status);
+    }
+
+    __builtin_unreachable();
+}
+
+
 noreturn void chainload(char *config, char *cmdline) {
     char *image_path = config_get_value(config, 0, "PATH");
     if (image_path == NULL) {
