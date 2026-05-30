@@ -11,39 +11,62 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+
+    outputs:
+      tag: ${{ steps.validate.outputs.tag }}
+      sha: ${{ steps.validate.outputs.sha }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag
+        id: validate
+        env:
+          TAG_INPUT: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -eu
+
+          if ! printf '%s' "$TAG_INPUT" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Invalid release tag: $TAG_INPUT" >&2
+            exit 1
+          fi
+
+          git fetch --force origin "refs/tags/$TAG_INPUT:refs/tags/$TAG_INPUT"
+          TAG_SHA="$(git rev-list -n 1 "refs/tags/$TAG_INPUT")"
+
+          echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
+          echo "sha=$TAG_SHA" >> "$GITHUB_OUTPUT"
+
   build:
-    name: Build and upload release artifacts
+    name: Build release artifacts
+    needs: validate
     runs-on: ubuntu-latest
     container: archlinux:latest
+    permissions:
+      contents: read
 
     steps:
       - name: Install dependencies
-        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gnupg gzip bzip2 xz zip git autoconf automake nasm curl mtools llvm clang lld
-
-      - name: Import GPG public key
-        run: gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
-
-      - name: Import GPG private key
-        run: echo "$MINTSUKI_PRIVATE_KEY" | gpg --batch --import
-        env:
-          MINTSUKI_PRIVATE_KEY: ${{ secrets.MINTSUKI_PRIVATE_KEY }}
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gzip bzip2 xz zip git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ needs.validate.outputs.sha }}
+          fetch-depth: 0
 
       - name: Git config
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Get tag name
-        run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            echo "TAG_NAME=${{ inputs.tag }}" >> $GITHUB_ENV
-          else
-            echo "TAG_NAME=$(git describe --exact-match --tags $(git log -n1 --pretty='%h'))" >> $GITHUB_ENV
-          fi
 
       - name: Regenerate
         run: ./bootstrap
@@ -93,15 +116,53 @@ jobs:
           xz < limine-binary.tar > limine-binary.tar.xz
           rm -rf limine-binary.tar limine-binary
 
-      - name: Sign release tarballs
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          if-no-files-found: error
+          path: |
+            limine-*.tar.*
+            limine-binary.zip
+
+  sign_release:
+    name: Sign and upload release artifacts
+    needs:
+      - validate
+      - build
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    environment: release-signing
+    permissions:
+      contents: write
+
+    steps:
+      - name: Install dependencies
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S gnupg
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist
+
+      - name: Import GPG private key
+        run: echo "$MINTSUKI_PRIVATE_KEY" | gpg --batch --import
+        env:
+          MINTSUKI_PRIVATE_KEY: ${{ secrets.MINTSUKI_PRIVATE_KEY }}
+
+      - name: Sign release artifacts
         run: |
-          for f in limine-*.tar.* limine-binary.zip; do
+          set -eu
+          for f in dist/limine-*.tar.* dist/limine-binary.zip; do
             gpg --batch --default-key 05D29860D0A0668AAEFB9D691F3C021BECA23821 --detach-sign "$f"
           done
 
       - name: Create release notes
+        env:
+          TAG_NAME: ${{ needs.validate.outputs.tag }}
         run: |
-          cat <<EOF >rel_notes.txt
+          cat >rel_notes.txt <<EOF
           Changelog can be found [here](https://github.com/Limine-Bootloader/Limine/blob/$TAG_NAME/ChangeLog).
           EOF
           cat <<'EOF' >>rel_notes.txt
@@ -122,10 +183,10 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:
-          tag_name: ${{ env.TAG_NAME }}
+          tag_name: ${{ needs.validate.outputs.tag }}
           body_path: rel_notes.txt
           files: |
-            limine-*.tar.*
-            limine-binary.zip*
+            dist/limine-*.tar.*
+            dist/limine-binary.zip*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
