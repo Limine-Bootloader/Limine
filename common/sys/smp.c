@@ -182,7 +182,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                 struct madt_lapic *lapic = (void *)madt_ptr;
 
                 // Check if we can actually try to start the AP
-                if ((lapic->flags & 1) ^ ((lapic->flags >> 1) & 1))
+                if (lapic->flags & MADT_LAPIC_ENABLED)
                     max_cpus++;
 
                 continue;
@@ -198,7 +198,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                 struct madt_x2apic *x2lapic = (void *)madt_ptr;
 
                 // Check if we can actually try to start the AP
-                if ((x2lapic->flags & 1) ^ ((x2lapic->flags >> 1) & 1))
+                if (x2lapic->flags & MADT_LAPIC_ENABLED)
                     max_cpus++;
 
                 continue;
@@ -233,7 +233,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                 struct madt_lapic *lapic = (void *)madt_ptr;
 
                 // Check if we can actually try to start the AP
-                if (!((lapic->flags & 1) ^ ((lapic->flags >> 1) & 1)))
+                if (!(lapic->flags & MADT_LAPIC_ENABLED))
                     continue;
 
                 struct limine_mp_info *info_struct = &ret[*cpu_count];
@@ -278,7 +278,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                 struct madt_x2apic *x2lapic = (void *)madt_ptr;
 
                 // Check if we can actually try to start the AP
-                if (!((x2lapic->flags & 1) ^ ((x2lapic->flags >> 1) & 1)))
+                if (!(x2lapic->flags & MADT_LAPIC_ENABLED))
                     continue;
 
                 struct limine_mp_info *info_struct = &ret[*cpu_count];

@@ -129,6 +129,8 @@ struct madt_x2apic {
     uint32_t acpi_processor_uid;
 } __attribute__((packed));
 
+#define MADT_LAPIC_ENABLED ((uint32_t)1 << 0)
+
 struct madt_io_apic {
     uint8_t type;
     uint8_t length;
