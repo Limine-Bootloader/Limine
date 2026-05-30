@@ -1,5 +1,3 @@
-#if !defined (__x86_64__) && !defined (__i386__)
-
 #include <stdint.h>
 #include <stddef.h>
 
@@ -53,5 +51,3 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 
     return 0;
 }
-
-#endif
