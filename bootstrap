@@ -67,7 +67,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/Mintsuki/Flanterm.git \
         flanterm \
-        dfa1922c0749faf64c4423a81b233a20c08a7db7
+        e231edd0e508022521c8233392aabc8ce5c9b242
 
     clone_repo_commit \
         https://github.com/Mintsuki/stbi-hardened.git \
