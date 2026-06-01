@@ -141,7 +141,7 @@ jobs:
         run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S gnupg
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-artifacts
           path: dist
