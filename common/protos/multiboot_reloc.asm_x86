@@ -30,8 +30,24 @@ multiboot_reloc_stub:
     mov esi, [eax]    ; ESI = range.elsewhere
     mov edi, [eax+8]  ; EDI = range.target
     mov ecx, [eax+16] ; ECX = range.length
-    rep movsb         ; Copy range to target location
 
+    ; A range's target may overlap its source. A forward copy would clobber
+    ; not-yet-copied source bytes when the target is above the source, so
+    ; copy backwards in that case (memmove semantics).
+    cmp edi, esi
+    jbe .copy_forwards
+
+    lea esi, [esi+ecx-1]
+    lea edi, [edi+ecx-1]
+    std
+    rep movsb         ; Copy range to target location, backwards
+    cld
+    jmp .next_range
+
+  .copy_forwards:
+    rep movsb         ; Copy range to target location, forwards
+
+  .next_range:
     add eax, 24       ; Move to the next range
 
     dec edx
