@@ -11,13 +11,12 @@ static bool elsewhere_overlap_check(uint64_t base1, uint64_t top1,
 }
 
 bool elsewhere_append(
-        bool flexible_target,
+        bool allow_wraparound,
         struct elsewhere_range *ranges, uint64_t *ranges_count,
         uint64_t ranges_max,
         void *elsewhere, uint64_t *target, size_t t_length) {
-    // original target of -1 means "allocate after top of all ranges"
-    // flexible target is ignored
-    flexible_target = true;
+    // A target of -1 means "allocate after the top of all ranges".
+    bool wrapped = false;
     if (*target == (uint64_t)-1) {
         uint64_t top = 0;
 
@@ -44,6 +43,14 @@ retry:
 
         // Ensure allocation stays within 32-bit address space.
         if (t_top > 0x100000000) {
+            // If permitted, wrap the search around to low memory once. This lets
+            // targets be placed below a kernel relocated high, which would
+            // otherwise leave no room above it for the info struct or modules.
+            if (allow_wraparound && !wrapped) {
+                wrapped = true;
+                *target = 0x100000;
+                goto retry;
+            }
             return false;
         }
 
@@ -54,9 +61,6 @@ retry:
             uint64_t top = CHECKED_ADD(base, length, continue);
 
             if (elsewhere_overlap_check(base, top, *target, t_top)) {
-                if (!flexible_target) {
-                    return false;
-                }
                 *target = ALIGN_UP(top, 4096, return false);
                 goto retry;
             }
@@ -69,9 +73,6 @@ retry:
             uint64_t top = CHECKED_ADD(base, length, continue);
 
             if (elsewhere_overlap_check(base, top, *target, t_top)) {
-                if (!flexible_target) {
-                    return false;
-                }
                 *target = ALIGN_UP(top, 4096, return false);
                 goto retry;
             }
@@ -82,9 +83,6 @@ retry:
                                 MEMMAP_USABLE, false, true, false)) {
             if (!memmap_alloc_range(*target, t_length, MEMMAP_BOOTLOADER_RECLAIMABLE,
                                     MEMMAP_BOOTLOADER_RECLAIMABLE, false, true, false)) {
-                if (!flexible_target) {
-                    return false;
-                }
                 *target += 0x1000;
                 goto retry;
             }

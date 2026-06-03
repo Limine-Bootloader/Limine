@@ -242,7 +242,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     void *mb1_info_raw = ext_mem_alloc(mb1_info_size);
     uint64_t mb1_info_final_loc = 0x10000;
 
-    if (!elsewhere_append(true /* flexible target */,
+    if (!elsewhere_append(false,
             ranges, &ranges_count, ranges_max,
             mb1_info_raw, &mb1_info_final_loc, mb1_info_size)) {
         panic(true, "multiboot1: Cannot allocate mb1 info");
@@ -293,7 +293,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
                 uint64_t section = (uint64_t)-1; /* no target preference, use top */
 
-                if (!elsewhere_append(true /* flexible target */,
+                if (!elsewhere_append(false,
                         ranges, &ranges_count, ranges_max,
                         kernel + shdr->sh_offset, &section, shdr->sh_size)) {
                     panic(true, "multiboot1: Cannot allocate elf sections");
@@ -314,7 +314,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
                 uint64_t section = (uint64_t)-1; /* no target preference, use top */
 
-                if (!elsewhere_append(true /* flexible target */,
+                if (!elsewhere_append(false,
                         ranges, &ranges_count, ranges_max,
                         kernel + shdr->sh_offset, &section, shdr->sh_size)) {
                     panic(true, "multiboot1: Cannot allocate elf sections");
@@ -368,7 +368,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
                         module_addr, f->size, "module_path: ", module_path);
 #endif
 
-            if (!elsewhere_append(true /* flexible target */,
+            if (!elsewhere_append(false,
                     ranges, &ranges_count, ranges_max,
                     module_addr, &module_target, f->size)) {
                 panic(true, "multiboot1: Cannot allocate module");

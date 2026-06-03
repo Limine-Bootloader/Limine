@@ -525,7 +525,7 @@ reloc_fail:
     uint8_t *mb2_info = ext_mem_alloc(mb2_info_size);
     uint64_t mb2_info_final_loc = 0x10000;
 
-    if (!elsewhere_append(true /* flexible target */,
+    if (!elsewhere_append(has_reloc_header,
             ranges, &ranges_count, ranges_max,
             mb2_info, &mb2_info_final_loc, mb2_info_size)) {
         panic(true, "multiboot2: Cannot allocate mb2 info");
@@ -587,7 +587,7 @@ reloc_fail:
 
                 uint64_t section = (uint64_t)-1; /* no target preference, use top */
 
-                if (!elsewhere_append(true /* flexible target */,
+                if (!elsewhere_append(has_reloc_header,
                         ranges, &ranges_count, ranges_max,
                         kernel + shdr->sh_offset, &section, shdr->sh_size)) {
                     panic(true, "multiboot2: Cannot allocate elf sections");
@@ -612,7 +612,7 @@ reloc_fail:
 
                 uint64_t section = (uint64_t)-1; /* no target preference, use top */
 
-                if (!elsewhere_append(true /* flexible target */,
+                if (!elsewhere_append(has_reloc_header,
                         ranges, &ranges_count, ranges_max,
                         kernel + shdr->sh_offset, &section, shdr->sh_size)) {
                     panic(true, "multiboot2: Cannot allocate elf sections");
@@ -672,7 +672,7 @@ reloc_fail:
                     module_addr, f->size, "module_path: ", module_path);
 #endif
 
-        if (!elsewhere_append(true /* flexible target */,
+        if (!elsewhere_append(has_reloc_header,
                 ranges, &ranges_count, ranges_max,
                 module_addr, &module_target, f->size)) {
             panic(true, "multiboot2: Cannot allocate module");
