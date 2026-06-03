@@ -89,6 +89,9 @@ retry:
         }
     }
 
+    // Reserve the chosen target so later sources can't be placed over it.
+    elsewhere_reserve_target(*target, t_length);
+
     // Add the elsewhere range
     if (*ranges_count >= ranges_max) {
         panic(false, "elsewhere: ranges array overflow");
@@ -99,4 +102,37 @@ retry:
     *ranges_count += 1;
 
     return true;
+}
+
+// Reserve the USABLE portions of [base, base+length) as bootloader-reclaimable
+// so a later ext_mem_alloc() source can't be placed on top of an already
+// committed target. Portions that are already non-USABLE (a target sitting on
+// its own staging source) are left alone; ext_mem_alloc() avoids those anyway.
+void elsewhere_reserve_target(uint64_t base, uint64_t length) {
+    uint64_t top = CHECKED_ADD(base, length, return);
+
+    // Snapshot the usable sub-ranges first; memmap_alloc_range() mutates the
+    // map, which would invalidate a live iteration.
+    struct { uint64_t base, length; } parts[64];
+    size_t n = 0;
+    for (size_t i = 0; i < memmap_entries && n < 64; i++) {
+        if (memmap[i].type != MEMMAP_USABLE) {
+            continue;
+        }
+        uint64_t e_base = memmap[i].base;
+        uint64_t e_top = CHECKED_ADD(e_base, memmap[i].length, continue);
+        uint64_t o_base = base > e_base ? base : e_base;
+        uint64_t o_top = top < e_top ? top : e_top;
+        if (o_base < o_top) {
+            parts[n].base = o_base;
+            parts[n].length = o_top - o_base;
+            n++;
+        }
+    }
+
+    for (size_t i = 0; i < n; i++) {
+        memmap_alloc_range(parts[i].base, parts[i].length,
+                           MEMMAP_BOOTLOADER_RECLAIMABLE, MEMMAP_USABLE,
+                           false, false, false);
+    }
 }

@@ -467,6 +467,10 @@ reloc_fail:
         panic(true, "multiboot2: Could not find viable load address for executable");
     }
 
+    // Reserve the kernel's target so later module/info sources can't be
+    // allocated on top of it.
+    elsewhere_reserve_target(ranges->target, ranges->length);
+
     // Get the load base address (AKA the lowest target in the ranges)
     uint64_t load_base_addr = ranges->target;
 

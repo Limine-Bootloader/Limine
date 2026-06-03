@@ -232,6 +232,10 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     pmm_free(ranges, sizeof(struct elsewhere_range) * ranges_count);
     ranges = new_ranges;
 
+    // Reserve the kernel's target so later module/info sources can't be
+    // allocated on top of it.
+    elsewhere_reserve_target(ranges->target, ranges->length);
+
     // GRUB allocates boot info at 0x10000, *except* if the kernel happens
     // to overlap this region, then it gets moved to right after the
     // kernel, or whichever PHDR happens to sit at 0x10000.
