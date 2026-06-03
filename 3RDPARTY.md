@@ -23,7 +23,7 @@ licenses used by said projects, in SPDX format, is as follows:
 (Apache-2.0 WITH LLVM-exception) is used to provide runtime libgcc-like
 routines.
 
-- [0BSD Freestanding C Headers](https://github.com/osdev0/freestnd-c-hdrs-0bsd)
+- [Freestanding C Headers](https://github.com/osdev0/freestanding-c-hdrs)
 (0BSD) provide GCC and Clang compatible freestanding C headers.
 
 - [Limine Boot Protocol](https://github.com/Limine-Bootloader/limine-protocol)

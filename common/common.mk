@@ -42,7 +42,7 @@ override CPPFLAGS_FOR_TARGET := \
     -I ../flanterm/src \
     -I ../libfdt/src \
     -I '$(call SHESCAPE,$(BUILDDIR))/..' \
-    -isystem ../freestnd-c-hdrs/include \
+    -isystem ../freestanding-c-hdrs/include \
     $(CPPFLAGS_FOR_TARGET) \
     -DCOM_OUTPUT=$(COM_OUTPUT) \
     -DE9_OUTPUT=$(E9_OUTPUT) \

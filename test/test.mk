@@ -70,7 +70,7 @@ override CFLAGS += \
     -I. \
     -I../limine-protocol/include \
     -I../flanterm/src \
-    -isystem ../freestnd-c-hdrs/include \
+    -isystem ../freestanding-c-hdrs/include \
     -D_LIMINE_PROTO \
     $(EXTRA_CFLAGS)
 
@@ -121,7 +121,7 @@ override CFLAGS_MB := \
     -mgeneral-regs-only \
     -I. \
     -I../common/protos \
-    -isystem ../freestnd-c-hdrs/include
+    -isystem ../freestanding-c-hdrs/include
 
 ifeq ($(ARCH),x86)
 all: test.elf multiboot2.elf multiboot.elf
