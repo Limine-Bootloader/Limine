@@ -285,7 +285,7 @@ level4:
 #define PT_FLAG_USER        ((uint64_t)1 << 4)
 #define PT_FLAG_ACCESSED    ((uint64_t)1 << 6)
 #define PT_FLAG_DIRTY       ((uint64_t)1 << 7)
-#define PT_FLAG_PBMT_NC     ((uint64_t)1 << 62)
+#define PT_FLAG_PBMT_NC     ((uint64_t)1 << 61)
 #define PT_PADDR_MASK       ((uint64_t)0x003ffffffffffc00)
 
 #define PT_FLAG_RWX         (PT_FLAG_READ | PT_FLAG_WRITE | PT_FLAG_EXEC)
