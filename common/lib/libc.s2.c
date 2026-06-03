@@ -76,7 +76,7 @@ int strcasecmp(const char *s1, const char *s2) {
     for (size_t i = 0; ; i++) {
         unsigned char c1 = ((unsigned char *)s1)[i], c2 = ((unsigned char *)s2)[i];
         if (tolower(c1) != tolower(c2)) {
-            return c1 < c2 ? -1 : 1;
+            return tolower(c1) < tolower(c2) ? -1 : 1;
         }
         if (c1 == 0) {
             return 0;
@@ -102,7 +102,7 @@ int strncasecmp(const char *s1, const char *s2, size_t n) {
     for (size_t i = 0; i < n; i++) {
         unsigned char c1 = ((unsigned char *)s1)[i], c2 = ((unsigned char *)s2)[i];
         if (tolower(c1) != tolower(c2)) {
-            return c1 < c2 ? -1 : 1;
+            return tolower(c1) < tolower(c2) ? -1 : 1;
         }
         if (c1 == 0) {
             return 0;
