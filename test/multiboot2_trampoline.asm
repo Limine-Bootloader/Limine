@@ -23,7 +23,7 @@ align 8
     ; Required end tag:
     dw 0	; type
     dw 0	; flags
-    dw 8	; size
+    dd 8	; size
 header_end:
 
 section .text
