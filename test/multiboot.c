@@ -22,7 +22,7 @@ void multiboot_main(uint32_t magic, struct multiboot1_info *info) {
 
     {
         struct multiboot1_module *start = (struct multiboot1_module *)info->mods_addr;
-        struct multiboot1_module *end = (struct multiboot1_module *)(info->mods_addr + info->mods_count);
+        struct multiboot1_module *end = start + info->mods_count;
 
         e9_printf("\t modules:");
         for (struct multiboot1_module* entry = start; entry < end; entry++) {
