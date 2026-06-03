@@ -329,7 +329,9 @@ void init_riscv(const char *config) {
         panic(false, "riscv: missing `struct riscv_hart` for BSP");
     }
 
-    if (strncasecmp(bsp_hart->isa_string, "rv64i", 5)) {
+    // `g` is shorthand for `imafd`, so `rv64g` also implies the `i` base.
+    if (strncasecmp(bsp_hart->isa_string, "rv64i", 5)
+     && strncasecmp(bsp_hart->isa_string, "rv64g", 5)) {
         panic(false, "unsupported cpu: %s", bsp_hart->isa_string);
     }
 
