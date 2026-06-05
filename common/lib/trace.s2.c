@@ -34,11 +34,13 @@ static char *trace_address(size_t *off, size_t addr) {
     char     *prev_sym  = NULL;
 
     for (size_t i = 0;;) {
-        if (*((uintptr_t *)&limine_map[i]) >= addr) {
+        uintptr_t cur_addr;
+        memcpy(&cur_addr, &limine_map[i], sizeof(cur_addr));
+        if (cur_addr >= addr) {
             *off = addr - prev_addr;
             return prev_sym;
         }
-        prev_addr = *((uintptr_t *)&limine_map[i]);
+        prev_addr = cur_addr;
         i += sizeof(uintptr_t);
         prev_sym  = &limine_map[i];
         while (limine_map[i++] != 0);
