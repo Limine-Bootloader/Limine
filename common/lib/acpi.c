@@ -58,6 +58,7 @@ void acpi_get_smbios(void **smbios32, void **smbios64) {
         struct smbios_entry_point_32 *ptr = (struct smbios_entry_point_32 *)i;
 
         if (!memcmp(ptr->anchor_str, "_SM_", 4) &&
+            ptr->length >= sizeof(struct smbios_entry_point_32) &&
             !acpi_checksum((void *)ptr, ptr->length)) {
             printv("acpi: Found SMBIOS 32-bit entry point at %p\n", i);
             *smbios32 = (void *)ptr;
@@ -69,6 +70,7 @@ void acpi_get_smbios(void **smbios32, void **smbios64) {
         struct smbios_entry_point_64 *ptr = (struct smbios_entry_point_64 *)i;
 
         if (!memcmp(ptr->anchor_str, "_SM3_", 5) &&
+            ptr->length >= sizeof(struct smbios_entry_point_64) &&
             !acpi_checksum((void *)ptr, ptr->length)) {
             printv("acpi: Found SMBIOS 64-bit entry point at %p\n", i);
             *smbios64 = (void *)ptr;
@@ -157,7 +159,8 @@ void acpi_get_smbios(void **smbios32, void **smbios64) {
 
         struct smbios_entry_point_32 *ptr = (struct smbios_entry_point_32 *)cur_table->VendorTable;
 
-        if (acpi_checksum((void *)ptr, ptr->length) != 0)
+        if (ptr->length < sizeof(struct smbios_entry_point_32)
+         || acpi_checksum((void *)ptr, ptr->length) != 0)
             continue;
 
         printv("acpi: Found SMBIOS 32-bit entry point at %p\n", ptr);
@@ -176,7 +179,8 @@ void acpi_get_smbios(void **smbios32, void **smbios64) {
 
         struct smbios_entry_point_64 *ptr = (struct smbios_entry_point_64 *)cur_table->VendorTable;
 
-        if (acpi_checksum((void *)ptr, ptr->length) != 0)
+        if (ptr->length < sizeof(struct smbios_entry_point_64)
+         || acpi_checksum((void *)ptr, ptr->length) != 0)
             continue;
 
         printv("acpi: Found SMBIOS 64-bit entry point at %p\n", ptr);
