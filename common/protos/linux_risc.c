@@ -532,6 +532,20 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     load_module(&p, config);
 
+#if defined(__aarch64__)
+    // arm64 requires the initrd within a 1 GiB-aligned, <=32 GiB window that
+    // also covers the kernel image, otherwise Linux ignores it.
+    if (p.module_base != NULL) {
+        uint64_t kernel_base = (uint64_t)p.kernel_base;
+        uint64_t initrd_base = (uint64_t)p.module_base;
+        uint64_t window_base = ALIGN_DOWN(MIN(kernel_base, initrd_base), (uint64_t)1 << 30);
+        uint64_t window_top  = MAX(kernel_base + kernel_alloc_size, initrd_base + p.module_size);
+        if (window_top - window_base > ((uint64_t)32 << 30)) {
+            panic(true, "linux: initrd does not fit within the 1 GiB-aligned 32 GiB window covering the kernel");
+        }
+    }
+#endif
+
     p.dtb = get_device_tree_blob(config, 0x1000, true);
 
     prepare_device_tree_blob(&p);
