@@ -786,7 +786,12 @@ static int bios_install(int argc, char *argv[]) {
             fprintf(stderr, "Secondary header at LBA 0x%" PRIx64 ".\n",
                     ENDSWAP(gpt_header.alternate_lba));
         }
-        device_read(&secondary_gpt_header, lb_size * ENDSWAP(gpt_header.alternate_lba),
+        uint64_t secondary_loc;
+        if (mul_u64_overflow(lb_size, ENDSWAP(gpt_header.alternate_lba), &secondary_loc)) {
+            fprintf(stderr, "error: GPT alternate LBA out of range, aborting.\n");
+            goto cleanup;
+        }
+        device_read(&secondary_gpt_header, secondary_loc,
               sizeof(struct gpt_table_header));
         if (!strncmp(secondary_gpt_header.signature, "EFI PART", 8)) {
             if (!quiet) {
@@ -905,7 +910,12 @@ static int bios_install(int argc, char *argv[]) {
         uint64_t alt_lba = ENDSWAP(gpt_header.alternate_lba);
         if (alt_lba >= 32) {
             for (size_t i = 0; i < 33; i++) {
-                device_write(empty_lba, (alt_lba - 32 + i) * lb_size, lb_size);
+                uint64_t wipe_loc;
+                if (mul_u64_overflow(alt_lba - 32 + i, lb_size, &wipe_loc)) {
+                    fprintf(stderr, "error: GPT alternate LBA out of range, aborting.\n");
+                    goto cleanup;
+                }
+                device_write(empty_lba, wipe_loc, lb_size);
             }
         }
 
