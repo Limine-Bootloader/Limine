@@ -778,6 +778,10 @@ static int bios_install(int argc, char *argv[]) {
 
     struct gpt_table_header secondary_gpt_header;
     if (gpt) {
+        if (ENDSWAP(gpt_header.size_of_partition_entry) < sizeof(struct gpt_entry)) {
+            fprintf(stderr, "error: GPT partition entry size too small, aborting.\n");
+            goto cleanup;
+        }
         if (!quiet) {
             fprintf(stderr, "Secondary header at LBA 0x%" PRIx64 ".\n",
                     ENDSWAP(gpt_header.alternate_lba));
