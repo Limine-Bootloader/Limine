@@ -362,22 +362,40 @@ int main(int argc, char *argv[]) {
   if (!fin || !fout) {
     fprintf(stderr, "? fopen\n");  return 1;
   }
-  fseek(fin, 0, SEEK_END);
-  insz = ftell(fin);
-  fseek(fin, 0, SEEK_SET);
+  if (fseek(fin, 0, SEEK_END)) {
+    fprintf(stderr, "? fseek\n");  return 1;
+  }
+  long inszl = ftell(fin);
+  if (inszl < 0) {
+    fprintf(stderr, "? ftell\n");  return 1;
+  }
+  if (fseek(fin, 0, SEEK_SET)) {
+    fprintf(stderr, "? fseek\n");  return 1;
+  }
+  insz = (size_t)inszl;
+  if (insz >= SIZE_MAX / 8) {
+    fprintf(stderr, "? input too large\n");  return 1;
+  }
   inbuf = malloc(insz);  outbuf = malloc(insz * 2);
   if (!inbuf || !outbuf) {
     fprintf(stderr, "? malloc\n");  return 1;
   }
-  fread(inbuf, 1, insz, fin);
+  if (fread(inbuf, 1, insz, fin) != insz) {
+    fprintf(stderr, "? fread\n");  return 1;
+  }
   fclose(fin);
   outsz = limlzpack(outbuf, insz * 2, inbuf, insz);
   if (!outsz) {
     fprintf(stderr, "? limlzpack\n");  return 1;
   }
   uint32_t crc = ENDSWAP(crc32_nibble(inbuf, insz));
-  fwrite(&crc, sizeof(crc), 1, fout);
-  fwrite(outbuf, 1, outsz, fout);
-  fclose(fout);
+  if (fwrite(&crc, sizeof(crc), 1, fout) != 1
+   || fwrite(outbuf, 1, outsz, fout) != outsz) {
+    fprintf(stderr, "? fwrite\n");  return 1;
+  }
+  if (fclose(fout)) {
+    fprintf(stderr, "? fclose\n");  return 1;
+  }
   free(inbuf);  free(outbuf);
+  return 0;
 }
