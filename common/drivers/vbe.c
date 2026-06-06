@@ -91,6 +91,8 @@ struct vbe_mode_info_struct {
 static bool get_vbe_info(struct vbe_info_struct *buf) {
     struct rm_regs r = {0};
 
+    memcpy(buf->signature, "VBE2", 4);
+
     r.eax = 0x4f00;
     r.edi = (uint32_t)buf;
     rm_int(0x10, &r, &r);
@@ -98,6 +100,10 @@ static bool get_vbe_info(struct vbe_info_struct *buf) {
     if ((r.eax & 0xff00) >> 8 != 0
      || (r.eax & 0x00ff) != 0x4f) {
         return false;
+    }
+
+    if (memcmp(buf->signature, "VESA", 4) != 0) {
+        printv("vbe: warning: missing VESA signature in info block\n");
     }
 
     return true;
