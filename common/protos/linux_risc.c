@@ -518,6 +518,16 @@ noreturn void linux_load(char *config, char *cmdline) {
     size_t text_offset = 0;
 #endif
 
+#if defined(__aarch64__)
+    // Pre-v3.17 arm64 kernels report image_size 0: assume text_offset 0x80000
+    // and reserve generous headroom for the kernel's BSS and pagetables.
+    if (tmp_hdr.image_size == 0) {
+        text_offset = 0x80000;
+        kernel_alloc_size = CHECKED_ADD(p.kernel_size, (size_t)64 * 1024 * 1024,
+            panic(true, "linux: Kernel size overflow"));
+    }
+#endif
+
     p.kernel_base = ext_mem_alloc_type_aligned(
                 ALIGN_UP(CHECKED_ADD(text_offset, kernel_alloc_size, panic(true, "linux: Kernel size overflow")), 4096, panic(true, "linux: Alignment overflow")),
                 MEMMAP_KERNEL_AND_MODULES, 2 * 1024 * 1024);
