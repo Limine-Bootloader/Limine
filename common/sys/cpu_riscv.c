@@ -86,14 +86,19 @@ static inline struct rhct_hart_info *rhct_get_hart_info(struct rhct *rhct, uint3
         if (offset + sizeof(struct rhct_header) > rhct->header.length) {
             return NULL;
         }
-        struct rhct_hart_info *node = (void *)((uintptr_t)rhct + offset);
-        if (node->header.type == RHCT_HART_INFO && node->acpi_processor_uid == acpi_uid) {
-            return node;
-        }
-        if (node->header.size == 0) {
+        struct rhct_header *header = (void *)((uintptr_t)rhct + offset);
+        if (header->size < sizeof(struct rhct_header) ||
+            offset + header->size > rhct->header.length) {
             return NULL;
         }
-        offset += node->header.size;
+        if (header->type == RHCT_HART_INFO
+         && header->size >= sizeof(struct rhct_hart_info)) {
+            struct rhct_hart_info *node = (struct rhct_hart_info *)header;
+            if (node->acpi_processor_uid == acpi_uid) {
+                return node;
+            }
+        }
+        offset += header->size;
     }
     return NULL;
 }
@@ -109,10 +114,14 @@ static void init_riscv_acpi(void) {
 
     for (uint8_t *madt_ptr = (uint8_t *)madt->madt_entries_begin;
          (uintptr_t)madt_ptr + 1 < (uintptr_t)madt + madt->header.length; madt_ptr += *(madt_ptr + 1)) {
-        if (*(madt_ptr + 1) == 0) {
+        if (*(madt_ptr + 1) == 0
+         || (uintptr_t)madt_ptr + *(madt_ptr + 1) > (uintptr_t)madt + madt->header.length) {
             break;
         }
         if (*madt_ptr != 0x18) {
+            continue;
+        }
+        if (*(madt_ptr + 1) < sizeof(struct madt_riscv_intc)) {
             continue;
         }
         struct madt_riscv_intc *intc = (struct madt_riscv_intc *)madt_ptr;
