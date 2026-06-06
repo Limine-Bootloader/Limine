@@ -711,7 +711,7 @@ static int bios_install(int argc, char *argv[]) {
                 fprintf(stderr, "warning: --uninstall already set.\n");
             }
             uninstall_mode = true;
-        } else if (memcmp(argv[i], "--uninstall-data-file=", 22) == 0) {
+        } else if (strncmp(argv[i], "--uninstall-data-file=", 22) == 0) {
             if (uninstall_file != NULL && !quiet) {
                 fprintf(stderr, "warning: --uninstall-data-file already set. Overriding...\n");
             }
