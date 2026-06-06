@@ -70,6 +70,11 @@ bool volume_read(struct volume *volume, void *buffer, uint64_t loc, uint64_t cou
         panic(false, "Attempted volume_read() on pxe");
     }
 
+    if (volume->fastest_xfer_size == 0
+     || volume->sector_size < 512 || volume->sector_size % 512 != 0) {
+        return false;
+    }
+
     if (volume->sect_count != (uint64_t)-1) {
         // sect_count is always in 512-byte sectors for both whole disks and partitions
         uint64_t part_size = CHECKED_MUL(volume->sect_count, 512, return false);
