@@ -1280,9 +1280,18 @@ static int enroll_config(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    if (!reset && strlen(argv[2]) != 128) {
-        fprintf(stderr, "error: BLAKE2B specified is not 128 characters long.\n");
-        goto cleanup;
+    if (!reset) {
+        if (strlen(argv[2]) != 128) {
+            fprintf(stderr, "error: BLAKE2B specified is not 128 characters long.\n");
+            goto cleanup;
+        }
+        for (size_t i = 0; i < 128; i++) {
+            char c = argv[2][i];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+                fprintf(stderr, "error: BLAKE2B specified contains a non-hexadecimal character.\n");
+                goto cleanup;
+            }
+        }
     }
 
     bootloader_file = fopen(argv[1], "r+b");
