@@ -287,6 +287,11 @@ static bool elf64_translate_vaddr(uint8_t *elf, size_t file_size,
         uint64_t seg_end = CHECKED_ADD(phdr->p_vaddr, phdr->p_filesz, continue);
 
         if (phdr->p_vaddr <= *offset && seg_end > *offset) {
+            // Bound the whole containing segment within the file.
+            if (CHECKED_ADD(phdr->p_offset, phdr->p_filesz, return false) > file_size) {
+                return false;
+            }
+
             if (out_seg_size != NULL) {
                 *out_seg_size = phdr->p_filesz - (*offset - phdr->p_vaddr);
             }
