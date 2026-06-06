@@ -244,8 +244,10 @@ void *acpi_get_table(const char *signature, int index) {
         }
 
         if (!memcmp(ptr->signature, signature, 4)
-         && !acpi_checksum(ptr, ptr->length)
          && cnt++ == index) {
+            if (acpi_checksum(ptr, ptr->length)) {
+                printv("acpi: warning: bad checksum in \"%s\", using anyway\n", signature);
+            }
             printv("acpi: Found \"%s\" at %p\n", signature, ptr);
             return ptr;
         }
