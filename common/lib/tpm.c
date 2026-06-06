@@ -48,6 +48,8 @@ struct tpm_pcr_event2_head {
 #define TCG_EV_NO_ACTION 3
 #define TCG_SPECID_SIG   "Spec ID Event03"
 
+#define TPM2_MAX_ALGS     16
+
 // At most one of these is non-NULL after tpm_init. tcg2 takes precedence
 // since it's the more common case (real TPMs); the cc fallback is for
 // confidential-computing platforms (TDX, SEV-SNP) without a discrete TPM.
@@ -195,9 +197,10 @@ void tpm_measure_path(uint32_t pcr, uint32_t event_type,
     tpm_measure(pcr, event_type, stripped, path_len, desc_prefix, stripped);
 }
 
-uint32_t tpm_calc_event_size(const void *event_p, const void *header_p) {
+uint32_t tpm_calc_event_size(const void *event_p, const void *header_p, const void *end) {
     const struct tpm_pcr_event2_head *event = event_p;
     const struct tpm_pcr_event_v1_2 *event_header = header_p;
+    const uint8_t *limit = end;
 
     static const uint8_t zero_digest[20] = {0};
 
@@ -211,7 +214,7 @@ uint32_t tpm_calc_event_size(const void *event_p, const void *header_p) {
         (const struct tpm_specid_event_head *)event_header->event;
 
     if (memcmp(efispecid->signature, TCG_SPECID_SIG, sizeof(TCG_SPECID_SIG)) != 0
-     || efispecid->num_algs == 0) {
+     || efispecid->num_algs == 0 || efispecid->num_algs > TPM2_MAX_ALGS) {
         return 0;
     }
 
@@ -221,14 +224,24 @@ uint32_t tpm_calc_event_size(const void *event_p, const void *header_p) {
                           + sizeof(event->event_type)
                           + sizeof(event->count);
 
+    if (marker > limit || event->count > efispecid->num_algs) {
+        return 0;
+    }
+
     for (uint32_t i = 0; i < event->count; i++) {
         uint16_t halg;
+        if ((uint64_t)(limit - marker) < sizeof(halg)) {
+            return 0;
+        }
         memcpy(&halg, marker, sizeof(halg));
         marker += sizeof(halg);
 
         uint32_t j;
         for (j = 0; j < efispecid->num_algs; j++) {
             if (halg == efispecid->digest_sizes[j].alg_id) {
+                if ((uint64_t)(limit - marker) < efispecid->digest_sizes[j].digest_size) {
+                    return 0;
+                }
                 marker += efispecid->digest_sizes[j].digest_size;
                 break;
             }
@@ -239,8 +252,15 @@ uint32_t tpm_calc_event_size(const void *event_p, const void *header_p) {
     }
 
     uint32_t trailing_event_size;
+    if ((uint64_t)(limit - marker) < sizeof(trailing_event_size)) {
+        return 0;
+    }
     memcpy(&trailing_event_size, marker, sizeof(trailing_event_size));
-    marker += sizeof(trailing_event_size) + trailing_event_size;
+    marker += sizeof(trailing_event_size);
+    if ((uint64_t)(limit - marker) < trailing_event_size) {
+        return 0;
+    }
+    marker += trailing_event_size;
 
     if (event->event_type == 0 && trailing_event_size == 0) {
         return 0;
@@ -295,20 +315,39 @@ static bool tpm_capture_event_log(void) {
 
     uint32_t log_size = 0;
     if (log_last_entry != 0) {
-        uint32_t last_entry_size = 0;
+        if (log_last_entry < log_location) {
+            return false;
+        }
+
+        uint64_t span = log_last_entry - log_location;
+        if (span > TPM_EVENT_LOG_MAX) {
+            return false;
+        }
+        const void *log_end = (const void *)((uintptr_t)log_location + TPM_EVENT_LOG_MAX);
+
+        uint64_t last_entry_size;
         // The first entry of a TCG 2.0 log is itself a v1.2-format spec-ID
         // event; only entries after it follow the crypto-agile layout.
         if (log_format > EFI_TCG2_EVENT_LOG_FORMAT_TCG_1_2
          && log_last_entry != log_location) {
             last_entry_size = tpm_calc_event_size(
                 (void *)(uintptr_t)log_last_entry,
-                (void *)(uintptr_t)log_location);
+                (void *)(uintptr_t)log_location,
+                log_end);
         } else {
+            if (span + sizeof(struct tpm_pcr_event_v1_2) > TPM_EVENT_LOG_MAX) {
+                return false;
+            }
             const struct tpm_pcr_event_v1_2 *e =
                 (const struct tpm_pcr_event_v1_2 *)(uintptr_t)log_last_entry;
-            last_entry_size = sizeof(struct tpm_pcr_event_v1_2) + e->event_size;
+            last_entry_size = (uint64_t)sizeof(struct tpm_pcr_event_v1_2) + e->event_size;
         }
-        log_size = (uint32_t)(log_last_entry - log_location) + last_entry_size;
+
+        uint64_t total = span + last_entry_size;
+        if (last_entry_size == 0 || total > TPM_EVENT_LOG_MAX) {
+            return false;
+        }
+        log_size = (uint32_t)total;
     }
 
     void *log_bytes = NULL;

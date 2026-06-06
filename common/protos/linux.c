@@ -45,7 +45,7 @@ void linux_install_efi_tpm_event_log(void) {
             uint64_t remaining = final_events->NumberOfEvents;
             while (remaining > 0) {
                 const void *header = base + final_events_preboot_size;
-                uint32_t ev_size = tpm_calc_event_size(header, log_addr);
+                uint32_t ev_size = tpm_calc_event_size(header, log_addr, base + TPM_EVENT_LOG_MAX);
                 if (ev_size == 0) {
                     // Malformed entry: a partial sum would skip an arbitrary
                     // prefix and leave the rest looking post-boot, which is
