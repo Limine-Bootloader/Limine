@@ -18,7 +18,8 @@ static uint16_t linear_masks_to_bpp(uint32_t red_mask, uint32_t green_mask,
         ret--;
         compound_mask <<= 1;
     }
-    return ret;
+    // Round up to whole bytes: a 5/5/5 mask occupies 2 bytes, not 15 bits.
+    return (ret + 7) & ~7;
 }
 
 static void linear_mask_to_mask_shift(
