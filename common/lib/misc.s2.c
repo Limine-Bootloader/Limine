@@ -55,9 +55,10 @@ uint64_t strtoui(const char *s, const char **end, int base) {
 
 bool get_absolute_path(char *path_ptr, const char *path, const char *pwd, size_t size) {
     char *orig_ptr = path_ptr;
-    char *end_ptr = path_ptr + size - 1;
 
     if (size == 0) return false;
+
+    char *end_ptr = path_ptr + size - 1;
 
     if (!*path) {
         size_t pwd_len = strlen(pwd);
