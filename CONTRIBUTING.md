@@ -48,10 +48,25 @@ with no extensions must be used.
 
 ## Style
 
-The project follows a relatively standard C coding style. It boils down to:
+### Generic style
 
+- Use British spelling.
 - No hard tabs. Spaces for indentation and alignment. 4-space per indentation level.
 - Always avoid vertical alignment to minimise vertical blast radius on changes.
+- Comments are sparse: explain a non-obvious *why*, never restate the *what*. Don't narrate;
+  avoid useless comments.
+- Stick to ASCII: avoid em-dashes and other non-ASCII characters in code, comments, commit
+  messages, and documentation, unless the non-ASCII character is essential to the work.
+- Do not add per-file license headers.
+- Do not edit vendored/fetched/generated files (i.e. anything in `3RDPARTY.md`, or not in
+  `git ls-files`).
+- As a catch-all, match the surrounding code: indentation, braces, naming, idiom. Mirror the
+  conventions used by the file you edit.
+
+### C language specific style
+
+The project follows a relatively standard C coding style. It boils down to:
+
 - Snake-case for most identifiers.
 - Uppercase snake-case for macros.
 - No pointless `typedef`s, especially for `struct`s. Always use the full `struct name var;`
@@ -98,15 +113,8 @@ The project follows a relatively standard C coding style. It boils down to:
   And, as shown, all cases should be curly braced blocks.
 - **Never** do things such as `if()`, `while()`, ... - **Always** put a space between
   keywords (i.e. not functions/function pointers) and parentheses.
-- Comments are sparse: explain a non-obvious *why*, never restate the *what*. Don't narrate;
-  avoid useless comments.
-- Stick to ASCII: avoid em-dashes and other non-ASCII characters in code, comments, commit
-  messages, and documentation, unless the non-ASCII character is essential to the work.
-- Do not add per-file license headers.
-- Do not edit vendored/fetched/generated files (i.e. anything in `3RDPARTY.md`, or not in
-  `git ls-files`).
-- As a catch-all, match the surrounding code: indentation, braces, naming, idiom. Mirror the
-  conventions used by the file you edit.
+
+### Final style remarks
 
 As with anything, there are always exceptions to these style rules, under given contexts.
 
