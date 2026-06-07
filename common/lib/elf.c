@@ -167,11 +167,11 @@ static bool elf64_validate(struct elf64_hdr *hdr) {
         panic(true, "elf: Not an aarch64 ELF file.");
     }
 #elif defined (__riscv)
-    if (hdr->machine != ARCH_RISCV && hdr->ident[EI_CLASS] == ELFCLASS64) {
+    if (hdr->machine != ARCH_RISCV || hdr->ident[EI_CLASS] != ELFCLASS64) {
         panic(true, "elf: Not a riscv64 ELF file.");
     }
 #elif defined (__loongarch64)
-    if (hdr->machine != ARCH_LOONGARCH && hdr->ident[EI_CLASS] == ELFCLASS64) {
+    if (hdr->machine != ARCH_LOONGARCH || hdr->ident[EI_CLASS] != ELFCLASS64) {
         panic(true, "elf: Not a loongarch64 ELF file.");
     }
 #else
