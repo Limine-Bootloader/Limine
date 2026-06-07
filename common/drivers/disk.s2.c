@@ -769,15 +769,17 @@ fail:
         if (drive->Media->LogicalPartition)
             continue;
 
+        if (drive->Media->BlockSize == 0
+         || drive->Media->BlockSize > UNIQUE_SECTOR_POOL_SIZE) {
+            continue;
+        }
+
         // Read test to ensure device is responsive (skipping this causes hangs on some systems)
-        status = drive->ReadBlocks(drive, drive->Media->MediaId, 0, 4096, unique_sector_pool);
+        status = drive->ReadBlocks(drive, drive->Media->MediaId, 0, drive->Media->BlockSize, unique_sector_pool);
         if (status) {
             continue;
         }
 
-        if (drive->Media->BlockSize == 0) {
-            continue;
-        }
         if (drive->Media->LastBlock == UINT64_MAX) {
             continue;
         }
