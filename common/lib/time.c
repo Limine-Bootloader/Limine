@@ -34,6 +34,9 @@ again:
     r = (struct rm_regs){0};
     r.eax = 0x0400;
     rm_int(0x1a, &r, &r);
+    if (r.eflags & EFLAGS_CF) {
+        return 0;
+    }
 
     uint8_t  day    = bcd_to_int( r.edx & 0x00ff);
     uint8_t  month  = bcd_to_int((r.edx & 0xff00) >> 8);
@@ -43,6 +46,9 @@ again:
     r = (struct rm_regs){0};
     r.eax = 0x0200;
     rm_int(0x1a, &r, &r);
+    if (r.eflags & EFLAGS_CF) {
+        return 0;
+    }
 
     uint8_t second  = bcd_to_int((r.edx & 0xff00) >> 8);
     uint8_t minute  = bcd_to_int( r.ecx & 0x00ff);
@@ -52,6 +58,9 @@ again:
     r = (struct rm_regs){0};
     r.eax = 0x0400;
     rm_int(0x1a, &r, &r);
+    if (r.eflags & EFLAGS_CF) {
+        return 0;
+    }
     if (bcd_to_int(r.edx & 0x00ff) != day) {
         goto again;
     }
