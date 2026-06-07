@@ -47,8 +47,8 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
 #if defined (__i386__) || defined (__x86_64__)
     if (want_wc) {
         for (size_t i = 0; i < *_fbs_count; i++) {
-            uint64_t fb_size = (uint64_t)(*ret)[i].framebuffer_pitch
-                             * (*ret)[i].framebuffer_height;
+            uint64_t fb_size = CHECKED_MUL((uint64_t)(*ret)[i].framebuffer_pitch,
+                                           (uint64_t)(*ret)[i].framebuffer_height, continue);
             if (fb_size == 0) {
                 continue;
             }
@@ -117,14 +117,14 @@ void fb_clear(struct fb_info *fb) {
 
 #if defined (__aarch64__)
 static void fb_flush_aarch64(volatile void *base, size_t length) {
-    clean_dcache_poc((uintptr_t)base, (uintptr_t)base + length);
+    clean_dcache_poc((uintptr_t)base, CHECKED_ADD((uintptr_t)base, length, return));
 }
 #elif defined (__riscv)
 __attribute__((target("arch=+zicbom")))
 static void fb_flush_riscv(volatile void *base, size_t length) {
     const size_t cbom_block_size = 0x40;
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, cbom_block_size);
-    uintptr_t end = ALIGN_UP((uintptr_t)(base + length), cbom_block_size, panic(false, "fb: Alignment overflow"));
+    uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), cbom_block_size, return);
     for (uintptr_t ptr = start; ptr < end; ptr += cbom_block_size) {
         asm volatile("cbo.flush (%0)" :: "r"(ptr) : "memory");
     }
@@ -155,7 +155,7 @@ static void fb_flush_loongarch64(volatile void *base, size_t length) {
     // cacop Hit_Writeback_Inv_LEAF0 = 0x10 (D-cache L1 writeback+invalidate)
     const size_t clsz = 64;
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, clsz);
-    uintptr_t end = ALIGN_UP((uintptr_t)base + length, clsz, panic(false, "fb: Alignment overflow"));
+    uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), clsz, return);
     for (uintptr_t ptr = start; ptr < end; ptr += clsz) {
         asm volatile ("cacop 0x10, %0, 0" :: "r"(ptr) : "memory");
     }
