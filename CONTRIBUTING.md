@@ -39,7 +39,7 @@ Unreviewed, bulk, or fully-automated submissions are not accepted.
 
 ## C standard
 
-For the bootloader proper, C99 with GNU extensions (AKA `gnu99`) and other common extensions
+For the bootloader proper, C11 with GNU extensions (AKA `gnu11`) and other common extensions
 is used, where "common" means any extension that has been supported by both GCC and Clang
 for a number of years (ideally 5 or more).
 
