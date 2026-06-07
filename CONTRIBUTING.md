@@ -1,34 +1,29 @@
 # Contributing to Limine
 
-Thanks for contributing. A few requirements apply before a change can be merged.
+Thanks for wanting to contribute to the project. This document covers some requirements
+and overall style and conventions that should be followed. Please read it carefully before
+submitting contributions.
 
 ## Sign-off (DCO)
 
-Every commit must be signed off by a human contributor:
+Every commit must be signed off by at least one (1) human contributor:
 
 ```
 git commit -s
 ```
 
 This adds a `Signed-off-by: Your Name <your@email>` trailer certifying that you wrote the
-change (or otherwise have the right to submit it) and agree to contribute it under the
-project's license, per the Developer Certificate of Origin (the [`DCO`](DCO) file in this
-repository; also at https://developercertificate.org).
-The sign-off is always a human's, and is never added by a tool on behalf of a human.
-
-## Style and commit conventions
-
-See [AGENTS.md](AGENTS.md) for code style and commit-message rules (single-line
-`area: summary` subjects, one logical change per commit, ASCII only, and so on). These apply
-to every contribution, AI-assisted or not.
+change (or otherwise **have reviewed** the commit and have the right to submit it) and agree
+to contribute it under the project's license, per the Developer Certificate of Origin (the
+[`DCO`](DCO) file in this repository - also at https://developercertificate.org).
 
 ## AI-assisted contributions
 
-AI-assisted contributions are welcome, subject to the following:
+AI-assisted contributions are allowed, subject to the following:
 
-- **A human is in the loop at all times.** AI tools may assist, but a human contributor must
-  drive the work, review and understand every generated change, and take full responsibility
-  for it. Do not submit code you have not read and understood.
+- **A human must be in the loop at all times.** AI tools may assist, but a human contributor
+  must drive the work, review and understand every generated change, and take full
+  responsibility for it. Do not submit code you have not read and understood.
 - **The assistance must be disclosed.** Any commit produced with material AI help *must*
   carry an `Assisted-by:` trailer naming the model, for example:
 
@@ -37,7 +32,50 @@ AI-assisted contributions are welcome, subject to the following:
   ```
 
 - The human contributor still signs off (see above). `Signed-off-by:` is the human's
-  certification of, and responsibility for, the change; `Assisted-by:` only records which
+  certification of, and responsibility for, the change. `Assisted-by:` only records which
   tool helped. It does not replace the sign-off or the human review.
 
 Unreviewed, bulk, or fully-automated submissions are not accepted.
+
+## C standard
+
+C99 with GNU extensions (AKA `gnu99`) and other common extensions, where "common" means any
+extension that has been supported by both GCC and Clang for a number of years (ideally 5 or
+more).
+
+## Style
+
+The project follows a relatively standard C coding style. It boils down to:
+
+- No hard tabs. Spaces for indentation and alignment. 4-space per indentation level.
+- Snake-case for most identifiers.
+- Uppercase snake-case for macros.
+- Same line curly braces for blocks, including for functions (i.e. `if (...) {`,
+  `void func(void) {`, ...).
+- Same line closing block brace and else (i.e. `} else {`).
+- Comments are sparse: explain a non-obvious *why*, never restate the *what*. Don't narrate;
+  avoid useless comments.
+- Stick to ASCII: avoid em-dashes and other non-ASCII characters in code, comments, commit
+  messages, and documentation, unless the non-ASCII character is essential to the work.
+- Do not add per-file license headers.
+- Do not edit vendored/fetched/generated files (i.e. anything in `3RDPARTY.md`, or not in
+  `git ls-files`).
+- As a catch-all, match the surrounding code: indentation, braces, naming, idiom. Mirror the
+  conventions used by the file you edit.
+
+## Commit conventions
+
+- One logical change per commit. No "and" commits - split unrelated changes apart.
+- Commit message: a `<area>: <imperative summary>` subject. No body unless expanding on the
+  commit subject is considered important enough to improve clarity (or the "why" a commit
+  was made). In any case said body should not be overly verbose. `<area>` is often the path
+  to the `{.c,.h}` pair inside `common/` (e.g. `lib/acpi:` or `drivers/gop:`), or sometimes
+  more generic concepts such as `build:` or `docs:`. Host tools use `host/<name>:`,
+  build-time tools use `tools/<name>:`, BIOS stage 1 uses `stage1/{cd,hdd,pxe,decompressor,gdt}:`,
+  and for everything else just follow whatever established convention.
+
+## Style and commit conventions
+
+See [AGENTS.md](AGENTS.md) for code style and commit-message rules (single-line
+`area: summary` subjects, one logical change per commit, ASCII only, and so on). These apply
+to every contribution, AI-assisted or not.
