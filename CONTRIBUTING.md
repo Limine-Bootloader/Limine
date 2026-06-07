@@ -51,11 +51,53 @@ with no extensions must be used.
 The project follows a relatively standard C coding style. It boils down to:
 
 - No hard tabs. Spaces for indentation and alignment. 4-space per indentation level.
+- Always avoid vertical alignment to minimise vertical blast radius on changes.
 - Snake-case for most identifiers.
 - Uppercase snake-case for macros.
+- No pointless `typedef`s, especially for `struct`s. Always use the full `struct name var;`
+  declaration style for those.
+- Right aligned pointers (i.e. `struct something *ptr`).
 - Same line curly braces for blocks, including for functions (i.e. `if (...) {`,
   `void func(void) {`, ...).
 - Same line closing block brace and else (i.e. `} else {`).
+- Blocks should always be used for `if`, `for`, `while`, `do`, and similar. This means no
+  blockless constructs such as:
+
+  ```c
+  if (condition)
+      func();
+  ```
+
+  Instead, this should always be:
+
+  ```c
+  if (condition) {
+      func();
+  }
+  ```
+
+- For `switch`/`case` constructs, the indentation should look like this:
+
+  ```c
+  switch (variable) {
+      case 'A': {
+          func();
+          break;
+      }
+      case 'B': {
+          other_func();
+          break;
+      }
+      default: {
+          something_else();
+          break;
+      }
+  }
+  ```
+
+  And, as shown, all cases should be curly braced blocks.
+- **Never** do things such as `if()`, `while()`, ... - **Always** put a space between
+  keywords (i.e. not functions/function pointers) and parentheses.
 - Comments are sparse: explain a non-obvious *why*, never restate the *what*. Don't narrate;
   avoid useless comments.
 - Stick to ASCII: avoid em-dashes and other non-ASCII characters in code, comments, commit
@@ -65,6 +107,8 @@ The project follows a relatively standard C coding style. It boils down to:
   `git ls-files`).
 - As a catch-all, match the surrounding code: indentation, braces, naming, idiom. Mirror the
   conventions used by the file you edit.
+
+As with anything, there are always exceptions to these style rules, under given contexts.
 
 ## Commit conventions
 
