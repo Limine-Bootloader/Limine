@@ -6,6 +6,7 @@
 #include <mm/efi_pt.h>
 #include <mm/pmm.h>
 #include <sys/cpu.h>
+#include <lib/misc.h>
 
 #define PTE_P ((uint64_t)1 << 0)
 #define PTE_RW ((uint64_t)1 << 1)
@@ -295,7 +296,7 @@ void efi_pt_set_fb_wc(uint64_t base, uint64_t size) {
         goto out;
     }
 
-    uint64_t end = (base + size + 0xfff) & ~(uint64_t)0xfff;
+    uint64_t end = ALIGN_UP(CHECKED_ADD(base, size, goto out), 0x1000, goto out);
     base &= ~(uint64_t)0xfff;
 
     uint64_t cr3;
