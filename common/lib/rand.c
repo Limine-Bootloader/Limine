@@ -86,9 +86,7 @@ static void init_rand(void) {
                   ^ ((uint32_t)0xee0da130 * (uint32_t)rdtsc());
 
     uint32_t hw = hw_entropy();
-    if (hw != 0) {
-        seed *= (seed ^ hw);
-    }
+    seed ^= hw;
 
     status = ext_mem_alloc_counted(n, sizeof(uint32_t));
 
