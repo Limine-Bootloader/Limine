@@ -82,16 +82,22 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
             return '\t';
     }
 
-    if (shift_state & (GETCHAR_LCTRL | GETCHAR_RCTRL)) {
-        switch (ascii) {
-        case 'a': return GETCHAR_HOME;
-        case 'e': return GETCHAR_END;
-        case 'p': return GETCHAR_CURSOR_UP;
-        case 'n': return GETCHAR_CURSOR_DOWN;
-        case 'b': return GETCHAR_CURSOR_LEFT;
-        case 'f': return GETCHAR_CURSOR_RIGHT;
-        default: break;
-        }
+    // Ctrl+<letter> arrives either as the letter plus a Ctrl shift state, or
+    // (commonly) as the bare control code 0x01-0x1a; handle both.
+    uint8_t ctrl_char = 0;
+    if (ascii >= 0x01 && ascii <= 0x1a) {
+        ctrl_char = ascii | 0x60;
+    } else if (shift_state & (GETCHAR_LCTRL | GETCHAR_RCTRL)) {
+        ctrl_char = ascii;
+    }
+    switch (ctrl_char) {
+    case 'a': return GETCHAR_HOME;
+    case 'e': return GETCHAR_END;
+    case 'p': return GETCHAR_CURSOR_UP;
+    case 'n': return GETCHAR_CURSOR_DOWN;
+    case 'b': return GETCHAR_CURSOR_LEFT;
+    case 'f': return GETCHAR_CURSOR_RIGHT;
+    default: break;
     }
 
     // Guard against non-printable values
