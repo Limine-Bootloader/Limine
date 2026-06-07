@@ -306,34 +306,45 @@ static inline uint32_t colour_blend(uint32_t fg, uint32_t bg) {
     return ARGB(0, r, g, b);
 }
 
-static uint32_t blend_gradient_from_box(struct fb_info *fb, size_t x, size_t y, uint32_t bg_px, uint32_t hex) {
-    size_t distance, x_distance, y_distance;
-    size_t gradient_stop_x = fb->framebuffer_width - margin;
-    size_t gradient_stop_y = fb->framebuffer_height - margin;
+// Clamp the margin to half the framebuffer to prevent underflow.
+static size_t effective_margin_for(struct fb_info *fb, size_t m) {
+    size_t max_margin = fb->framebuffer_width / 2;
+    if (fb->framebuffer_height / 2 < max_margin) {
+        max_margin = fb->framebuffer_height / 2;
+    }
+    return m > max_margin ? max_margin : m;
+}
 
-    if (x < margin)
-        x_distance = margin - x;
+static uint32_t blend_gradient_from_box(struct fb_info *fb, size_t x, size_t y, uint32_t bg_px, uint32_t hex) {
+    size_t effective_margin = effective_margin_for(fb, margin);
+    size_t effective_margin_gradient = margin_gradient > effective_margin ? effective_margin : margin_gradient;
+    size_t distance, x_distance, y_distance;
+    size_t gradient_stop_x = fb->framebuffer_width - effective_margin;
+    size_t gradient_stop_y = fb->framebuffer_height - effective_margin;
+
+    if (x < effective_margin)
+        x_distance = effective_margin - x;
     else
         x_distance = x - gradient_stop_x;
 
-    if (y < margin)
-        y_distance = margin - y;
+    if (y < effective_margin)
+        y_distance = effective_margin - y;
     else
         y_distance = y - gradient_stop_y;
 
-    if (x >= margin && x < gradient_stop_x) {
+    if (x >= effective_margin && x < gradient_stop_x) {
         distance = y_distance;
-    } else if (y >= margin && y < gradient_stop_y) {
+    } else if (y >= effective_margin && y < gradient_stop_y) {
         distance = x_distance;
     } else {
         distance = sqrt((uint64_t)x_distance * (uint64_t)x_distance
                       + (uint64_t)y_distance * (uint64_t)y_distance);
     }
 
-    if (distance > margin_gradient)
+    if (distance > effective_margin_gradient)
         return bg_px;
 
-    uint8_t gradient_step = (0xff - A(hex)) / margin_gradient;
+    uint8_t gradient_step = (0xff - A(hex)) / effective_margin_gradient;
     uint8_t new_alpha     = A(hex) + gradient_step * distance;
 
     return colour_blend((hex & 0xffffff) | (new_alpha << 24), bg_px);
@@ -442,12 +453,7 @@ static void generate_canvas(struct fb_info *fb) {
             panic(false, "gterm: canvas size overflow"));
         bg_canvas = ext_mem_alloc(bg_canvas_size);
 
-        // Clamp margin to half the framebuffer dimensions to prevent underflow
-        size_t max_margin = fb->framebuffer_width / 2;
-        if (fb->framebuffer_height / 2 < max_margin) {
-            max_margin = fb->framebuffer_height / 2;
-        }
-        size_t effective_margin = margin > max_margin ? max_margin : margin;
+        size_t effective_margin = effective_margin_for(fb, margin);
         size_t effective_margin_gradient = margin_gradient > effective_margin ? effective_margin : margin_gradient;
 
         int64_t margin_no_gradient = (int64_t)effective_margin - effective_margin_gradient;
