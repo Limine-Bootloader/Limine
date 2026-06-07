@@ -212,7 +212,7 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
         return false;
     }
 
-    uint64_t end = (base + size + 0xfff) & ~(uint64_t)0xfff;
+    uint64_t end = ALIGN_UP(CHECKED_ADD(base, size, return false), 0x1000, return false);
     base &= ~(uint64_t)0xfff;
     size = end - base;
 
