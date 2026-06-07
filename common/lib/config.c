@@ -49,7 +49,7 @@ static bool init_efi_app_path(size_t *len_out) {
     EFI_STATUS status;
     EFI_LOADED_IMAGE_PROTOCOL *loaded_image;
     EFI_DEVICE_PATH_PROTOCOL *path;
-    CHAR16 *file_path, *p, *last_slash;
+    size_t len = 0, dir_len = 0;
 
     EFI_GUID loaded_image_protocol_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 
@@ -76,37 +76,39 @@ static bool init_efi_app_path(size_t *len_out) {
     return false;
 
 found:
-    file_path = (CHAR16 *)((void *)path + 4);
-
-    last_slash = NULL;
-    for (p = file_path; *p; p++) {
-        if (*p == L'\\') {
-            last_slash = p;
-        }
-    }
-
-    if (last_slash) {
-        size_t len = (last_slash - file_path) + 1;
-        if (len >= EFI_APP_PATH_LEN) {
-            len = EFI_APP_PATH_LEN - 1;
+    // A file path may span several consecutive MEDIA_FILEPATH_DP nodes; walk
+    // them all, bounding each scan by the node length, and keep the directory.
+    while (path->Type == MEDIA_DEVICE_PATH && path->SubType == MEDIA_FILEPATH_DP) {
+        uint16_t node_length = *((uint16_t *)&path->Length[0]);
+        if (node_length < 4) {
+            return false;
         }
 
-        for (size_t i = 0; i < len; i++) {
-            efi_app_path[i] = (char)(file_path[i] & 0xff);
-            if (efi_app_path[i] == '\\') {
-                efi_app_path[i] = '/';
+        CHAR16 *node_path = (CHAR16 *)((void *)path + 4);
+        size_t node_chars = (node_length - 4) / 2;
+
+        for (size_t i = 0; i < node_chars && node_path[i] != 0 && len < EFI_APP_PATH_LEN - 1; i++) {
+            if (node_path[i] == L'\\') {
+                efi_app_path[len++] = '/';
+                dir_len = len;
+            } else {
+                efi_app_path[len++] = (char)(node_path[i] & 0xff);
             }
         }
-        efi_app_path[len] = 0;
-        if (len_out != NULL) {
-            *len_out = len;
-        }
-    } else {
+
+        path = (void *)path + node_length;
+    }
+
+    if (dir_len == 0) {
         efi_app_path[0] = '/';
         efi_app_path[1] = 0;
-        if (len_out != NULL) {
-            *len_out = 1;
-        }
+        dir_len = 1;
+    } else {
+        efi_app_path[dir_len] = 0;
+    }
+
+    if (len_out != NULL) {
+        *len_out = dir_len;
     }
 
     return true;
