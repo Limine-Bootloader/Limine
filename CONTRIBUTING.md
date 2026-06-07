@@ -71,8 +71,11 @@ The project follows a relatively standard C coding style. It boils down to:
 - One logical change per commit. No "and" commits - split unrelated changes apart.
 - Commit message: a `<area>: <imperative summary>` subject. No body unless expanding on the
   commit subject is considered important enough to improve clarity (or the "why" a commit
-  was made). In any case said body should not be overly verbose. `<area>` is often the path
-  to the `{.c,.h}` pair inside `common/` (e.g. `lib/acpi:` or `drivers/gop:`), or sometimes
-  more generic concepts such as `build:` or `docs:`. Host tools use `host/<name>:`,
-  build-time tools use `tools/<name>:`, BIOS stage 1 uses `stage1/{cd,hdd,pxe,decompressor,gdt}:`,
-  and for everything else just follow whatever established convention.
+  was made); in any case the body should not be overly verbose. Try your best to keep both
+  the subject and any body lines within 80-column terminals as `git log` shows them (it
+  indents the message by 4 spaces, so aim for roughly 72 columns and wrap the body
+  accordingly). `<area>` is often the path to the `{.c,.h}` pair inside `common/` (e.g.
+  `lib/acpi:` or `drivers/gop:`), or sometimes more generic concepts such as `build:` or
+  `docs:`. Host tools use `host/<name>:`, build-time tools use `tools/<name>:`, BIOS stage 1
+  uses `stage1/{cd,hdd,pxe,decompressor,gdt}:`, and for everything else just follow whatever
+  established convention.
