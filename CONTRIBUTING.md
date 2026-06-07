@@ -39,9 +39,12 @@ Unreviewed, bulk, or fully-automated submissions are not accepted.
 
 ## C standard
 
-C99 with GNU extensions (AKA `gnu99`) and other common extensions, where "common" means any
-extension that has been supported by both GCC and Clang for a number of years (ideally 5 or
-more).
+For the bootloader proper, C99 with GNU extensions (AKA `gnu99`) and other common extensions
+is used, where "common" means any extension that has been supported by both GCC and Clang
+for a number of years (ideally 5 or more).
+
+For build and host tools (i.e. C code under `tools/` and `host/`), strictly conforming C99
+with no extensions must be used.
 
 ## Style
 
