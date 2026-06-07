@@ -110,7 +110,8 @@ static void gzip_close(struct file_handle * file) {
 
 bool gzip_check(struct file_handle * fd) {
   if (fd->size < 18) return false;
-  uint8_t magic[2];  fread(fd, magic, 0, 2);
+  uint8_t magic[2];
+  if (fread(fd, magic, 0, 2) != 2) return false;
   return magic[0] == 0x1F && magic[1] == 0x8B;
 }
 
