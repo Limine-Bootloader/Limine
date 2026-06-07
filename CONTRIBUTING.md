@@ -73,9 +73,3 @@ The project follows a relatively standard C coding style. It boils down to:
   more generic concepts such as `build:` or `docs:`. Host tools use `host/<name>:`,
   build-time tools use `tools/<name>:`, BIOS stage 1 uses `stage1/{cd,hdd,pxe,decompressor,gdt}:`,
   and for everything else just follow whatever established convention.
-
-## Style and commit conventions
-
-See [AGENTS.md](AGENTS.md) for code style and commit-message rules (single-line
-`area: summary` subjects, one logical change per commit, ASCII only, and so on). These apply
-to every contribution, AI-assisted or not.
