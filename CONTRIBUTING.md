@@ -25,12 +25,19 @@ AI-assisted contributions are allowed, subject to the following:
   must drive the work, review and understand every generated change, and take full
   responsibility for it. Do not submit code you have not read and understood.
 - **The assistance must be disclosed.** Any commit produced with material AI help *must*
-  carry an `Assisted-by:` trailer naming the model, for example:
+  carry an `Assisted-by:` trailer using a format similar to the Linux kernel's AI coding
+  assistant format:
 
   ```
-  Assisted-by: Claude:claude-opus-4-8
+  Assisted-by: AGENT_NAME:MODEL_VERSION
   ```
 
+  `AGENT_NAME` is the AI tool or framework (e.g. `Codex`, `Claude`, ...). `MODEL_VERSION`
+  is the full model identifier, all lowercase, including any numeric, snapshot, or version
+  suffix. Do not shorten it to the model family (e.g. use `gpt-5-5`, not `gpt-5`;
+  use `claude-opus-4-8`, not `claude-opus`).
+- Do not add `Co-authored-by:` trailers for the AI assistant. The `Assisted-by:` trailer
+  already serves that purpose.
 - The human contributor still signs off (see above). `Signed-off-by:` is the human's
   certification of, and responsibility for, the change. `Assisted-by:` only records which
   tool helped. It does not replace the sign-off or the human review.
@@ -126,6 +133,8 @@ As with anything, there are always exceptions to these style rules, under given 
   genuinely does not fit in the subject, and keep it brief. Try your best to keep both the
   subject and any body lines within 80-column terminals as `git log` shows them (it indents
   the message by 4 spaces, so aim for roughly 72 columns and wrap the body accordingly).
+  The `<imperative summary>` should begin with a uppercase letter, while `<area>` should be
+  all lowercase.
   `<area>` is often the path to the `{.c,.h}` pair inside `common/` (e.g.
   `lib/acpi:` or `drivers/gop:`), or sometimes more generic concepts such as `build:` or
   `docs:`. Host tools use `host/<name>:`, build-time tools use `tools/<name>:`, BIOS stage 1
