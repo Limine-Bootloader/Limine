@@ -1,3 +1,29 @@
+2026-06-09  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.3.3 ***
+
+    Noteworthy changes compared to the previous release, 12.3.2:
+
+    Bug fixes:
+        - Fix several Multiboot relocation and staging edge cases.
+        - Fix Linux arm64 loading of legacy kernels and validate initrd
+          placement.
+        - Fix assorted RISC-V issues, including Svpbmt PBMT_NC encoding, rv64g
+          ISA detection, and ACPI table bounds checking.
+        - Fix x86 SMP startup to ignore disabled APs.
+        - Fix BIOS and UEFI PXE booting when loading preloaded TFTP resources
+          through URI handling.
+        - Harden assorted parsers, loaders, and host/build-time tools against
+          malformed inputs and arithmetic overflows.
+        - Miscellaneous graphics, input, firmware-time, and entropy-handling
+          fixes.
+
+    Miscellaneous:
+        - Update Flanterm to 3.1.2 and the Limine boot protocol subproject.
+        - Use the C `mem*()` implementations on x86 and IA-32 again.
+        - Add contribution and agent documentation.
+        - Miscellaneous build and test fixes.
+
 2026-05-28  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.3.2 ***
