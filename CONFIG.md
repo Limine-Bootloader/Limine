@@ -287,6 +287,9 @@ Editor control options:
   * `resolution` - The resolution to be used. This setting takes the form of
     `<width>x<height>x<bpp>`. If the resolution is not available, Limine will
     pick another one automatically. Omitting `<bpp>` will default to 32.
+  * `native_load` - If set to `yes`, chainloads the EFI application natively
+    without using an intermediate memory buffer. This ensures TPM PCR 4
+    measurements reflect the exact on-disk binary (e.g. for BitLocker).
 
 * EFI Boot Entry protocol:
   * `entry` - The name of the EFI boot entry to reboot into.
