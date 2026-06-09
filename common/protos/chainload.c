@@ -15,21 +15,19 @@
 #include <lib/bli.h>
 #include <drivers/vga_textmode.h>
 #include <mm/pmm.h>
-#if defined(UEFI)
-#include <efi.h>
+#if defined (UEFI)
+#  include <efi.h>
 #endif
 
-#if defined(BIOS)
+#if defined (BIOS)
 
 __attribute__((noinline, section(".realmode")))
-noreturn static void
-spinup(uint8_t drive, void *buf)
-{
+noreturn static void spinup(uint8_t drive, void *buf) {
     struct idtr real_mode_idt;
     real_mode_idt.limit = 0x3ff;
-    real_mode_idt.ptr = 0;
+    real_mode_idt.ptr   = 0;
 
-    asm volatile(
+    asm volatile (
         "cli\n\t"
         "cld\n\t"
 
@@ -76,47 +74,37 @@ spinup(uint8_t drive, void *buf)
 
         ".code32\n\t"
         :
-        : "a"(&real_mode_idt), "d"(drive), "S"(buf)
-        : "memory");
+        : "a" (&real_mode_idt), "d" (drive), "S"(buf)
+        : "memory"
+    );
 
     __builtin_unreachable();
 }
 
-noreturn void chainload(char *config, char *cmdline)
-{
+noreturn void chainload(char *config, char *cmdline) {
     (void)cmdline;
 
     uint64_t val;
 
-    int part;
-    {
+    int part; {
         char *part_config = config_get_value(config, 0, "PARTITION");
-        if (part_config == NULL)
-        {
+        if (part_config == NULL) {
             part = 0;
-        }
-        else
-        {
+        } else {
             val = strtoui(part_config, NULL, 10);
-            if (val > 256)
-            {
+            if (val > 256) {
                 panic(true, "bios: BIOS partition number outside range 0-256");
             }
             part = val;
         }
     }
-    int drive;
-    {
+    int drive; {
         char *drive_config = config_get_value(config, 0, "DRIVE");
-        if (drive_config == NULL)
-        {
+        if (drive_config == NULL) {
             drive = boot_volume->index;
-        }
-        else
-        {
+        } else {
             val = strtoui(drive_config, NULL, 10);
-            if (val < 1 || val > 256)
-            {
+            if (val < 1 || val > 256) {
                 panic(true, "bios: BIOS drive number outside range 1-256");
             }
             drive = val;
@@ -124,49 +112,42 @@ noreturn void chainload(char *config, char *cmdline)
     }
 
     struct volume *p = volume_get_by_coord(false, drive, part);
-    if (p == NULL && config_get_value(config, 0, "GPT_GUID") == NULL && config_get_value(config, 0, "GPT_UUID") == NULL && config_get_value(config, 0, "MBR_ID") == NULL)
-    {
+    if (p == NULL && config_get_value(config, 0, "GPT_GUID") == NULL
+                  && config_get_value(config, 0, "GPT_UUID") == NULL
+                  && config_get_value(config, 0, "MBR_ID") == NULL) {
         panic(true, "bios: Specified drive/partition not found");
     }
 
     char *gpt_guid_s = config_get_value(config, 0, "GPT_GUID");
-    if (gpt_guid_s == NULL)
-    {
+    if (gpt_guid_s == NULL) {
         gpt_guid_s = config_get_value(config, 0, "GPT_UUID");
     }
-    if (gpt_guid_s != NULL)
-    {
+    if (gpt_guid_s != NULL) {
         struct guid guid;
-        if (!string_to_guid_be(&guid, gpt_guid_s))
-        {
+        if (!string_to_guid_be(&guid, gpt_guid_s)) {
             panic(true, "bios: Malformed GUID");
         }
 
         p = volume_get_by_guid(&guid);
-        if (p == NULL)
-        {
-            if (!string_to_guid_mixed(&guid, gpt_guid_s))
-            {
+        if (p == NULL) {
+            if (!string_to_guid_mixed(&guid, gpt_guid_s)) {
                 panic(true, "bios: Malformed GUID");
             }
 
             p = volume_get_by_guid(&guid);
         }
 
-        if (p == NULL)
-        {
+        if (p == NULL) {
             panic(true, "bios: No matching GPT drive for GPT_GUID found");
         }
 
-        if (p->partition != 0)
-        {
+        if (p->partition != 0) {
             panic(true, "bios: GPT_GUID is that of a partition, not a drive");
         }
 
         p = volume_get_by_coord(false, p->index, part);
 
-        if (p == NULL)
-        {
+        if (p == NULL) {
             panic(true, "bios: Partition specified is not valid");
         }
 
@@ -174,31 +155,25 @@ noreturn void chainload(char *config, char *cmdline)
     }
 
     char *mbr_id_s = config_get_value(config, 0, "MBR_ID");
-    if (mbr_id_s != NULL)
-    {
+    if (mbr_id_s != NULL) {
         uint32_t mbr_id = strtoui(mbr_id_s, NULL, 16);
 
-        for (size_t i = 0; i < volume_index_i; i++)
-        {
+        for (size_t i = 0; i < volume_index_i; i++) {
             p = volume_index[i];
 
-            if (!is_valid_mbr(p))
-            {
+            if (!is_valid_mbr(p)) {
                 continue;
             }
 
             uint32_t mbr_id_1;
-            if (!volume_read(p, &mbr_id_1, 0x1b8, sizeof(uint32_t)))
-            {
+            if (!volume_read(p, &mbr_id_1, 0x1b8, sizeof(uint32_t))) {
                 continue;
             }
 
-            if (mbr_id_1 == mbr_id)
-            {
+            if (mbr_id_1 == mbr_id) {
                 p = volume_get_by_coord(false, p->index, part);
 
-                if (p == NULL)
-                {
+                if (p == NULL) {
                     panic(true, "bios: Partition specified is not valid");
                 }
 
@@ -214,38 +189,32 @@ load:
 
     void *buf = ext_mem_alloc(512);
 
-    if (!volume_read(p, buf, 0, 512))
-    {
+    if (!volume_read(p, buf, 0, 512)) {
         panic(true, "bios: Failed to read boot sector");
     }
 
     uint16_t *boot_sig = (uint16_t *)(buf + 0x1fe);
 
-    if (*boot_sig != 0xaa55)
-    {
+    if (*boot_sig != 0xaa55) {
         panic(true, "bios: Volume is not bootable");
     }
 
     spinup(p->drive, buf);
 }
 
-#elif defined(UEFI)
+#elif defined (UEFI)
 
-static EFI_DEVICE_PATH_PROTOCOL *append_device_path(EFI_DEVICE_PATH_PROTOCOL *dp1, EFI_DEVICE_PATH_PROTOCOL *dp2)
-{
-    if (!dp1)
-    {
+static EFI_DEVICE_PATH_PROTOCOL *append_device_path(EFI_DEVICE_PATH_PROTOCOL *dp1, EFI_DEVICE_PATH_PROTOCOL *dp2) {
+    if (dp1 == NULL) {
         return dp2;
     }
-    if (!dp2)
-    {
+    if (dp2 == NULL) {
         return dp1;
     }
 
     size_t dp1_size = 0;
     EFI_DEVICE_PATH_PROTOCOL *node1 = dp1;
-    while (!(node1->Type == END_DEVICE_PATH_TYPE && node1->SubType == END_ENTIRE_DEVICE_PATH_SUBTYPE))
-    {
+    while (!(node1->Type == END_DEVICE_PATH_TYPE && node1->SubType == END_ENTIRE_DEVICE_PATH_SUBTYPE)) {
         size_t node_len = node1->Length[0] | (node1->Length[1] << 8);
         dp1_size += node_len;
         node1 = (EFI_DEVICE_PATH_PROTOCOL *)((uint8_t *)node1 + node_len);
@@ -253,8 +222,7 @@ static EFI_DEVICE_PATH_PROTOCOL *append_device_path(EFI_DEVICE_PATH_PROTOCOL *dp
 
     size_t dp2_size = 0;
     EFI_DEVICE_PATH_PROTOCOL *node2 = dp2;
-    while (!(node2->Type == END_DEVICE_PATH_TYPE && node2->SubType == END_ENTIRE_DEVICE_PATH_SUBTYPE))
-    {
+    while (!(node2->Type == END_DEVICE_PATH_TYPE && node2->SubType == END_ENTIRE_DEVICE_PATH_SUBTYPE)) {
         size_t node_len = node2->Length[0] | (node2->Length[1] << 8);
         dp2_size += node_len;
         node2 = (EFI_DEVICE_PATH_PROTOCOL *)((uint8_t *)node2 + node_len);
@@ -264,8 +232,7 @@ static EFI_DEVICE_PATH_PROTOCOL *append_device_path(EFI_DEVICE_PATH_PROTOCOL *dp
 
     EFI_DEVICE_PATH_PROTOCOL *new_dp = NULL;
     EFI_STATUS status = gBS->AllocatePool(EfiLoaderData, dp1_size + dp2_size, (void **)&new_dp);
-    if (status)
-    {
+    if (status) {
         panic(true, "efi: AllocatePool() failure (%X)", (uint64_t)status);
     }
 
@@ -275,8 +242,7 @@ static EFI_DEVICE_PATH_PROTOCOL *append_device_path(EFI_DEVICE_PATH_PROTOCOL *dp
     return new_dp;
 }
 
-static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle *image)
-{
+static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle *image) {
     // The file path stored in EFI_LOADED_IMAGE_PROTOCOL::FilePath is
     // expected to be relative to the EFI_LOADED_IMAGE_PROTOCOL::DeviceHandle.
     // For this reason the EFI_DEVICE_PATH_PROTOCOL of the efi_part_handle
@@ -290,10 +256,8 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
 
     bool leading_slash = true;
     size_t j = 0;
-    for (size_t i = 0; i < original_path_chars; i++)
-    {
-        if (image->path[i] == '/' && leading_slash)
-        {
+    for (size_t i = 0; i < original_path_chars; i++) {
+        if (image->path[i] == '/' && leading_slash) {
             continue;
         }
         leading_slash = false;
@@ -301,28 +265,28 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
     }
     efi_file_path[j] = 0;
 
+
     size_t efi_file_path_len = ((j + 1) * sizeof(CHAR16));
-    size_t path_item_len = sizeof(EFI_DEVICE_PATH_PROTOCOL) + efi_file_path_len;
-    size_t end_item_len = sizeof(EFI_DEVICE_PATH_PROTOCOL);
-    size_t alloc_len = path_item_len + end_item_len;
+    size_t path_item_len     = sizeof(EFI_DEVICE_PATH_PROTOCOL) + efi_file_path_len;
+    size_t end_item_len      = sizeof(EFI_DEVICE_PATH_PROTOCOL);
+    size_t alloc_len         = path_item_len + end_item_len;
 
     EFI_DEVICE_PATH_PROTOCOL *device_path;
     EFI_STATUS status = gBS->AllocatePool(EfiLoaderData, alloc_len, (void **)&device_path);
-    if (status)
-    {
+    if (status) {
         panic(true, "efi: AllocatePool() failure (%x)", status);
     }
 
     FILEPATH_DEVICE_PATH *path_item = (FILEPATH_DEVICE_PATH *)device_path;
-    path_item->Header.Type = MEDIA_DEVICE_PATH;
-    path_item->Header.SubType = MEDIA_FILEPATH_DP;
+    path_item->Header.Type      = MEDIA_DEVICE_PATH;
+    path_item->Header.SubType   = MEDIA_FILEPATH_DP;
     path_item->Header.Length[0] = path_item_len;
     path_item->Header.Length[1] = path_item_len >> 8;
     memcpy(&path_item->PathName, efi_file_path, efi_file_path_len);
 
     EFI_DEVICE_PATH_PROTOCOL *end_item = (void *)device_path + path_item_len;
-    end_item->Type = END_DEVICE_PATH_TYPE;
-    end_item->SubType = END_ENTIRE_DEVICE_PATH_SUBTYPE;
+    end_item->Type      = END_DEVICE_PATH_TYPE;
+    end_item->SubType   = END_ENTIRE_DEVICE_PATH_SUBTYPE;
     end_item->Length[0] = end_item_len;
     end_item->Length[1] = end_item_len >> 8;
 
@@ -330,22 +294,18 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
     return device_path;
 }
 
-noreturn void chainload(char *config, char *cmdline)
-{
+noreturn void chainload(char *config, char *cmdline) {
     bool native_load = false;
     char *native_load_str = config_get_value(config, 0, "NATIVE_LOAD");
-    if (native_load_str != NULL && strcmp(native_load_str, "yes") == 0)
-    {
+    if (native_load_str != NULL && strcmp(native_load_str, "yes") == 0) {
         native_load = true;
     }
 
     char *image_path = config_get_value(config, 0, "PATH");
-    if (image_path == NULL)
-    {
+    if (image_path == NULL) {
         image_path = config_get_value(config, 0, "IMAGE_PATH");
     }
-    if (image_path == NULL)
-    {
+    if (image_path == NULL) {
         panic(true, "efi: Image path not specified");
     }
 
@@ -357,11 +317,10 @@ noreturn void chainload(char *config, char *cmdline)
 
     struct file_handle *image;
     if ((image = uri_open(image_path, MEMMAP_RESERVED, false
-#if defined(__i386__)
-                          ,
-                          NULL, NULL
+#if defined (__i386__)
+        , NULL, NULL
 #endif
-                          )) == NULL)
+    )) == NULL)
         panic(true, "efi: Failed to open image with path `%s`. Is the path correct?", image_path);
 
     secure_boot_active = saved_secure_boot_active;
@@ -373,8 +332,7 @@ noreturn void chainload(char *config, char *cmdline)
     void *ptr = image->fd;
     size_t image_size = image->size;
 
-    if (!native_load)
-    {
+    if (!native_load) {
         memmap_alloc_range_in(untouched_memmap, &untouched_memmap_entries,
                               (uintptr_t)ptr, ALIGN_UP(image_size, 4096, panic(true, "chainload: Alignment overflow")),
                               MEMMAP_RESERVED, MEMMAP_USABLE, true, false, true);
@@ -383,13 +341,11 @@ noreturn void chainload(char *config, char *cmdline)
     EFI_DEVICE_PATH_PROTOCOL *efi_file_path = build_relative_efi_file_path(image);
     EFI_DEVICE_PATH_PROTOCOL *absolute_path = NULL;
 
-    if (native_load)
-    {
+    if (native_load) {
         EFI_DEVICE_PATH_PROTOCOL *part_device_path = NULL;
         EFI_GUID device_path_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
         status = gBS->HandleProtocol(efi_part_handle, &device_path_guid, (void **)&part_device_path);
-        if (status)
-        {
+        if (status) {
             panic(true, "efi: Failed to get partition device path (%X)", (uint64_t)status);
         }
 
@@ -412,12 +368,10 @@ noreturn void chainload(char *config, char *cmdline)
     size_t cmdline_len = strlen(cmdline);
     CHAR16 *new_cmdline;
     status = gBS->AllocatePool(EfiLoaderData, CHECKED_MUL(cmdline_len + 1, sizeof(CHAR16), panic(true, "efi: Allocation size overflow")), (void **)&new_cmdline);
-    if (status)
-    {
+    if (status) {
         panic(true, "efi: Allocation failure");
     }
-    for (size_t i = 0; i < cmdline_len + 1; i++)
-    {
+    for (size_t i = 0; i < cmdline_len + 1; i++) {
         new_cmdline[i] = cmdline[i];
     }
 
@@ -425,37 +379,32 @@ noreturn void chainload(char *config, char *cmdline)
 
     EFI_HANDLE new_handle = 0;
 
-    if (native_load)
-    {
-        status = gBS->LoadImage(FALSE, efi_image_handle, absolute_path, NULL, 0, &new_handle);
-        if (status)
-        {
+    if (native_load) {
+        status = gBS->LoadImage(false, efi_image_handle, absolute_path, NULL, 0, &new_handle);
+        if (status) {
             panic(false, "efi: Native LoadImage failure (%X)", (uint64_t)status);
         }
-    }
-    else
-    {
+    } else {
         MEMMAP_DEVICE_PATH memdev_path[2];
 
-        memdev_path[0].Header.Type = HARDWARE_DEVICE_PATH;
-        memdev_path[0].Header.SubType = HW_MEMMAP_DP;
+        memdev_path[0].Header.Type      = HARDWARE_DEVICE_PATH;
+        memdev_path[0].Header.SubType   = HW_MEMMAP_DP;
         memdev_path[0].Header.Length[0] = sizeof(MEMMAP_DEVICE_PATH);
         memdev_path[0].Header.Length[1] = sizeof(MEMMAP_DEVICE_PATH) >> 8;
 
-        memdev_path[0].MemoryType = EfiLoaderCode;
-        memdev_path[0].StartingAddress = (uintptr_t)ptr;
-        memdev_path[0].EndingAddress = (uintptr_t)ptr + image_size;
+        memdev_path[0].MemoryType       = EfiLoaderCode;
+        memdev_path[0].StartingAddress  = (uintptr_t)ptr;
+        memdev_path[0].EndingAddress    = (uintptr_t)ptr + image_size;
 
-        memdev_path[1].Header.Type = END_DEVICE_PATH_TYPE;
-        memdev_path[1].Header.SubType = END_ENTIRE_DEVICE_PATH_SUBTYPE;
+        memdev_path[1].Header.Type      = END_DEVICE_PATH_TYPE;
+        memdev_path[1].Header.SubType   = END_ENTIRE_DEVICE_PATH_SUBTYPE;
         memdev_path[1].Header.Length[0] = sizeof(EFI_DEVICE_PATH);
         memdev_path[1].Header.Length[1] = sizeof(EFI_DEVICE_PATH) >> 8;
 
         status = gBS->LoadImage(0, efi_image_handle,
                                 (EFI_DEVICE_PATH *)memdev_path,
                                 ptr, image_size, &new_handle);
-        if (status)
-        {
+        if (status) {
             panic(false, "efi: LoadImage failure (%X)", (uint64_t)status);
         }
     }
@@ -465,13 +414,11 @@ noreturn void chainload(char *config, char *cmdline)
     EFI_LOADED_IMAGE_PROTOCOL *new_handle_loaded_image = NULL;
     status = gBS->HandleProtocol(new_handle, &loaded_img_prot_guid,
                                  (void **)&new_handle_loaded_image);
-    if (status)
-    {
+    if (status) {
         panic(false, "efi: HandleProtocol failure (%X)", (uint64_t)status);
     }
 
-    if (efi_part_handle != 0)
-    {
+    if (efi_part_handle != 0) {
         new_handle_loaded_image->DeviceHandle = efi_part_handle;
     }
 
@@ -487,8 +434,7 @@ noreturn void chainload(char *config, char *cmdline)
     EFI_STATUS exit_status = gBS->StartImage(new_handle, &exit_data_size, &exit_data);
 
     status = gBS->Exit(efi_image_handle, exit_status, exit_data_size, exit_data);
-    if (status)
-    {
+    if (status) {
         panic(false, "efi: Exit failure (%X)", (uint64_t)status);
     }
 
