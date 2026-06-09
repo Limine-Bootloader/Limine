@@ -364,7 +364,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
             void *pool = ext_mem_alloc(0x100000);
             for (uint64_t i = 0; i < sz; i += 0x100000) {
                 size_t chunk = sz - i < 0x100000 ? (size_t)(sz - i) : 0x100000;
-                uint64_t got = top->read(top, pool, i, chunk);
+                uint64_t got = fread(top, pool, i, chunk);
                 if (got != chunk) {
                     panic(false, "uri: short read from non-gzip stream");
                 }
@@ -376,7 +376,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         {
             // In-place fill.
             if (sz > 0) {
-                uint64_t got = top->read(top, buf_low, 0, sz);
+                uint64_t got = fread(top, buf_low, 0, sz);
                 if (got != sz) {
                     panic(false, "uri: short read from non-gzip stream");
                 }
@@ -487,12 +487,12 @@ grew:;
             uint64_t got;
 #if defined (__i386__)
             if (is_high) {
-                got = top->read(top, pool, buf_len, want);
+                got = fread(top, pool, buf_len, want);
                 if (got > 0) memcpy_to_64(buf_addr + buf_len, pool, got);
             } else
 #endif
             {
-                got = top->read(top, (uint8_t *)buf_low + buf_len, buf_len, want);
+                got = fread(top, (uint8_t *)buf_low + buf_len, buf_len, want);
             }
             if (got == 0) break;
             buf_len += got;
