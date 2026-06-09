@@ -141,7 +141,7 @@ struct file_handle * gzip_open(struct file_handle * compressed) {
   ret->efi_part_handle = compressed->efi_part_handle;
 #endif
   ret->pxe = compressed->pxe;
-  ret->pxe_ip = compressed->pxe_ip;
+  memcpy(ret->pxe_ip, compressed->pxe_ip, 4);
   ret->pxe_port = compressed->pxe_port;
   return ret;
 }

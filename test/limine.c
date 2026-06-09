@@ -268,10 +268,10 @@ static void print_file(struct limine_file *file) {
     e9_printf("File->MediaType: %d", file->media_type);
     e9_printf("File->PartIndex: %d", file->partition_index);
     e9_printf("File->TFTPIP: %d.%d.%d.%d",
-              (file->tftp_ip & (0xff << 0)) >> 0,
-              (file->tftp_ip & (0xff << 8)) >> 8,
-              (file->tftp_ip & (0xff << 16)) >> 16,
-              (file->tftp_ip & (0xff << 24)) >> 24);
+              file->tftp_ipv4[0],
+              file->tftp_ipv4[1],
+              file->tftp_ipv4[2],
+              file->tftp_ipv4[3]);
     e9_printf("File->TFTPPort: %d", file->tftp_port);
     e9_printf("File->MBRDiskId: %x", file->mbr_disk_id);
     e9_printf("File->GPTDiskUUID: %x-%x-%x-%x",

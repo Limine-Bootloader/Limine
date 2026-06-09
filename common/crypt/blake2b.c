@@ -274,7 +274,7 @@ struct file_handle *blake2b_open(struct file_handle *source) {
     ret->efi_part_handle = source->efi_part_handle;
 #endif
     ret->pxe = source->pxe;
-    ret->pxe_ip = source->pxe_ip;
+    memcpy(ret->pxe_ip, source->pxe_ip, 4);
     ret->pxe_port = source->pxe_port;
     return ret;
 }

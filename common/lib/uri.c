@@ -329,7 +329,8 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
     EFI_HANDLE raw_efi_part = raw->efi_part_handle;
 #endif
     bool raw_pxe = raw->pxe;
-    uint32_t raw_pxe_ip = raw->pxe_ip;
+    uint8_t raw_pxe_ip[4];
+    memcpy(raw_pxe_ip, raw->pxe_ip, 4);
     uint16_t raw_pxe_port = raw->pxe_port;
 
     // Build the filter chain: raw -> blake2b -> gzip. blake2b hashes on-disk
@@ -550,7 +551,7 @@ grew:;
     out->efi_part_handle = raw_efi_part;
 #endif
     out->pxe = raw_pxe;
-    out->pxe_ip = raw_pxe_ip;
+    memcpy(out->pxe_ip, raw_pxe_ip, 4);
     out->pxe_port = raw_pxe_port;
 
     return out;

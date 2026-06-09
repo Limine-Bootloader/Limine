@@ -385,7 +385,7 @@ static struct limine_file get_file(struct file_handle *file, char *cmdline) {
     if (file->pxe) {
         ret.media_type = LIMINE_MEDIA_TYPE_TFTP;
 
-        ret.tftp_ip = file->pxe_ip;
+        memcpy(ret.tftp_ipv4, file->pxe_ip, 4);
         ret.tftp_port = file->pxe_port;
     } else {
         struct volume *vol = file->vol;

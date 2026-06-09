@@ -30,7 +30,7 @@ struct file_handle {
     EFI_HANDLE efi_part_handle;
 #endif
     bool pxe;
-    uint32_t pxe_ip;
+    uint8_t pxe_ip[4];
     uint16_t pxe_port;
 };
 
