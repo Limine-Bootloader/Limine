@@ -204,6 +204,44 @@ load:
 
 #elif defined (UEFI)
 
+static EFI_DEVICE_PATH_PROTOCOL *append_device_path(EFI_DEVICE_PATH_PROTOCOL *dp1, EFI_DEVICE_PATH_PROTOCOL *dp2) {
+    if (dp1 == NULL) {
+        return dp2;
+    }
+    if (dp2 == NULL) {
+        return dp1;
+    }
+
+    size_t dp1_size = 0;
+    EFI_DEVICE_PATH_PROTOCOL *node1 = dp1;
+    while (!(node1->Type == END_DEVICE_PATH_TYPE && node1->SubType == END_ENTIRE_DEVICE_PATH_SUBTYPE)) {
+        size_t node_len = node1->Length[0] | (node1->Length[1] << 8);
+        dp1_size += node_len;
+        node1 = (EFI_DEVICE_PATH_PROTOCOL *)((uint8_t *)node1 + node_len);
+    }
+
+    size_t dp2_size = 0;
+    EFI_DEVICE_PATH_PROTOCOL *node2 = dp2;
+    while (!(node2->Type == END_DEVICE_PATH_TYPE && node2->SubType == END_ENTIRE_DEVICE_PATH_SUBTYPE)) {
+        size_t node_len = node2->Length[0] | (node2->Length[1] << 8);
+        dp2_size += node_len;
+        node2 = (EFI_DEVICE_PATH_PROTOCOL *)((uint8_t *)node2 + node_len);
+    }
+    size_t end_node_len = node2->Length[0] | (node2->Length[1] << 8);
+    dp2_size += end_node_len;
+
+    EFI_DEVICE_PATH_PROTOCOL *new_dp = NULL;
+    EFI_STATUS status = gBS->AllocatePool(EfiLoaderData, dp1_size + dp2_size, (void **)&new_dp);
+    if (status) {
+        panic(true, "efi: AllocatePool() failure (%X)", (uint64_t)status);
+    }
+
+    memcpy(new_dp, dp1, dp1_size);
+    memcpy((uint8_t *)new_dp + dp1_size, dp2, dp2_size);
+
+    return new_dp;
+}
+
 static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle *image) {
     // The file path stored in EFI_LOADED_IMAGE_PROTOCOL::FilePath is
     // expected to be relative to the EFI_LOADED_IMAGE_PROTOCOL::DeviceHandle.
@@ -257,6 +295,12 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
 }
 
 noreturn void chainload(char *config, char *cmdline) {
+    bool native_load = false;
+    char *native_load_str = config_get_value(config, 0, "NATIVE_LOAD");
+    if (native_load_str != NULL && strcmp(native_load_str, "yes") == 0) {
+        native_load = true;
+    }
+
     char *image_path = config_get_value(config, 0, "PATH");
     if (image_path == NULL) {
         image_path = config_get_value(config, 0, "IMAGE_PATH");
@@ -288,11 +332,25 @@ noreturn void chainload(char *config, char *cmdline) {
     void *ptr = image->fd;
     size_t image_size = image->size;
 
-    memmap_alloc_range_in(untouched_memmap, &untouched_memmap_entries,
-                          (uintptr_t)ptr, ALIGN_UP(image_size, 4096, panic(true, "chainload: Alignment overflow")),
-                          MEMMAP_RESERVED, MEMMAP_USABLE, true, false, true);
+    if (!native_load) {
+        memmap_alloc_range_in(untouched_memmap, &untouched_memmap_entries,
+                              (uintptr_t)ptr, ALIGN_UP(image_size, 4096, panic(true, "chainload: Alignment overflow")),
+                              MEMMAP_RESERVED, MEMMAP_USABLE, true, false, true);
+    }
 
     EFI_DEVICE_PATH_PROTOCOL *efi_file_path = build_relative_efi_file_path(image);
+    EFI_DEVICE_PATH_PROTOCOL *absolute_path = NULL;
+
+    if (native_load) {
+        EFI_DEVICE_PATH_PROTOCOL *part_device_path = NULL;
+        EFI_GUID device_path_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+        status = gBS->HandleProtocol(efi_part_handle, &device_path_guid, (void **)&part_device_path);
+        if (status) {
+            panic(true, "efi: Failed to get partition device path (%X)", (uint64_t)status);
+        }
+
+        absolute_path = append_device_path(part_device_path, efi_file_path);
+    }
 
     fclose(image);
     term_notready();
@@ -319,29 +377,36 @@ noreturn void chainload(char *config, char *cmdline) {
 
     pmm_release_uefi_mem();
 
-    MEMMAP_DEVICE_PATH memdev_path[2];
-
-    memdev_path[0].Header.Type      = HARDWARE_DEVICE_PATH;
-    memdev_path[0].Header.SubType   = HW_MEMMAP_DP;
-    memdev_path[0].Header.Length[0] = sizeof(MEMMAP_DEVICE_PATH);
-    memdev_path[0].Header.Length[1] = sizeof(MEMMAP_DEVICE_PATH) >> 8;
-
-    memdev_path[0].MemoryType       = EfiLoaderCode;
-    memdev_path[0].StartingAddress  = (uintptr_t)ptr;
-    memdev_path[0].EndingAddress    = (uintptr_t)ptr + image_size;
-
-    memdev_path[1].Header.Type      = END_DEVICE_PATH_TYPE;
-    memdev_path[1].Header.SubType   = END_ENTIRE_DEVICE_PATH_SUBTYPE;
-    memdev_path[1].Header.Length[0] = sizeof(EFI_DEVICE_PATH);
-    memdev_path[1].Header.Length[1] = sizeof(EFI_DEVICE_PATH) >> 8;
-
     EFI_HANDLE new_handle = 0;
 
-    status = gBS->LoadImage(0, efi_image_handle,
-                            (EFI_DEVICE_PATH *)memdev_path,
-                            ptr, image_size, &new_handle);
-    if (status) {
-        panic(false, "efi: LoadImage failure (%X)", (uint64_t)status);
+    if (native_load) {
+        status = gBS->LoadImage(false, efi_image_handle, absolute_path, NULL, 0, &new_handle);
+        if (status) {
+            panic(false, "efi: Native LoadImage failure (%X)", (uint64_t)status);
+        }
+    } else {
+        MEMMAP_DEVICE_PATH memdev_path[2];
+
+        memdev_path[0].Header.Type      = HARDWARE_DEVICE_PATH;
+        memdev_path[0].Header.SubType   = HW_MEMMAP_DP;
+        memdev_path[0].Header.Length[0] = sizeof(MEMMAP_DEVICE_PATH);
+        memdev_path[0].Header.Length[1] = sizeof(MEMMAP_DEVICE_PATH) >> 8;
+
+        memdev_path[0].MemoryType       = EfiLoaderCode;
+        memdev_path[0].StartingAddress  = (uintptr_t)ptr;
+        memdev_path[0].EndingAddress    = (uintptr_t)ptr + image_size;
+
+        memdev_path[1].Header.Type      = END_DEVICE_PATH_TYPE;
+        memdev_path[1].Header.SubType   = END_ENTIRE_DEVICE_PATH_SUBTYPE;
+        memdev_path[1].Header.Length[0] = sizeof(EFI_DEVICE_PATH);
+        memdev_path[1].Header.Length[1] = sizeof(EFI_DEVICE_PATH) >> 8;
+
+        status = gBS->LoadImage(0, efi_image_handle,
+                                (EFI_DEVICE_PATH *)memdev_path,
+                                ptr, image_size, &new_handle);
+        if (status) {
+            panic(false, "efi: LoadImage failure (%X)", (uint64_t)status);
+        }
     }
 
     EFI_GUID loaded_img_prot_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
