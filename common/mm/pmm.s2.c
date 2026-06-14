@@ -7,6 +7,7 @@
 #include <lib/misc.h>
 #include <lib/libc.h>
 #include <lib/print.h>
+#include <lib/rand.h>
 #if defined (UEFI)
 #  include <efi.h>
 #endif
@@ -612,6 +613,112 @@ void *pmm_realloc(void *old_ptr, uint64_t old_size, uint64_t new_size) {
     return new_ptr;
 }
 
+// Allocate memory top down.
+bool ext_mem_alloc_find_slot(uint64_t count, size_t alignment, uint64_t limit, uint64_t *_alloc_base, uint64_t *_alloc_top) {
+    uint64_t alloc_top;
+    uint64_t alloc_base;
+
+    for (int i = memmap_entries - 1; i >= 0; i--) {
+        if (memmap[i].type != MEMMAP_USABLE) {
+            continue;
+        }
+
+        uint64_t entry_base = memmap[i].base;
+        alloc_top = CHECKED_ADD(memmap[i].base, memmap[i].length, continue);
+
+        if (alloc_top > limit) {
+            alloc_top = limit;
+            if (entry_base >= alloc_top) {
+                continue;
+            }
+        }
+
+        // Check if entry is too small before subtracting.
+        if (alloc_top - entry_base < count) {
+            continue;
+        }
+
+        alloc_base = ALIGN_DOWN(alloc_top - count, alignment);
+
+        if (alloc_base < entry_base) {
+            continue;
+        }
+
+        if (_alloc_base) {
+            *_alloc_base = alloc_base;
+        }
+        if (_alloc_top) {
+            *_alloc_top = alloc_top;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool ext_mem_alloc_find_slot_random(uint64_t count, size_t alignment, uint64_t limit, uint64_t *_alloc_base, uint64_t *_alloc_top) {
+    uint64_t total_slots = 0;
+    for (int i = memmap_entries - 1; i >= 0; i--) {
+        memmap[i].slot_count = 0;
+
+        if (memmap[i].type != MEMMAP_USABLE) {
+            continue;
+        }
+
+        uint64_t entry_base = memmap[i].base;
+        uint64_t entry_top = CHECKED_ADD(memmap[i].base, memmap[i].length, continue);
+
+        if (entry_top > limit) {
+            entry_top = limit;
+            if (entry_base >= entry_top) {
+                continue;
+            }
+        }
+
+        if (entry_top - entry_base < count) {
+            continue;
+        }
+
+        uint64_t first_slot = ALIGN_UP(entry_base, alignment, continue);
+        uint64_t last_slot = ALIGN_DOWN(entry_top - count, alignment);
+
+        memmap[i].slot_count = (last_slot - first_slot) / alignment;
+        total_slots += memmap[i].slot_count;
+    }
+
+    if (!total_slots) {
+        return false;
+    }
+    // Allocator potentially calling allocator is risky, but i'll just say it'll
+    // be *fine* for now since this is only used for PKASLR
+    uint64_t slot = (total_slots * (uint64_t)(rand32())) >> 32;
+
+    uint64_t alloc_base;
+    uint64_t alloc_top;
+    for (int i = memmap_entries; i >= 0; i--) {
+        if (slot >= memmap[i].slot_count) {
+            slot -= memmap[i].slot_count;
+            continue;
+        }
+
+        uint64_t entry_base = memmap[i].base;
+
+        alloc_base = ALIGN_UP(entry_base, alignment,
+            panic(false, "ext_mem_alloc_random: unreachable alignment fail"));
+        alloc_top = ALIGN_UP(alloc_base + count, alignment,
+            panic(false, "ext_mem_alloc_random: unreachable alignment fail"));
+        alloc_top -= alignment * slot;
+    }
+
+    if (_alloc_base) {
+        *_alloc_base = alloc_base;
+    }
+    if (_alloc_top) {
+        *_alloc_top = alloc_top;
+    }
+
+    return true;
+}
+
 void *ext_mem_alloc_size_t(size_t count) {
     return ext_mem_alloc(count);
 }
@@ -633,8 +740,11 @@ void *ext_mem_alloc_type_aligned(uint64_t count, uint32_t type, size_t alignment
     return ext_mem_alloc_type_aligned_mode(count, type, alignment, false);
 }
 
-// Allocate memory top down.
 void *ext_mem_alloc_type_aligned_mode(uint64_t count, uint32_t type, size_t alignment, bool allow_high_allocs) {
+    return ext_mem_alloc_type_aligned_mode_random(count, type, alignment, allow_high_allocs, false);
+}
+
+void *ext_mem_alloc_type_aligned_mode_random(uint64_t count, uint32_t type, size_t alignment, bool allow_high_allocs, bool random) {
 #if !defined (__x86_64__) && !defined (__i386__)
     (void)allow_high_allocs;
 #endif
@@ -643,9 +753,13 @@ void *ext_mem_alloc_type_aligned_mode(uint64_t count, uint32_t type, size_t alig
         panic(false, "ext_mem_alloc: count overflows when aligning"));
     count = ALIGN_DOWN(count, alignment);
 
-    if (allocations_disallowed)
+    if (allocations_disallowed) {
         panic(false, "Memory allocations disallowed");
+    }
 
+    uint64_t alloc_base;
+    uint64_t alloc_top;
+    bool slot_found;
 #if defined(__x86_64__) || defined(__i386__)
     // Try below 4GiB first to avoid relying on firmware identity-mapping
     // memory above 4GiB (some buggy UEFI implementations don't).
@@ -655,35 +769,17 @@ again:
 #else
     uint64_t limit = UINT64_MAX;
 #endif
-
-    for (int i = memmap_entries - 1; i >= 0; i--) {
-        if (memmap[i].type != 1)
-            continue;
-
-        uint64_t entry_base = memmap[i].base;
-        uint64_t entry_top  = CHECKED_ADD(memmap[i].base, memmap[i].length, continue);
-
-        if (entry_top > limit) {
-            entry_top = limit;
-            if (entry_base >= entry_top)
-                continue;
-        }
-
-        // Check if entry is too small before subtracting.
-        if (entry_top - entry_base < count)
-            continue;
-
-        uint64_t alloc_base = ALIGN_DOWN(entry_top - count, alignment);
-
-        if (alloc_base < entry_base)
-            continue;
-
+    if (random) {
+        slot_found = ext_mem_alloc_find_slot_random(count, alignment, limit, &alloc_base, &alloc_top);
+    } else {
+        slot_found = ext_mem_alloc_find_slot(count, alignment, limit, &alloc_base, &alloc_top);
+    }
+    if (slot_found) {
         // We now reserve the range we need.
-        uint64_t aligned_length = entry_top - alloc_base;
+        uint64_t aligned_length = alloc_top - alloc_base;
         memmap_alloc_range(alloc_base, aligned_length, type, MEMMAP_USABLE, true, false, false);
-
+        pmm_sanitise_entries(memmap, &memmap_entries, false);
         void *ret;
-
 #if defined (__i386__)
         if (!allow_high_allocs) {
 #endif
@@ -698,9 +794,6 @@ again:
             ret = &above64_ret;
         }
 #endif
-
-        pmm_sanitise_entries(memmap, &memmap_entries, false);
-
         return ret;
     }
 
