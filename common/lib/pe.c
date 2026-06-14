@@ -301,7 +301,11 @@ bool pe64_load(uint8_t *image, size_t file_size, uint64_t *entry_point, uint64_t
         slide = FIXED_HIGHER_HALF_OFFSET_64 - image_base;
     }
 
-    *physical_base = (uintptr_t)ext_mem_alloc_type_aligned(image_size, alloc_type, alignment);
+    if (kaslr) {
+        *physical_base = (uintptr_t)ext_mem_alloc_type_aligned_mode_random(image_size, alloc_type, alignment, false, true);
+    } else {
+        *physical_base = (uintptr_t)ext_mem_alloc_type_aligned(image_size, alloc_type, alignment);
+    }
     *virtual_base = image_base;
 
     // Validate SizeOfHeaders doesn't exceed file size or image size
