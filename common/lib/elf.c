@@ -974,7 +974,11 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
 
     image_size = max_vaddr - min_vaddr;
 
-    *physical_base = (uintptr_t)ext_mem_alloc_type_aligned(image_size, alloc_type, max_align);
+    if (kaslr) {
+        *physical_base = (uintptr_t)ext_mem_alloc_type_aligned_mode_random(image_size, alloc_type, max_align, false, true);
+    } else {
+        *physical_base = (uintptr_t)ext_mem_alloc_type_aligned(image_size, alloc_type, max_align);
+    }
     *virtual_base = min_vaddr;
 
     if (_image_size) {
