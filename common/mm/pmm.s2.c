@@ -681,7 +681,7 @@ bool ext_mem_alloc_find_slot_random(uint64_t count, size_t alignment, uint64_t l
         uint64_t first_slot = ALIGN_UP(entry_base, alignment, continue);
         uint64_t last_slot = ALIGN_DOWN(entry_top - count, alignment);
 
-        memmap[i].slot_count = (last_slot - first_slot) / alignment;
+        memmap[i].slot_count = (last_slot - first_slot) / alignment + 1;
         total_slots += memmap[i].slot_count;
     }
 
@@ -700,13 +700,10 @@ bool ext_mem_alloc_find_slot_random(uint64_t count, size_t alignment, uint64_t l
             continue;
         }
 
-        uint64_t entry_base = memmap[i].base;
+        uint64_t entry_top = memmap[i].base + memmap[i].length;
 
-        alloc_base = ALIGN_UP(entry_base, alignment,
-            panic(false, "ext_mem_alloc_random: unreachable alignment fail"));
-        alloc_top = ALIGN_UP(alloc_base + count, alignment,
-            panic(false, "ext_mem_alloc_random: unreachable alignment fail"));
-        alloc_top -= alignment * slot;
+        alloc_top = entry_top - alignment * slot;
+        alloc_base = ALIGN_DOWN(alloc_top - count, alignment);
     }
 
     if (_alloc_base) {
