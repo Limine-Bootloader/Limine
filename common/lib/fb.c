@@ -9,6 +9,7 @@
 #include <mm/mtrr.h>
 #include <mm/efi_pt.h>
 #include <sys/cpu.h>
+#include <lib/bgrt.h>
 
 struct fb_info *fb_fbs;
 size_t fb_fbs_count = 0;
@@ -77,6 +78,12 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
     }
 #else
     (void)want_wc;
+#endif
+
+#if defined (UEFI)
+    if (!preserve_screen && *_fbs_count > 0) {
+        bgrt_restore((*ret)[0].framebuffer_width, (*ret)[0].framebuffer_height);
+    }
 #endif
 }
 

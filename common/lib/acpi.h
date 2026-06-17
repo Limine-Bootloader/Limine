@@ -199,6 +199,16 @@ struct madt_core_pic {
 #define MADT_CORE_PIC_ENABLED        ((uint32_t)1 << 0)
 #define MADT_CORE_PIC_ONLINE_CAPABLE ((uint32_t)1 << 1)
 
+struct acpi_bgrt {
+    struct sdt header;
+    uint16_t version;
+    uint8_t status;
+    uint8_t image_type;
+    uint64_t image_address;
+    uint32_t image_offset_x;
+    uint32_t image_offset_y;
+} __attribute__((packed));
+
 uint8_t acpi_checksum(void *ptr, size_t size);
 void   *acpi_get_rsdp(void);
 
