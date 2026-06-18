@@ -13,4 +13,9 @@ void srand(uint32_t s);
 uint32_t rand32(void);
 uint64_t rand64(void);
 
+/* Hardware-entropy-backed variants for security-sensitive use (e.g. ASLR).
+   Fall back to the MT19937 API when no hardware source is available. */
+uint32_t safe_rand32(void);
+uint64_t safe_rand64(void);
+
 #endif

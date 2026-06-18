@@ -354,7 +354,7 @@ static void set_paging_mode(bool randomise_hhdm_base) {
     if (randomise_hhdm_base) {
         // A quarter of the higher half of wiggle room for KASLR, align to 1GiB steps.
         uint64_t mask = ((uint64_t)1 << (paging_mode_va_bits(paging_mode) - 3)) - 1;
-        direct_map_offset += (rand64() & ~((uint64_t)0x40000000 - 1)) & mask;
+        direct_map_offset += (safe_rand64() & ~((uint64_t)0x40000000 - 1)) & mask;
     }
 }
 

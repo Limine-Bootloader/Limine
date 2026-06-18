@@ -158,3 +158,24 @@ uint32_t rand32(void) {
 uint64_t rand64(void) {
     return (((uint64_t)rand32()) << 32) | (uint64_t)rand32();
 }
+
+// Hardware-entropy-backed variants for security-sensitive consumers such as
+// ASLR. The Mersenne Twister stream is deterministic given its seed and thus
+// predictable if any outputs leak; these return raw hardware entropy when
+// available and fall back to the PRNG only when no hardware source could
+// provide the full width.
+uint32_t safe_rand32(void) {
+    uint32_t v;
+    if (hw_entropy(&v, sizeof(v)) == sizeof(v)) {
+        return v;
+    }
+    return rand32();
+}
+
+uint64_t safe_rand64(void) {
+    uint64_t v;
+    if (hw_entropy(&v, sizeof(v)) == sizeof(v)) {
+        return v;
+    }
+    return rand64();
+}

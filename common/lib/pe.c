@@ -318,7 +318,7 @@ bool pe64_load(uint8_t *image, size_t file_size, uint64_t *entry_point, uint64_t
 
     if (is_reloc && kaslr) {
 again:
-        slide = (rand32() & ~(alignment - 1)) + (lower_to_higher ? FIXED_HIGHER_HALF_OFFSET_64 - image_base : 0);
+        slide = (safe_rand32() & ~(alignment - 1)) + (lower_to_higher ? FIXED_HIGHER_HALF_OFFSET_64 - image_base : 0);
 
         if (*virtual_base + slide + image_size < 0xffffffff80000000 /* this comparison relies on overflow */) {
             if (++try_count == max_simulated_tries) {
