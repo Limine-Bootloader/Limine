@@ -1295,6 +1295,24 @@ not_found:;
 }
 #endif
 
+static void print_entry_comment(const struct menu_entry *entry, size_t row) {
+    if (entry->comment == NULL) {
+        return;
+    }
+
+    size_t comment_len = strlen(entry->comment);
+    size_t max_len = terms[0]->cols - 2;
+    FOR_TERM(TERM->scroll_enabled = false);
+    if (comment_len <= max_len) {
+        set_cursor_pos_helper((terms[0]->cols - comment_len) / 2, row);
+        print("\e[36m%s\e[0m", entry->comment);
+    } else {
+        set_cursor_pos_helper(1, row);
+        print("\e[36m%S...\e[0m", entry->comment, (size_t)(max_len - 3));
+    }
+    FOR_TERM(TERM->scroll_enabled = true);
+}
+
 noreturn void _menu(bool first_run) {
     size_t data_size = (uintptr_t)data_end - (uintptr_t)data_begin;
 #if defined (BIOS)
@@ -1830,6 +1848,7 @@ refresh:
 
     if (skip_timeout == false) {
         print("\n\n");
+        print_entry_comment(selected_menu_entry, terms[0]->rows - 3);
         while (timeout_ms != 0) {
             char timeout_buf[24];
             uint64_t sleep_ms = timeout_ms % 1000;
@@ -1862,18 +1881,8 @@ refresh:
         goto autoboot;
     }
 
-    if (max_entries != 0 && selected_menu_entry->comment != NULL) {
-        size_t comment_len = strlen(selected_menu_entry->comment);
-        size_t max_len = terms[0]->cols - 2;
-        FOR_TERM(TERM->scroll_enabled = false);
-        if (comment_len <= max_len) {
-            set_cursor_pos_helper((terms[0]->cols - comment_len) / 2, terms[0]->rows - 2);
-            print("\e[36m%s\e[0m", selected_menu_entry->comment);
-        } else {
-            set_cursor_pos_helper(1, terms[0]->rows - 2);
-            print("\e[36m%S...\e[0m", selected_menu_entry->comment, (size_t)(max_len - 3));
-        }
-        FOR_TERM(TERM->scroll_enabled = true);
+    if (max_entries != 0) {
+        print_entry_comment(selected_menu_entry, terms[0]->rows - 2);
     }
 
     if (booting_from_editor) {
