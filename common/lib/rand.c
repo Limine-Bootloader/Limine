@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <lib/misc.h>
 #include <lib/print.h>
+#include <lib/libc.h>
 #include <lib/rand.h>
 #include <sys/cpu.h>
 #include <mm/pmm.h>
@@ -21,63 +22,82 @@ static bool rand_initialised = false;
 static uint32_t *status;
 static int ctr;
 
-static uint32_t hw_entropy(void) {
+size_t hw_entropy(void *buf, size_t size) {
+    uint8_t *out = buf;
+    size_t filled = 0;
+
 #if defined (__x86_64__) || defined(__i386__)
     uint32_t eax, ebx, ecx, edx;
+    bool have_rdseed = cpuid(0x07, 0, &eax, &ebx, &ecx, &edx) && (ebx & (1 << 18));
+    bool have_rdrand = cpuid(0x01, 0, &eax, &ebx, &ecx, &edx) && (ecx & (1 << 30));
 
-    if (cpuid(0x07, 0, &eax, &ebx, &ecx, &edx) && (ebx & (1 << 18))) {
-        uint32_t val =
+    while (filled < size && (have_rdseed || have_rdrand)) {
+        uint32_t val;
+        if (have_rdseed) {
 #if defined (__x86_64__)
-            (uint32_t)rdseed(uint64_t); // Always do a 64-bit op on 64-bit to work around CPU bugs.
+            val = (uint32_t)rdseed(uint64_t); // Always do a 64-bit op on 64-bit to work around CPU bugs.
 #elif defined (__i386__)
-            rdseed(uint32_t);
+            val = rdseed(uint32_t);
 #endif
-        if (val != 0) return val;
-    } else if (cpuid(0x01, 0, &eax, &ebx, &ecx, &edx) && (ecx & (1 << 30))) {
-        uint32_t val =
+        } else {
 #if defined (__x86_64__)
-            (uint32_t)rdrand(uint64_t); // As above.
+            val = (uint32_t)rdrand(uint64_t); // As above.
 #elif defined (__i386__)
-            rdrand(uint32_t);
+            val = rdrand(uint32_t);
 #endif
-        if (val != 0) return val;
+        }
+
+        // A zero result means the instruction never set carry across all of its
+        // retries; treat the source as exhausted rather than spinning forever.
+        if (val == 0) {
+            break;
+        }
+
+        size_t chunk = size - filled < sizeof(val) ? size - filled : sizeof(val);
+        memcpy(out + filled, &val, chunk);
+        filled += chunk;
     }
 #elif defined (__aarch64__)
     // ARMv8.5-RNG: check ID_AA64ISAR0_EL1 RNDR field (bits [63:60])
     uint64_t isar0;
     asm volatile ("mrs %0, id_aa64isar0_el1" : "=r" (isar0));
     if ((isar0 >> 60) & 0xf) {
-        uint64_t rndr;
-        // RNDR register: s3_3_c2_c4_0
-        bool ok;
-        asm volatile (
-            "mrs %0, s3_3_c2_c4_0\n\t"
-            "cset %w1, ne"
-            : "=r" (rndr), "=r" (ok)
-            :
-            : "cc"
-        );
-        if (ok) {
-            return (uint32_t)rndr;
+        while (filled < size) {
+            uint64_t rndr;
+            bool ok;
+            // RNDR register: s3_3_c2_c4_0
+            asm volatile (
+                "mrs %0, s3_3_c2_c4_0\n\t"
+                "cset %w1, ne"
+                : "=r" (rndr), "=r" (ok)
+                :
+                : "cc"
+            );
+            if (!ok) {
+                break;
+            }
+
+            size_t chunk = size - filled < sizeof(rndr) ? size - filled : sizeof(rndr);
+            memcpy(out + filled, &rndr, chunk);
+            filled += chunk;
         }
     }
 #endif
 
 #if defined (UEFI)
-    // Try EFI RNG protocol as a fallback for all UEFI platforms
-    {
+    // Try the EFI RNG protocol as a fallback for any bytes still missing.
+    if (filled < size) {
         EFI_GUID rng_guid = EFI_RNG_PROTOCOL_GUID;
         EFI_RNG_PROTOCOL *rng = NULL;
         if (gBS->LocateProtocol(&rng_guid, NULL, (void **)&rng) == EFI_SUCCESS && rng != NULL) {
-            uint32_t val;
-            if (rng->GetRNG(rng, NULL, sizeof(val), (UINT8 *)&val) == EFI_SUCCESS) {
-                return val;
+            if (rng->GetRNG(rng, NULL, size - filled, out + filled) == EFI_SUCCESS) {
+                filled = size;
             }
         }
     }
 #endif
 
-    return 0;
+    return filled;
 }
 
 static void init_rand(void) {
@@ -85,7 +105,8 @@ static void init_rand(void) {
                   * ((uint32_t)0xce86d624)
                   ^ ((uint32_t)0xee0da130 * (uint32_t)rdtsc());
 
-    uint32_t hw = hw_entropy();
+    uint32_t hw = 0;
+    hw_entropy(&hw, sizeof(hw));
     seed ^= hw;
 
     status = ext_mem_alloc_counted(n, sizeof(uint32_t));
