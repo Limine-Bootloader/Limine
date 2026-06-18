@@ -4,6 +4,12 @@
 
     Noteworthy changes compared to the previous release, 12.3.3:
 
+    Bug fixes:
+        - ASLR has previously used a non-cryptographically secure PRNG,
+          MT19937, which is not ideal for security purposes. New APIs have
+          been added to provide safe hardware-backed randomness where
+          available and ASLR has been switched to use these APIs.
+
     Miscellaneous:
         - Show the comment for the default entry during timeout.
 
