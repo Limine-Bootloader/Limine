@@ -287,6 +287,10 @@ Editor control options:
   * `resolution` - The resolution to be used. This setting takes the form of
     `<width>x<height>x<bpp>`. If the resolution is not available, Limine will
     pick another one automatically. Omitting `<bpp>` will default to 32.
+  Here is a shorter, punchier version that cuts the fluff and reads like natural technical documentation:
+  * `native_load` - If set to `yes`, chainloads the EFI application natively without an intermediate memory buffer, ensuring TPM PCR 4 measurements reflect the exact on-disk binary. This is meant for Windows dual-boot users, where Bitlocker trips and asks for a recovery key every on every boot. This disables some features.
+    * **Transparent Compression ($)** is disabled because the RAM buffer used for decompression is bypassed.
+    * **Hashing (#)** is disabled due to a potential Time-of-Check to Time-of-Use (TOCTOU) race condition, where the binary could be swapped between verification and execution.
 
 * EFI Boot Entry protocol:
   * `entry` - The name of the EFI boot entry to reboot into.
