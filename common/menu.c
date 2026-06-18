@@ -327,7 +327,7 @@ static const char *VALID_KEYS[] = {
     "GPT_GUID",
     "GPT_UUID",
     "IMAGE_PATH",
-	"DTB_PATH",
+    "DTB_PATH",
     "ENTRY",
     "IF_FW_TYPE",
     "IF_ARCH",
@@ -613,7 +613,7 @@ tab_part:
                     print("%c", tab_space_count ? ' ' : buffer[i]);
                 }
 
-	        if (tab_space_count != 0) {
+                if (tab_space_count != 0) {
                     tab_space_count--;
                 }
             }
