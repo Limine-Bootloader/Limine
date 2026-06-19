@@ -690,7 +690,7 @@ bool ext_mem_alloc_find_slot_random(uint64_t count, size_t alignment, uint64_t l
     }
     // Allocator potentially calling allocator is risky, but i'll just say it'll
     // be *fine* for now since this is only used for PKASLR
-    uint64_t slot = (total_slots * (uint64_t)(rand32())) >> 32;
+    uint64_t slot = (total_slots * (uint64_t)(safe_rand32())) >> 32;
 
     uint64_t alloc_base;
     uint64_t alloc_top;
