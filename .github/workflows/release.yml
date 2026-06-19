@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -60,7 +60,7 @@ jobs:
         run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel gzip bzip2 xz zip git autoconf automake nasm curl mtools llvm clang lld
 
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.validate.outputs.sha }}
           fetch-depth: 0
