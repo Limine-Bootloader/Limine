@@ -6,21 +6,15 @@
 #include <lib/libc.h>
 #include <lib/rand.h>
 #include <sys/cpu.h>
-#include <mm/pmm.h>
 
-// TODO: Find where this mersenne twister implementation is inspired from
-//       and properly credit the original author(s).
+// PCG32 (PCG-XSH-RR 64/32, single-stream variant) of M. E. O'Neill 2014.
+// For security-sensitive randomness use safe_rand32()/safe_rand64() instead.
+
+#define PCG_MULTIPLIER ((uint64_t)6364136223846793005)
+#define PCG_INCREMENT  ((uint64_t)1442695040888963407) // must be odd
 
 static bool rand_initialised = false;
-
-#define n ((int)624)
-#define m ((int)397)
-#define matrix_a ((uint32_t)0x9908b0df)
-#define msb ((uint32_t)0x80000000)
-#define lsbs ((uint32_t)0x7fffffff)
-
-static uint32_t *status;
-static int ctr;
+static uint64_t pcg_state;
 
 size_t hw_entropy(void *buf, size_t size) {
     uint8_t *out = buf;
@@ -100,59 +94,38 @@ size_t hw_entropy(void *buf, size_t size) {
     return filled;
 }
 
-static void init_rand(void) {
-    uint32_t seed = ((uint32_t)0xc597060c * (uint32_t)rdtsc())
-                  * ((uint32_t)0xce86d624)
-                  ^ ((uint32_t)0xee0da130 * (uint32_t)rdtsc());
-
-    uint32_t hw = 0;
-    hw_entropy(&hw, sizeof(hw));
-    seed ^= hw;
-
-    status = ext_mem_alloc_counted(n, sizeof(uint32_t));
-
-    srand(seed);
-
-    rand_initialised = true;
+static uint32_t pcg_next(void) {
+    uint64_t old = pcg_state;
+    pcg_state = old * PCG_MULTIPLIER + PCG_INCREMENT;
+    uint32_t xorshifted = (uint32_t)(((old >> 18) ^ old) >> 27);
+    uint32_t rot = (uint32_t)(old >> 59);
+    return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
 
 void srand(uint32_t s) {
-    status[0] = s;
-    for (ctr = 1; ctr < n; ctr++)
-        status[ctr] = (1812433253 * (status[ctr - 1] ^ (status[ctr - 1] >> 30)) + ctr);
+    // Canonical PCG seeding: advance, fold the seed in, advance again.
+    pcg_state = 0;
+    pcg_next();
+    pcg_state += s;
+    pcg_next();
+    rand_initialised = true;
+}
+
+static void init_rand(void) {
+    uint64_t seed = 0;
+    hw_entropy(&seed, sizeof(seed));
+    pcg_state = 0;
+    pcg_next();
+    pcg_state += seed;
+    pcg_next();
+    rand_initialised = true;
 }
 
 uint32_t rand32(void) {
     if (!rand_initialised)
         init_rand();
 
-    const uint32_t mag01[2] = {0, matrix_a};
-
-    if (ctr >= n) {
-        for (int kk = 0; kk < n - m; kk++) {
-            uint32_t y = (status[kk] & msb) | (status[kk + 1] & lsbs);
-            status[kk] = status[kk + m] ^ (y >> 1) ^ mag01[y & 1];
-        }
-
-        for (int kk = n - m; kk < n - 1; kk++) {
-            uint32_t y = (status[kk] & msb) | (status[kk + 1] & lsbs);
-            status[kk] = status[kk + (m - n)] ^ (y >> 1) ^ mag01[y & 1];
-        }
-
-        uint32_t y = (status[n - 1] & msb) | (status[0] & lsbs);
-        status[n - 1] = status[m - 1] ^ (y >> 1) ^ mag01[y & 1];
-
-        ctr = 0;
-    }
-
-    uint32_t res = status[ctr++];
-
-    res ^= (res >> 11);
-    res ^= (res << 7) & 0x9d2c5680;
-    res ^= (res << 15) & 0xefc60000;
-    res ^= (res >> 18);
-
-    return res;
+    return pcg_next();
 }
 
 uint64_t rand64(void) {
@@ -160,10 +133,9 @@ uint64_t rand64(void) {
 }
 
 // Hardware-entropy-backed variants for security-sensitive consumers such as
-// ASLR. The Mersenne Twister stream is deterministic given its seed and thus
-// predictable if any outputs leak; these return raw hardware entropy when
-// available and fall back to the PRNG only when no hardware source could
-// provide the full width.
+// ASLR. The PCG stream is deterministic given its seed and thus predictable if
+// any outputs leak; these return raw hardware entropy when available and fall
+// back to the PRNG only when no hardware source could provide the full width.
 uint32_t safe_rand32(void) {
     uint32_t v;
     if (hw_entropy(&v, sizeof(v)) == sizeof(v)) {
