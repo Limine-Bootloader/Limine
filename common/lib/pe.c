@@ -418,7 +418,6 @@ again:
                     case IMAGE_REL_BASED_DIR64: write_size = 8; break;
                     default:
                         panic(true, "pe: Unsupported relocation type %u", type);
-                        __builtin_unreachable();
                 }
 
                 if ((uint64_t)block->VirtualAddress + offset + write_size > image_size) {
