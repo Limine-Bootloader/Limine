@@ -34,9 +34,9 @@ void pxe_init(void) {
         panic(false, "PXE installation check failed");
     }
 
-    struct pxenv* pxenv = { 0 };
+    struct pxenv *pxenv = NULL;
 
-    pxenv = (struct pxenv*)((r.es << 4) + (r.ebx & 0xffff));
+    pxenv = (struct pxenv *)((r.es << 4) + (r.ebx & 0xffff));
     if (memcmp(pxenv->signature, PXE_SIGNATURE, sizeof(pxenv->signature)) != 0) {
         panic(false, "PXENV structure signature corrupted");
     }
@@ -46,7 +46,7 @@ void pxe_init(void) {
         panic(false, "pxe version too old");
     }
 
-    struct bangpxe* bangpxe = (struct bangpxe*)((((pxenv->pxe_ptr & 0xffff0000) >> 16) << 4) + (pxenv->pxe_ptr & 0xffff));
+    struct bangpxe *bangpxe = (struct bangpxe *)((((pxenv->pxe_ptr & 0xffff0000) >> 16) << 4) + (pxenv->pxe_ptr & 0xffff));
 
     if (memcmp(bangpxe->signature, PXE_BANGPXE_SIGNATURE,
             sizeof(bangpxe->signature))
