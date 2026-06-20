@@ -261,7 +261,6 @@ static void add_framebuffer(struct fb_info *fb) {
 }
 
 static void prepare_efi_tables(struct boot_param *p, char *config) {
-    (void)p;
     EFI_STATUS ret = 0;
 
     {
@@ -380,13 +379,13 @@ static void prepare_mmap(struct boot_param *p) {
         EFI_MEMORY_DESCRIPTOR *entry = (void *)efi_mmap + i * efi_desc_size;
 
         if (entry->Attribute & EFI_MEMORY_RUNTIME) {
-	    // LoongArch kernel requires the virtual address stays in the
-	    // privileged, direct-mapped window
-	    #if defined(__loongarch__)
-       	        entry->VirtualStart = entry->PhysicalStart | (0x8ULL << 60);
+            // LoongArch kernel requires the virtual address stays in the
+            // privileged, direct-mapped window
+            #if defined(__loongarch__)
+                entry->VirtualStart = entry->PhysicalStart | (0x8ULL << 60);
             #else
-	        entry->VirtualStart = entry->PhysicalStart;
-	    #endif
+                entry->VirtualStart = entry->PhysicalStart;
+            #endif
         }
     }
 
