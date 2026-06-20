@@ -61,7 +61,7 @@ struct smbios_entry_point_32 {
     /// Minor version of SMBIOS.
     uint8_t minor_version;
     /// Size of the largest SMBIOS structure, in bytes, and encompasses the
-    /// structure’s formatted area and text strings
+    /// structure's formatted area and text strings
     uint16_t max_structure_size;
     uint8_t entry_point_revision;
     char formatted_area[5];
