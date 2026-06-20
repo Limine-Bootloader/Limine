@@ -930,21 +930,21 @@ static inline bool core_pic_startable(uint32_t flags) {
 }
 
 static void csr_mail_send(uint64_t data, int cpu, int mailbox) {
-	uint64_t val;
+    uint64_t val;
 
     // High 32bit
-	val = ((uint64_t)1 << IOCSR_MBUF_SEND_BLOCKING_BIT);
-	val |= (((mailbox << 1) + 1) << IOCSR_MBUF_SEND_BOX_SHIFT);
-	val |= (cpu << IOCSR_MBUF_SEND_CPU_SHIFT);
-	val |= (data & 0xFFFFFFFF00000000);
-	iocsr_write64(val, LOONGARCH_IOCSR_MBUF_SEND);
+    val = ((uint64_t)1 << IOCSR_MBUF_SEND_BLOCKING_BIT);
+    val |= (((mailbox << 1) + 1) << IOCSR_MBUF_SEND_BOX_SHIFT);
+    val |= (cpu << IOCSR_MBUF_SEND_CPU_SHIFT);
+    val |= (data & 0xFFFFFFFF00000000);
+    iocsr_write64(val, LOONGARCH_IOCSR_MBUF_SEND);
 
     // Low 32bit
-	val = ((uint64_t)1 << IOCSR_MBUF_SEND_BLOCKING_BIT);
-	val |= ((mailbox << 1) << IOCSR_MBUF_SEND_BOX_SHIFT);
-	val |= (cpu << IOCSR_MBUF_SEND_CPU_SHIFT);
-	val |= (data << 32);
-	iocsr_write64(val, LOONGARCH_IOCSR_MBUF_SEND);
+    val = ((uint64_t)1 << IOCSR_MBUF_SEND_BLOCKING_BIT);
+    val |= ((mailbox << 1) << IOCSR_MBUF_SEND_BOX_SHIFT);
+    val |= (cpu << IOCSR_MBUF_SEND_CPU_SHIFT);
+    val |= (data << 32);
+    iocsr_write64(val, LOONGARCH_IOCSR_MBUF_SEND);
 };
 
 static void smp_send_ipi(uint32_t phys_id, uint32_t action) {
