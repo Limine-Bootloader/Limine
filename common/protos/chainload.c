@@ -266,6 +266,10 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
     size_t end_item_len      = sizeof(EFI_DEVICE_PATH_PROTOCOL);
     size_t alloc_len         = path_item_len + end_item_len;
 
+    if (path_item_len > 0xffff) {
+        panic(true, "efi: Image path too long for device path node");
+    }
+
     EFI_DEVICE_PATH_PROTOCOL *device_path;
     EFI_STATUS status = gBS->AllocatePool(EfiLoaderData, alloc_len, (void **)&device_path);
     if (status) {
