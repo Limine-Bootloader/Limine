@@ -122,6 +122,11 @@ Miscellaneous:
   when Secure Boot is active, and forced back to `no` if the firmware does
   not expose a TPM 2.0/CC measurement interface. See
   [USAGE.md](USAGE.md#measured-boot).
+* `firmware_logo` - If set to `yes`, restore the OEM firmware boot logo upon
+  handoff to the OS, instead of leaving a blank screen, by clearing the
+  "displayed" status bit in the ACPI BGRT table so the OS redraws the logo
+  itself. The image is re-centred for the active resolution. UEFI only;
+  defaults to `no`.
 
 Limine interface control options:
 
@@ -301,6 +306,12 @@ Editor control options:
   * `gpt_uuid` or `gpt_guid` - Optional. If passed, use the GPT GUID to
     identify the drive containing the volume to chainload. Overrides `drive`
     and `mbr_id`, if present, but does *not* override `partition`.
+
+  To boot FreeBSD on a BIOS/GPT disk, point `partition` at the `freebsd-boot`
+  partition. Limine recognises it by its GPT type GUID and emulates FreeBSD's
+  `pmbr`: it loads the whole partition (`gptboot`) and hands off to it, rather
+  than treating it as a conventional boot record (which it is not, as it has no
+  `0xAA55` signature).
 
 ## Paths
 
