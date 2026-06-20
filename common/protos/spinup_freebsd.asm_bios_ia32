@@ -55,7 +55,17 @@ payload_begin:
     mov eax, cr0
     and al, 0xfe
     mov cr0, eax
-    jmp 0x0000:0x7c00           ; real mode; DL is still drive
+    jmp 0x0000:AT(.real)        ; enter real mode
+.real:
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov sp, 0x7c00
+    sti
+    jmp 0x0000:0x7c00           ; DL is still drive
 
     bits 32
 align 8
