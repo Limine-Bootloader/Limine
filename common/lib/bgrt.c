@@ -31,13 +31,14 @@ void bgrt_restore(uint64_t fb_width, uint64_t fb_height) {
     }
 
     bgrt->status &= ~1;
-    
+
     uint8_t *bmp = (uint8_t *)(uintptr_t)bgrt->image_address;
     if (bmp != NULL && bmp[0] == 'B' && bmp[1] == 'M') {
-        // No file size check - often 0
+        // Firmware BMP size field is unreliable, bounds check is not possible.
+        // The scope is limited to 4 bytes; we choose to trust the firmware here.
         uint32_t dib_header_size;
         memcpy(&dib_header_size, &bmp[14], sizeof(dib_header_size));
-        
+
         uint32_t bmp_width = 0;
         uint32_t bmp_height = 0;
 
