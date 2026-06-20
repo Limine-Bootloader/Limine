@@ -1226,7 +1226,7 @@ FEAT_START
             module_cmdline = (char *)get_phys_addr(internal_module->string);
 
             bool module_compressed = internal_module->flags & LIMINE_INTERNAL_MODULE_COMPRESSED;
-            
+
             // Validate path length to prevent buffer overflow
             size_t k_resource_len = strlen(k_resource);
             size_t k_root_len = strlen(k_root);
