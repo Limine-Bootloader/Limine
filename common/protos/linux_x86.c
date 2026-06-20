@@ -408,6 +408,9 @@ noreturn void linux_load(char *config, char *cmdline) {
     uintptr_t kernel_align = 0x100000;
     if (setup_header->version >= 0x205 && setup_header->kernel_alignment > kernel_align) {
         kernel_align = setup_header->kernel_alignment;
+        if ((kernel_align & (kernel_align - 1)) != 0) {
+            panic(true, "linux: kernel_alignment is not a power of two");
+        }
     }
     // Start at pref_address: the decompressor relocates itself up to
     // LOAD_PHYSICAL_ADDR (= pref_address) and scribbles init_size bytes from
