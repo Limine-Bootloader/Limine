@@ -723,8 +723,8 @@ FEAT_START
     struct limine_dtb_response *dtb_response = _dtb_request.response;
     e9_printf("Device tree blob feature, revision %d", dtb_response->revision);
     e9_printf("Device tree blob pointer: %x", dtb_response->dtb_ptr);
-	uint32_t dtb_magic = *(uint32_t*)dtb_response->dtb_ptr;
-	e9_printf("Device tree header magic: %x", dtb_magic);
+    uint32_t dtb_magic = *(uint32_t*)dtb_response->dtb_ptr;
+    e9_printf("Device tree header magic: %x", dtb_magic);
 FEAT_END
 
 FEAT_START

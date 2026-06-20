@@ -173,7 +173,7 @@ void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
 
         // Align the size to 8 bytes.
         if ((add_size % 8) != 0)
-			add_size += (8 - add_size % 8);
+            add_size += (8 - add_size % 8);
     }
 
 out:
