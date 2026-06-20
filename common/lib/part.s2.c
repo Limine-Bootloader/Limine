@@ -309,12 +309,12 @@ static int gpt_get_part(struct volume *ret, struct volume *volume, int partition
 }
 
 struct mbr_entry {
-	uint8_t status;
-	uint8_t chs_first_sect[3];
-	uint8_t type;
-	uint8_t chs_last_sect[3];
-	uint32_t first_sect;
-	uint32_t sect_count;
+    uint8_t status;
+    uint8_t chs_first_sect[3];
+    uint8_t type;
+    uint8_t chs_last_sect[3];
+    uint32_t first_sect;
+    uint32_t sect_count;
 } __attribute__((packed));
 
 bool is_valid_mbr(struct volume *volume) {
