@@ -41,7 +41,7 @@ void mtrr_save(void) {
     ) * sizeof(uint64_t));
 
     /* save variable range MTRRs */
-    for (uint8_t i = 0; i < var_reg_count * 2; i += 2) {
+    for (unsigned i = 0; i < (unsigned)var_reg_count * 2; i += 2) {
         saved_mtrrs[i] = rdmsr(0x200 + i);
         saved_mtrrs[i + 1] = rdmsr(0x200 + i + 1);
     }
@@ -111,7 +111,7 @@ void mtrr_restore(void) {
     wrmsr(0x2ff, mtrr_def);
 
     /* restore variable range MTRRs */
-    for (uint8_t i = 0; i < var_reg_count * 2; i += 2) {
+    for (unsigned i = 0; i < (unsigned)var_reg_count * 2; i += 2) {
         wrmsr(0x200 + i, saved_mtrrs[i]);
         wrmsr(0x200 + i + 1, saved_mtrrs[i + 1]);
     }
