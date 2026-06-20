@@ -4,6 +4,12 @@
 
     Noteworthy changes compared to the previous release, 12.3.3:
 
+    New features:
+        - Support booting FreeBSD on BIOS/GPT systems by chainloading the
+          freebsd-boot partition (gptboot), emulating FreeBSD's pmbr.
+        - Add the `firmware_logo` option to restore the OEM firmware boot logo
+          on handoff to the OS via the ACPI BGRT table (UEFI only).
+
     Bug fixes:
         - ASLR has previously used a non-cryptographically secure PRNG,
           MT19937, which is not ideal for security purposes. New APIs have
@@ -12,6 +18,8 @@
 
     Miscellaneous:
         - Show the comment for the default entry during timeout.
+        - Replace the general-purpose MT19937 PRNG with PCG, which is smaller,
+          faster, and no longer requires a heap allocation.
 
 2026-06-09  Mintsuki  <mintsuki@protonmail.com>
 
