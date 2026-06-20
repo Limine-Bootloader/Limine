@@ -1376,6 +1376,9 @@ noreturn void _menu(bool first_run) {
     char *quiet_str = config_get_value(NULL, 0, "QUIET");
     quiet = quiet_str != NULL && strcmp(quiet_str, "yes") == 0;
 
+    char *firmware_logo_str = config_get_value(NULL, 0, "FIRMWARE_LOGO");
+    firmware_logo = firmware_logo_str != NULL && strcmp(firmware_logo_str, "yes") == 0;
+
     char *verbose_str = config_get_value(NULL, 0, "VERBOSE");
     verbose = verbose_str != NULL && strcmp(verbose_str, "yes") == 0;
 
