@@ -208,6 +208,9 @@ load:
         if (load_size > FREEBSD_BOOT_LOAD_MAX) {
             load_size = FREEBSD_BOOT_LOAD_MAX;
         }
+        if (load_size == 0) {
+            panic(true, "bios: freebsd-boot partition has zero size");
+        }
 
         void *fbuf = ext_mem_alloc(load_size);
         if (!volume_read(p, fbuf, 0, load_size)) {
