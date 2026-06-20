@@ -55,6 +55,8 @@ struct volume {
     struct guid guid;
     bool part_guid_valid;
     struct guid part_guid;
+    bool part_type_guid_valid;
+    struct guid part_type_guid;
     bool fslabel_valid;
     char *fslabel;
 };

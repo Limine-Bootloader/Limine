@@ -302,6 +302,8 @@ static int gpt_get_part(struct volume *ret, struct volume *volume, int partition
 
     ret->part_guid_valid = true;
     ret->part_guid = entry.unique_partition_guid;
+    ret->part_type_guid_valid = true;
+    ret->part_type_guid = entry.partition_type_guid;
 
     return 0;
 }
@@ -471,6 +473,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
     }
 
     ret->part_guid_valid = false;
+    ret->part_type_guid_valid = false;
 
     return 0;
 }
@@ -575,6 +578,7 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
     }
 
     ret->part_guid_valid = false;
+    ret->part_type_guid_valid = false;
 
     return 0;
 }

@@ -3,6 +3,7 @@
 #include <stdnoreturn.h>
 #include <protos/chainload.h>
 #include <lib/part.h>
+#include <lib/guid.h>
 #include <lib/config.h>
 #include <lib/misc.h>
 #include <drivers/disk.h>
@@ -80,6 +81,15 @@ noreturn static void spinup(uint8_t drive, void *buf) {
 
     __builtin_unreachable();
 }
+
+// Defined in spinup_freebsd.asm_bios_ia32.
+noreturn void spinup_freebsd(uint32_t drive, uint32_t buf, uint32_t count);
+
+// FreeBSD's freebsd-boot partition contains gptboot, a multi-sector binary with
+// no MBR signature that FreeBSD's pmbr loads whole to 0x7C00. Cap prevents
+// EBDA overwrite.
+#define FREEBSD_BOOT_TYPE_GUID "83bd6b9d-7f41-11dc-be0b-001560b84f0f"
+#define FREEBSD_BOOT_LOAD_MAX 0x80000
 
 noreturn void chainload(char *config, char *cmdline) {
     (void)cmdline;
@@ -186,6 +196,26 @@ noreturn void chainload(char *config, char *cmdline) {
 
 load:
     vga_textmode_init(false);
+
+    // A freebsd-boot partition is not a normal boot record, it holds
+    // gptboot, which has no 0xAA55 signature and is loaded whole by FreeBSD's
+    // pmbr. Detect it by GPT type GUID and emulate the handoff.
+    struct guid freebsd_boot_guid;
+    if (p->part_type_guid_valid
+     && string_to_guid_mixed(&freebsd_boot_guid, FREEBSD_BOOT_TYPE_GUID)
+     && memcmp(&p->part_type_guid, &freebsd_boot_guid, sizeof(struct guid)) == 0) {
+        uint64_t load_size = (uint64_t)p->sect_count * 512;
+        if (load_size > FREEBSD_BOOT_LOAD_MAX) {
+            load_size = FREEBSD_BOOT_LOAD_MAX;
+        }
+
+        void *fbuf = ext_mem_alloc(load_size);
+        if (!volume_read(p, fbuf, 0, load_size)) {
+            panic(true, "bios: Failed to read freebsd-boot partition");
+        }
+
+        spinup_freebsd(p->drive, (uint32_t)(uintptr_t)fbuf, (uint32_t)load_size);
+    }
 
     void *buf = ext_mem_alloc(512);
 
