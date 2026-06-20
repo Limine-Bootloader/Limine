@@ -604,6 +604,7 @@ end_of_pt_segment:
                         panic(true, "elf: Symbol name offset out of bounds");
                     }
                     panic(true, "elf: Unresolved symbol \"%s\"", elf + strtab_offset + s->st_name);
+                    panic(true, "elf: Unresolved symbol \"%S\"", elf + strtab_offset + s->st_name, (size_t)(strtab_size - s->st_name));
                 }
                 *ptr = slide + s->st_value
 #if defined (__aarch64__)
@@ -649,6 +650,7 @@ end_of_pt_segment:
                         panic(true, "elf: Symbol name offset out of bounds");
                     }
                     panic(true, "elf: Unresolved symbol \"%s\"", elf + strtab_offset + s->st_name);
+                    panic(true, "elf: Unresolved symbol \"%S\"", elf + strtab_offset + s->st_name, (size_t)(strtab_size - s->st_name));
                 }
                 *ptr = slide + s->st_value + relocation->r_addend;
                 break;
