@@ -339,6 +339,12 @@ again:
             panic(true, "pe: Section %U exceeds image bounds", (uint64_t)i);
         }
 
+        // The full VirtualSize (not just the raw size copied above) is mapped
+        // by the mem_range pass, so the whole virtual extent must fit too.
+        if ((uint64_t)section->VirtualAddress + section->VirtualSize > image_size) {
+            panic(true, "pe: Section %U virtual size exceeds image bounds", (uint64_t)i);
+        }
+
         // Validate section data doesn't exceed file bounds
         if ((uint64_t)section->PointerToRawData + section_raw_size > file_size) {
             panic(true, "pe: Section %U data extends beyond file bounds", (uint64_t)i);
