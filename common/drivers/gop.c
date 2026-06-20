@@ -357,6 +357,11 @@ fallback:
             goto retry;
         }
 
+        if (fb->edid != NULL) {
+            pmm_free(fb->edid, sizeof(struct edid_info_struct));
+            fb->edid = NULL;
+        }
+
         continue;
 
 success:;
