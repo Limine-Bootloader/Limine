@@ -45,9 +45,7 @@ payload_begin:
     lgdt [AT(gdtr)]              ; self-contained GDT
     lidt [AT(rm_idt)]            ; real-mode IVT
 
-    push dword 0x08              ; branch to 16-bit protected mode
-    push dword AT(.pm16)
-    retf
+    jmp 0x08:AT(.pm16)           ; Far jump to 16-bit PM.
 .pm16:
     bits 16
     mov ax, 0x10
