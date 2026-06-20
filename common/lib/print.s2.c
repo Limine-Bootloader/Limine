@@ -179,6 +179,10 @@ void vprint(const char *fmt, va_list args) {
             case '#': {
                 bool printed = false;
                 char *str = (char *)va_arg(args, const char *);
+                if (!str) {
+                    prn_str(print_buf, &print_buf_i, "(null)");
+                    break;
+                }
                 for (int i = (int)strlen(str) - 1; i >= 0; i--) {
                     if (str[i] != '#') {
                         continue;
