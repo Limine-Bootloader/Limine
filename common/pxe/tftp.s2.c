@@ -144,7 +144,7 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
         }
 
         // Validate read size doesn't overflow the buffer (use alloc_mtu, not server's mtu)
-        if (read.bsize > alloc_mtu || progress + read.bsize > handle->size) {
+        if (read.bsize > alloc_mtu || read.bsize > handle->size - progress) {
             panic(false, "tftp: Server sent more data than expected");
         }
 
