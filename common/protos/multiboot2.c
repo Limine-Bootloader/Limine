@@ -173,6 +173,9 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         if (tag->size == 0) {
             break;
         }
+        if (tag->size > (size_t)((uintptr_t)header + header->header_length - (uintptr_t)tag)) {
+            panic(true, "multiboot2: Header tag exceeds header bounds");
+        }
         size_t tag_stride = ALIGN_UP(tag->size, MULTIBOOT_TAG_ALIGN, break);
         bool is_required = !(tag->flags & MULTIBOOT_HEADER_TAG_OPTIONAL);
         switch (tag->type) {
