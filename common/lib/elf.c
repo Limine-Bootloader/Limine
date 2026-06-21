@@ -884,6 +884,7 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
     uint64_t image_size = 0;
 
     bool lower_to_higher = false;
+    bool higher_half = false;
 
     uint64_t min_vaddr = (uint64_t)-1;
     uint64_t max_vaddr = 0;
@@ -898,11 +899,15 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
             if (!is_reloc || !*is_reloc) {
                 panic(true, "elf: Lower half PHDRs are not allowed");
             }
+            if (higher_half) {
+                panic(true, "elf: Mix of lower and higher half PHDRs in relocatable kernel");
+            }
             lower_to_higher = true;
         } else {
             if (lower_to_higher) {
                 panic(true, "elf: Mix of lower and higher half PHDRs in relocatable kernel");
             }
+            higher_half = true;
         }
 
         uint64_t phdr_end = CHECKED_ADD(phdr->p_vaddr, phdr->p_memsz,
