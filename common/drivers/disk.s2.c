@@ -721,6 +721,20 @@ void disk_create_index(void) {
 
     unique_sector_pool = ext_mem_alloc(UNIQUE_SECTOR_POOL_SIZE);
 
+    // Fix for ticket #598, in Fast Boot mode the firmware sometimes doesn't connect all block
+    // devices until we call ConnectController with the "recursive" flag set.
+    {
+        EFI_HANDLE *all_handles = NULL;
+        UINTN all_handles_count = 0;
+        if (gBS->LocateHandleBuffer(AllHandles, NULL, NULL,
+                                    &all_handles_count, &all_handles) == EFI_SUCCESS) {
+            for (UINTN i = 0; i < all_handles_count; i++) {
+                gBS->ConnectController(all_handles[i], NULL, NULL, true);
+            }
+            gBS->FreePool(all_handles);
+        }
+    }
+
     EFI_HANDLE tmp_handles[1];
 
     EFI_GUID block_io_guid = BLOCK_IO_PROTOCOL;
