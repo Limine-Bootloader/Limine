@@ -488,7 +488,12 @@ noreturn void linux_load(char *config, char *cmdline) {
         )) == NULL)
             panic(true, "linux: Failed to open module with path `%s`. Is the path correct?", module_path);
 
-        size_of_all_modules = CHECKED_ADD(size_of_all_modules, module->size,
+        // Align each module to 4 bytes so the kernel's initramfs unpacker,
+        // which only accepts a raw cpio header at a 4-byte aligned offset,
+        // can find concatenated archives.
+        size_t module_size = ALIGN_UP(module->size, 4,
+            panic(true, "linux: Total module size overflow"));
+        size_of_all_modules = CHECKED_ADD(size_of_all_modules, module_size,
             panic(true, "linux: Total module size overflow"));
 
         modules[i] = module;
@@ -538,15 +543,21 @@ noreturn void linux_load(char *config, char *cmdline) {
         if (module_path == NULL)
             break;
 
-        fread(modules[i], (void *)_modules_mem_base, 0, modules[i]->size);
+        size_t module_size = modules[i]->size;
+        size_t padded_size = ALIGN_UP(module_size, 4,
+            panic(true, "linux: Total module size overflow"));
+
+        fread(modules[i], (void *)_modules_mem_base, 0, module_size);
+        memset((void *)(_modules_mem_base + module_size), 0,
+               padded_size - module_size);
 
 #if defined (UEFI)
         tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
         tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                    (void *)_modules_mem_base, modules[i]->size, "module_path: ", module_path);
+                    (void *)_modules_mem_base, module_size, "module_path: ", module_path);
 #endif
 
-        _modules_mem_base += modules[i]->size;
+        _modules_mem_base += padded_size;
 
         fclose(modules[i]);
     }

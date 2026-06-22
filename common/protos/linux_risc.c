@@ -139,7 +139,12 @@ static void load_module(struct boot_param *p, char *config) {
             panic(true, "linux: failed to open module `%s`. Is the path correct?", module_path);
         }
 
-        total_size = CHECKED_ADD(total_size, module_file->size,
+        // Align each module to 4 bytes so the kernel's initramfs unpacker,
+        // which only accepts a raw cpio header at a 4-byte aligned offset,
+        // can find concatenated archives.
+        size_t module_size = ALIGN_UP(module_file->size, 4,
+            panic(true, "linux: Total module size overflow"));
+        total_size = CHECKED_ADD(total_size, module_size,
             panic(true, "linux: Total module size overflow"));
 
         modules[i] = module_file;
@@ -164,7 +169,8 @@ static void load_module(struct boot_param *p, char *config) {
 
         printv("linux: loaded module `%s` at %p, size %U\n", module_path,
                p->module_base + offset, (uint64_t)module_size);
-        offset += module_size;
+        offset += ALIGN_UP(module_size, 4,
+            panic(true, "linux: Total module size overflow"));
     }
 
     pmm_free(modules, module_count * sizeof(struct file_handle *));
