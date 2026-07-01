@@ -114,6 +114,8 @@ void srand(uint32_t s) {
 static void init_rand(void) {
     uint64_t seed = 0;
     hw_entropy(&seed, sizeof(seed));
+    seed ^= (uint64_t)0xc597060cee0da130 * rdtsc();
+    seed ^= (uint64_t)0xce86d6249d2c5680 * rdtsc();
     pcg_state = 0;
     pcg_next();
     pcg_state += seed;
