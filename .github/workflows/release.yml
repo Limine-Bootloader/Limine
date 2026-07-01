@@ -146,16 +146,21 @@ jobs:
           name: release-artifacts
           path: dist
 
-      - name: Import GPG private key
-        run: echo "$MINTSUKI_PRIVATE_KEY" | gpg --batch --import
+      - name: Import GPG private key (Iczelia)
+        run: |
+          set -eu
+          echo "$ICZELIA_PRIVATE_KEY" | gpg --batch --import
+          SIGNING_KEY_FPR="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test -n "$SIGNING_KEY_FPR"
+          echo "SIGNING_KEY_FPR=$SIGNING_KEY_FPR" >> "$GITHUB_ENV"
         env:
-          MINTSUKI_PRIVATE_KEY: ${{ secrets.MINTSUKI_PRIVATE_KEY }}
+          ICZELIA_PRIVATE_KEY: ${{ secrets.ICZELIA_PRIVATE_KEY }}
 
       - name: Sign release artifacts
         run: |
           set -eu
           for f in dist/limine-*.tar.* dist/limine-binary.zip; do
-            gpg --batch --default-key 05D29860D0A0668AAEFB9D691F3C021BECA23821 --detach-sign "$f"
+            gpg --batch --default-key "$SIGNING_KEY_FPR" --detach-sign "$f"
           done
 
       - name: Create release notes
@@ -167,11 +172,11 @@ jobs:
           EOF
           cat <<'EOF' >>rel_notes.txt
 
-          Tarballs are signed using key ID `05D29860D0A0668AAEFB9D691F3C021BECA23821` which can be obtained from a keyserver such as `keyserver.ubuntu.com`.
+          Tarballs are signed using key ID `@SIGNING_KEY_FPR@` which can be obtained from a keyserver such as `keyserver.ubuntu.com`.
 
           Import the public key with:
           ```bash
-          gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 05D29860D0A0668AAEFB9D691F3C021BECA23821
+          gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys @SIGNING_KEY_FPR@
           ```
 
           In order to verify the tarball with the given signature, do:
@@ -179,6 +184,7 @@ jobs:
           gpg --verify <tarball sig file> <associated tarball>
           ```
           EOF
+          sed -i "s/@SIGNING_KEY_FPR@/$SIGNING_KEY_FPR/g" rel_notes.txt
 
       - name: Release
         uses: softprops/action-gh-release@v3
