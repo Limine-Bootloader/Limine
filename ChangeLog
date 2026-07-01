@@ -1,6 +1,6 @@
-2026-xx-xx  Mintsuki  <mintsuki@protonmail.com>
+2026-07-01  Iczelia  <k@iczelia.net>
 
-    *** Release 12.3.4 ***
+    *** Release 12.4.0 ***
 
     Noteworthy changes compared to the previous release, 12.3.3:
 
@@ -15,6 +15,17 @@
           MT19937, which is not ideal for security purposes. New APIs have
           been added to provide safe hardware-backed randomness where
           available and ASLR has been switched to use these APIs.
+        - Fix UEFI boot failures in firmware "Fast Boot" mode by connecting
+          all disk controllers before enumerating block devices.
+        - Align concatenated initrd modules to 4 bytes so the Linux kernel
+          finds all concatenated cpio archives.
+        - Fix a memory leak of EDID data when no suitable GOP mode is found.
+        - Fix saving and restoring of variable-range MTRRs on CPUs reporting
+          more than 127 variable ranges.
+        - Consistently reject relocatable ELF kernels that mix lower and
+          higher half PHDRs, regardless of PHDR order.
+        - Harden the Multiboot2, PE, ELF, Linux, chainload, and TFTP loaders
+          against malformed inputs and arithmetic overflows.
 
     Miscellaneous:
         - Show the comment for the default entry during timeout.
