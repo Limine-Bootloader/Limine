@@ -48,6 +48,17 @@ static char menu_branding_colour[24] = "\e[38;2;0;170;170m";
 
 static char *menu_branding = NULL;
 
+enum keyboard_layout current_keyboard_layout = KEYBOARD_LAYOUT_UNKNOWN;
+
+static void keyboard_layout_init(void) {
+    char *layout = config_get_value(NULL, 0, "keyboard_layout");
+    if (layout != NULL && strcasecmp(layout, "dvorak") == 0) {
+        current_keyboard_layout = KEYBOARD_LAYOUT_DVORAK;
+    } else {
+        current_keyboard_layout = KEYBOARD_LAYOUT_QWERTY;
+    }
+}
+
 static char *append_uint_dec(char *p, uint64_t val) {
     char buf[20];
     size_t i = 0;
@@ -1161,7 +1172,7 @@ static void menu_init_term(void) {
 #elif defined (UEFI)
     char *graphics = "yes";
 #endif
-
+    keyboard_layout_init();
     if (graphics == NULL || strcmp(graphics, "no") != 0) {
         size_t req_width = 0, req_height = 0, req_bpp = 0;
 

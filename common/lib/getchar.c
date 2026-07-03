@@ -5,7 +5,7 @@
 #include <lib/misc.h>
 #include <lib/term.h>
 #include <lib/print.h>
-#include <lib/config.h>
+#include <menu.h>
 #if defined (BIOS)
 #  include <lib/real.h>
 #elif defined (UEFI)
@@ -13,9 +13,6 @@
 #endif
 #include <drivers/serial.h>
 #include <sys/cpu.h>
-
-
-static int dvorak_enabled = -1;
 
 static const char qwerty_to_dvorak[128] = {
     ['q']='\'', ['w']=',', ['e']='.', ['r']='p', ['t']='y',
@@ -34,14 +31,6 @@ static const char qwerty_to_dvorak[128] = {
     ['C']='J', ['V']='K', ['B']='X', ['N']='B', ['M']='M',
     ['<']='W', ['>']='V', ['?']='Z',
 };
-
-static bool keyboard_is_dvorak(void) {
-    if(dvorak_enabled == -1) {
-        char *layout = config_get_value(NULL, 0, "keyboard_layout");
-        dvorak_enabled = (layout != NULL && strcasecmp(layout, "dvorak") == 0);
-    }
-    return dvorak_enabled;
-}
 
 
 int getchar(void) {
@@ -136,7 +125,7 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
         return -1;
     }
 
-    if (keyboard_is_dvorak() && qwerty_to_dvorak[(uint8_t)ascii] != 0) {
+    if (current_keyboard_layout == KEYBOARD_LAYOUT_DVORAK && qwerty_to_dvorak[(uint8_t)ascii] != 0) {
         return qwerty_to_dvorak[(uint8_t)ascii];
     }
 
