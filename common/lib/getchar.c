@@ -5,6 +5,7 @@
 #include <lib/misc.h>
 #include <lib/term.h>
 #include <lib/print.h>
+#include <menu.h>
 #if defined (BIOS)
 #  include <lib/real.h>
 #elif defined (UEFI)
@@ -12,6 +13,25 @@
 #endif
 #include <drivers/serial.h>
 #include <sys/cpu.h>
+
+static const char qwerty_to_dvorak[128] = {
+    ['q']='\'', ['w']=',', ['e']='.', ['r']='p', ['t']='y',
+    ['y']='f', ['u']='g', ['i']='c', ['o']='r', ['p']='l',
+    ['[']='/', [']']='=', ['\\']='\\', ['a']='a', ['s']='o',
+    ['d']='e', ['f']='u', ['g']='i', ['h']='d', ['j']='h',
+    ['k']='t', ['l']='n', [';']='s', ['\'']='-', ['z']=';', ['x']='q',
+    ['c']='j', ['v']='k', ['b']='x', ['n']='b', ['m']='m',
+    [',']='w', ['.']='v', ['/']='z',
+
+    ['Q']='\"', ['W']='<', ['E']='>', ['R']='P', ['T']='Y',
+    ['Y']='F', ['U']='G', ['I']='C', ['O']='R', ['P']='L',
+    ['{']='?', ['}']='+', ['|']='|', ['A']='A', ['S']='O',
+    ['D']='E', ['F']='U', ['G']='I', ['H']='D', ['J']='H',
+    ['K']='T', ['L']='N', [':']='S', ['"']='_', ['Z']=':', ['X']='Q',
+    ['C']='J', ['V']='K', ['B']='X', ['N']='B', ['M']='M',
+    ['<']='W', ['>']='V', ['?']='Z',
+};
+
 
 int getchar(void) {
     for (;;) {
@@ -104,6 +124,11 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
     if (ascii < 0x20 || ascii > 0x7e) {
         return -1;
     }
+
+    if (current_keyboard_layout == KEYBOARD_LAYOUT_DVORAK && qwerty_to_dvorak[(uint8_t)ascii] != 0) {
+        return qwerty_to_dvorak[(uint8_t)ascii];
+    }
+
     return ascii;
 }
 
