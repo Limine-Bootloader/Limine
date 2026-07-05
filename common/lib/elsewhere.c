@@ -10,6 +10,52 @@ static bool elsewhere_overlap_check(uint64_t base1, uint64_t top1,
     return (base1 < top2 && base2 < top1);
 }
 
+static bool elsewhere_memmap_type(uint32_t type) {
+    return type == MEMMAP_USABLE || type == MEMMAP_BOOTLOADER_RECLAIMABLE;
+}
+
+static bool elsewhere_next_memmap_candidate(uint64_t target, size_t length,
+                                            uint64_t *candidate) {
+    uint64_t best = UINT64_MAX;
+
+    for (size_t i = 0; i < memmap_entries; i++) {
+        if (!elsewhere_memmap_type(memmap[i].type)) {
+            continue;
+        }
+
+        uint64_t base = memmap[i].base;
+        uint64_t top = CHECKED_ADD(base, memmap[i].length, continue);
+
+        if (base >= 0x100000000) {
+            continue;
+        }
+        if (top > 0x100000000) {
+            top = 0x100000000;
+        }
+        if (top <= target) {
+            continue;
+        }
+
+        if (target < base) {
+            if (top - base < length) {
+                continue;
+            }
+            if (base < best) {
+                best = base;
+            }
+        } else if (top < best) {
+            best = top;
+        }
+    }
+
+    if (best == UINT64_MAX) {
+        return false;
+    }
+
+    *candidate = ALIGN_UP(best, 4096, return false);
+    return true;
+}
+
 bool elsewhere_append(
         bool allow_wraparound,
         struct elsewhere_range *ranges, uint64_t *ranges_count,
@@ -83,7 +129,16 @@ retry:
                                 MEMMAP_USABLE, false, true, false)) {
             if (!memmap_alloc_range(*target, t_length, MEMMAP_BOOTLOADER_RECLAIMABLE,
                                     MEMMAP_BOOTLOADER_RECLAIMABLE, false, true, false)) {
-                *target += 0x1000;
+                uint64_t next_target;
+                if (!elsewhere_next_memmap_candidate(*target, t_length, &next_target)) {
+                    if (allow_wraparound && !wrapped) {
+                        wrapped = true;
+                        *target = 0x100000;
+                        goto retry;
+                    }
+                    return false;
+                }
+                *target = next_target;
                 goto retry;
             }
         }
