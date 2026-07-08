@@ -716,20 +716,50 @@ static void find_part_handles(EFI_HANDLE *handles, size_t handle_count) {
     }
 }
 
+static bool is_efi_storage_controller(EFI_HANDLE efi_handle) {
+    EFI_GUID block_io_guid = BLOCK_IO_PROTOCOL;
+    void *block_io = NULL;
+    if (gBS->HandleProtocol(efi_handle, &block_io_guid, &block_io) == EFI_SUCCESS) {
+        return true;
+    }
+
+    EFI_GUID pci_io_guid = EFI_PCI_IO_PROTOCOL_GUID;
+    EFI_PCI_IO_PROTOCOL *pci_io = NULL;
+    if (gBS->HandleProtocol(efi_handle, &pci_io_guid, (void **)&pci_io) != EFI_SUCCESS) {
+        return false;
+    }
+
+    // read prog-if, sub-class and base class; offsets 0x09..0x0B.
+    uint8_t class_code[3] = {0};
+    if (pci_io->Pci.Read(pci_io, EfiPciIoWidthUint8, 0x09, sizeof(class_code),
+                         class_code) != EFI_SUCCESS) {
+        return false;
+    }
+
+    uint8_t base_class = class_code[2];
+    uint8_t sub_class = class_code[1];
+
+    // 0x01: mass storage controller. 0x0C/0x03: USB host controller.
+    return base_class == 0x01 || (base_class == 0x0C && sub_class == 0x03);
+}
+
 void disk_create_index(void) {
     EFI_STATUS status;
 
     unique_sector_pool = ext_mem_alloc(UNIQUE_SECTOR_POOL_SIZE);
 
-    // Fix for ticket #598, in Fast Boot mode the firmware sometimes doesn't connect all block
-    // devices until we call ConnectController with the "recursive" flag set.
+    // Connect the storage controllers the firmware may have left unconnected (see
+    // is_efi_storage_controller() and ticket #598), recursively so that their disks
+    // and partitions appear, without pulling in unrelated slow drivers.
     {
         EFI_HANDLE *all_handles = NULL;
         UINTN all_handles_count = 0;
         if (gBS->LocateHandleBuffer(AllHandles, NULL, NULL,
                                     &all_handles_count, &all_handles) == EFI_SUCCESS) {
             for (UINTN i = 0; i < all_handles_count; i++) {
-                gBS->ConnectController(all_handles[i], NULL, NULL, true);
+                if (is_efi_storage_controller(all_handles[i])) {
+                    gBS->ConnectController(all_handles[i], NULL, NULL, true);
+                }
             }
             gBS->FreePool(all_handles);
         }
