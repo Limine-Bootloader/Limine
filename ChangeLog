@@ -1,3 +1,27 @@
+2026-07-08  Iczelia  <k@iczelia.net>
+
+    *** Release 12.4.1 ***
+
+    Noteworthy changes compared to the previous release, 12.4.0:
+
+    New features:
+        - Add the `keyboard_layout` option to remap printable keystrokes
+          to an alternative layout (Dvorak is currently supported). When
+          unset, keystrokes are left as US-QWERTY.
+
+    Bug fixes:
+        - Only connect storage controllers, not every controller, when
+          working around firmware "Fast Boot" mode. This fixes a
+          performance regression introduced in 12.4.0 (which connected
+          unrelated controllers such as the UEFI network stack) while
+          still ensuring every disk is enumerated.
+        - Improve low-memory placement of loaded images: on failure,
+          skip directly to the next suitable memory-map range instead
+          of giving up.
+
+    Miscellaneous:
+        - Add an AUTHORS.md file listing the project's contributors.
+
 2026-07-01  Iczelia  <k@iczelia.net>
 
     *** Release 12.4.0 ***
