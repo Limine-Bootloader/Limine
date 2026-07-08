@@ -40,6 +40,31 @@ static const char qwerty_to_dvorak[128] = {
     [')']=')', ['_']='{', ['+']='}',
 };
 
+static const unsigned char qwerty_to_azerty[128] = {
+    ['q']='a', ['w']='z', ['e']='e', ['r']='r', ['t']='t',
+    ['y']='y', ['u']='u', ['i']='i', ['o']='o', ['p']='p',
+    ['[']='^', [']']='$', ['\\']='\\', ['a']='q', ['s']='s',
+    ['d']='d', ['f']='f', ['g']='g', ['h']='h', ['j']='j',
+    ['k']='k', ['l']='l', [';']='m', ['\'']='\xF9', ['z']='w', ['x']='x',
+    ['c']='c', ['v']='v', ['b']='b', ['n']='n', ['m']=',',
+    [',']=';', ['.']=':', ['/']='!',
+
+    ['Q']='A', ['W']='Z', ['E']='E', ['R']='R', ['T']='T',
+    ['Y']='Y', ['U']='U', ['I']='I', ['O']='O', ['P']='P',
+    ['|']='|', ['A']='Q', ['S']='S',
+    ['D']='D', ['F']='F', ['G']='G', ['H']='H', ['J']='J',
+    ['K']='K', ['L']='L', [':']='M', ['"']='%', ['Z']='W', ['X']='X',
+    ['C']='C', ['V']='V', ['B']='B', ['N']='N', ['M']='?',
+    ['<']='.', ['>']='/', ['?']='\xA7',
+
+    ['`']='\xB2', ['1']='&', ['2']='\xE9', ['3']='\"', ['4']='\'',
+    ['5']='(', ['6']='-', ['7']='\xE8', ['8']='_', ['9']='\xE7',
+    ['0']='\xE0', ['-']=')', ['=']='=',
+
+    ['!']='1', ['@']='2', ['#']='3', ['$']='4', ['%']='5',
+    ['^']='6', ['&']='7', ['*']='8', ['(']='9', [')']='0',
+    ['_']='\xB0', ['+']='+',
+};
 
 int getchar(void) {
     for (;;) {
@@ -135,6 +160,8 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
 
     if (current_keyboard_layout == KEYBOARD_LAYOUT_DVORAK && qwerty_to_dvorak[(uint8_t)ascii] != 0) {
         return qwerty_to_dvorak[(uint8_t)ascii];
+    } else if (current_keyboard_layout == KEYBOARD_LAYOUT_AZERTY && qwerty_to_azerty[(uint8_t)ascii] != 0) {
+        return qwerty_to_azerty[(uint8_t)ascii];
     }
 
     return ascii;

@@ -54,6 +54,8 @@ static void keyboard_layout_init(void) {
     char *layout = config_get_value(NULL, 0, "keyboard_layout");
     if (layout != NULL && strcasecmp(layout, "dvorak") == 0) {
         current_keyboard_layout = KEYBOARD_LAYOUT_DVORAK;
+    } else if (layout != NULL && strcasecmp(layout, "azerty") == 0) {
+        current_keyboard_layout = KEYBOARD_LAYOUT_AZERTY;
     } else {
         current_keyboard_layout = KEYBOARD_LAYOUT_QWERTY;
     }

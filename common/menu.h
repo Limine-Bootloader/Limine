@@ -23,6 +23,7 @@ enum keyboard_layout {
     KEYBOARD_LAYOUT_UNKNOWN = -1,
     KEYBOARD_LAYOUT_QWERTY,
     KEYBOARD_LAYOUT_DVORAK,
+    KEYBOARD_LAYOUT_AZERTY,
 };
 
 extern enum keyboard_layout current_keyboard_layout;
