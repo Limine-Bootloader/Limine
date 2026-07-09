@@ -5,7 +5,7 @@
 #include <lib/misc.h>
 
 bool isprint(int c) {
-    return c >= ' ' && c <= '~';
+    return c >= ' ' && c <= 0xff && c != 0x7f;
 }
 
 bool isspace(int c) {
