@@ -716,11 +716,39 @@ static void find_part_handles(EFI_HANDLE *handles, size_t handle_count) {
     }
 }
 
-static bool is_efi_storage_controller(EFI_HANDLE efi_handle) {
+static bool is_efi_handle_driver_managed(EFI_HANDLE efi_handle, EFI_GUID *protocol) {
+    EFI_OPEN_PROTOCOL_INFORMATION_ENTRY *entries = NULL;
+    UINTN entries_count = 0;
+
+    if (gBS->OpenProtocolInformation(efi_handle, protocol,
+                                     &entries, &entries_count) != EFI_SUCCESS) {
+        return false;
+    }
+
+    bool managed = false;
+    for (UINTN i = 0; i < entries_count; i++) {
+        if (entries[i].Attributes & (EFI_OPEN_PROTOCOL_BY_DRIVER
+                                     | EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER)) {
+            managed = true;
+            break;
+        }
+    }
+
+    if (entries != NULL) {
+        gBS->FreePool(entries);
+    }
+
+    return managed;
+}
+
+static bool should_connect_storage_controller(EFI_HANDLE efi_handle) {
     EFI_GUID block_io_guid = BLOCK_IO_PROTOCOL;
     void *block_io = NULL;
     if (gBS->HandleProtocol(efi_handle, &block_io_guid, &block_io) == EFI_SUCCESS) {
-        return true;
+        // A disk or partition already claimed by a partition or filesystem
+        // driver has nothing left to connect.
+        EFI_GUID disk_io_guid = EFI_DISK_IO_PROTOCOL_GUID;
+        return !is_efi_handle_driver_managed(efi_handle, &disk_io_guid);
     }
 
     EFI_GUID pci_io_guid = EFI_PCI_IO_PROTOCOL_GUID;
@@ -740,7 +768,14 @@ static bool is_efi_storage_controller(EFI_HANDLE efi_handle) {
     uint8_t sub_class = class_code[1];
 
     // 0x01: mass storage controller. 0x0C/0x03: USB host controller.
-    return base_class == 0x01 || (base_class == 0x0C && sub_class == 0x03);
+    if (base_class != 0x01 && !(base_class == 0x0C && sub_class == 0x03)) {
+        return false;
+    }
+
+    // Only connect controllers no bus driver has bound yet (the Fast Boot
+    // case of ticket #598). Re-connecting live controllers has no upside and
+    // makes some buggy firmware misbehave, up to spontaneous resets.
+    return !is_efi_handle_driver_managed(efi_handle, &pci_io_guid);
 }
 
 void disk_create_index(void) {
@@ -749,15 +784,15 @@ void disk_create_index(void) {
     unique_sector_pool = ext_mem_alloc(UNIQUE_SECTOR_POOL_SIZE);
 
     // Connect the storage controllers the firmware may have left unconnected (see
-    // is_efi_storage_controller() and ticket #598), recursively so that their disks
-    // and partitions appear, without pulling in unrelated slow drivers.
+    // should_connect_storage_controller() and ticket #598), recursively so that
+    // their disks and partitions appear, without pulling in unrelated slow drivers.
     {
         EFI_HANDLE *all_handles = NULL;
         UINTN all_handles_count = 0;
         if (gBS->LocateHandleBuffer(AllHandles, NULL, NULL,
                                     &all_handles_count, &all_handles) == EFI_SUCCESS) {
             for (UINTN i = 0; i < all_handles_count; i++) {
-                if (is_efi_storage_controller(all_handles[i])) {
+                if (should_connect_storage_controller(all_handles[i])) {
                     gBS->ConnectController(all_handles[i], NULL, NULL, true);
                 }
             }
