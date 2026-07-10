@@ -1,3 +1,21 @@
+2026-07-10  Iczelia  <k@iczelia.net>
+
+    *** Release 12.4.2 ***
+
+    Noteworthy changes compared to the previous release, 12.4.1:
+
+    New features:
+        - Add AZERTY support to the `keyboard_layout` option.
+
+    Bug fixes:
+        - Remap the number row and symbol keys, not just the letters,
+          when the Dvorak keyboard layout is selected.
+        - Only connect storage controllers that no firmware driver has
+          bound yet when working around firmware "Fast Boot" mode.
+          Re-connecting already live controllers has no effect on disk
+          discovery and made some firmware misbehave, up to spurious
+          watchdog resets at the boot menu.
+
 2026-07-08  Iczelia  <k@iczelia.net>
 
     *** Release 12.4.1 ***
