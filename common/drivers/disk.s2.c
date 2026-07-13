@@ -214,7 +214,7 @@ void disk_create_index(void) {
 
     for (uint8_t drive = 0x80; drive < 0xf0; drive++) {
         struct rm_regs r = {0};
-        struct bios_drive_params drive_params;
+        struct bios_drive_params drive_params = {0};
 
         r.eax = 0x4800;
         r.edx = drive;
