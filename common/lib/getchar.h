@@ -14,6 +14,7 @@
 #define GETCHAR_PGDOWN       (-18)
 #define GETCHAR_F10          (-19)
 #define GETCHAR_ESCAPE       (-20)
+#define GETCHAR_MOUSE        (-30)
 
 #if defined (BIOS)
 #   define GETCHAR_RCTRL 0x4

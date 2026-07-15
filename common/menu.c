@@ -20,6 +20,7 @@
 #include <drivers/vbe.h>
 #include <drivers/vga_textmode.h>
 #include <drivers/serial.h>
+#include <drivers/mouse.h>
 #include <protos/linux.h>
 #include <protos/chainload.h>
 #include <protos/multiboot1.h>
@@ -396,6 +397,33 @@ static void putchar_tokencol(int type, char c) {
 
 static bool editor_no_term_reset = false;
 
+// Record which buffer offset every printed character cell holds,
+// so that mouse clicks resolve to a cursor position easily.
+static void editor_map_cell(size_t *cell_map, size_t index) {
+    size_t x, y;
+    terms[0]->get_cursor_pos(terms[0], &x, &y);
+    if (x < terms[0]->cols && y < terms[0]->rows) {
+        cell_map[y * terms[0]->cols + x] = index;
+    }
+}
+
+// Scanning left makes clicks past the end of a line land on the line end.
+static size_t editor_cell_to_offset(size_t *cell_map, size_t x, size_t y) {
+    if (y >= terms[0]->rows) {
+        return (size_t)-1;
+    }
+    if (x >= terms[0]->cols) {
+        x = terms[0]->cols - 1;
+    }
+    for (size_t i = x + 1; i-- > 0; ) {
+        size_t offset = cell_map[y * terms[0]->cols + i];
+        if (offset != (size_t)-1) {
+            return offset;
+        }
+    }
+    return (size_t)-1;
+}
+
 char *config_entry_editor(const char *title, const char *orig_entry) {
     FOR_TERM(TERM->autoflush = false);
 
@@ -442,7 +470,12 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
     memcpy(buffer, orig_entry, entry_size);
     buffer[entry_size] = 0;
 
+    size_t cell_map_size = terms[0]->cols * terms[0]->rows * sizeof(size_t);
+    size_t *cell_map = ext_mem_alloc(cell_map_size);
+
 refresh:
+    mouse_erase_pointer();
+    memset(cell_map, 0xff, cell_map_size);
     print("\e[2J\e[H");
     FOR_TERM(TERM->cursor_enabled = false);
     {
@@ -524,6 +557,7 @@ refresh:
         if (buffer[i] == '\n'
          && current_line <  window_offset + window_size
          && current_line >= window_offset) {
+            editor_map_cell(cell_map, i);
             size_t x, y;
             terms[0]->get_cursor_pos(terms[0], &x, &y);
             if (i == cursor_offset) {
@@ -560,6 +594,7 @@ tab_part:
                     terms[0]->get_cursor_pos(terms[0], &cursor_x, &cursor_y);
                     printed_cursor = true;
                 }
+                editor_map_cell(cell_map, i);
                 if (syntax_highlighting_enabled) {
                     putchar_tokencol(token_type, tab_space_count ? ' ' : buffer[i]);
                 } else {
@@ -594,6 +629,12 @@ tab_part:
             printed_cursor = true;
         }
 
+        if (buffer[i] == 0
+         && current_line >= window_offset
+         && current_line < window_offset + window_size) {
+            editor_map_cell(cell_map, i);
+        }
+
         if (buffer[i] == 0 || current_line >= window_offset + window_size) {
             if (!printed_cursor) {
                 if (i <= cursor_offset) {
@@ -620,6 +661,7 @@ tab_part:
 
             // syntax highlighting
             if (!printed_early) {
+                editor_map_cell(cell_map, i);
                 if (syntax_highlighting_enabled) {
                     putchar_tokencol(token_type, tab_space_count ? ' ' : buffer[i]);
                 } else {
@@ -692,8 +734,37 @@ tab_part:
     FOR_TERM(TERM->cursor_enabled = true);
 
     FOR_TERM(TERM->double_buffer_flush(TERM));
+    mouse_render_pointer_overlay();
 
-    int c = getchar();
+    int c;
+    for (;;) {
+        c = pit_sleep_ms_and_quit_on_input((uint64_t)65535 * 1000, true);
+        if (c == GETCHAR_MOUSE) {
+            struct mouse_state mouse;
+            mouse_get_state(&mouse);
+            if (mouse.wheel != 0) {
+                for (int i = mouse.wheel; i < 0; i++) {
+                    cursor_offset = get_prev_line(cursor_offset, buffer);
+                }
+                for (int i = mouse.wheel; i > 0; i--) {
+                    cursor_offset = get_next_line(cursor_offset, buffer);
+                }
+                goto refresh;
+            }
+            if (mouse.click) {
+                size_t offset = editor_cell_to_offset(cell_map, mouse.click_x, mouse.click_y);
+                if (offset != (size_t)-1) {
+                    cursor_offset = offset;
+                    goto refresh;
+                }
+            }
+            mouse_render_pointer_overlay();
+            continue;
+        }
+        if (c != 0) {
+            break;
+        }
+    }
     size_t buffer_len = strlen(buffer);
     switch (c) {
         case GETCHAR_CURSOR_DOWN:
@@ -745,11 +816,15 @@ tab_part:
                 memcpy(saved_title, title, title_len);
                 saved_title[title_len] = 0;
             }
+            pmm_free(cell_map, cell_map_size);
+            mouse_erase_pointer();
             editor_no_term_reset ? editor_no_term_reset = false : reset_term();
             booting_from_editor = true;
             return buffer;
         case GETCHAR_ESCAPE:
+            pmm_free(cell_map, cell_map_size);
             pmm_free(buffer, EDITOR_MAX_BUFFER_SIZE);
+            mouse_erase_pointer();
             editor_no_term_reset ? editor_no_term_reset = false : reset_term();
             booting_from_editor = false;
             return NULL;
@@ -1248,6 +1323,8 @@ noreturn static void boot_uefi_shell(void) {
     char shell_entry[160];
     char *p = shell_entry;
 
+    mouse_deinit();
+
     p = append_string(p, "PROTOCOL: efi\nPATH: ");
     p = append_string(p, uefi_shell_volume->is_optical ? "odd" : "hdd");
     *p++ = '(';
@@ -1277,6 +1354,7 @@ bool reboot_to_fw_ui_supported(void) {
 }
 
 noreturn void reboot_to_fw_ui(void) {
+    mouse_deinit();
     reset_term();
     print("Rebooting to the firmware setup...\n");
 
@@ -1307,6 +1385,20 @@ not_found:;
     panic(true, "Failed to reboot to firmware UI");
 }
 #endif
+
+// Map a terminal row to the visible index of the menu entry printed on it.
+static bool row_to_entry_index(size_t row, size_t tree_row_start, size_t window,
+                               size_t tree_offset, size_t max_entries, size_t *index) {
+    if (row < tree_row_start || row >= tree_row_start + window) {
+        return false;
+    }
+    size_t idx = tree_offset + (row - tree_row_start);
+    if (idx >= max_entries) {
+        return false;
+    }
+    *index = idx;
+    return true;
+}
 
 static void print_entry_comment(const struct menu_entry *entry, size_t row) {
     if (entry->comment == NULL) {
@@ -1725,7 +1817,12 @@ noreturn void _menu(bool first_run) {
 #endif
     }
 
+    if (!quiet) {
+        mouse_init();
+    }
+
     size_t tree_offset = 0;
+    size_t tree_row_start = 0;
     size_t header_offset = (menu_branding[0] != '\0') ? 2 : 0;
     bool has_secondary_help = editor_enabled;
 #if defined(UEFI)
@@ -1736,6 +1833,8 @@ noreturn void _menu(bool first_run) {
     }
 
 refresh:
+    mouse_erase_pointer();
+
     if (selected_entry >= tree_offset + terms[0]->rows - 8 - header_offset) {
         tree_offset = selected_entry - (terms[0]->rows - 9 - header_offset);
     }
@@ -1800,6 +1899,7 @@ refresh:
         if (tree_start < 4 + header_offset) {
             tree_start = 4 + header_offset;
         }
+        tree_row_start = tree_start;
         set_cursor_pos_helper(0, tree_start);
 
         max_entries = print_tree(tree_offset, terms[0]->rows - 8 - header_offset, tree_prefix, 0, 0, selected_entry, menu_tree,
@@ -1870,24 +1970,34 @@ refresh:
             uint64_t sleep_ms = timeout_ms % 1000;
             size_t timeout_len = format_timeout_ms(timeout_buf, timeout_ms);
             size_t msg_len = 28 + timeout_len;
+            mouse_erase_pointer();
             set_cursor_pos_helper((terms[0]->cols - msg_len) / 2, terms[0]->rows - 2);
             FOR_TERM(TERM->scroll_enabled = false);
             print("\e[2K%sBooting automatically in %s%s%s...\e[0m",
                   interface_help_colour, interface_help_colour_bright, timeout_buf, interface_help_colour);
             FOR_TERM(TERM->scroll_enabled = true);
             FOR_TERM(TERM->double_buffer_flush(TERM));
+            mouse_render_pointer();
 
             if (sleep_ms == 0) {
                 sleep_ms = 1000;
             }
 
-            if ((c = pit_sleep_ms_and_quit_on_keypress(sleep_ms))) {
+            // Mouse movement only moves the pointer, it doesn't change selection;
+            // or stop the timeout.
+            if ((c = pit_sleep_ms_and_quit_on_input(sleep_ms, false))) {
                 skip_timeout = true;
+                if (c == GETCHAR_MOUSE) {
+                    // Drop the click.
+                    mouse_flush();
+                }
                 if (quiet) {
                     quiet = false;
                     menu_init_term();
+                    mouse_init();
                     goto timeout_aborted;
                 }
+                mouse_erase_pointer();
                 print("\e[2K");
                 FOR_TERM(TERM->double_buffer_flush(TERM));
                 goto timeout_aborted;
@@ -1909,14 +2019,24 @@ refresh:
     }
 
     FOR_TERM(TERM->double_buffer_flush(TERM));
+    mouse_render_pointer();
 
     for (;;) {
-        c = getchar();
+        c = pit_sleep_ms_and_quit_on_input((uint64_t)65535 * 1000, true);
+        if (c == 0) {
+            continue;
+        }
 timeout_aborted:
         if (max_entries == 0) {
             switch (c) {
                 case 'b': case 'B': case 's': case 'S': case 'u': case 'U':
                     break;
+                case GETCHAR_MOUSE: {
+                    struct mouse_state mouse;
+                    mouse_get_state(&mouse);
+                    mouse_render_pointer();
+                    continue;
+                }
                 default:
                     continue;
 
@@ -1950,6 +2070,47 @@ timeout_aborted:
                 if (++selected_entry == max_entries)
                     selected_entry = 0;
                 goto refresh;
+            case GETCHAR_MOUSE: {
+                struct mouse_state mouse;
+                mouse_get_state(&mouse);
+
+                size_t window = terms[0]->rows - 8 - header_offset;
+
+                if (mouse.wheel != 0) {
+                    if (mouse.wheel < 0) {
+                        size_t steps = -mouse.wheel;
+                        selected_entry = selected_entry > steps ? selected_entry - steps : 0;
+                    } else {
+                        selected_entry += mouse.wheel;
+                        if (selected_entry >= max_entries) {
+                            selected_entry = max_entries - 1;
+                        }
+                    }
+                    goto refresh;
+                }
+
+                size_t target;
+
+                if (mouse.click
+                 && row_to_entry_index(mouse.click_y, tree_row_start, window,
+                                       tree_offset, max_entries, &target)) {
+                    selected_entry = target;
+                    print_tree(0, 0, NULL, 0, 0, selected_entry, menu_tree,
+                               &selected_menu_entry, NULL, NULL);
+                    goto autoboot;
+                }
+
+                if (mouse.moved
+                 && row_to_entry_index(mouse.y, tree_row_start, window,
+                                       tree_offset, max_entries, &target)
+                 && target != selected_entry) {
+                    selected_entry = target;
+                    goto refresh;
+                }
+
+                mouse_render_pointer();
+                break;
+            }
             case GETCHAR_CURSOR_RIGHT:
             case '\n':
             case ' ':
@@ -1961,6 +2122,7 @@ timeout_aborted:
                     selected_menu_entry->expanded = !selected_menu_entry->expanded;
                     goto refresh;
                 }
+                mouse_erase_pointer();
                 if (!quiet) {
                     if (term_backend == FALLBACK) {
                         if (!gterm_init(NULL, NULL, NULL, 0, 0)) {
@@ -1998,7 +2160,10 @@ timeout_aborted:
                         break;
                     }
                     editor_no_term_reset = true;
+                    mouse_erase_pointer();
                     char *new_body = config_entry_editor(selected_menu_entry->name, selected_menu_entry->body);
+                    // Drop half-delivered mouse input left over from the editor.
+                    mouse_flush();
                     if (new_body == NULL)
                         goto refresh;
                     selected_menu_entry->body = new_body;
@@ -2027,12 +2192,14 @@ timeout_aborted:
                 if (editor_enabled) {
                     editor_blank:
                     booting_from_blank = true;
+                    mouse_erase_pointer();
                     char *new_entry = config_entry_editor("Blank Entry", "");
                     if (new_entry != NULL) {
                         config_ready = true;
                         boot(new_entry);
                     }
                     booting_from_blank = false;
+                    mouse_flush();
                     goto refresh;
                 }
                 break;
@@ -2042,6 +2209,9 @@ timeout_aborted:
 }
 
 noreturn void boot(char *config) {
+    // Kill the mouse so no packets pile up.
+    mouse_deinit();
+
 #if defined (__riscv)
     init_riscv(config);
 #endif

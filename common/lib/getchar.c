@@ -11,8 +11,15 @@
 #elif defined (UEFI)
 #  include <efi.h>
 #endif
+#include <drivers/mouse.h>
 #include <drivers/serial.h>
 #include <sys/cpu.h>
+
+enum {
+    MOUSE_MODE_OFF,
+    MOUSE_MODE_NO_MOVES,
+    MOUSE_MODE_FULL,
+};
 
 static const char qwerty_to_dvorak[128] = {
     ['q']='\'', ['w']=',', ['e']='.', ['r']='p', ['t']='y',
@@ -168,7 +175,13 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
 }
 
 #if defined (BIOS)
-int _pit_sleep_and_quit_on_keypress(uint32_t ticks);
+int _pit_sleep_and_quit_on_keypress(uint32_t ticks, uint32_t aux_poll);
+
+// XXX: sync with lib/sleep.asm_bios_ia32.
+#define PIT_SLEEP_AUX_BREAK (-100)
+
+// BDA tick counter at 0x46c wraps at midnight.
+#define BDA_TICKS_PER_DAY 0x1800b0
 
 static int input_sequence(void) {
     int val = 0;
@@ -222,7 +235,35 @@ static int input_sequence(void) {
     return 0;
 }
 
-int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
+static int serial_input(void) {
+    int ret = serial_in();
+
+    if (ret == -1) {
+        return 0;
+    }
+
+again:
+    switch (ret) {
+        case '\r':
+            return '\n';
+        case 0x1b:
+            stall(10);
+            ret = serial_in();
+            if (ret == -1) {
+                return GETCHAR_ESCAPE;
+            }
+            if (ret == '[') {
+                return input_sequence();
+            }
+            goto again;
+        case 0x7f:
+            return '\b';
+    }
+
+    return ret;
+}
+
+static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
     uint64_t ticks64 = milliseconds > (UINT64_MAX - 999) / 18
                      ? UINT64_MAX
                      : (milliseconds * 18 + 999) / 1000;
@@ -232,43 +273,64 @@ int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
         return 0;
     }
 
-    if (!serial) {
-        return _pit_sleep_and_quit_on_keypress(ticks);
+    // Hand over mouse state accumulated while nobody was listening (e.g. a
+    // pointer position preserved across a menu re-entry) before blocking.
+    if (mouse_mode == MOUSE_MODE_FULL && mouse_state_pending()) {
+        return GETCHAR_MOUSE;
     }
 
-    for (uint32_t i = 0; i < ticks; i++) {
-        int ret = _pit_sleep_and_quit_on_keypress(1);
+    // When the mouse is active its packets are always consumed, even for
+    // keyboard-only waits.
+    bool aux_poll = mouse_present();
 
-        if (ret != 0) {
-            return ret;
-        }
+    if (!serial && !aux_poll) {
+        return _pit_sleep_and_quit_on_keypress(ticks, 0);
+    }
 
-        ret = serial_in();
+    uint32_t start = mmind(0x46c);
+    uint32_t elapsed = 0;
 
-        if (ret != -1) {
-again:
-            switch (ret) {
-                case '\r':
-                    return '\n';
-                case 0x1b:
-                    stall(10);
-                    ret = serial_in();
-                    if (ret == -1) {
-                        return GETCHAR_ESCAPE;
-                    }
-                    if (ret == '[') {
-                        return input_sequence();
-                    }
-                    goto again;
-                case 0x7f:
-                    return '\b';
+    for (;;) {
+        uint32_t remaining = ticks - elapsed;
+        int ret = _pit_sleep_and_quit_on_keypress(serial && remaining > 1 ? 1 : remaining,
+                                                  aux_poll);
+
+        if (ret == PIT_SLEEP_AUX_BREAK) {
+            int ev = mouse_process_pending();
+            if (mouse_mode != MOUSE_MODE_OFF && ev != 0) {
+                if (ev & (MOUSE_EVENT_BUTTON | MOUSE_EVENT_WHEEL)
+                 || mouse_mode == MOUSE_MODE_FULL) {
+                    return GETCHAR_MOUSE;
+                }
+                mouse_render_pointer();
             }
-
+        } else if (ret != 0) {
             return ret;
         }
-    }
 
-    return 0;
+        if (serial) {
+            ret = serial_input();
+            if (ret != 0) {
+                return ret;
+            }
+        }
+
+        uint32_t now = mmind(0x46c);
+        elapsed = now >= start ? now - start
+                : now + (uint32_t)(BDA_TICKS_PER_DAY - start);
+        if (elapsed >= ticks) {
+            return 0;
+        }
+    }
+}
+
+int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
+    return sleep_ms_core(milliseconds, MOUSE_MODE_OFF);
+}
+
+int pit_sleep_ms_and_quit_on_input(uint64_t milliseconds, bool deliver_mouse_moves) {
+    return sleep_ms_core(milliseconds,
+                         deliver_mouse_moves ? MOUSE_MODE_FULL : MOUSE_MODE_NO_MOVES);
 }
 
 int pit_sleep_and_quit_on_keypress(int seconds) {
@@ -333,12 +395,20 @@ static int input_sequence(bool ext,
     return 0;
 }
 
-int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
+static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
     EFI_KEY_DATA kd;
 
     UINTN which;
 
-    EFI_EVENT events[2];
+    EFI_EVENT events[18];
+
+    size_t pointer_count = 0;
+
+    // Hand over mouse state accumulated while nobody was listening (e.g. a
+    // pointer position preserved across a menu re-entry) before blocking.
+    if (mouse_mode == MOUSE_MODE_FULL && mouse_state_pending()) {
+        return GETCHAR_MOUSE;
+    }
 
     EFI_GUID exproto_guid = EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL_GUID;
     EFI_GUID sproto_guid = EFI_SIMPLE_TEXT_INPUT_PROTOCOL_GUID;
@@ -363,6 +433,10 @@ int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
         events[0] = exproto->WaitForKeyEx;
     }
 
+    if (mouse_mode != MOUSE_MODE_OFF) {
+        pointer_count = mouse_get_efi_events(&events[2], 16);
+    }
+
 restart:
     gBS->CreateEvent(EVT_TIMER, TPL_CALLBACK, NULL, NULL, &events[1]);
 
@@ -372,11 +446,24 @@ restart:
 again:
     memset(&kd, 0, sizeof(EFI_KEY_DATA));
 
-    gBS->WaitForEvent(2, events, &which);
+    gBS->WaitForEvent(2 + pointer_count, events, &which);
 
     if (which == 1) {
         gBS->CloseEvent(events[1]);
         return 0;
+    }
+
+    if (which >= 2) {
+        int ev = mouse_handle_efi_event(which - 2);
+        if (ev != 0) {
+            if (ev & (MOUSE_EVENT_BUTTON | MOUSE_EVENT_WHEEL)
+             || mouse_mode == MOUSE_MODE_FULL) {
+                gBS->CloseEvent(events[1]);
+                return GETCHAR_MOUSE;
+            }
+            mouse_render_pointer();
+        }
+        goto again;
     }
 
     EFI_STATUS status;
@@ -441,6 +528,15 @@ again:
 
     gBS->CloseEvent(events[1]);
     return ret;
+}
+
+int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
+    return sleep_ms_core(milliseconds, MOUSE_MODE_OFF);
+}
+
+int pit_sleep_ms_and_quit_on_input(uint64_t milliseconds, bool deliver_mouse_moves) {
+    return sleep_ms_core(milliseconds,
+                         deliver_mouse_moves ? MOUSE_MODE_FULL : MOUSE_MODE_NO_MOVES);
 }
 
 int pit_sleep_and_quit_on_keypress(int seconds) {

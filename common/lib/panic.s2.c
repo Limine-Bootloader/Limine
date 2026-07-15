@@ -13,6 +13,7 @@
 #include <lib/term.h>
 #include <mm/pmm.h>
 #include <menu.h>
+#include <drivers/mouse.h>
 
 noreturn void panic(bool allow_menu, const char *fmt, ...) {
     va_list args;
@@ -28,6 +29,17 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
 #endif
 
     quiet = false;
+
+    // Lift the pointer sprite off the screen before printing over it.
+    if (
+#if defined (BIOS)
+      stage3_loaded == true
+#else
+      true
+#endif
+      ) {
+        mouse_erase_pointer();
+    }
 
     FOR_TERM(TERM->autoflush = true);
 

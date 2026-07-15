@@ -57,6 +57,7 @@ noreturn void panic(bool allow_menu, const char *fmt, ...);
 
 int pit_sleep_and_quit_on_keypress(int seconds);
 int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds);
+int pit_sleep_ms_and_quit_on_input(uint64_t milliseconds, bool deliver_mouse_moves);
 
 uint64_t strtoui(const char *s, const char **end, int base);
 

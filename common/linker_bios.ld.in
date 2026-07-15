@@ -35,6 +35,7 @@ SECTIONS
         full_map = .;
         getchar = .;
         menu = .;
+        mouse_erase_pointer = .;
         booting_from_editor = .;
         flanterm_write = .;
         term_backend = .;

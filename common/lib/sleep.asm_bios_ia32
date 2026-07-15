@@ -23,6 +23,10 @@ _pit_sleep_and_quit_on_keypress:
     ; pit_ticks in edx
     mov edx, dword [esp+4]
 
+    ; whether to also break out on pending PS/2 aux (mouse) data
+    mov eax, dword [esp+8]
+    mov byte [.aux_poll], al
+
     mov dword [int_08_ticks_counter], 0
 
     ; Save GDT in case BIOS overwrites it
@@ -67,10 +71,21 @@ _pit_sleep_and_quit_on_keypress:
     mov byte [.mods], 0
     mov byte [.ascii], 0
     mov byte [.scan], 0
+    mov byte [.aux_hit], 0
 
   .loop:
     cmp dword [int_08_ticks_counter], edx
     je .done
+
+    cmp byte [.aux_poll], 0
+    je .no_aux
+    in al, 0x64
+    and al, 0x21
+    cmp al, 0x21
+    jne .no_aux
+    mov byte [.aux_hit], 1
+    jmp .done
+  .no_aux:
 
     push ecx
     push edx
@@ -130,6 +145,9 @@ _pit_sleep_and_quit_on_keypress:
     mov edx, dword [int_08_callback]
     mov dword [0x08*4], edx
 
+    cmp byte [.aux_hit], 0
+    jne .aux_break
+
     cmp byte [.scan], 0
     je .fail
 
@@ -141,6 +159,11 @@ _pit_sleep_and_quit_on_keypress:
 
     ret
 
+  .aux_break:
+    ; XXX: keep in sync with lib/getchar.c
+    mov eax, -100
+    ret
+
   .fail:
     xor eax, eax
     ret
@@ -150,8 +173,10 @@ _pit_sleep_and_quit_on_keypress:
   .rm_idt:   dw 0x3ff
              dd 0
 
-  .mods:  dd 0
-  .ascii: dd 0
-  .scan:  dd 0
+  .mods:     dd 0
+  .ascii:    dd 0
+  .scan:     dd 0
+  .aux_poll: db 0
+  .aux_hit:  db 0
 
 section .note.GNU-stack noalloc noexec nowrite progbits
