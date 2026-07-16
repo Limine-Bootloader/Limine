@@ -1,3 +1,19 @@
+2026-07-16  Iczelia  <k@iczelia.net>
+
+    *** Release 12.5.0 ***
+
+    Noteworthy changes compared to the previous release, 12.4.2:
+
+    New features:
+        - Add mouse support via PS/2 protocol and the UEFI pointing
+          protocols, allowing pointer control in the boot menu on
+          compatible systems.  This feature also allows for the use
+          of Limine on handheld devices with only touchscreen input.
+
+    Bug fixes:
+        - Ensure drive parameters are zero-initialised to prevent use of
+          uninitialised fields when drive parameter defaults are applied.
+
 2026-07-10  Iczelia  <k@iczelia.net>
 
     *** Release 12.4.2 ***
