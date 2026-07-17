@@ -9,12 +9,16 @@
 #include <fs/file.h>
 #include <lib/print.h>
 #include <pxe/tftp.h>
-#include <crypt/blake2b.h>
+#include <crypt/hash.h>
 #include <lib/tpm.h>
 #include <sys/cpu.h>
 
 #define CONFIG_B2SUM_SIGNATURE "++CONFIG_B2SUM_SIGNATURE++"
-#define CONFIG_B2SUM_EMPTY "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+#define CONFIG_B2SUM_EMPTY \
+    "0000000000000000000000000000000000000000000000000000000000000000" \
+    "0000000000000000000000000000000000000000000000000000000000000000" \
+    "0000000000000000000000000000000000000000000000000000000000000000" \
+    "0000000000000000000000000000000000000000000000000000000000000000"
 
 const char *config_b2sum = CONFIG_B2SUM_SIGNATURE CONFIG_B2SUM_EMPTY;
 
@@ -376,25 +380,21 @@ static struct macro *macros = NULL;
 int init_config(size_t config_size) {
     config_b2sum += sizeof(CONFIG_B2SUM_SIGNATURE) - 1;
 
-    if (memcmp((void *)config_b2sum, CONFIG_B2SUM_EMPTY, 128) == 0) {
+    if (hash_enrolled_empty(config_b2sum)) {
         secure_boot_active = false;
     } else {
         editor_enabled = false;
 
-        uint8_t out_buf[BLAKE2B_OUT_BYTES];
-        blake2b(out_buf, config_addr, config_size - 2);
-        uint8_t hash_buf[BLAKE2B_OUT_BYTES];
+        struct hash_reference ref;
+        uint8_t out_buf[HASH_MAX_BYTES];
 
-        for (size_t i = 0; i < BLAKE2B_OUT_BYTES; i++) {
-            int hi = digit_to_int(config_b2sum[i * 2]);
-            int lo = digit_to_int(config_b2sum[i * 2 + 1]);
-            if (hi == -1 || lo == -1) {
-                panic(false, "!!! INVALID CHARACTER IN CONFIG CHECKSUM !!!");
-            }
-            hash_buf[i] = hi << 4 | lo;
+        if (!hash_reference_from_enrolled(&ref, config_b2sum)) {
+            panic(false, "!!! INVALID CHARACTER IN CONFIG CHECKSUM !!!");
         }
 
-        if (memcmp(hash_buf, out_buf, BLAKE2B_OUT_BYTES) != 0) {
+        hash_buffer(ref.type, out_buf, ref.digest_size, config_addr, config_size - 2);
+
+        if (memcmp(ref.digest, out_buf, ref.digest_size) != 0) {
             panic(false, "!!! CHECKSUM MISMATCH FOR CONFIG FILE !!!");
         }
     }

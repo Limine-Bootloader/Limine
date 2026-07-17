@@ -11,7 +11,7 @@
 #include <pxe/tftp.h>
 #include <menu.h>
 #include <lib/getchar.h>
-#include <crypt/blake2b.h>
+#include <crypt/hash.h>
 #include <compress/gzip.h>
 
 // A URI takes the form of: resource(root):/path#hash
@@ -74,16 +74,16 @@ bool uri_resolve(char *uri, char **resource, char **root, char **path, char **ha
             *hash = uri + i;
         }
 
-        if (strlen(uri + i) != 128) {
-            panic(true, "Blake2b hash must be 128 characters long");
+        size_t hash_len = strlen(uri + i);
+        if (!hash_type_from_hex_length(NULL, NULL, hash_len)) {
+            panic(true, "Hash must be 64 BLAKE3, 128 BLAKE2b, or 256 BLAKE3 characters long");
             return false;
         }
 
-        // Validate all 128 characters are valid hexadecimal
-        for (size_t j = 0; j < 128; j++) {
+        for (size_t j = 0; j < hash_len; j++) {
             char c = uri[i + j];
             if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
-                panic(true, "Blake2b hash contains invalid character at position %d", (int)j);
+                panic(true, "Hash contains invalid character at position %d", (int)j);
                 return false;
             }
         }
@@ -310,10 +310,10 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         panic(true, "Secure Boot is active and URI `%#` has no associated hash!", uri);
     }
 
-    uint8_t hash_buf[BLAKE2B_OUT_BYTES];
+    struct hash_reference hash_ref;
     if (hash != NULL) {
-        for (size_t i = 0; i < sizeof(hash_buf); i++) {
-            hash_buf[i] = digit_to_int(hash[i * 2]) << 4 | digit_to_int(hash[i * 2 + 1]);
+        if (!hash_reference_from_hex(&hash_ref, hash, strlen(hash))) {
+            panic(true, "Invalid hash for URI `%#`", uri);
         }
     }
 
@@ -333,12 +333,12 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
     memcpy(raw_pxe_ip, raw->pxe_ip, 4);
     uint16_t raw_pxe_port = raw->pxe_port;
 
-    // Build the filter chain: raw -> blake2b -> gzip. blake2b hashes on-disk
+    // Build the filter chain: raw -> hash -> gzip. The hash covers on-disk
     // (compressed) bytes.
     struct file_handle *top = raw;
     struct file_handle *hash_fh = NULL;
     if (hash != NULL) {
-        hash_fh = blake2b_open(top);
+        hash_fh = hash_open(hash_ref.type, top);
         top = hash_fh;
     }
     if (gz_compressed) {
@@ -516,12 +516,14 @@ grew:;
     // Finalize hash check now that all compressed bytes have flowed through
     // the filter.
     if (hash_fh != NULL) {
-        if (!blake2b_check_hash(hash_fh, hash_buf)) {
+        if (!hash_check(hash_fh, &hash_ref)) {
             if (hash_mismatch_panic) {
-                panic(true, "Blake2b hash for URI `%#` does not match!", uri);
+                panic(true, "%s hash for URI `%#` does not match!",
+                      hash_type_name(hash_ref.type), uri);
             } else {
-                print("WARNING: Blake2b hash for URI `%#` does not match!\n"
-                      "         Press Y to continue, press any other key to return to menu...", uri);
+                print("WARNING: %s hash for URI `%#` does not match!\n"
+                      "         Press Y to continue, press any other key to return to menu...",
+                      hash_type_name(hash_ref.type), uri);
 
                 char ch = getchar();
                 if (ch != 'Y' && ch != 'y') {
