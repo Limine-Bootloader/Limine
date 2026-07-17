@@ -1,5 +1,4 @@
-// This blake2b implementation comes from the GNU coreutils project.
-// https://github.com/coreutils/coreutils/blob/master/src/blake2/blake2b-ref.c
+// Based on https://github.com/BLAKE2/BLAKE2/blob/master/ref/blake2b-ref.c
 
 #include <stdbool.h>
 #include <stdint.h>
