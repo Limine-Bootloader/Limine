@@ -120,6 +120,10 @@ static void iso9660_find_PVD(struct iso9660_primary_volume *desc, struct volume 
         if (!volume_read(vol, desc, offset, sizeof(struct iso9660_primary_volume))) {
             panic(false, "ISO9660: failed to read volume descriptor");
         }
+        if (memcmp(desc->volume_descriptor.identifier, "CD001", 5) != 0
+         || desc->volume_descriptor.version != 1) {
+            panic(false, "ISO9660: invalid volume descriptor");
+        }
 
         switch (desc->volume_descriptor.type) {
         case ISO9660_VDT_PRIMARY:
