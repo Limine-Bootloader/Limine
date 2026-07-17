@@ -18,6 +18,9 @@ Limine can be booted with Secure Boot if the executable is signed and the key
 used to sign it is added to the firmware's keychain. This should be done in
 combination with enrolling the BLAKE2b or BLAKE3 hash of the Limine config
 file into the Limine EFI executable image itself for verification purposes.
+For config enrollment, BLAKE3 must use 128-byte extended output (256
+hexadecimal characters), generated with `b3sum --length 128 limine.conf`,
+rather than the default 32-byte output used in resource paths.
 For more information see the `limine enroll-config` program and
 [the FAQ](FAQ.md).
 
