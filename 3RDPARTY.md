@@ -61,6 +61,9 @@ manipulating Flat Device Trees.
 - [pdgzip](https://github.com/iczelia/pdgzip) (0BSD) is used to provide the
 transparent gzip decompression layer for loaded files.
 
+- [BLAKE2](https://github.com/BLAKE2/BLAKE2/blob/master/ref/blake2b-ref.c)
+  (CC0-1.0) is used as the basis for the portable BLAKE2 implementation.
+
 - [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) (CC0-1.0) is used as
 the basis for the portable BLAKE3 implementation.
 
