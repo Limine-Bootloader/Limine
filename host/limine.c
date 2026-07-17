@@ -1239,11 +1239,16 @@ uninstall_mode_cleanup:
 #endif
 
 #define CONFIG_B2SUM_SIGNATURE "++CONFIG_B2SUM_SIGNATURE++"
+#define CONFIG_HASH_BLAKE2B_HEX_LENGTH 128
+#define CONFIG_HASH_BLAKE3_HEX_LENGTH 256
 
 static void enroll_config_usage(void) {
-    printf("usage: %s enroll-config <Limine executable> <BLAKE2B of config file>\n", program_name);
+    printf("usage: %s enroll-config <Limine executable> <config file hash>\n", program_name);
     printf("\n");
-    printf("    --reset      Remove enrolled BLAKE2B, will not check config integrity\n");
+    printf("    The hash may be 128 hexadecimal BLAKE2b characters or\n");
+    printf("    256 hexadecimal BLAKE3 characters.\n");
+    printf("\n");
+    printf("    --reset      Remove enrolled hash, will not check config integrity\n");
     printf("\n");
     printf("    --quiet      Do not print verbose diagnostic messages\n");
     printf("\n");
@@ -1280,15 +1285,19 @@ static int enroll_config(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    size_t hash_len = 0;
     if (!reset) {
-        if (strlen(argv[2]) != 128) {
-            fprintf(stderr, "error: BLAKE2B specified is not 128 characters long.\n");
+        hash_len = strlen(argv[2]);
+        if (hash_len != CONFIG_HASH_BLAKE2B_HEX_LENGTH
+         && hash_len != CONFIG_HASH_BLAKE3_HEX_LENGTH) {
+            fprintf(stderr,
+                    "error: Config hash must be 128 BLAKE2b or 256 BLAKE3 hexadecimal characters long.\n");
             goto cleanup;
         }
-        for (size_t i = 0; i < 128; i++) {
+        for (size_t i = 0; i < hash_len; i++) {
             char c = argv[2][i];
             if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
-                fprintf(stderr, "error: BLAKE2B specified contains a non-hexadecimal character.\n");
+                fprintf(stderr, "error: Config hash contains a non-hexadecimal character.\n");
                 goto cleanup;
             }
         }
@@ -1312,7 +1321,8 @@ static int enroll_config(int argc, char *argv[]) {
     size_t bootloader_size = (size_t)ftell_result;
     rewind(bootloader_file);
 
-    size_t min_size = (sizeof(CONFIG_B2SUM_SIGNATURE) - 1) + 128;
+    size_t signature_size = sizeof(CONFIG_B2SUM_SIGNATURE) - 1;
+    size_t min_size = signature_size + CONFIG_HASH_BLAKE2B_HEX_LENGTH;
     if (bootloader_size < min_size) {
         fprintf(stderr, "error: Bootloader file too small (need at least %zu bytes)\n", min_size);
         goto cleanup;
@@ -1330,21 +1340,9 @@ static int enroll_config(int argc, char *argv[]) {
     }
 
     char *checksum_loc = NULL;
-    size_t checked_count = 0;
-    const char *config_b2sum_sign = CONFIG_B2SUM_SIGNATURE;
-    for (size_t i = 0; i < bootloader_size - min_size + 1; i++) {
-        if (bootloader[i] != config_b2sum_sign[checked_count]) {
-            if (checked_count > 0) {
-                i -= checked_count; // restart after first byte of failed match
-                checked_count = 0;
-            }
-            continue;
-        }
-
-        checked_count++;
-
-        if (checked_count == sizeof(CONFIG_B2SUM_SIGNATURE) - 1) {
-            checksum_loc = &bootloader[i + 1];
+    for (size_t i = 0; i + min_size <= bootloader_size; i++) {
+        if (memcmp(&bootloader[i], CONFIG_B2SUM_SIGNATURE, signature_size) == 0) {
+            checksum_loc = &bootloader[i + signature_size];
             break;
         }
     }
@@ -1354,10 +1352,32 @@ static int enroll_config(int argc, char *argv[]) {
         goto cleanup;
     }
 
+    size_t checksum_off = (size_t)(checksum_loc - bootloader);
+    size_t slot_size = CONFIG_HASH_BLAKE2B_HEX_LENGTH;
+    if (checksum_off + CONFIG_HASH_BLAKE3_HEX_LENGTH <= bootloader_size) {
+        bool large_slot = true;
+        for (size_t i = 0; i < CONFIG_HASH_BLAKE3_HEX_LENGTH; i++) {
+            char c = checksum_loc[i];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+                large_slot = false;
+                break;
+            }
+        }
+        if (large_slot) {
+            slot_size = CONFIG_HASH_BLAKE3_HEX_LENGTH;
+        }
+    }
+
+    if (!reset && hash_len > slot_size) {
+        fprintf(stderr,
+                "error: Provided executable only has a %zu-character config hash slot.\n",
+                slot_size);
+        goto cleanup;
+    }
+
+    memset(checksum_loc, '0', slot_size);
     if (!reset) {
-        memcpy(checksum_loc, argv[2], 128);
-    } else {
-        memset(checksum_loc, '0', 128);
+        memcpy(checksum_loc, argv[2], hash_len);
     }
 
     if (fseek(bootloader_file, 0, SEEK_SET) != 0) {
@@ -1370,7 +1390,7 @@ static int enroll_config(int argc, char *argv[]) {
     }
 
     if (!quiet) {
-        fprintf(stderr, "Config file BLAKE2B successfully %s.\n", reset ? "reset" : "enrolled");
+        fprintf(stderr, "Config file hash successfully %s.\n", reset ? "reset" : "enrolled");
     }
     ret = EXIT_SUCCESS;
 
