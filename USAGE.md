@@ -16,21 +16,21 @@ A valid config file should also be provided as described in
 ## Secure Boot
 Limine can be booted with Secure Boot if the executable is signed and the key
 used to sign it is added to the firmware's keychain. This should be done in
-combination with enrolling the BLAKE2B hash of the Limine config file into the
-Limine EFI executable image itself for verification purposes.
+combination with enrolling the BLAKE2b or BLAKE3 hash of the Limine config
+file into the Limine EFI executable image itself for verification purposes.
 For more information see the `limine enroll-config` program and
 [the FAQ](FAQ.md).
 
 When Limine detects that UEFI Secure Boot is active (the `SecureBoot` variable
-is set and `SetupMode` is not) **and** a config BLAKE2B checksum is enrolled
+is set and `SetupMode` is not) **and** a config hash is enrolled
 in the Limine EFI executable, the following security policies are enforced:
 
 * The config file is verified against the enrolled checksum on every boot.
   Any mismatch will cause a panic.
-* All file paths (kernels, modules, DTBs, fonts, etc.) **must** have a BLAKE2B
-  hash appended (e.g. `boot():/kernel#<hash>`). Loading a file without a hash
-  will cause a panic. The exception is EFI chainloading, where the firmware's
-  own Secure Boot image verification is used instead.
+* All file paths (kernels, modules, DTBs, fonts, etc.) **must** have a BLAKE2b
+  or BLAKE3 hash appended (e.g. `boot():/kernel#<hash>`). Loading a file
+  without a hash will cause a panic. The exception is EFI chainloading, where
+  the firmware's own Secure Boot image verification is used instead.
 * Wallpaper and font files without an associated hash are silently skipped
   (falling back to defaults) rather than causing a panic.
 * The config editor is unconditionally disabled.
@@ -116,7 +116,7 @@ For PCR 9:
 * `limine_cfg`: the on-disk `limine.conf` file bytes verbatim (no trailing
   newline added, no NUL appended).
 * `path: <kernel_path>`: the full file bytes of the kernel image as opened
-  by Limine (post-decompression for `$`-prefixed paths, after BLAKE2B hash
+  by Limine (post-decompression for `$`-prefixed paths, after hash
   verification when Secure Boot is active).
 * `module_path: <module_path>`: the full file bytes of the module/initrd as
   loaded.

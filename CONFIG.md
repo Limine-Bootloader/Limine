@@ -368,9 +368,11 @@ A resource can be one of the following:
   from the server Limine booted from. This resource is only available when
   booting off PXE.
 
-A path can optionally be suffixed with a blake2b hash for the referenced file,
-by appending a pound character (`#`) followed by the blake2b hash.
+A path can optionally be suffixed with a BLAKE2b or BLAKE3 hash for the
+referenced file, by appending a pound character (`#`) followed by the hash.
 E.g.: `boot():/somemodule.tar#ca6914d2...446b470a`.
+Limine distinguishes hashes by length: 64 hexadecimal characters is standard
+BLAKE3, 128 is BLAKE2b, and 256 is extended-output BLAKE3.
 When Secure Boot is active, all file paths **must** have a hash appended or
 Limine will panic (except for wallpapers and fonts, which are silently skipped
 instead, falling back to defaults).

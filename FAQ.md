@@ -15,21 +15,22 @@ The kernel should be responsible for parsing everything else as it sees fit.
 ### What about LUKS? What about security? Encrypt the kernel!
 
 Simply put, this is unnecessary. Putting the kernel/modules in a readable FAT32
-partition and letting Limine know about their BLAKE2B checksums in the config
-file provides as much security as encrypting the kernel does.
+partition and letting Limine know about their BLAKE2b or BLAKE3 checksums in
+the config file provides as much security as encrypting the kernel does.
 
 ### What if a malicious actor modifies the config file?
 
 While this is a pointless effort on legacy x86 BIOS, it is a reasonable
 expectation to secure the boot sequence on UEFI systems with Secure Boot.
-Limine provides a way to modify its own EFI executable to bake in the BLAKE2B
-checksum of the config file itself. The EFI executable can then get signed with
-a key added to the firmware's keychain. This prevents modifications to the
-config file (and in turn the checksums contained there) from going unnoticed.
+Limine provides a way to modify its own EFI executable to bake in the BLAKE2b
+or BLAKE3 checksum of the config file itself. The EFI executable can then get
+signed with a key added to the firmware's keychain. This prevents
+modifications to the config file (and in turn the checksums contained there)
+from going unnoticed.
 
 Additionally, when UEFI Secure Boot is active **and** a config checksum has
-been enrolled, Limine enforces that all loaded files have BLAKE2B hashes in
-their paths, and disables the config editor. Enrolling a checksum is the
+been enrolled, Limine enforces that all loaded files have hashes in their
+paths, and disables the config editor. Enrolling a checksum is the
 explicit opt-in to this hardening; without one, Secure Boot enforcement is
 not applied. See [USAGE.md](USAGE.md) for details.
 
