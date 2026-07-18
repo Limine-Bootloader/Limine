@@ -27,23 +27,28 @@ size_t hw_entropy(void *buf, size_t size) {
 
     while (filled < size && (have_rdseed || have_rdrand)) {
         uint32_t val;
+        bool ok;
         if (have_rdseed) {
 #if defined (__x86_64__)
-            val = (uint32_t)rdseed(uint64_t); // Always do a 64-bit op on 64-bit to work around CPU bugs.
+            uint64_t wide;
+            ok = rdseed(uint64_t, &wide); // Always do a 64-bit op on 64-bit to work around CPU bugs.
+            val = (uint32_t)wide;
 #elif defined (__i386__)
-            val = rdseed(uint32_t);
+            ok = rdseed(uint32_t, &val);
 #endif
         } else {
 #if defined (__x86_64__)
-            val = (uint32_t)rdrand(uint64_t); // As above.
+            uint64_t wide;
+            ok = rdrand(uint64_t, &wide); // As above.
+            val = (uint32_t)wide;
 #elif defined (__i386__)
-            val = rdrand(uint32_t);
+            ok = rdrand(uint32_t, &val);
 #endif
         }
 
-        // A zero result means the instruction never set carry across all of its
-        // retries; treat the source as exhausted rather than spinning forever.
-        if (val == 0) {
+        // Carry stays clear only when every retry failed, i.e. the source is
+        // exhausted; a genuine zero draw sets carry and must be kept.
+        if (!ok) {
             break;
         }
 
