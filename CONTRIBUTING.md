@@ -133,8 +133,8 @@ As with anything, there are always exceptions to these style rules, under given 
   genuinely does not fit in the subject, and keep it brief. Try your best to keep both the
   subject and any body lines within 80-column terminals as `git log` shows them (it indents
   the message by 4 spaces, so aim for roughly 72 columns and wrap the body accordingly).
-  The `<imperative summary>` should begin with a uppercase letter, while `<area>` should be
-  all lowercase.
+  The `<imperative summary>` should begin with a uppercase letter and end without a period,
+  while `<area>` should be all lowercase.
   `<area>` is often the path to the `{.c,.h}` pair inside `common/` (e.g.
   `lib/acpi:` or `drivers/gop:`), or sometimes more generic concepts such as `build:` or
   `docs:`. Host tools use `host/<name>:`, build-time tools use `tools/<name>:`, BIOS stage 1
