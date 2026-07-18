@@ -830,7 +830,9 @@ tab_part:
             return NULL;
         default:
             if (buffer_len < EDITOR_MAX_BUFFER_SIZE - 1) {
-                if (isprint(c) || c == '\n' || c == '\t') {
+                // Accept ASCII printables plus the Latin-1 range (0xa0-0xff)
+                // the AZERTY layout emits for accented keys.
+                if (isprint(c) || (c >= 0xa0 && c <= 0xff) || c == '\n' || c == '\t') {
                     for (size_t i = buffer_len; ; i--) {
                         buffer[i+1] = buffer[i];
                         if (i == cursor_offset)
