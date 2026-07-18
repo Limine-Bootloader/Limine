@@ -408,7 +408,7 @@ bool blake3_check_hash(struct file_handle *fh, void *reference_hash, size_t hash
 
     struct blake3_handle *h = fh->fd;
     if (!h->finalized) {
-        blake3_final(&h->state, h->digest, hash_size);
+        blake3_final(&h->state, h->digest, sizeof(h->digest));
         h->finalized = true;
     }
     return memcmp(h->digest, reference_hash, hash_size) == 0;
