@@ -32,6 +32,52 @@ void stage3_common(void);
 extern symbol __slide, __image_base, __image_end;
 extern symbol _start;
 
+#if defined (__x86_64__)
+// Some firmware boots Limine chainloaded from Limine but not directly, so
+// prefer letting the firmware load a fresh copy of us over relocating
+// ourselves behind its back. Returns only if that could not be arranged.
+static void uefi_reload_self(void) {
+    EFI_GUID loaded_img_dp_prot_guid = EFI_LOADED_IMAGE_DEVICE_PATH_PROTOCOL_GUID;
+    EFI_DEVICE_PATH *self_path;
+
+    if (gBS->HandleProtocol(efi_image_handle, &loaded_img_dp_prot_guid,
+                            (void **)&self_path) != 0) {
+        return;
+    }
+
+    EFI_HANDLE new_handle = NULL;
+
+    if (gBS->LoadImage(false, efi_image_handle, self_path,
+                       NULL, 0, &new_handle) != 0) {
+        // An image rejected by platform policy is still loaded and still ours.
+        if (new_handle != NULL) {
+            gBS->UnloadImage(new_handle);
+        }
+        return;
+    }
+
+    EFI_GUID loaded_img_prot_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_LOADED_IMAGE_PROTOCOL *new_image;
+
+    if (gBS->HandleProtocol(new_handle, &loaded_img_prot_guid,
+                            (void **)&new_image) == 0) {
+        // Nothing stops the firmware from placing the copy as high as it
+        // placed us, and starting it then would recurse until memory ran out.
+        if ((uintptr_t)new_image->ImageBase + new_image->ImageSize <= 0x100000000) {
+            UINTN exit_data_size = 0;
+            CHAR16 *exit_data = NULL;
+
+            EFI_STATUS exit_status = gBS->StartImage(new_handle,
+                                                     &exit_data_size, &exit_data);
+
+            gBS->Exit(efi_image_handle, exit_status, exit_data_size, exit_data);
+        }
+    }
+
+    gBS->UnloadImage(new_handle);
+}
+#endif
+
 noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     gST = SystemTable;
     gBS = SystemTable->BootServices;
@@ -47,6 +93,8 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
 
 #if defined (__x86_64__)
     if ((uintptr_t)__slide >= 0x100000000) {
+        uefi_reload_self();
+
         size_t image_size = ALIGN_UP((uintptr_t)__image_end - (uintptr_t)__image_base, 4096, panic(false, "Alignment overflow"));
         size_t image_size_pages = image_size / 4096;
 
