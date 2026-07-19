@@ -98,9 +98,6 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
         size_t image_size = ALIGN_UP((uintptr_t)__image_end - (uintptr_t)__image_base, 4096, panic(false, "Alignment overflow"));
         size_t image_size_pages = image_size / 4096;
 
-        // Probing page by page is up to a million AllocatePages() calls, and
-        // this runs before the terminal exists and before the watchdog is
-        // disabled: minutes of blank screen, then a firmware reset.
         EFI_PHYSICAL_ADDRESS _new_base = 0xffffffff;
         status = gBS->AllocatePages(AllocateMaxAddress, EfiLoaderCode,
                                     image_size_pages, &_new_base);
