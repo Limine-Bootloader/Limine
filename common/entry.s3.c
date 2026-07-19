@@ -48,18 +48,21 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
 #if defined (__x86_64__)
     if ((uintptr_t)__slide >= 0x100000000) {
         size_t image_size = ALIGN_UP((uintptr_t)__image_end - (uintptr_t)__image_base, 4096, panic(false, "Alignment overflow"));
-        size_t image_size_pages = ALIGN_UP((size_t)image_size, 4096, panic(false, "Alignment overflow")) / 4096;
-        size_t new_base;
-        for (new_base = 0x1000; new_base + (size_t)image_size < 0x100000000; new_base += 0x1000) {
-            EFI_PHYSICAL_ADDRESS _new_base = (EFI_PHYSICAL_ADDRESS)new_base;
-            status = gBS->AllocatePages(AllocateAddress, EfiLoaderCode, image_size_pages, &_new_base);
-            if (status == 0) {
-                goto new_base_gotten;
-            }
+        size_t image_size_pages = image_size / 4096;
+
+        // Probing page by page is up to a million AllocatePages() calls, and
+        // this runs before the terminal exists and before the watchdog is
+        // disabled: minutes of blank screen, then a firmware reset.
+        EFI_PHYSICAL_ADDRESS _new_base = 0xffffffff;
+        status = gBS->AllocatePages(AllocateMaxAddress, EfiLoaderCode,
+                                    image_size_pages, &_new_base);
+        if (status != 0) {
+            deferred_error = "Limine does not support being loaded above 4GiB and no alternative loading spot found";
+            goto defer_error;
         }
-        deferred_error = "Limine does not support being loaded above 4GiB and no alternative loading spot found";
-        goto defer_error;
-new_base_gotten:
+
+        size_t new_base = (size_t)_new_base;
+
         memcpy((void *)new_base, __slide, (size_t)image_size);
         __attribute__((ms_abi))
         void (*new_entry_point)(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable);
