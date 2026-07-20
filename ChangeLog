@@ -1,3 +1,15 @@
+2026-07-20  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.5.1 ***
+
+    Noteworthy changes compared to the previous release, 12.5.0:
+
+    Bug fixes:
+        - Work around upstream issue #610 by attempting to relocate
+          to below 4GiB on x86-64/UEFI by using StartImage() first,
+          and only falling back to doing it manually.
+
+
 2026-07-16  Iczelia  <k@iczelia.net>
 
     *** Release 12.5.0 ***
