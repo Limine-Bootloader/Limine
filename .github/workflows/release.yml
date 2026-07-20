@@ -146,15 +146,22 @@ jobs:
           name: release-artifacts
           path: dist
 
-      - name: Import GPG private key (Iczelia)
+      - name: Import GPG private key
         run: |
           set -eu
-          echo "$ICZELIA_PRIVATE_KEY" | gpg --batch --import
+
+          if [ -z "$SIGNING_PRIVATE_KEY" ]; then
+            echo "No signing key registered for $GITHUB_ACTOR" >&2
+            echo "Add a ${GITHUB_ACTOR}_PRIVATE_KEY secret to the release-signing environment" >&2
+            exit 1
+          fi
+
+          echo "$SIGNING_PRIVATE_KEY" | gpg --batch --import
           SIGNING_KEY_FPR="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
           test -n "$SIGNING_KEY_FPR"
           echo "SIGNING_KEY_FPR=$SIGNING_KEY_FPR" >> "$GITHUB_ENV"
         env:
-          ICZELIA_PRIVATE_KEY: ${{ secrets.ICZELIA_PRIVATE_KEY }}
+          SIGNING_PRIVATE_KEY: ${{ secrets[format('{0}_PRIVATE_KEY', github.actor)] }}
 
       - name: Sign release artifacts
         run: |
