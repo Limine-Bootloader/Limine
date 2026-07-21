@@ -154,13 +154,18 @@ parking64:
     mov ebx, ebx
 
 %ifdef X86_64_TARGET
+    ; These callbacks are in our image, which may be above 4GiB and outside the
+    ; kernel pagemap's identity map; reach them via the HHDM, as for the GDTR.
     ; Synchronise MTRRs with BSP
-    call [rbx + (passed_info.mtrr_restore - smp_trampoline_start)]
+    mov rax, [rbx + (passed_info.mtrr_restore - smp_trampoline_start)]
+    add rax, [rbx + (passed_info.hhdm - smp_trampoline_start)]
+    call rax
 
     ; Configure local APIC handoff state (if pointer is set)
     mov rax, [rbx + (passed_info.lapic_setup - smp_trampoline_start)]
     test rax, rax
     jz .skip_lapic_setup64
+    add rax, [rbx + (passed_info.hhdm - smp_trampoline_start)]
     call rax
   .skip_lapic_setup64:
 %endif
