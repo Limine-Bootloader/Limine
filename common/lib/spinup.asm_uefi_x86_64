@@ -14,6 +14,11 @@ extern flush_irqs
 
 extern gdt
 
+; Below-4GiB copy of spinup_go32 and its scratch stack top; set by
+; prepare_spinup_tramp().
+extern spinup_low_go32
+extern spinup_low_stack_top
+
 global common_spinup
 bits 64
 common_spinup:
@@ -51,6 +56,10 @@ common_spinup:
 
     mov rbp, rsp
 
+    ; The drop to 32-bit uses a 32-bit ESP; the firmware stack may be above
+    ; 4GiB, so switch to a below-4GiB one.
+    mov rsp, [rel spinup_low_stack_top]
+
     sub esi, 4
     jle .no_stack_args
 
@@ -67,14 +76,17 @@ common_spinup:
     push32 ecx
     push32 edx
 
-    lea rbx, [rel .go_32]
+    mov rbx, [rel spinup_low_go32]
 
     push 0x18
     push rbx
     retfq
 
+; Runs in 32-bit mode (then paging off), so it executes from the below-4GiB
+; copy: a 32-bit EIP cannot reach a >4GiB image.
+global spinup_go32
 bits 32
-.go_32:
+spinup_go32:
     mov eax, 0x20
     mov ds, ax
     mov es, ax
@@ -107,5 +119,8 @@ bits 32
     ltr ax
 
     call edi
+
+global spinup_go32_end
+spinup_go32_end:
 
 section .note.GNU-stack noalloc noexec nowrite progbits

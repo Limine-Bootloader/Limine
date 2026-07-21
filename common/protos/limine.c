@@ -1980,7 +1980,13 @@ FEAT_END
 
     uint64_t reported_stack = reported_addr(stack);
 
-    common_spinup(limine_spinup_32, 11,
+#if defined (UEFI) && defined (__x86_64__)
+    void *spinup_fn = spinup_tramp_low(limine_spinup_32);
+#else
+    void *spinup_fn = limine_spinup_32;
+#endif
+
+    common_spinup(spinup_fn, 11,
         paging_mode, (uint32_t)(uintptr_t)pagemap.top_level,
         (uint32_t)entry_point, (uint32_t)(entry_point >> 32),
         (uint32_t)reported_stack, (uint32_t)(reported_stack >> 32),

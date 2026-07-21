@@ -140,6 +140,11 @@ noreturn void loongarch_spinup(uint64_t entry, uint64_t sp, uint64_t pgdl,
 #error Unknown architecture
 #endif
 
+#if defined (UEFI) && defined (__x86_64__)
+void prepare_spinup_tramp(void);
+void *spinup_tramp_low(void *hi);
+#endif
+
 #define no_unwind __attribute__((section(".no_unwind")))
 
 #define MEM_RANGE_X 1

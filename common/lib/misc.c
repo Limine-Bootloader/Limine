@@ -25,6 +25,86 @@ UINTN efi_mmap_size = 0, efi_desc_size = 0, efi_mmap_key = 0;
 UINT32 efi_desc_ver = 0;
 #endif
 
+#if defined (UEFI) && defined (__x86_64__)
+// The handoff drops to 32-bit protected mode with paging off, so the code that
+// does it (spinup_go32 and the *_spinup_32 routines) and its stack must be
+// below 4GiB wherever the firmware loaded us. Copy them there.
+extern symbol spinup_go32, spinup_go32_end;
+extern symbol limine_spinup_32, limine_spinup_32_end;
+extern symbol linux_spinup, linux_spinup_end;
+extern symbol multiboot_spinup_32, multiboot_spinup_32_end;
+
+// Consumed by common_spinup.
+uintptr_t spinup_low_go32 = 0;
+uintptr_t spinup_low_stack_top = 0;
+
+#define SPINUP_TRAMP_STACK_SIZE 4096
+
+static struct {
+    void *hi;
+    void *lo;
+} spinup_relocs[3];
+static size_t spinup_relocs_n = 0;
+
+static uint8_t *spinup_tramp_buf = NULL;
+static size_t spinup_tramp_off = 0;
+
+static void *spinup_stow(symbol hi_start, symbol hi_end) {
+    size_t size = (uintptr_t)hi_end - (uintptr_t)hi_start;
+    void *lo = spinup_tramp_buf + spinup_tramp_off;
+    memcpy(lo, hi_start, size);
+    spinup_tramp_off = ALIGN_UP(spinup_tramp_off + size, 16,
+                                panic(false, "spinup: trampoline overflow"));
+    return lo;
+}
+
+void prepare_spinup_tramp(void) {
+    if (spinup_low_stack_top != 0) {
+        return;
+    }
+
+    size_t total =
+        ALIGN_UP((uintptr_t)spinup_go32_end - (uintptr_t)spinup_go32, 16,
+                 panic(false, "spinup: trampoline overflow")) +
+        ALIGN_UP((uintptr_t)limine_spinup_32_end - (uintptr_t)limine_spinup_32, 16,
+                 panic(false, "spinup: trampoline overflow")) +
+        ALIGN_UP((uintptr_t)linux_spinup_end - (uintptr_t)linux_spinup, 16,
+                 panic(false, "spinup: trampoline overflow")) +
+        ALIGN_UP((uintptr_t)multiboot_spinup_32_end - (uintptr_t)multiboot_spinup_32, 16,
+                 panic(false, "spinup: trampoline overflow")) +
+        SPINUP_TRAMP_STACK_SIZE;
+
+    spinup_tramp_buf = ext_mem_alloc(total);
+    spinup_tramp_off = 0;
+
+    spinup_low_go32 = (uintptr_t)spinup_stow(spinup_go32, spinup_go32_end);
+
+    spinup_relocs[spinup_relocs_n].hi = limine_spinup_32;
+    spinup_relocs[spinup_relocs_n].lo = spinup_stow(limine_spinup_32, limine_spinup_32_end);
+    spinup_relocs_n++;
+
+    spinup_relocs[spinup_relocs_n].hi = linux_spinup;
+    spinup_relocs[spinup_relocs_n].lo = spinup_stow(linux_spinup, linux_spinup_end);
+    spinup_relocs_n++;
+
+    spinup_relocs[spinup_relocs_n].hi = multiboot_spinup_32;
+    spinup_relocs[spinup_relocs_n].lo = spinup_stow(multiboot_spinup_32, multiboot_spinup_32_end);
+    spinup_relocs_n++;
+
+    // Scratch stack grows down from the tail of the buffer.
+    spinup_low_stack_top = ALIGN_DOWN((uintptr_t)spinup_tramp_buf + total, 16);
+}
+
+void *spinup_tramp_low(void *hi) {
+    for (size_t i = 0; i < spinup_relocs_n; i++) {
+        if (spinup_relocs[i].hi == hi) {
+            return spinup_relocs[i].lo;
+        }
+    }
+    panic(false, "spinup: request for an unknown trampoline routine");
+}
+#endif
+
 bool editor_enabled = true;
 bool help_hidden = false;
 bool secure_boot_active = false;

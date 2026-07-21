@@ -722,8 +722,14 @@ no_fb:;
     }
 #endif
 
-    common_spinup(linux_spinup, 2, (uint32_t)kernel_load_addr,
-                                   (uint32_t)(uintptr_t)boot_params);
+#if defined (UEFI) && defined (__x86_64__)
+    void *spinup_fn = spinup_tramp_low((void *)linux_spinup);
+#else
+    void *spinup_fn = (void *)linux_spinup;
+#endif
+
+    common_spinup(spinup_fn, 2, (uint32_t)kernel_load_addr,
+                                (uint32_t)(uintptr_t)boot_params);
 }
 
 #endif

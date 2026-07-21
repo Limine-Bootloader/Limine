@@ -1072,7 +1072,13 @@ skip_modeset:;
 
     irq_flush_type = IRQ_PIC_ONLY_FLUSH;
 
-    common_spinup(multiboot_spinup_32, 6,
+#if defined (UEFI) && defined (__x86_64__)
+    void *spinup_fn = spinup_tramp_low(multiboot_spinup_32);
+#else
+    void *spinup_fn = multiboot_spinup_32;
+#endif
+
+    common_spinup(spinup_fn, 6,
                   (uint32_t)(uintptr_t)reloc_stub, (uint32_t)0x36d76289,
                   (uint32_t)mb2_info_final_loc, (uint32_t)entry_point,
                   (uint32_t)(uintptr_t)ranges, (uint32_t)ranges_count);
