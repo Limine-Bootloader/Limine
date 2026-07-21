@@ -61,7 +61,9 @@ with no extensions must be used.
 - No hard tabs. Spaces for indentation and alignment. 4-space per indentation level.
 - Always avoid vertical alignment to minimise vertical blast radius on changes.
 - Comments are sparse: explain a non-obvious *why*, never restate the *what*. Don't narrate;
-  avoid useless comments.
+  avoid useless comments. Be as terse as possible.
+- Comments *must also never* reference code that no longer exists in the codebase (i.e. a
+  bug that was just fixed by removing/changing some code).
 - Stick to ASCII: avoid em-dashes and other non-ASCII characters in code, comments, commit
   messages, and documentation, unless the non-ASCII character is essential to the work.
 - Do not add per-file license headers.
@@ -129,8 +131,9 @@ As with anything, there are always exceptions to these style rules, under given 
 
 - One logical change per commit. No "and" commits - split unrelated changes apart.
 - Commit message: a `<area>: <imperative summary>` subject. Most commits should be
-  subject-only; add a body only when the change has a non-obvious rationale or detail that
-  genuinely does not fit in the subject, and keep it brief. Try your best to keep both the
+  subject-only; **add a body only when the change has a NON-obvious rationale** or important
+  detail that genuinely does not fit in the subject, keep it brief, and **never add a body**
+  **if it repeats what the subject already says**. Try your best to keep both the
   subject and any body lines within 80-column terminals as `git log` shows them (it indents
   the message by 4 spaces, so aim for roughly 72 columns and wrap the body accordingly).
   The `<imperative summary>` should begin with a uppercase letter and end without a period,
