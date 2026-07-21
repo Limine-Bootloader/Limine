@@ -1,46 +1,22 @@
-section .data
-
-align 16
-linux_gdt:
-    dq 0
-
-    dq 0
-
-    dw 0xffff
-    dw 0x0000
-    db 0x00
-    db 10011011b
-    db 11001111b
-    db 0x00
-
-    dw 0xffff
-    dw 0x0000
-    db 0x00
-    db 10010011b
-    db 11001111b
-    db 0x00
-
-  .end:
-
-align 16
-linux_gdt_ptr:
-    dw (linux_gdt.end - linux_gdt) - 1
-    dd 0
-
 bits 32
 
 section .text
 
+; On UEFI x86-64 this is copied below 4GiB and run there, so it must be
+; position-independent and self-contained. The GDTR is built on the stack so
+; this stays a read-only-executable region.
 global linux_spinup
 linux_spinup:
     call .p0
   .p0:
     pop eax
-    lea ebx, [eax - (linux_spinup.p0 - linux_gdt_ptr)]
-    lea ecx, [eax - (linux_spinup.p0 - linux_gdt)]
-    mov [ebx+2], ecx
+    lea ecx, [eax - (linux_spinup.p0 - linux_gdt)] ; ecx = &linux_gdt
 
-    lgdt [ebx]
+    sub esp, 8
+    mov word [esp], (linux_gdt.end - linux_gdt) - 1
+    mov dword [esp+2], ecx
+    lgdt [esp]
+    add esp, 8
 
     push 0x10
     call .p1
@@ -65,5 +41,30 @@ linux_spinup:
     cld
 
     jmp [esp+4]
+
+align 16
+linux_gdt:
+    dq 0
+
+    dq 0
+
+    dw 0xffff
+    dw 0x0000
+    db 0x00
+    db 10011011b
+    db 11001111b
+    db 0x00
+
+    dw 0xffff
+    dw 0x0000
+    db 0x00
+    db 10010011b
+    db 11001111b
+    db 0x00
+
+  .end:
+
+global linux_spinup_end
+linux_spinup_end:
 
 section .note.GNU-stack noalloc noexec nowrite progbits
