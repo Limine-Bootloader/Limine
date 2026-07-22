@@ -1,3 +1,28 @@
+2026-07-22  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.5.2 ***
+
+    Noteworthy changes compared to the previous release, 12.5.1:
+
+    Bug fixes:
+        - Run Limine where the firmware loaded it on x86-64/UEFI rather
+          than relocating below 4GiB, staging only the 32-bit handoff
+          stub and its stack low and reaching the AP handoff callbacks
+          through the HHDM. Supersedes the 12.5.1 workaround and fixes
+          the hard reboots and boot loops reported in #610 and #613.
+        - Check the carry flag rather than the result when drawing from
+          RDSEED/RDRAND, so that a legitimate zero draw no longer
+          abandons the hardware entropy source.
+        - Bounds check every fread(), not just reads from memory files.
+
+    Miscellaneous:
+        - Give .bss a real PE BSS region instead of embedding it as
+          zeroes, shrinking each UEFI binary by around 24KiB.
+        - Restrict isprint() to the ASCII printables it is defined over;
+          the editor accepts the Latin-1 range AZERTY emits on its own.
+        - Add a BUGS.md file documenting known firmware issues.
+        - Correct the attribution of the BLAKE2b implementation.
+
 2026-07-20  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.5.1 ***
