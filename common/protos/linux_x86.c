@@ -621,7 +621,7 @@ set_textmode:;
         screen_info->orig_video_isVGA = VIDEO_TYPE_VGAC;
 #endif
     } else {
-        screen_info->capabilities   = VIDEO_CAPABILITY_64BIT_BASE | VIDEO_CAPABILITY_SKIP_QUIRKS;
+        screen_info->capabilities   = VIDEO_CAPABILITY_64BIT_BASE;
         screen_info->flags          = VIDEO_FLAGS_NOCURSOR;
         screen_info->lfb_base       = (uint32_t)fbs[0].framebuffer_addr;
         screen_info->ext_lfb_base   = (uint32_t)(fbs[0].framebuffer_addr >> 32);
