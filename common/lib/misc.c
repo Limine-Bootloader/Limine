@@ -77,6 +77,18 @@ void prepare_spinup_tramp(void) {
     spinup_tramp_buf = ext_mem_alloc(total);
     spinup_tramp_off = 0;
 
+    // spinup_go32 runs from here in compatibility mode, before it turns paging
+    // off, so the firmware page tables still govern it. An EfiLoaderCode
+    // allocation is not on its own a promise that the pages are executable.
+    EFI_GUID mem_attr_guid = EFI_MEMORY_ATTRIBUTE_PROTOCOL_GUID;
+    EFI_MEMORY_ATTRIBUTE_PROTOCOL *mem_attr = NULL;
+    if (gBS->LocateProtocol(&mem_attr_guid, NULL, (void **)&mem_attr) == EFI_SUCCESS) {
+        mem_attr->ClearMemoryAttributes(mem_attr,
+            (EFI_PHYSICAL_ADDRESS)(uintptr_t)spinup_tramp_buf,
+            ALIGN_UP(total, 4096, panic(false, "spinup: trampoline overflow")),
+            EFI_MEMORY_XP);
+    }
+
     spinup_low_go32 = (uintptr_t)spinup_stow(spinup_go32, spinup_go32_end);
 
     spinup_relocs[spinup_relocs_n].hi = limine_spinup_32;
