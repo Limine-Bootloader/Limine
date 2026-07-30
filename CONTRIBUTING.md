@@ -130,10 +130,7 @@ As with anything, there are always exceptions to these style rules, under given 
 ## Commit conventions
 
 - One logical change per commit. No "and" commits - split unrelated changes apart.
-- Commit message: a `<area>: <imperative summary>` subject. Most commits should be
-  subject-only; **add a body only when the change has a NON-obvious rationale** or important
-  detail that genuinely does not fit in the subject, keep it brief, and **never add a body**
-  **if it repeats what the subject already says**. Try your best to keep both the
+- Commit message: a `<area>: <imperative summary>` subject. Try your best to keep both the
   subject and any body lines within 80-column terminals as `git log` shows them (it indents
   the message by 4 spaces, so aim for roughly 72 columns and wrap the body accordingly).
   The `<imperative summary>` should begin with a uppercase letter and end without a period,
@@ -143,3 +140,55 @@ As with anything, there are always exceptions to these style rules, under given 
   `docs:`. Host tools use `host/<name>:`, build-time tools use `tools/<name>:`, BIOS stage 1
   uses `stage1/{cd,hdd,pxe,decompressor,gdt}:`, and for everything else just follow whatever
   established convention.
+
+### Commit message bodies
+
+**The default is no body.** Run `git log` and look at what is actually here: the
+overwhelming majority of commits are a subject line and nothing else. Match that. A body
+is an exception you have to earn, not a field to fill in.
+
+Before writing one, apply this test:
+
+> Is there something the reader needs that they cannot get from the subject line and the
+> diff in front of them?
+
+Having an explanation in your head is not the trigger; the reader lacking one is. Having
+just worked something out is a reason to want to write it down somewhere, not a reason for
+it to go here. All of the following answer "no", so none of them earn a body:
+
+- Restating the symptom the subject already names.
+- Narrating what the diff plainly shows.
+- Repeating a comment the same diff adds to the code. Say it once, in the comment, where it
+  stays beside the code and stops the mistake being repeated.
+- Arguing the change is correct, safe or tested.
+- Recounting how the bug was found, reproduced or measured.
+
+A body is earned when the *why* lives outside the diff and outside this repository: the
+semantics of an external interface our headers merely `#define`, a hardware or firmware
+contract, an invariant the changed lines do not themselves state.
+
+When one is earned, **three lines is the hard maximum**. If it does not fit, the overflow
+belongs in a code comment, in the issue tracker, or in the pull request description.
+
+Earned. The flag's meaning is defined by Linux, not by anything in this tree:
+
+```
+protos/linux: Stop claiming framebuffer quirks can be skipped
+
+The flag asserts screen_info was not filled from firmware data, so
+Linux skips its DMI framebuffer fixups. Ours comes from GOP.
+```
+
+Not earned, despite being within the three-line cap. The cap is a ceiling, not a licence:
+everything here is recoverable from the diff, so the subject should have stood alone.
+
+```
+host/limine: Fix signature search missing matches near EOF
+
+The loop variable tracks the last byte of a candidate match, but the
+bound was sized for the first byte.
+```
+
+Re-read this section immediately before writing each commit message. Checking it once at
+the start of a session is not enough: the recurring failure is writing the message from a
+half-remembered version of these rules rather than from the rules.
