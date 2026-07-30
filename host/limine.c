@@ -1332,7 +1332,7 @@ static int enroll_config(int argc, char *argv[]) {
     char *checksum_loc = NULL;
     size_t checked_count = 0;
     const char *config_b2sum_sign = CONFIG_B2SUM_SIGNATURE;
-    for (size_t i = 0; i < bootloader_size - min_size + 1; i++) {
+    for (size_t i = 0; i + 128 < bootloader_size; i++) {
         if (bootloader[i] != config_b2sum_sign[checked_count]) {
             if (checked_count > 0) {
                 i -= checked_count; // restart after first byte of failed match
