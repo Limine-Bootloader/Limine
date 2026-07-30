@@ -17,6 +17,22 @@ static bool mtrr_supported(void) {
     return !!(edx & (1 << 12));
 }
 
+/* A cr3 reload leaves global TLB entries intact, so a range mapped with the
+   global bit would keep its old memory type across an MTRR change. Toggling
+   cr4.PGE is what the SDM prescribes to flush those too. */
+static void flush_tlb(void) {
+    uintptr_t cr4;
+    asm volatile ("mov %%cr4, %0" : "=r"(cr4) :: "memory");
+    if (cr4 & ((uintptr_t)1 << 7)) {
+        asm volatile ("mov %0, %%cr4" :: "r"(cr4 & ~((uintptr_t)1 << 7)) : "memory");
+        asm volatile ("mov %0, %%cr4" :: "r"(cr4) : "memory");
+    } else {
+        uintptr_t cr3;
+        asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
+        asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    }
+}
+
 uint64_t *saved_mtrrs = NULL;
 
 void mtrr_save(void) {
@@ -100,10 +116,8 @@ void mtrr_restore(void) {
     /* then invalidate the caches */
     asm volatile ("wbinvd" ::: "memory");
 
-    /* do a cr3 read/write to flush the TLB */
-    uintptr_t cr3;
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    /* flush the TLB */
+    flush_tlb();
 
     /* disable the MTRRs */
     uint64_t mtrr_def = rdmsr(0x2ff);
@@ -141,9 +155,8 @@ void mtrr_restore(void) {
     mtrr_def |= (1 << 11);
     wrmsr(0x2ff, mtrr_def);
 
-    /* do a cr3 read/write to flush the TLB */
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    /* flush the TLB */
+    flush_tlb();
 
     /* then invalidate the caches */
     asm volatile ("wbinvd" ::: "memory");
@@ -243,9 +256,7 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
     asm volatile ("mov %0, %%cr0" :: "r"(new_cr0) : "memory");
     asm volatile ("wbinvd" ::: "memory");
 
-    uintptr_t cr3;
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    flush_tlb();
 
     uint64_t mtrr_def = rdmsr(0x2ff);
     wrmsr(0x2ff, mtrr_def & ~((uint64_t)1 << 11));
@@ -254,8 +265,7 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
 
     wrmsr(0x2ff, mtrr_def);
 
-    asm volatile ("mov %%cr3, %0" : "=r"(cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r"(cr3) : "memory");
+    flush_tlb();
     asm volatile ("wbinvd" ::: "memory");
     asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
 
