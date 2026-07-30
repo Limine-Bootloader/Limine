@@ -204,7 +204,8 @@ load:
     if (p->part_type_guid_valid
      && string_to_guid_mixed(&freebsd_boot_guid, FREEBSD_BOOT_TYPE_GUID)
      && memcmp(&p->part_type_guid, &freebsd_boot_guid, sizeof(struct guid)) == 0) {
-        uint64_t load_size = (uint64_t)p->sect_count * (uint64_t)p->sector_size;
+        // sect_count is always in 512-byte sectors, regardless of sector_size.
+        uint64_t load_size = (uint64_t)p->sect_count * 512;
         if (load_size > FREEBSD_BOOT_LOAD_MAX) {
             load_size = FREEBSD_BOOT_LOAD_MAX;
         }
