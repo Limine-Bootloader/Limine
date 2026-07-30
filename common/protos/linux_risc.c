@@ -240,7 +240,7 @@ static void add_framebuffer(struct fb_info *fb) {
     }
     memset(screen_info, 0, sizeof(*screen_info));
 
-    screen_info->capabilities   = VIDEO_CAPABILITY_64BIT_BASE | VIDEO_CAPABILITY_SKIP_QUIRKS;
+    screen_info->capabilities   = VIDEO_CAPABILITY_64BIT_BASE;
     screen_info->flags          = VIDEO_FLAGS_NOCURSOR;
     screen_info->lfb_base       = (uint32_t)fb->framebuffer_addr;
     screen_info->ext_lfb_base   = (uint32_t)(fb->framebuffer_addr >> 32);
