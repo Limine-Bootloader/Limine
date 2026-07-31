@@ -238,12 +238,13 @@ static void init_riscv_fdt(const void *fdt) {
     int node;
     fdt_for_each_subnode(node, fdt, cpus) {
         const void *prop;
+        int prop_len;
 
         if (!(prop = fdt_getprop(fdt, node, "device_type", NULL)) || strcmp(prop, "cpu")) {
             continue;
         }
 
-        if (!(prop = fdt_getprop(fdt, node, "reg", NULL))) {
+        if (!(prop = fdt_getprop(fdt, node, "reg", &prop_len)) || prop_len < 4) {
             continue;
         }
         size_t hartid = fdt32_ld(prop);
