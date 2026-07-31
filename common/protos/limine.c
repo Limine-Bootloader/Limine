@@ -348,6 +348,7 @@ extern symbol limine_spinup_32;
 static uint64_t physical_base, virtual_base, slide, direct_map_offset;
 static size_t requests_count;
 static void **requests;
+static uint64_t requests_top;
 
 static void set_paging_mode(bool randomise_hhdm_base) {
     direct_map_offset = paging_mode_higher_half(paging_mode);
@@ -434,7 +435,7 @@ static struct limine_file get_file(struct file_handle *file, char *cmdline) {
     return ret;
 }
 
-static void *_get_request(uint64_t id[4]) {
+static void *_get_request(uint64_t id[4], size_t size) {
     for (size_t i = 0; i < requests_count; i++) {
         uint64_t *p = requests[i];
 
@@ -445,13 +446,24 @@ static void *_get_request(uint64_t id[4]) {
             continue;
         }
 
+        // The scan only proves the 32-byte ID is inside the image. Anything
+        // past it, revision and response included, has to be checked here.
+        if ((uintptr_t)p + size > requests_top) {
+            continue;
+        }
+
         return p;
     }
 
     return NULL;
 }
 
-#define get_request(REQ) _get_request((uint64_t[4])REQ)
+// Pass the variable the result is assigned to; its type gives the size that
+// has to fit in the image.
+#define get_request(VAR, REQ) _get_request((uint64_t[4])REQ, sizeof(*(VAR)))
+
+// For presence tests, where nothing past the ID is read.
+#define have_request(REQ) (_get_request((uint64_t[4])REQ, sizeof(uint64_t[4])) != NULL)
 
 #define FEAT_START do {
 #define FEAT_END } while (0);
@@ -625,6 +637,7 @@ noreturn void limine_load(char *config, char *cmdline) {
 #endif
 
     // Load requests
+    requests_top = physical_base + image_size_before_bss;
     uint64_t *limine_reqs = NULL;
     requests = ext_mem_alloc_counted(MAX_REQUESTS, sizeof(void *));
     requests_count = 0;
@@ -672,7 +685,7 @@ noreturn void limine_load(char *config, char *cmdline) {
             }
 
             // Check for a conflict
-            if (_get_request(p) != NULL) {
+            if (_get_request(p, sizeof(uint64_t[4])) != NULL) {
                 panic(true, "limine: Conflict detected for request ID %X %X", p[2], p[3]);
             }
 
@@ -890,7 +903,7 @@ hhdm_fail:
     bool paging_mode_set = false;
     bool randomise_hhdm_base = false;
 FEAT_START
-    struct limine_paging_mode_request *pm_request = get_request(LIMINE_PAGING_MODE_REQUEST_ID);
+    struct limine_paging_mode_request *pm_request = get_request(pm_request, LIMINE_PAGING_MODE_REQUEST_ID);
     if (pm_request == NULL)
         break;
 
@@ -966,7 +979,7 @@ FEAT_END
 
     // Entry point feature
 FEAT_START
-    struct limine_entry_point_request *entrypoint_request = get_request(LIMINE_ENTRY_POINT_REQUEST_ID);
+    struct limine_entry_point_request *entrypoint_request = get_request(entrypoint_request, LIMINE_ENTRY_POINT_REQUEST_ID);
     if (entrypoint_request == NULL) {
         break;
     }
@@ -986,7 +999,7 @@ FEAT_END
     bool keep_iommu = false;
 FEAT_START
     struct limine_x86_64_keep_iommu_request *keep_iommu_request =
-        get_request(LIMINE_X86_64_KEEP_IOMMU_REQUEST_ID);
+        get_request(keep_iommu_request, LIMINE_X86_64_KEEP_IOMMU_REQUEST_ID);
     if (keep_iommu_request == NULL) {
         break;
     }
@@ -1001,7 +1014,7 @@ FEAT_END
 
     // Bootloader info feature
 FEAT_START
-    struct limine_bootloader_info_request *bootloader_info_request = get_request(LIMINE_BOOTLOADER_INFO_REQUEST_ID);
+    struct limine_bootloader_info_request *bootloader_info_request = get_request(bootloader_info_request, LIMINE_BOOTLOADER_INFO_REQUEST_ID);
     if (bootloader_info_request == NULL) {
         break; // next feature
     }
@@ -1017,7 +1030,8 @@ FEAT_END
 
     // Executable Command Line feature
 FEAT_START
-    struct limine_executable_cmdline_request *executable_cmdline_request = get_request(LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID);
+    struct limine_executable_cmdline_request *executable_cmdline_request =
+        get_request(executable_cmdline_request, LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID);
     if (executable_cmdline_request == NULL) {
         break; // next feature
     }
@@ -1032,7 +1046,7 @@ FEAT_END
 
     // Firmware type feature
 FEAT_START
-    struct limine_firmware_type_request *firmware_type_request = get_request(LIMINE_FIRMWARE_TYPE_REQUEST_ID);
+    struct limine_firmware_type_request *firmware_type_request = get_request(firmware_type_request, LIMINE_FIRMWARE_TYPE_REQUEST_ID);
     if (firmware_type_request == NULL) {
         break; // next feature
     }
@@ -1057,7 +1071,8 @@ FEAT_END
 
     // Executable address feature
 FEAT_START
-    struct limine_executable_address_request *executable_address_request = get_request(LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID);
+    struct limine_executable_address_request *executable_address_request =
+        get_request(executable_address_request, LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID);
     if (executable_address_request == NULL) {
         break; // next feature
     }
@@ -1073,7 +1088,7 @@ FEAT_END
 
     // HHDM feature
 FEAT_START
-    struct limine_hhdm_request *hhdm_request = get_request(LIMINE_HHDM_REQUEST_ID);
+    struct limine_hhdm_request *hhdm_request = get_request(hhdm_request, LIMINE_HHDM_REQUEST_ID);
     if (hhdm_request == NULL) {
         break; // next feature
     }
@@ -1088,7 +1103,7 @@ FEAT_END
 
     // RSDP feature
 FEAT_START
-    struct limine_rsdp_request *rsdp_request = get_request(LIMINE_RSDP_REQUEST_ID);
+    struct limine_rsdp_request *rsdp_request = get_request(rsdp_request, LIMINE_RSDP_REQUEST_ID);
     if (rsdp_request == NULL) {
         break; // next feature
     }
@@ -1108,7 +1123,7 @@ FEAT_END
 
     // SMBIOS feature
 FEAT_START
-    struct limine_smbios_request *smbios_request = get_request(LIMINE_SMBIOS_REQUEST_ID);
+    struct limine_smbios_request *smbios_request = get_request(smbios_request, LIMINE_SMBIOS_REQUEST_ID);
     if (smbios_request == NULL) {
         break; // next feature
     }
@@ -1135,7 +1150,7 @@ FEAT_END
 #if defined (UEFI)
     // EFI system table feature
 FEAT_START
-    struct limine_efi_system_table_request *est_request = get_request(LIMINE_EFI_SYSTEM_TABLE_REQUEST_ID);
+    struct limine_efi_system_table_request *est_request = get_request(est_request, LIMINE_EFI_SYSTEM_TABLE_REQUEST_ID);
     if (est_request == NULL) {
         break; // next feature
     }
@@ -1152,7 +1167,7 @@ FEAT_END
     // Stack size
     uint64_t stack_size = 65536;
 FEAT_START
-    struct limine_stack_size_request *stack_size_request = get_request(LIMINE_STACK_SIZE_REQUEST_ID);
+    struct limine_stack_size_request *stack_size_request = get_request(stack_size_request, LIMINE_STACK_SIZE_REQUEST_ID);
     if (stack_size_request == NULL) {
         break; // next feature
     }
@@ -1169,7 +1184,7 @@ FEAT_END
 
     // Executable file
 FEAT_START
-    struct limine_executable_file_request *executable_file_request = get_request(LIMINE_EXECUTABLE_FILE_REQUEST_ID);
+    struct limine_executable_file_request *executable_file_request = get_request(executable_file_request, LIMINE_EXECUTABLE_FILE_REQUEST_ID);
     if (executable_file_request == NULL) {
         break; // next feature
     }
@@ -1184,7 +1199,7 @@ FEAT_END
 
     // Modules
 FEAT_START
-    struct limine_module_request *module_request = get_request(LIMINE_MODULE_REQUEST_ID);
+    struct limine_module_request *module_request = get_request(module_request, LIMINE_MODULE_REQUEST_ID);
     if (module_request == NULL) {
         break; // next feature
     }
@@ -1330,7 +1345,7 @@ FEAT_END
 
     // Device tree blob feature
 FEAT_START
-    struct limine_dtb_request *dtb_request = get_request(LIMINE_DTB_REQUEST_ID);
+    struct limine_dtb_request *dtb_request = get_request(dtb_request, LIMINE_DTB_REQUEST_ID);
     if (dtb_request == NULL) {
         break; // next feature
     }
@@ -1374,7 +1389,7 @@ FEAT_END
     struct fb_info *fbs;
     size_t fbs_count;
 
-    bool preserve_screen = get_request(LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID) != NULL;
+    bool preserve_screen = have_request(LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID);
 
     term_notready();
 
@@ -1451,7 +1466,7 @@ FEAT_END
 
     // Framebuffer feature
 FEAT_START
-    struct limine_framebuffer_request *framebuffer_request = get_request(LIMINE_FRAMEBUFFER_REQUEST_ID);
+    struct limine_framebuffer_request *framebuffer_request = get_request(framebuffer_request, LIMINE_FRAMEBUFFER_REQUEST_ID);
     if (framebuffer_request == NULL) {
         break; // next feature
     }
@@ -1507,7 +1522,7 @@ FEAT_END
 
     // Flanterm FB init params feature
 FEAT_START
-    struct limine_flanterm_fb_init_params_request *fip_request = get_request(LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID);
+    struct limine_flanterm_fb_init_params_request *fip_request = get_request(fip_request, LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID);
     if (fip_request == NULL) {
         break;
     }
@@ -1565,7 +1580,7 @@ FEAT_END
 no_fb:
     // Boot time feature
 FEAT_START
-    struct limine_date_at_boot_request *date_at_boot_request = get_request(LIMINE_DATE_AT_BOOT_REQUEST_ID);
+    struct limine_date_at_boot_request *date_at_boot_request = get_request(date_at_boot_request, LIMINE_DATE_AT_BOOT_REQUEST_ID);
     if (date_at_boot_request == NULL) {
         break; // next feature
     }
@@ -1660,7 +1675,7 @@ FEAT_START
         break;
     }
 
-    struct limine_tsc_frequency_request *tsc_freq_request = get_request(LIMINE_TSC_FREQUENCY_REQUEST_ID);
+    struct limine_tsc_frequency_request *tsc_freq_request = get_request(tsc_freq_request, LIMINE_TSC_FREQUENCY_REQUEST_ID);
     if (tsc_freq_request == NULL) {
         break;
     }
@@ -1679,7 +1694,7 @@ FEAT_START
         break;
     }
 
-    struct limine_bootloader_performance_request *perf_request = get_request(LIMINE_BOOTLOADER_PERFORMANCE_REQUEST_ID);
+    struct limine_bootloader_performance_request *perf_request = get_request(perf_request, LIMINE_BOOTLOADER_PERFORMANCE_REQUEST_ID);
     if (perf_request == NULL) {
         break;
     }
@@ -1698,7 +1713,7 @@ FEAT_END
     // containing all of Limine's extends; later extends would land in the
     // final-events table instead.
 FEAT_START
-    struct limine_tpm_event_log_request *tpm_event_log_request = get_request(LIMINE_TPM_EVENT_LOG_REQUEST_ID);
+    struct limine_tpm_event_log_request *tpm_event_log_request = get_request(tpm_event_log_request, LIMINE_TPM_EVENT_LOG_REQUEST_ID);
     if (tpm_event_log_request == NULL) {
         break; // next feature
     }
@@ -1727,7 +1742,7 @@ FEAT_END
     // EFI memory map
 #if defined (UEFI)
 FEAT_START
-    struct limine_efi_memmap_request *efi_memmap_request = get_request(LIMINE_EFI_MEMMAP_REQUEST_ID);
+    struct limine_efi_memmap_request *efi_memmap_request = get_request(efi_memmap_request, LIMINE_EFI_MEMMAP_REQUEST_ID);
     if (efi_memmap_request == NULL) {
         break; // next feature
     }
@@ -1771,7 +1786,7 @@ FEAT_END
 
     // MP
 FEAT_START
-    struct limine_mp_request *mp_request = get_request(LIMINE_MP_REQUEST_ID);
+    struct limine_mp_request *mp_request = get_request(mp_request, LIMINE_MP_REQUEST_ID);
     if (mp_request == NULL) {
         break; // next feature
     }
@@ -1861,7 +1876,7 @@ FEAT_END
     // If there was no MP request, the kernel has no way to tell us it supports
     // x2APIC. Try to disable it as a courtesy, but do not panic if we cannot
     // since the kernel may be able to deal with it itself.
-    if (get_request(LIMINE_MP_REQUEST_ID) == NULL
+    if (!have_request(LIMINE_MP_REQUEST_ID)
      && (rdmsr(0x1b) & (1 << 10))) {
         if (x2apic_disable()) {
             printv("limine: Firmware had x2APIC enabled, reverted to xAPIC mode\n");
@@ -1874,7 +1889,7 @@ FEAT_END
 #if defined(__riscv)
     // RISC-V BSP Hart ID
 FEAT_START
-    struct limine_riscv_bsp_hartid_request *bsp_request = get_request(LIMINE_RISCV_BSP_HARTID_REQUEST_ID);
+    struct limine_riscv_bsp_hartid_request *bsp_request = get_request(bsp_request, LIMINE_RISCV_BSP_HARTID_REQUEST_ID);
     if (bsp_request == NULL) {
         break;
     }
@@ -1886,7 +1901,7 @@ FEAT_END
 
     // Memmap
 FEAT_START
-    struct limine_memmap_request *memmap_request = get_request(LIMINE_MEMMAP_REQUEST_ID);
+    struct limine_memmap_request *memmap_request = get_request(memmap_request, LIMINE_MEMMAP_REQUEST_ID);
     struct limine_memmap_response *memmap_response;
     struct limine_memmap_entry *_memmap;
     uint64_t *memmap_list;
