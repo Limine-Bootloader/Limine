@@ -364,6 +364,13 @@ noreturn void linux_load(char *config, char *cmdline) {
         panic(true, "linux: Kernel file too small for setup header");
     }
 
+    // The zero page only reserves up to edd_mbr_sig_buffer for the setup
+    // header, so a longer one cannot be copied in without overwriting fields
+    // past it.
+    if (setup_header_end > offsetof(struct boot_params, edd_mbr_sig_buffer)) {
+        panic(true, "linux: Setup header too long for the zero page");
+    }
+
     fread(kernel_file, setup_header, 0x1f1, setup_header_end - 0x1f1);
 
     printv("linux: Boot protocol: %u.%u\n",
