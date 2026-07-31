@@ -151,7 +151,9 @@ smp_trampoline_start:
 
 bits 64
 parking64:
+    ; Legacy mode leaves the GPR high halves undefined; define them
     mov ebx, ebx
+    mov esp, esp
 
 %ifdef X86_64_TARGET
     ; These callbacks are in our image, which may be above 4GiB and outside the
