@@ -180,6 +180,10 @@ bits 64
     mov gs, eax
     mov ss, eax
 
+    ; Legacy mode leaves the GPR high halves undefined; define them
+    mov ebp, ebp
+    mov esp, esp
+
     mov rdi, qword [rbp+16]
     mov rsi, qword [rbp+24]
     mov ecx, dword [rbp+32]
