@@ -1066,6 +1066,11 @@ part_too_low:
     // Default location of stage2 for MBR (in post MBR gap)
     uint64_t stage2_loc = 512;
 
+    // The MBR sanity checks below reject any partition starting before LBA 63,
+    // so LBAs 1 through 62 are ours. The GPT path narrows this to the size of
+    // the partition it picks.
+    uint64_t stage2_max = 62 * 512;
+
     if (gpt) {
         struct gpt_entry gpt_entry;
         uint32_t partition_num;
@@ -1154,6 +1159,8 @@ bios_boot_autodetected:;
             goto cleanup;
         }
 
+        stage2_max = part_size;
+
         bool err;
         bool valid = validate_or_force(stage2_loc, force, &err);
         if (err) {
@@ -1191,6 +1198,13 @@ bios_boot_autodetected:;
     device_write(&bootloader_img[0], 0, 512);
 
     // Write the rest of stage 2 to the device
+    if ((uint64_t)bootloader_file_size - 512 > stage2_max) {
+        fprintf(stderr, "error: Stage 2 needs %" PRIu64 " bytes at offset 0x%" PRIx64 ", but only\n",
+                (uint64_t)bootloader_file_size - 512, stage2_loc);
+        fprintf(stderr, "       %" PRIu64 " are available before the next thing on the device.\n",
+                stage2_max);
+        goto cleanup;
+    }
     device_write(&bootloader_img[512], stage2_loc, bootloader_file_size - 512);
 
     // Hardcode in the bootsector the location of stage 2
