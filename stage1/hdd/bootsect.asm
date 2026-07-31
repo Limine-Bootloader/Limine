@@ -1,4 +1,12 @@
 org 0x7c00
+
+; How much of the disk the boot sector reads in past itself.
+STAGE2_LOAD_MAX equ 32768 - 512
+
+; The installer refuses any disk whose first partition starts before LBA 63, so
+; LBAs 1 through 62 are all it can ever count on having. That is tighter than
+; STAGE2_LOAD_MAX, so it is what the payload actually has to fit in.
+STAGE2_FIT_MAX equ (63 - 1) * 512
 bits 16
 
 start:
@@ -71,7 +79,7 @@ start:
     mov eax, dword [di]
     mov ebp, dword [di+4]
     xor bx, bx
-    mov ecx, 32256 ; 32KiB minus boot sector size
+    mov ecx, STAGE2_LOAD_MAX
     call read_sectors
     jc err.4
 
@@ -151,3 +159,6 @@ stage2:
 %strcat STAGE2_PATH BUILDDIR, '/common-bios/stage2.bin.limlz'
 incbin STAGE2_PATH
 .size: equ $ - stage2
+.fullsize: equ $ - decompressor
+
+times -(stage2.fullsize > STAGE2_FIT_MAX) db 0
