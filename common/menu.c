@@ -367,8 +367,8 @@ fail:
     return TOK_BADKEY;
 found_equals:
     keybuf[i] = 0;
-    for (i = 0; VALID_KEYS[i]; i++) {
-        if (!strcasecmp(keybuf, VALID_KEYS[i])) {
+    for (size_t j = 0; VALID_KEYS[j]; j++) {
+        if (!strcasecmp(keybuf, VALID_KEYS[j])) {
             return TOK_KEY;
         }
     }
