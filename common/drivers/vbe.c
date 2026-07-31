@@ -182,7 +182,8 @@ struct fb_info *vbe_get_mode_list(size_t *count) {
 
     struct fb_info *ret = ext_mem_alloc_counted(modes_count, sizeof(struct fb_info));
 
-    for (size_t i = 0, j = 0; i < VBE_MAX_MODES && vid_modes[i] != 0xffff; i++) {
+    size_t j = 0;
+    for (size_t i = 0; i < VBE_MAX_MODES && vid_modes[i] != 0xffff; i++) {
         struct vbe_mode_info_struct vbe_mode_info;
         if (!get_vbe_mode_info(&vbe_mode_info, vid_modes[i])) {
             continue;
@@ -231,7 +232,7 @@ struct fb_info *vbe_get_mode_list(size_t *count) {
         j++;
     }
 
-    *count = modes_count;
+    *count = j;
 
     return ret;
 }
