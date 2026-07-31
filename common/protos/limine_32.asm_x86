@@ -76,6 +76,9 @@ bits 64
     mov gs, eax
     mov ss, eax
 
+    ; Legacy mode leaves the GPR high halves undefined; define them
+    mov esp, esp
+
     ; Load 64-bit GDT
     mov eax, [rsp+28] ; local_gdt
     lgdt [rax]
