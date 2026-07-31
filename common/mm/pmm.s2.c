@@ -151,9 +151,14 @@ void pmm_sanitise_entries(struct memmap_entry *m, size_t *_count, bool align_ent
             }
 
             if ( (res_base >= base && res_base < top)
-              && (res_top  >= base && res_top  < top) ) {
-                // TODO actually handle splitting off usable chunks
-                panic(false, "A non-usable memory map entry is inside a usable section.");
+              && (res_top  >= base && res_top  < top)
+              && (m[j].type != MEMMAP_USABLE) ) {
+                m[count] = m[i];
+                m[count].base = res_top;
+                m[count].length = top - res_top;
+                count++;
+
+                top = res_base;
             }
 
             if (res_base >= base && res_base < top) {
