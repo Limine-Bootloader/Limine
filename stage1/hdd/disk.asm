@@ -32,6 +32,7 @@ read_sectors:
     mov ah, 0x48
     mov si, .drive_params
     mov word [si], 30       ; buf_size
+    mov word [si+2], 0      ; PhoenixBIOS 4.0 R6.0 fails AH=48h unless it is clear
     int 0x13
     jc .fail
     movzx ebp, word [si+24] ; bytes_per_sect
