@@ -3,6 +3,23 @@
 #include <lib/misc.h>
 #include <lib/print.h>
 
+// Overwritten from a hardware entropy source once stage 3 is up. The build
+// time value is all the BIOS stage 2 parsers have, since the RNG lives in
+// stage 3.
+uintptr_t __stack_chk_guard = (uintptr_t)0x7a19f4c6e2b3d500ULL;
+
+noreturn void __stack_chk_fail(void) {
+    panic(false, "Stack smashing detected");
+}
+
+#if defined (__i386__)
+// GCC routes the check in 32-bit PIC code through a hidden alias so the call
+// does not have to go through the PLT. Nothing provides it here.
+noreturn void __stack_chk_fail_local(void) {
+    __stack_chk_fail();
+}
+#endif
+
 bool verbose = false;
 bool quiet = false;
 bool serial = false;

@@ -4,6 +4,7 @@
 #include <lib/term.h>
 #include <lib/real.h>
 #include <lib/misc.h>
+#include <lib/rand.h>
 #include <lib/libc.h>
 #include <lib/part.h>
 #include <lib/config.h>
@@ -164,6 +165,9 @@ opened:
 #endif
 
 noreturn void stage3_common(void) {
+    // A zero low byte stops string overflows from writing the canary intact.
+    __stack_chk_guard = safe_rand64() & ~(uintptr_t)0xff;
+
 #if defined (__x86_64__) || defined (__i386__)
     init_flush_irqs();
     init_io_apics();
