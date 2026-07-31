@@ -631,7 +631,7 @@ static char *config_get_entry_name(size_t index) {
     p--;
 
     size_t len = 0;
-    while (p[len] != SEPARATOR) {
+    while (p[len] != SEPARATOR && p[len] != '\0') {
         len++;
     }
 
