@@ -154,33 +154,7 @@ struct fb_info *vbe_get_mode_list(size_t *count) {
     uint16_t *vid_modes = (uint16_t *)rm_desegment(vbe_info.vid_modes_seg,
                                                    vbe_info.vid_modes_off);
 
-    size_t modes_count = 0;
-    for (size_t i = 0; i < VBE_MAX_MODES && vid_modes[i] != 0xffff; i++) {
-        struct vbe_mode_info_struct vbe_mode_info;
-        if (!get_vbe_mode_info(&vbe_mode_info, vid_modes[i])) {
-            continue;
-        }
-
-        // We only support RGB for now
-        if (vbe_mode_info.memory_model != 0x06)
-            continue;
-        // We only support linear modes
-        if (!(vbe_mode_info.mode_attributes & (1 << 7)))
-            continue;
-
-        uint16_t pitch = (vbe_info.version_maj < 3)
-                       ? vbe_mode_info.bytes_per_scanline
-                       : vbe_mode_info.lin_bytes_per_scanline;
-        uint16_t bytes_per_pixel = vbe_mode_info.bpp / 8;
-        if (bytes_per_pixel == 0
-         || pitch % bytes_per_pixel != 0
-         || pitch < (uint32_t)vbe_mode_info.res_x * bytes_per_pixel)
-            continue;
-
-        modes_count++;
-    }
-
-    struct fb_info *ret = ext_mem_alloc_counted(modes_count, sizeof(struct fb_info));
+    struct fb_info *ret = ext_mem_alloc_counted(VBE_MAX_MODES, sizeof(struct fb_info));
 
     size_t j = 0;
     for (size_t i = 0; i < VBE_MAX_MODES && vid_modes[i] != 0xffff; i++) {
@@ -231,6 +205,12 @@ struct fb_info *vbe_get_mode_list(size_t *count) {
 
         j++;
     }
+
+    struct fb_info *tmp = ext_mem_alloc_counted(j, sizeof(struct fb_info));
+    memcpy(tmp, ret, j * sizeof(struct fb_info));
+
+    pmm_free(ret, VBE_MAX_MODES * sizeof(struct fb_info));
+    ret = tmp;
 
     *count = j;
 
