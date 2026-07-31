@@ -88,14 +88,6 @@ start:
 
     jmp 0x08:vector
 
-times 0xda-($-$$) db 0
-times 6 db 0
-
-; Includes
-
-%include 'disk.asm'
-%include '../gdt.asm'
-
 err:
   .4:
     inc si
@@ -115,6 +107,14 @@ err:
     sti
     .h: hlt
     jmp .h
+
+times 0xda-($-$$) db 0
+times 6 db 0
+
+; Includes
+
+%include 'disk.asm'
+%include '../gdt.asm'
 
 bits 32
 vector:
