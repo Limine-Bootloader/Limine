@@ -28,9 +28,6 @@
 
 #include <fs/file.h>
 
-/* Check if a file handle points to gzip-compressed data (0x1F 0x8B magic). */
-bool gzip_check(struct file_handle * fd);
-
 /* Wrap a gzip-compressed file handle in a decompressing layer.
  *
  * Returns a new file_handle whose read callback transparently

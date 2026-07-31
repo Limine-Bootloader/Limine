@@ -108,13 +108,6 @@ static void gzip_close(struct file_handle * file) {
   pmm_free(gh, sizeof(struct gzip_handle));
 }
 
-bool gzip_check(struct file_handle * fd) {
-  if (fd->size < 18) return false;
-  uint8_t magic[2];
-  if (fread(fd, magic, 0, 2) != 2) return false;
-  return magic[0] == 0x1F && magic[1] == 0x8B;
-}
-
 struct file_handle * gzip_open(struct file_handle * compressed) {
   /*  The decompressed size is not known up front.  The 4-byte ISIZE trailer
       is unreliable (modulo 2^32, spec defect) and callers must instead
