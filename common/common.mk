@@ -29,7 +29,7 @@ override CFLAGS_FOR_TARGET += \
     -ffreestanding \
     -ffunction-sections \
     -fdata-sections \
-    -fno-stack-protector \
+    -fstack-protector-strong \
     -fno-stack-check \
     -fno-omit-frame-pointer \
     -fno-strict-aliasing \
@@ -70,6 +70,11 @@ ifeq ($(TARGET),bios)
     ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
         override CC_FOR_TARGET += \
             -target i686-unknown-none-elf
+    else
+        # GCC puts the x86 canary in the TLS block by default, and there is no
+        # TLS here. Clang already uses the global on the bare metal targets.
+        override CFLAGS_FOR_TARGET += \
+            -mstack-protector-guard=global
     endif
     override CFLAGS_FOR_TARGET += \
         -fno-PIC \
@@ -92,6 +97,11 @@ ifeq ($(TARGET),uefi-x86-64)
     ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
         override CC_FOR_TARGET += \
             -target x86_64-unknown-none-elf
+    else
+        # GCC puts the x86 canary in the TLS block by default, and there is no
+        # TLS here. Clang already uses the global on the bare metal targets.
+        override CFLAGS_FOR_TARGET += \
+            -mstack-protector-guard=global
     endif
     override CFLAGS_FOR_TARGET += \
         -fPIE \
@@ -119,6 +129,11 @@ ifeq ($(TARGET),uefi-ia32)
     ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
         override CC_FOR_TARGET += \
             -target i686-unknown-none-elf
+    else
+        # GCC puts the x86 canary in the TLS block by default, and there is no
+        # TLS here. Clang already uses the global on the bare metal targets.
+        override CFLAGS_FOR_TARGET += \
+            -mstack-protector-guard=global
     endif
     override CFLAGS_FOR_TARGET += \
         -fPIE \
