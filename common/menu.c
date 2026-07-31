@@ -354,18 +354,19 @@ static int validate_line(const char *buffer) {
     if (!validation_enabled) return TOK_KEY;
     if (buffer[0] == '#')
         return TOK_COMMENT;
-    char keybuf[64];
+    // One past the 64 characters copied, so the terminator always has a home.
+    char keybuf[65];
     size_t i;
     for (i = 0; buffer[i] && i < 64; i++) {
         if (buffer[i] == ':') goto found_equals;
         keybuf[i] = buffer[i];
     }
 fail:
-    if (i < 64) keybuf[i] = 0;
+    keybuf[i] = 0;
     if (keybuf[0] == '\n' || (!keybuf[0] && buffer[0] != ':')) return TOK_KEY; // blank line is valid
     return TOK_BADKEY;
 found_equals:
-    if (i < 64) keybuf[i] = 0;
+    keybuf[i] = 0;
     for (i = 0; VALID_KEYS[i]; i++) {
         if (!strcasecmp(keybuf, VALID_KEYS[i])) {
             return TOK_KEY;
