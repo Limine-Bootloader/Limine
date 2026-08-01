@@ -63,8 +63,9 @@ SECTIONS
         *(.sdata .sdata.*)
     } :data
 
-    /* .bss must come last: nothing with file contents may follow it. */
-    __data_rawend = ABSOLUTE(ALIGN(0x1000));
+    /* .bss must come last: nothing with file contents may follow it. Anchor the
+       raw end to __bss_start so linker-placed orphans cannot fall above it. */
+    __data_rawend = ABSOLUTE(ALIGN(__bss_start, 0x1000));
     __data_rawsize = ABSOLUTE(__data_rawend - __data_start);
 
     .bss : {
