@@ -21,6 +21,10 @@ static uint64_t get_unix_epoch(uint8_t seconds, uint8_t minutes, uint8_t  hours,
     uint64_t jdn_current = get_jdn(days, months, years);
     uint64_t jdn_1970    = get_jdn(1, 1, 1970);
 
+    if (jdn_current < jdn_1970) {
+        return 0;
+    }
+
     uint64_t jdn_diff = jdn_current - jdn_1970;
 
     return (jdn_diff * (60 * 60 * 24)) + hours * 3600 + minutes * 60 + seconds;
