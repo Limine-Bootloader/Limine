@@ -415,12 +415,16 @@ end_of_pt_segment:
         if (!elf64_translate_vaddr(elf, file_size, hdr, &rela_offset, rela_size, NULL)) {
             panic(true, "elf: RELA vaddr translation failed or out of bounds");
         }
+    } else if (rela_size != 0) {
+        panic(true, "elf: DT_RELASZ without DT_RELA");
     }
 
     if (relr_offset != 0) {
         if (!elf64_translate_vaddr(elf, file_size, hdr, &relr_offset, relr_size, NULL)) {
             panic(true, "elf: RELR vaddr translation failed or out of bounds");
         }
+    } else if (relr_size != 0) {
+        panic(true, "elf: DT_RELRSZ without DT_RELR");
     }
 
     if (symtab_offset != 0) {
@@ -439,6 +443,8 @@ end_of_pt_segment:
         if (!elf64_translate_vaddr(elf, file_size, hdr, &dt_jmprel, dt_pltrelsz, NULL)) {
             panic(true, "elf: JMPREL vaddr translation failed or out of bounds");
         }
+    } else if (dt_pltrelsz != 0) {
+        panic(true, "elf: DT_PLTRELSZ without DT_JMPREL");
     }
 
     size_t relocs_i = 0;
