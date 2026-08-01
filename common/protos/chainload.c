@@ -6,6 +6,7 @@
 #include <lib/guid.h>
 #include <lib/config.h>
 #include <lib/misc.h>
+#include <lib/acpi.h>
 #include <drivers/disk.h>
 #include <lib/term.h>
 #include <lib/fb.h>
@@ -207,8 +208,10 @@ load:
      && memcmp(&p->part_type_guid, &freebsd_boot_guid, sizeof(struct guid)) == 0) {
         // sect_count is always in 512-byte sectors, regardless of sector_size.
         uint64_t load_size = (uint64_t)p->sect_count * 512;
-        if (load_size > FREEBSD_BOOT_LOAD_TOP - FREEBSD_BOOT_LOAD_ADDR) {
-            load_size = FREEBSD_BOOT_LOAD_TOP - FREEBSD_BOOT_LOAD_ADDR;
+        // pmbr's ceiling is fixed, so it clobbers an EBDA sitting below it.
+        uint64_t load_top = MIN((uint64_t)FREEBSD_BOOT_LOAD_TOP, (uint64_t)EBDA);
+        if (load_size > load_top - FREEBSD_BOOT_LOAD_ADDR) {
+            load_size = load_top - FREEBSD_BOOT_LOAD_ADDR;
         }
         if (load_size == 0) {
             panic(true, "bios: freebsd-boot partition has zero size");
