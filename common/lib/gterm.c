@@ -869,6 +869,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
 
     if (terms_i == 0) {
         pmm_free(terms, fbs_count * sizeof(void *));
+        terms = NULL;
         return false;
     }
 
