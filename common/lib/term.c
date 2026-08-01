@@ -18,6 +18,12 @@ int current_video_mode = -1;
 struct flanterm_context **terms = NULL;
 size_t terms_i = 0;
 
+// panic() falls back to this terminal precisely when something has already gone
+// wrong, which includes after allocations have been disallowed, so it cannot be
+// allowed to depend on the allocator.
+static struct flanterm_context fallback_ctx;
+static struct flanterm_context *fallback_terms[1];
+
 int term_backend = _NOT_READY;
 
 void term_notready(void) {
@@ -35,7 +41,9 @@ void term_notready(void) {
         term->deinit(term, pmm_free_size_t);
     }
 
-    pmm_free(terms, terms_i * sizeof(void *));
+    if (terms != fallback_terms) {
+        pmm_free(terms, terms_i * sizeof(void *));
+    }
 
     terms_i = 0;
     terms = NULL;
@@ -241,10 +249,9 @@ void term_fallback(void) {
 
     term_notready();
 
-    terms = ext_mem_alloc(sizeof(void *));
+    fallback_terms[0] = &fallback_ctx;
+    terms = fallback_terms;
     terms_i = 1;
-
-    terms[0] = ext_mem_alloc(sizeof(struct flanterm_context));
 
     struct flanterm_context *term = terms[0];
 
@@ -328,8 +335,6 @@ void term_fallback(void) {
     return;
 
 fail:
-    pmm_free(terms[0], sizeof(struct flanterm_context));
-    pmm_free(terms, sizeof(void *));
     terms_i = 0;
     terms = NULL;
 #endif
