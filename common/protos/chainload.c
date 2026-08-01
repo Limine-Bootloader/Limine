@@ -86,10 +86,11 @@ noreturn static void spinup(uint8_t drive, void *buf) {
 noreturn void spinup_freebsd(uint32_t drive, uint32_t buf, uint32_t count);
 
 // FreeBSD's freebsd-boot partition contains gptboot, a multi-sector binary with
-// no MBR signature that FreeBSD's pmbr loads whole to 0x7C00. Cap prevents
-// EBDA overwrite.
+// no MBR signature that FreeBSD's pmbr loads whole to 0x7C00. pmbr stops the
+// load at 0x90000 and truncates rather than failing.
 #define FREEBSD_BOOT_TYPE_GUID "83bd6b9d-7f41-11dc-be0b-001560b84f0f"
-#define FREEBSD_BOOT_LOAD_MAX 0x80000
+#define FREEBSD_BOOT_LOAD_ADDR 0x7c00
+#define FREEBSD_BOOT_LOAD_TOP 0x90000
 
 noreturn void chainload(char *config, char *cmdline) {
     (void)cmdline;
@@ -206,8 +207,8 @@ load:
      && memcmp(&p->part_type_guid, &freebsd_boot_guid, sizeof(struct guid)) == 0) {
         // sect_count is always in 512-byte sectors, regardless of sector_size.
         uint64_t load_size = (uint64_t)p->sect_count * 512;
-        if (load_size > FREEBSD_BOOT_LOAD_MAX) {
-            load_size = FREEBSD_BOOT_LOAD_MAX;
+        if (load_size > FREEBSD_BOOT_LOAD_TOP - FREEBSD_BOOT_LOAD_ADDR) {
+            load_size = FREEBSD_BOOT_LOAD_TOP - FREEBSD_BOOT_LOAD_ADDR;
         }
         if (load_size == 0) {
             panic(true, "bios: freebsd-boot partition has zero size");
