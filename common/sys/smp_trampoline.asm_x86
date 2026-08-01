@@ -176,7 +176,7 @@ parking64:
     add rdi, qword [rbx + (passed_info.hhdm - smp_trampoline_start)]
 
     mov eax, 1
-    xchg dword [rbx + (passed_info.booted_flag - smp_trampoline_start)], eax
+    xchg byte [rbx + (passed_info.booted_flag - smp_trampoline_start)], al
 
     ; Check for MONITOR/MWAIT support
     mov eax, 1
