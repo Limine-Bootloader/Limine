@@ -584,6 +584,10 @@ void pmm_free_size_t(void *ptr, size_t length) {
 }
 
 void pmm_free(void *ptr, uint64_t count) {
+    if (ptr == NULL) {
+        return;
+    }
+
     if ((uintptr_t)ptr % 4096 != 0)
         panic(false, "pmm_free: Unaligned pointer %p", ptr);
     count = ALIGN_UP(count, 4096, panic(false, "Alignment overflow"));
