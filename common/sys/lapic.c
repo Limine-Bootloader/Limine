@@ -47,6 +47,12 @@ void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid, bool x2apic) {
     pending_lint0 = UINT32_MAX; // no override
     pending_lint1 = UINT32_MAX; // no override
 
+    // The overrides are per-CPU and these are file statics: a caller with no
+    // entry to apply still needs the previous CPU's values cleared.
+    if (madt == NULL) {
+        return;
+    }
+
     // Walk MADT entries looking for NMI entries
     for (uint8_t *madt_ptr = (uint8_t *)madt->madt_entries_begin;
       (uintptr_t)madt_ptr + 1 < (uintptr_t)madt + madt->header.length;
@@ -208,11 +214,6 @@ void lapic_configure_handoff_state(void) {
 }
 
 void lapic_configure_bsp(void) {
-    struct madt *madt = acpi_get_table("APIC", 0);
-    if (madt == NULL) {
-        return;
-    }
-
     // Detect x2APIC from MSR
     bool is_x2 = !!(rdmsr(0x1b) & (1 << 10));
 
@@ -224,7 +225,13 @@ void lapic_configure_bsp(void) {
         bsp_lapic_id = lapic_read(LAPIC_REG_ID) >> 24;
     }
 
+    struct madt *madt = acpi_get_table("APIC", 0);
     uint32_t bsp_acpi_uid = 0;
+    bool found = false;
+
+    if (madt == NULL) {
+        goto done;
+    }
 
     for (uint8_t *madt_ptr = (uint8_t *)madt->madt_entries_begin;
       (uintptr_t)madt_ptr + 1 < (uintptr_t)madt + madt->header.length;
@@ -241,7 +248,8 @@ void lapic_configure_bsp(void) {
                 struct madt_lapic *lapic = (void *)madt_ptr;
                 if (lapic->lapic_id == bsp_lapic_id) {
                     bsp_acpi_uid = lapic->acpi_processor_uid;
-                    goto found;
+                    found = true;
+                    goto done;
                 }
                 continue;
             }
@@ -255,15 +263,18 @@ void lapic_configure_bsp(void) {
                 struct madt_x2apic *x2lapic = (void *)madt_ptr;
                 if (x2lapic->x2apic_id == bsp_lapic_id) {
                     bsp_acpi_uid = x2lapic->acpi_processor_uid;
-                    goto found;
+                    found = true;
+                    goto done;
                 }
                 continue;
             }
         }
     }
 
-found:
-    lapic_prep_lint(madt, bsp_acpi_uid, is_x2);
+done:
+    // The MADT-derived overrides are optional. The handoff state is not: it
+    // needs no ACPI data and the protocol promises it unconditionally.
+    lapic_prep_lint(found ? madt : NULL, bsp_acpi_uid, is_x2);
     lapic_configure_handoff_state();
 }
 
