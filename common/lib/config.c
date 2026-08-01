@@ -612,7 +612,7 @@ overflow:
 }
 
 static char *config_get_entry_name(size_t index) {
-    if (!config_ready)
+    if (!config_ready || config_addr == NULL)
         return NULL;
 
     char *p = config_addr;
@@ -642,7 +642,7 @@ static char *config_get_entry_name(size_t index) {
 }
 
 static char *config_get_entry(size_t *size, size_t index) {
-    if (!config_ready)
+    if (!config_ready || config_addr == NULL)
         return NULL;
 
     char *ret;
@@ -744,6 +744,11 @@ char *config_get_value(const char *config, size_t index, const char *key) {
 
     if (config == NULL)
         config = config_addr;
+
+    // config_ready does not imply a config file was loaded: the blank entry
+    // editor sets it with config_addr still unset.
+    if (config == NULL)
+        return NULL;
 
     size_t key_len = strlen(key);
 
