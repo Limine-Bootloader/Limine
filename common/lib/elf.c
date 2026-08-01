@@ -411,6 +411,12 @@ static bool elf64_apply_relocations(uint8_t *elf, size_t file_size, struct elf64
     }
 end_of_pt_segment:
 
+    // The stride feeds both the DT_RELA and the DT_JMPREL walk, and both
+    // dereference a full struct elf64_rela at every step.
+    if (rela_ent != 0 && rela_ent < sizeof(struct elf64_rela)) {
+        panic(true, "elf: rela_ent < sizeof(struct elf64_rela)");
+    }
+
     if (rela_offset != 0) {
         if (!elf64_translate_vaddr(elf, file_size, hdr, &rela_offset, rela_size, NULL)) {
             panic(true, "elf: RELA vaddr translation failed or out of bounds");
@@ -464,8 +470,8 @@ end_of_pt_segment:
     }
     size_t relr_count = relocs_i;
     if (rela_size != 0) {
-        if (rela_ent < sizeof(struct elf64_rela)) {
-            panic(true, "elf: rela_ent < sizeof(struct elf64_rela)");
+        if (rela_ent == 0) {
+            panic(true, "elf: rela_size != 0 but rela_ent == 0");
         }
         if (rela_size % rela_ent != 0) {
             panic(true, "elf: rela_size not a multiple of rela_ent");
