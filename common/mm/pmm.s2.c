@@ -604,12 +604,6 @@ void pmm_free(void *ptr, uint64_t count) {
 }
 
 void *pmm_realloc(void *old_ptr, uint64_t old_size, uint64_t new_size) {
-    if (new_size == 0) {
-        if (old_ptr != NULL) {
-            pmm_free(old_ptr, old_size);
-        }
-        return NULL;
-    }
     if (old_ptr == NULL) {
         return ext_mem_alloc(new_size);
     }
