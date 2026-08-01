@@ -25,6 +25,10 @@ void *conv_mem_alloc(uint64_t count) {
     if (allocations_disallowed)
         panic(false, "Memory allocations disallowed");
 
+    if (count == 0) {
+        count = 1;
+    }
+
     count = ALIGN_UP(count, 4096, panic(false, "Alignment overflow"));
 
     for (;;) {
@@ -590,6 +594,9 @@ void pmm_free(void *ptr, uint64_t count) {
 
     if ((uintptr_t)ptr % 4096 != 0)
         panic(false, "pmm_free: Unaligned pointer %p", ptr);
+    if (count == 0) {
+        count = 1;
+    }
     count = ALIGN_UP(count, 4096, panic(false, "Alignment overflow"));
     if (allocations_disallowed)
         panic(false, "Memory allocations disallowed");
@@ -642,6 +649,13 @@ void *ext_mem_alloc_type_aligned_mode(uint64_t count, uint32_t type, size_t alig
 #if !defined (__x86_64__) && !defined (__i386__)
     (void)allow_high_allocs;
 #endif
+
+    // A zero-size request must still own storage: at zero the reservation
+    // below is a no-op, and the pointer returned aliases whatever already
+    // sits at the top of the region.
+    if (count == 0) {
+        count = 1;
+    }
 
     count = CHECKED_ADD(count, alignment - 1,
         panic(false, "ext_mem_alloc: count overflows when aligning"));
