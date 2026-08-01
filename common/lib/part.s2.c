@@ -191,6 +191,10 @@ bool gpt_get_guid(struct guid *guid, struct volume *volume) {
     return true;
 }
 
+// Maximum number of GPT partitions to bound enumeration driven by the volume's
+// own entry count. Clamped rather than rejected to keep oversized tables usable.
+#define MAX_GPT_PARTITIONS 256
+
 static int gpt_get_part(struct volume *ret, struct volume *volume, int partition) {
     struct gpt_table_header header = {0};
 
@@ -222,7 +226,12 @@ static int gpt_get_part(struct volume *ret, struct volume *volume, int partition
         return INVALID_TABLE;
 
     // parse the entries if reached here
-    if ((uint32_t)partition >= header.number_of_partition_entries)
+    uint32_t entry_count = header.number_of_partition_entries;
+    if (entry_count > MAX_GPT_PARTITIONS) {
+        entry_count = MAX_GPT_PARTITIONS;
+    }
+
+    if ((uint32_t)partition >= entry_count)
         return END_OF_TABLE;
 
     // Validate partition entry size (must be at least as large as our struct)
