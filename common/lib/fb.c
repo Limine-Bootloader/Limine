@@ -164,9 +164,14 @@ static void fb_flush_loongarch64(volatile void *base, size_t length) {
     const size_t clsz = 64;
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, clsz);
     uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), clsz, return);
+
+    // Hit-mode cacop probes the cache like a load and acts only on a hit, and the
+    // manual gives no ordering between it and prior stores, so drain them first.
+    asm volatile ("dbar 0" ::: "memory");
     for (uintptr_t ptr = start; ptr < end; ptr += clsz) {
         asm volatile ("cacop 0x11, %0, 0" :: "r"(ptr) : "memory");
     }
+    asm volatile ("dbar 0" ::: "memory");
 }
 #endif
 
