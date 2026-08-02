@@ -373,8 +373,10 @@ void mouse_render_pointer_overlay(void) {
 static bool wheel_packets;
 static uint8_t packet[4];
 static size_t packet_index;
-static uint8_t saved_command_byte;
-static bool have_saved_command_byte;
+// The firmware's byte exists nowhere else once the modified one is written,
+// so it has to outlive the state rewind that the rest of this file relies on.
+static no_unwind uint8_t saved_command_byte;
+static no_unwind bool have_saved_command_byte;
 
 static bool i8042_wait_write(void) {
     for (size_t i = 0; i < 10000; i++) {
