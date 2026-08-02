@@ -430,6 +430,9 @@ bool efi_exit_boot_services(void) {
         // Be gone, UEFI!
         status = gBS->ExitBootServices(efi_image_handle, efi_mmap_key);
         if (status == EFI_SUCCESS) {
+            // The map rebuild below can panic, and term_fallback() picks its
+            // backend off this flag: the console protocol is already gone.
+            efi_boot_services_exited = true;
             break;
         }
         // Map key invalidated by an allocation - retry.
@@ -547,8 +550,6 @@ bool efi_exit_boot_services(void) {
 
     efi_mmap = efi_copy;
     efi_mmap_size = efi_copy_i * efi_desc_size;
-
-    efi_boot_services_exited = true;
 
     printv("efi: Exited boot services.\n");
 
