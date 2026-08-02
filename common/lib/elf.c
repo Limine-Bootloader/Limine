@@ -955,16 +955,21 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
             }
 
             if (ranges != NULL) {
-                uint64_t page_rounded_base = ALIGN_DOWN(phdr->p_vaddr, 4096);
-                uint64_t page_rounded_top = ALIGN_UP(phdr_end, 4096, panic(true, "elf: PHDR alignment overflow"));
-                uint64_t page_rounded_base_in = ALIGN_DOWN(phdr_in->p_vaddr, 4096);
-                uint64_t page_rounded_top_in = ALIGN_UP(phdr_in_end, 4096, panic(true, "elf: PHDR alignment overflow"));
+                // elf64_get_ranges() rounds each segment out to its own p_align,
+                // so the overlap has to be looked for at that same granularity.
+                uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
+                uint64_t align_in = phdr_in->p_align <= 1 ? 1 : phdr_in->p_align;
 
-                if ((page_rounded_base >= page_rounded_base_in
-                  && page_rounded_base < page_rounded_top_in)
+                uint64_t rounded_base = phdr->p_vaddr & ~(align - 1);
+                uint64_t rounded_top = ALIGN_UP(phdr_end, align, panic(true, "elf: PHDR alignment overflow"));
+                uint64_t rounded_base_in = phdr_in->p_vaddr & ~(align_in - 1);
+                uint64_t rounded_top_in = ALIGN_UP(phdr_in_end, align_in, panic(true, "elf: PHDR alignment overflow"));
+
+                if ((rounded_base >= rounded_base_in
+                  && rounded_base < rounded_top_in)
                    ||
-                    (page_rounded_top > page_rounded_base_in
-                  && page_rounded_top <= page_rounded_top_in)) {
+                    (rounded_top > rounded_base_in
+                  && rounded_top <= rounded_top_in)) {
                     if ((phdr->p_flags & 0b111) != (phdr_in->p_flags & 0b111)) {
                         panic(true, "elf: Attempted to load ELF file with PHDRs with different permissions sharing the same memory page.");
                     }
