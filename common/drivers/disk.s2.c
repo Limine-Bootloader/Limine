@@ -668,7 +668,7 @@ static void find_unique_sectors(void) {
             continue;
         }
 
-        size_t first_sect = (volume_index[i]->first_sect * 512) / volume_index[i]->sector_size;
+        uint64_t first_sect = (volume_index[i]->first_sect * 512) / volume_index[i]->sector_size;
 
         // sect_count is always in 512-byte sectors
         if (volume_index[i]->sect_count * 512 < UNIQUE_SECTOR_POOL_SIZE) {
