@@ -900,6 +900,9 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
 
     uint64_t min_vaddr = (uint64_t)-1;
     uint64_t max_vaddr = 0;
+    uint64_t prev_top = 0;
+    uint64_t prev_rounded_top = 0;
+    uint32_t prev_flags = 0;
     for (uint16_t i = 0; i < hdr->ph_num; i++) {
         struct elf64_phdr *phdr = (void *)elf + (hdr->phoff + i * hdr->phdr_size);
 
@@ -925,57 +928,28 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
         uint64_t phdr_end = CHECKED_ADD(phdr->p_vaddr, phdr->p_memsz,
             panic(true, "elf: p_vaddr + p_memsz overflow in PHDR %u", i));
 
-        // check for overlapping phdrs
-        for (uint16_t j = 0; j < hdr->ph_num; j++) {
-            struct elf64_phdr *phdr_in = (void *)elf + (hdr->phoff + j * hdr->phdr_size);
-
-            if (phdr_in->p_type != PT_LOAD || phdr_in->p_memsz == 0) {
-                continue;
-            }
-
-            if (phdr_in->p_vaddr < FIXED_HIGHER_HALF_OFFSET_64) {
-                if (!is_reloc || !*is_reloc) {
-                    continue;
-                }
-            }
-
-            if (phdr_in == phdr) {
-                continue;
-            }
-
-            uint64_t phdr_in_end = CHECKED_ADD(phdr_in->p_vaddr, phdr_in->p_memsz,
-                panic(true, "elf: p_vaddr + p_memsz overflow in PHDR %u", j));
-
-            if ((phdr_in->p_vaddr >= phdr->p_vaddr
-              && phdr_in->p_vaddr < phdr_end)
-                ||
-                (phdr_in_end > phdr->p_vaddr
-              && phdr_in_end <= phdr_end)) {
-                panic(true, "elf: Attempted to load ELF file with overlapping PHDRs (%u and %u overlap)", i, j);
-            }
-
-            if (ranges != NULL) {
-                // elf64_get_ranges() rounds each segment out to its own p_align,
-                // so the overlap has to be looked for at that same granularity.
-                uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
-                uint64_t align_in = phdr_in->p_align <= 1 ? 1 : phdr_in->p_align;
-
-                uint64_t rounded_base = phdr->p_vaddr & ~(align - 1);
-                uint64_t rounded_top = ALIGN_UP(phdr_end, align, panic(true, "elf: PHDR alignment overflow"));
-                uint64_t rounded_base_in = phdr_in->p_vaddr & ~(align_in - 1);
-                uint64_t rounded_top_in = ALIGN_UP(phdr_in_end, align_in, panic(true, "elf: PHDR alignment overflow"));
-
-                if ((rounded_base >= rounded_base_in
-                  && rounded_base < rounded_top_in)
-                   ||
-                    (rounded_top > rounded_base_in
-                  && rounded_top <= rounded_top_in)) {
-                    if ((phdr->p_flags & 0b111) != (phdr_in->p_flags & 0b111)) {
-                        panic(true, "elf: Attempted to load ELF file with PHDRs with different permissions sharing the same memory page.");
-                    }
-                }
-            }
+        // The gABI has loadable segments in ascending p_vaddr order, so one
+        // starting below the previous top overlaps it or the table is misordered.
+        // Nesting cannot hide from this: it would already have failed the pair
+        // before, so comparing against the previous segment alone suffices.
+        if (phdr->p_vaddr < prev_top) {
+            panic(true, "elf: Attempted to load ELF file with overlapping or out of order PHDRs (%u)", i);
         }
+
+        // elf64_get_ranges() rounds each segment out to its own p_align, so the
+        // conflict has to be looked for at that same granularity.
+        uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
+        uint64_t rounded_base = phdr->p_vaddr & ~(align - 1);
+
+        if (ranges != NULL
+         && rounded_base < prev_rounded_top
+         && (phdr->p_flags & 0b111) != prev_flags) {
+            panic(true, "elf: Attempted to load ELF file with PHDRs with different permissions sharing the same memory page.");
+        }
+
+        prev_top = phdr_end;
+        prev_rounded_top = ALIGN_UP(phdr_end, align, panic(true, "elf: PHDR alignment overflow"));
+        prev_flags = phdr->p_flags & 0b111;
 
         if (phdr->p_vaddr < min_vaddr) {
             min_vaddr = phdr->p_vaddr;
