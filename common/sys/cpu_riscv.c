@@ -127,8 +127,7 @@ static void init_riscv_acpi(void) {
         struct madt_riscv_intc *intc = (struct madt_riscv_intc *)madt_ptr;
 
         // Ignore harts we can't do anything with.
-        if (!(intc->flags & MADT_RISCV_INTC_ENABLED ||
-                intc->flags & MADT_RISCV_INTC_ONLINE_CAPABLE)) {
+        if (!(intc->flags & MADT_RISCV_INTC_ENABLED)) {
             continue;
         }
 
