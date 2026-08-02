@@ -27,6 +27,7 @@ smp_trampoline_start:
         csrw    satp, t0
         sfence.vma
         unimp
+.align 4
 0:
         // Relocate the smp_info and passed_info pointers to the higher half.
         add     a0, t1, a0
