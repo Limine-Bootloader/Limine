@@ -459,7 +459,9 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 #define PT_FLAG_HGLOBAL ((uint64_t)1 << 12)
 #define PT_FLAG_NX      ((uint64_t)1 << 62)
 #define PT_PADDR_MASK   ((uint64_t)0x0000FFFFFFFFF000)
-#define PT_PADDR_HMASK  ((uint64_t)0x0000FFFFFF000000)
+
+// A huge entry stores PA[PALEN-1:log2PageSize]: 2MiB at a 4KiB granule.
+#define PT_PADDR_HMASK  ((uint64_t)0x0000FFFFFFE00000)
 
 #define PT_TABLE_FLAGS      0
 #define PT_IS_TABLE(x)      ((level_idx > 0) && (((x) & PT_FLAG_VALID) == 0) && ((x) != INVALID_PAGE))
