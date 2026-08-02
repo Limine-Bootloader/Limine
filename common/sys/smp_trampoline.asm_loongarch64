@@ -30,8 +30,8 @@ smp_trampoline_start:
 
         // Tell the BSP that this AP reached the parking loop.
         li.d    $t3, 1
-        st.d    $t3, $t0, tpl_booted_flag
         dbar    0
+        st.d    $t3, $t0, tpl_booted_flag
 
 2:
         // Wait until the kernel sets goto_address.
