@@ -925,8 +925,7 @@ static inline uint32_t loongarch_phys_id(void) {
 }
 
 static inline bool core_pic_startable(uint32_t flags) {
-    return (flags & MADT_CORE_PIC_ENABLED)
-        || (flags & MADT_CORE_PIC_ONLINE_CAPABLE);
+    return flags & MADT_CORE_PIC_ENABLED;
 }
 
 static void csr_mail_send(uint64_t data, int cpu, int mailbox) {
