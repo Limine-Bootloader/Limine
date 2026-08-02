@@ -55,11 +55,10 @@ static void text_revscroll(struct flanterm_context *_ctx) {
     struct textmode_context *ctx = (void *)_ctx;
 
     // move the text up by one row
-    for (size_t i = (_ctx->scroll_bottom_margin - 1) * VD_COLS - 1; ; i--) {
+    for (size_t i = (_ctx->scroll_bottom_margin - 1) * VD_COLS;
+         i > _ctx->scroll_top_margin * VD_COLS; ) {
+        i--;
         ctx->back_buffer[i + VD_COLS] = ctx->back_buffer[i];
-        if (i == _ctx->scroll_top_margin * VD_COLS) {
-            break;
-        }
     }
     // clear the first line of the screen
     for (size_t i = _ctx->scroll_top_margin * VD_COLS;
