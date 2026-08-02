@@ -168,7 +168,8 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
     // Iterate through the entries...
     for (struct multiboot_header_tag *tag = (struct multiboot_header_tag*)(header + 1); // header + 1 to skip the header struct.
-       tag < (struct multiboot_header_tag *)((uintptr_t)header + header->header_length) && tag->type != MULTIBOOT_HEADER_TAG_END;
+       (uintptr_t)tag + sizeof(struct multiboot_header_tag) <= (uintptr_t)header + header->header_length
+         && tag->type != MULTIBOOT_HEADER_TAG_END;
        ) {
         if (tag->size == 0) {
             break;
