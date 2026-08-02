@@ -284,6 +284,12 @@ bool pe64_load(uint8_t *image, size_t file_size, uint64_t *entry_point, uint64_t
         panic(true, "pe: SectionAlignment is not a power of 2");
     }
 
+    // Permissions are applied per section but mapped a page at a time, so
+    // sections sharing a page could demand conflicting ones.
+    if (alignment < 0x1000) {
+        panic(true, "pe: SectionAlignment is below the page size");
+    }
+
     bool lower_to_higher = false;
 
     if (image_base < FIXED_HIGHER_HALF_OFFSET_64) {
@@ -344,6 +350,10 @@ again:
         // by the mem_range pass, so the whole virtual extent must fit too.
         if ((uint64_t)section->VirtualAddress + section->VirtualSize > image_size) {
             panic(true, "pe: Section %U virtual size exceeds image bounds", (uint64_t)i);
+        }
+
+        if (section->VirtualAddress % alignment != 0) {
+            panic(true, "pe: Section %U is not aligned to SectionAlignment", (uint64_t)i);
         }
 
         // Validate section data doesn't exceed file bounds
