@@ -374,6 +374,17 @@ again:
         memcpy((void *)section_base, image + section->PointerToRawData, section_raw_size);
     }
 
+    // Unless a section covers them, the headers get a read-only range of their
+    // own, so their pages have to end before the first section begins.
+    if (nt_hdrs->FileHeader.NumberOfSections > 0 && sections[0].VirtualAddress != 0) {
+        uint64_t headers_top = ALIGN_UP((uint64_t)nt_hdrs->OptionalHeader.SizeOfHeaders,
+                                        0x1000, panic(true, "pe: Alignment overflow"));
+
+        if (headers_top > sections[0].VirtualAddress) {
+            panic(true, "pe: Headers overlap the first section");
+        }
+    }
+
     if (nt_hdrs->OptionalHeader.NumberOfRvaAndSizes < IMAGE_DIRECTORY_ENTRY_BASERELOC + 1) {
         panic(true, "pe: NumberOfRvaAndSizes too small for import/reloc directories");
     }
