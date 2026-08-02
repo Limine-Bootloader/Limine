@@ -51,7 +51,7 @@ start:
     mov ds, si
     mov es, si
     mov ss, si
-    mov sp, 0x7c00
+    mov esp, 0x7c00
     sti
 
     ; Limine isn't made for floppy disks, these are dead anyways.
