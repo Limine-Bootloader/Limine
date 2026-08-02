@@ -159,12 +159,13 @@ static void fb_flush_riscv_nozicbom(volatile void *base, size_t length) {
 }
 #elif defined (__loongarch64)
 static void fb_flush_loongarch64(volatile void *base, size_t length) {
-    // cacop Hit_Writeback_Inv_LEAF0 = 0x10 (D-cache L1 writeback+invalidate)
+    // cacop code[4:3]=2 is hit writeback+invalidate, code[2:0] selects the cache
+    // in CPUCFG10 order: leaf 0 is the L1 I-cache, leaf 1 the L1 D-cache.
     const size_t clsz = 64;
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, clsz);
     uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), clsz, return);
     for (uintptr_t ptr = start; ptr < end; ptr += clsz) {
-        asm volatile ("cacop 0x10, %0, 0" :: "r"(ptr) : "memory");
+        asm volatile ("cacop 0x11, %0, 0" :: "r"(ptr) : "memory");
     }
 }
 #endif
