@@ -901,7 +901,19 @@ hhdm_fail:
 #endif
 
     bool paging_mode_set = false;
-    bool randomise_hhdm_base = false;
+
+    // This has to be resolved outside the block below: an executable with no
+    // paging mode request breaks out of it, and the fallback still needs it.
+    char *randomise_hhdm_base_s = config_get_value(config, 0, "RANDOMISE_HHDM_BASE");
+    if (randomise_hhdm_base_s == NULL) {
+        randomise_hhdm_base_s = config_get_value(config, 0, "RANDOMIZE_HHDM_BASE");
+    }
+    bool randomise_hhdm_base;
+    if (randomise_hhdm_base_s == NULL) {
+        randomise_hhdm_base = kaslr;
+    } else {
+        randomise_hhdm_base = strcasecmp(randomise_hhdm_base_s, "yes") == 0;
+    }
 FEAT_START
     struct limine_paging_mode_request *pm_request = get_request(pm_request, LIMINE_PAGING_MODE_REQUEST_ID);
     if (pm_request == NULL)
@@ -938,16 +950,6 @@ FEAT_START
             panic(true, "limine: Executable's minimum supported paging mode higher than maximum allowable paging mode");
         }
         paging_mode = kern_min_mode;
-    }
-
-    char *randomise_hhdm_base_s = config_get_value(config, 0, "RANDOMISE_HHDM_BASE");
-    if (randomise_hhdm_base_s == NULL) {
-        randomise_hhdm_base_s = config_get_value(config, 0, "RANDOMIZE_HHDM_BASE");
-    }
-    if (randomise_hhdm_base_s == NULL) {
-        randomise_hhdm_base = kaslr;
-    } else {
-        randomise_hhdm_base = strcasecmp(randomise_hhdm_base_s, "yes") == 0;
     }
 
     set_paging_mode(randomise_hhdm_base);
