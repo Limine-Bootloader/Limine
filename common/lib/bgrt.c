@@ -47,7 +47,7 @@ void bgrt_restore(uint64_t fb_width, uint64_t fb_height) {
             memcpy(&bmp_width, &bmp[18], sizeof(bmp_width));
             memcpy(&bmp_height_raw, &bmp[22], sizeof(bmp_height_raw));
 
-            bmp_height = (uint32_t)(bmp_height_raw < 0 ? -bmp_height_raw : bmp_height_raw);
+            bmp_height = bmp_height_raw < 0 ? -(uint32_t)bmp_height_raw : (uint32_t)bmp_height_raw;
         } else if (dib_header_size == 12) {
             uint16_t bmp_width_raw;
             uint16_t bmp_height_raw;
