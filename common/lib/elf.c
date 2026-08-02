@@ -316,7 +316,20 @@ static void elf64_add_relocation_count(size_t *count, uint64_t add) {
     *count += (size_t)add;
 }
 
-static bool elf64_apply_relocations(uint8_t *elf, size_t file_size, struct elf64_hdr *hdr, void *buffer, uint64_t vaddr, size_t size, uint64_t slide) {
+// The relocation array and the symbol tables it resolves against depend only
+// on the file, so they are built once and applied to each segment in turn.
+struct elf64_reloc_state {
+    struct elf64_rela **relocs;
+    size_t relocs_i;
+    size_t relr_count;
+    uint64_t symtab_offset;
+    uint64_t symtab_ent;
+    uint64_t symtab_size;
+    uint64_t strtab_offset;
+    uint64_t strtab_size;
+};
+
+static bool elf64_prepare_relocations(uint8_t *elf, size_t file_size, struct elf64_hdr *hdr, struct elf64_reloc_state *st) {
     if (hdr->phdr_size < sizeof(struct elf64_phdr)) {
         panic(true, "elf: phdr_size < sizeof(struct elf64_phdr)");
     }
@@ -532,6 +545,35 @@ end_of_pt_segment:
         }
     }
 
+
+    st->relocs = relocs;
+    st->relocs_i = relocs_i;
+    st->relr_count = relr_count;
+    st->symtab_offset = symtab_offset;
+    st->symtab_ent = symtab_ent;
+    st->symtab_size = symtab_size;
+    st->strtab_offset = strtab_offset;
+    st->strtab_size = strtab_size;
+
+    return true;
+}
+
+static void elf64_free_relocations(struct elf64_reloc_state *st) {
+    for (size_t i = 0; i < st->relr_count; i++) {
+        pmm_free(st->relocs[i], sizeof(struct elf64_rela));
+    }
+    pmm_free(st->relocs, st->relocs_i * sizeof(struct elf64_rela *));
+}
+
+static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t *elf, void *buffer, uint64_t vaddr, size_t size, uint64_t slide) {
+    struct elf64_rela **relocs = st->relocs;
+    size_t relocs_i = st->relocs_i;
+    uint64_t symtab_offset = st->symtab_offset;
+    uint64_t symtab_ent = st->symtab_ent;
+    uint64_t symtab_size = st->symtab_size;
+    uint64_t strtab_offset = st->strtab_offset;
+    uint64_t strtab_size = st->strtab_size;
+
     for (size_t i = 0; i < relocs_i; i++) {
         struct elf64_rela *relocation = relocs[i];
 
@@ -671,10 +713,6 @@ end_of_pt_segment:
         }
     }
 
-    for (size_t i = 0; i < relr_count; i++) {
-        pmm_free(relocs[i], sizeof(struct elf64_rela));
-    }
-    pmm_free(relocs, relocs_i * sizeof(struct elf64_rela *));
 
     return true;
 }
@@ -741,7 +779,14 @@ bool elf64_load_section(uint8_t *elf, size_t file_size, void *buffer, const char
                 return false;
             }
             memcpy(buffer, elf + section->sh_offset, section->sh_size);
-            return elf64_apply_relocations(elf, file_size, hdr, buffer, section->sh_addr, section->sh_size, slide);
+            struct elf64_reloc_state st;
+            if (!elf64_prepare_relocations(elf, file_size, hdr, &st)) {
+                return false;
+            }
+
+            bool ok = elf64_apply_relocations(&st, elf, buffer, section->sh_addr, section->sh_size, slide);
+            elf64_free_relocations(&st);
+            return ok;
         }
     }
 
@@ -991,6 +1036,11 @@ again:
 
     uint64_t bss_size = 0;
 
+    struct elf64_reloc_state reloc_state;
+    if (!elf64_prepare_relocations(elf, file_size, hdr, &reloc_state)) {
+        panic(true, "elf: Failed to apply relocations");
+    }
+
     for (uint16_t i = 0; i < hdr->ph_num; i++) {
         struct elf64_phdr *phdr = (void *)elf + (hdr->phoff + i * hdr->phdr_size);
 
@@ -1029,7 +1079,7 @@ again:
             bss_size = phdr->p_memsz - phdr->p_filesz;
         }
 
-        if (!elf64_apply_relocations(elf, file_size, hdr, (void *)(uintptr_t)load_addr, phdr->p_vaddr, phdr->p_memsz, slide)) {
+        if (!elf64_apply_relocations(&reloc_state, elf, (void *)(uintptr_t)load_addr, phdr->p_vaddr, phdr->p_memsz, slide)) {
             panic(true, "elf: Failed to apply relocations");
         }
 
@@ -1038,6 +1088,8 @@ again:
         inval_icache_pou(mem_base, mem_base + mem_size);
 #endif
     }
+
+    elf64_free_relocations(&reloc_state);
 
     if (_image_size_before_bss != NULL) {
         *_image_size_before_bss = image_size - bss_size;
