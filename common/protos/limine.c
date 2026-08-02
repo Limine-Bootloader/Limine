@@ -963,6 +963,15 @@ FEAT_START
 FEAT_END
 
     if (!paging_mode_set) {
+        // The per-architecture default above does not consult the supported
+        // range, which both the config and the HHDM span can narrow.
+        if (paging_mode > max_supported_paging_mode) {
+            paging_mode = max_supported_paging_mode;
+        }
+        if (paging_mode < min_supported_paging_mode) {
+            paging_mode = min_supported_paging_mode;
+        }
+
         set_paging_mode(randomise_hhdm_base);
     }
 
