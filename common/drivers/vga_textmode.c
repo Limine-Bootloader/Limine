@@ -54,7 +54,7 @@ static void text_scroll(struct flanterm_context *_ctx) {
 static void text_revscroll(struct flanterm_context *_ctx) {
     struct textmode_context *ctx = (void *)_ctx;
 
-    // move the text up by one row
+    // move the text down by one row
     for (size_t i = (_ctx->scroll_bottom_margin - 1) * VD_COLS;
          i > _ctx->scroll_top_margin * VD_COLS; ) {
         i--;
