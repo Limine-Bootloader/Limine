@@ -18,8 +18,13 @@ SECTIONS
     .text.stage2 : {
         *(.entry)
         *(.realmode)
+        __realmode_end = .;
         *.s2.o(.text .text.*)
     } :text_s2
+
+    /* The trampolines are entered through segment 0, so every byte of them has
+       to stay addressable by a 16-bit offset. */
+    ASSERT(__realmode_end <= 0x10000, "real mode code crosses the segment 0 limit")
 
     .rodata.stage2 : {
         *.s2.o(.rodata .rodata.*)
