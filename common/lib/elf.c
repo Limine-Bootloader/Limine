@@ -1062,7 +1062,6 @@ again:
 
         uint64_t load_addr = *physical_base + (phdr->p_vaddr - *virtual_base);
 
-#if defined (__aarch64__)
         uint64_t this_top = CHECKED_ADD(load_addr, phdr->p_memsz,
             panic(true, "elf: load_addr + p_memsz overflow"));
 
@@ -1071,7 +1070,6 @@ again:
         uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
         mem_base = load_addr & ~(align - 1);
         mem_size = this_top - mem_base;
-#endif
 
         memcpy((void *)(uintptr_t)load_addr, elf + (phdr->p_offset), phdr->p_filesz);
 
@@ -1083,10 +1081,7 @@ again:
             panic(true, "elf: Failed to apply relocations");
         }
 
-#if defined (__aarch64__)
-        clean_dcache_poc(mem_base, mem_base + mem_size);
-        inval_icache_pou(mem_base, mem_base + mem_size);
-#endif
+        sync_icache_range(mem_base, mem_base + mem_size);
     }
 
     elf64_free_relocations(&reloc_state);

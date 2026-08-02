@@ -470,10 +470,7 @@ again:
         }
     }
 
-#if defined (__aarch64__)
-    clean_dcache_poc((uintptr_t)*physical_base, (uintptr_t)*physical_base + image_size);
-    inval_icache_pou((uintptr_t)*physical_base, (uintptr_t)*physical_base + image_size);
-#endif
+    sync_icache_range((uintptr_t)*physical_base, (uintptr_t)*physical_base + image_size);
 
     if (image_size_before_bss) {
         *image_size_before_bss = image_size;
