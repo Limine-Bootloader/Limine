@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <lib/misc.h>
+#include <sys/cpu.h>
 #include <lib/libc.h>
 #include <lib/pe.h>
 #include <lib/print.h>
@@ -437,6 +438,11 @@ again:
             reloc_block_offset += block->SizeOfBlock;
         }
     }
+
+#if defined (__aarch64__)
+    clean_dcache_poc((uintptr_t)*physical_base, (uintptr_t)*physical_base + image_size);
+    inval_icache_pou((uintptr_t)*physical_base, (uintptr_t)*physical_base + image_size);
+#endif
 
     if (image_size_before_bss) {
         *image_size_before_bss = image_size;
