@@ -73,6 +73,18 @@ typedef struct {
     void *top_level[2];
 } pagemap_t;
 
+static inline uint64_t make_ttbr(pagemap_t pagemap, int half) {
+    uint64_t addr = (uint64_t)(uintptr_t)pagemap.top_level[half];
+
+    if (pagemap.levels == 5) {
+        // TCR_EL1.DS shrinks TTBRn_EL1's BADDR field to bits 47:1 and puts
+        // bits 51:48 of the table address in TTBRn_EL1[5:2].
+        return (addr & 0x0000ffffffffffff) | (((addr >> 48) & 0xf) << 2);
+    }
+
+    return addr;
+}
+
 enum page_size {
     Size4KiB,
     Size2MiB,
@@ -80,6 +92,7 @@ enum page_size {
 };
 
 void vmm_assert_4k_pages(void);
+int vmm_max_paging_mode(void);
 pagemap_t new_pagemap(int lv);
 void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size page_size);
 

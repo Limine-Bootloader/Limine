@@ -327,7 +327,9 @@ extern symbol limine_spinup_32;
 #define LIMINE_MAIR(fb) ( ((uint64_t)0b11111111 << 0) /* Normal WB RW-allocate non-transient */ \
                         | ((uint64_t)(fb) << 8) )     /* Framebuffer type */
 
-#define LIMINE_TCR(tsz, pa) ( ((uint64_t)(pa) << 32)         /* Intermediate address size */  \
+#define LIMINE_TCR(tsz, pa, ds)                                                               \
+                            ( ((uint64_t)(ds) << 59)         /* 52-bit addressing (DS) */     \
+                            | ((uint64_t)(pa) << 32)         /* Intermediate address size */  \
                             | ((uint64_t)2 << 30)            /* TTBR1 4K granule */           \
                             | ((uint64_t)3 << 28)            /* TTBR1 Inner shareable */      \
                             | ((uint64_t)1 << 26)            /* TTBR1 Outer WB RW-Allocate */ \
@@ -746,12 +748,17 @@ noreturn void limine_load(char *config, char *cmdline) {
         goto hhdm_fail;
     }
 #elif defined (__aarch64__)
-    max_supported_paging_mode = PAGING_MODE_AARCH64_4LVL;
+    max_supported_paging_mode = vmm_max_paging_mode();
     min_supported_paging_mode = PAGING_MODE_AARCH64_4LVL;
+    if (hhdm_span_top >= (uint64_t)1 << (paging_mode_va_bits(min_supported_paging_mode) - 2)) {
+        min_supported_paging_mode = PAGING_MODE_AARCH64_5LVL;
+        if (min_supported_paging_mode > max_supported_paging_mode) {
+            goto hhdm_fail;
+        }
+    }
     if (hhdm_span_top >= (uint64_t)1 << (paging_mode_va_bits(min_supported_paging_mode) - 2)) {
         goto hhdm_fail;
     }
-    // TODO(qookie): aarch64 also has optional 5 level paging when using 4K pages
 #elif defined (__riscv)
     max_supported_paging_mode = vmm_max_paging_mode();
     min_supported_paging_mode = PAGING_MODE_RISCV_SV39;
@@ -982,6 +989,9 @@ FEAT_END
     uint64_t pa = aa64mmfr0 & 0xF;
 
     uint64_t tsz = 64 - (paging_mode_va_bits(paging_mode) - 1);
+
+    // A 52-bit VA needs a TxSZ of 12, which is only in range under TCR_EL1.DS.
+    uint64_t ds = paging_mode == PAGING_MODE_AARCH64_5LVL;
 #endif
 
     struct limine_file *kf = ext_mem_alloc(sizeof(struct limine_file));
@@ -1815,7 +1825,7 @@ FEAT_START
     uint64_t bsp_mpidr;
 
     mp_info = init_smp(config, &cpu_count, &bsp_mpidr,
-                        pagemap, LIMINE_MAIR(fb_attr), LIMINE_TCR(tsz, pa), LIMINE_SCTLR,
+                        pagemap, LIMINE_MAIR(fb_attr), LIMINE_TCR(tsz, pa, ds), LIMINE_SCTLR,
                         direct_map_offset);
 #elif defined (__riscv)
     mp_info = init_smp(&cpu_count, pagemap, direct_map_offset);
@@ -2026,14 +2036,14 @@ FEAT_END
     uint64_t reported_stack = reported_addr(stack);
 
     if (want_el2) {
-        enter_in_el2(entry_point, reported_stack, LIMINE_SCTLR, LIMINE_MAIR(fb_attr), LIMINE_TCR(tsz, pa),
-                     (uint64_t)pagemap.top_level[0],
-                     (uint64_t)pagemap.top_level[1],
+        enter_in_el2(entry_point, reported_stack, LIMINE_SCTLR, LIMINE_MAIR(fb_attr), LIMINE_TCR(tsz, pa, ds),
+                     make_ttbr(pagemap, 0),
+                     make_ttbr(pagemap, 1),
                      direct_map_offset);
     } else {
-        enter_in_el1(entry_point, reported_stack, LIMINE_SCTLR, LIMINE_MAIR(fb_attr), LIMINE_TCR(tsz, pa),
-                     (uint64_t)pagemap.top_level[0],
-                     (uint64_t)pagemap.top_level[1],
+        enter_in_el1(entry_point, reported_stack, LIMINE_SCTLR, LIMINE_MAIR(fb_attr), LIMINE_TCR(tsz, pa, ds),
+                     make_ttbr(pagemap, 0),
+                     make_ttbr(pagemap, 1),
                      direct_map_offset);
     }
 #elif defined (__riscv)

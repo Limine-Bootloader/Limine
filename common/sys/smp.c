@@ -573,8 +573,8 @@ static struct limine_mp_info *try_acpi_smp(size_t   *cpu_count,
 
                 // Try to start the AP
                 if (!try_start_ap(boot_method, gicc->parking_addr, info_struct,
-                                  (uint64_t)(uintptr_t)pagemap.top_level[0],
-                                  (uint64_t)(uintptr_t)pagemap.top_level[1],
+                                  make_ttbr(pagemap, 0),
+                                  make_ttbr(pagemap, 1),
                                   mair, tcr, sctlr, hhdm_offset)) {
                     print("smp: FAILED to bring-up AP\n");
                     continue;
@@ -766,8 +766,8 @@ static struct limine_mp_info *try_dtb_smp( void *dtb,
 
         // Try to start the AP
         if (!try_start_ap(boot_method, method_ptr, info_struct,
-                                        (uint64_t)(uintptr_t)pagemap.top_level[0],
-                                        (uint64_t)(uintptr_t)pagemap.top_level[1],
+                                        make_ttbr(pagemap, 0),
+                                        make_ttbr(pagemap, 1),
                                         mair, tcr, sctlr, hhdm_offset)) {
             print("smp: FAILED to bring-up AP\n");
             continue;

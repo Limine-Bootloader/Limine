@@ -192,14 +192,43 @@ void vmm_assert_4k_pages(void) {
 #define PT_FLAG_FB       ((uint64_t)1 << 2)
 #define PT_PADDR_MASK    ((uint64_t)0x0000FFFFFFFFF000)
 
+// TCR_EL1.DS widens the descriptor's address field to bits 49:12 and moves
+// bits 51:50 of the output address into the field bits 9:8 otherwise hold.
+#define PT_PADDR_MASK_DS ((uint64_t)0x0003FFFFFFFFF000)
+#define PT_OA_HIGH_MASK  ((uint64_t)3 << 8)
+#define PT_OA_HIGH_SHIFT 42
+
 #define PT_TABLE_FLAGS   (PT_FLAG_VALID | PT_FLAG_TABLE)
 
 #define PT_IS_TABLE(x) (((x) & (PT_FLAG_VALID | PT_FLAG_TABLE)) == (PT_FLAG_VALID | PT_FLAG_TABLE))
 #define PT_IS_LARGE(x) (((x) & (PT_FLAG_VALID | PT_FLAG_TABLE)) == PT_FLAG_VALID)
 #define PT_TO_VMM_FLAGS(x) (pt_to_vmm_flags_internal(x))
 
-#define pte_new(addr, flags)    ((pt_entry_t)(addr) | (flags))
-#define pte_addr(pte)           ((pte) & PT_PADDR_MASK)
+#define pte_new(addr, flags)    (pte_new_internal(addr, flags))
+#define pte_addr(pte)           (pte_addr_internal(pte))
+
+// Set for as long as the pagemap being built is a TCR_EL1.DS one. The
+// descriptor encoding depends on it, and neither accessor is handed a pagemap.
+static bool ds_encoding = false;
+
+static inline pt_entry_t pte_new_internal(uint64_t addr, uint64_t flags) {
+    if (ds_encoding) {
+        return (pt_entry_t)((addr & PT_PADDR_MASK_DS)
+                            | ((addr >> PT_OA_HIGH_SHIFT) & PT_OA_HIGH_MASK)
+                            | flags);
+    }
+
+    return (pt_entry_t)((addr & PT_PADDR_MASK) | flags);
+}
+
+static inline uint64_t pte_addr_internal(pt_entry_t pte) {
+    if (ds_encoding) {
+        return (pte & PT_PADDR_MASK_DS)
+               | ((pte & PT_OA_HIGH_MASK) << PT_OA_HIGH_SHIFT);
+    }
+
+    return pte & PT_PADDR_MASK;
+}
 
 static uint64_t pt_to_vmm_flags_internal(pt_entry_t entry) {
     uint64_t flags = 0;
@@ -214,8 +243,24 @@ static uint64_t pt_to_vmm_flags_internal(pt_entry_t entry) {
     return flags;
 }
 
+int vmm_max_paging_mode(void) {
+    uint64_t aa64mmfr0;
+    asm volatile ("mrs %0, id_aa64mmfr0_el1" : "=r"(aa64mmfr0));
+
+    // TGran4 reports 4K granule support: 0b0001 is 4K with 52-bit addressing
+    // (FEAT_LPA2), which is what a 52-bit VA needs, and 0b0000 is plain 4K.
+    if (((aa64mmfr0 >> 28) & 0b1111) == 0b0001) {
+        return PAGING_MODE_AARCH64_5LVL;
+    }
+
+    return PAGING_MODE_AARCH64_4LVL;
+}
+
 pagemap_t new_pagemap(int paging_mode) {
     pagemap_t pagemap;
+
+    ds_encoding = paging_mode == PAGING_MODE_AARCH64_5LVL;
+
     pagemap.levels       = paging_mode == PAGING_MODE_AARCH64_5LVL ? 5 : 4;
     pagemap.top_level[0] = ext_mem_alloc(PT_SIZE);
     pagemap.top_level[1] = ext_mem_alloc(PT_SIZE);
@@ -234,7 +279,12 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 
     bool is_higher_half = virt_addr & ((uint64_t)1 << 63);
 
-    uint64_t real_flags = PT_FLAG_VALID | PT_FLAG_INNER_SH | PT_FLAG_ACCESS | PT_FLAG_WB;
+    uint64_t real_flags = PT_FLAG_VALID | PT_FLAG_ACCESS | PT_FLAG_WB;
+    if (!ds_encoding) {
+        // Under DS these bits are OA[51:50]; shareability comes from TCR_EL1
+        // instead, which LIMINE_TCR already sets to inner shareable.
+        real_flags |= PT_FLAG_INNER_SH;
+    }
     if (!(flags & VMM_FLAG_WRITE))
         real_flags |= PT_FLAG_READONLY;
     if (flags & VMM_FLAG_NOEXEC)
@@ -260,20 +310,20 @@ level4:
     pml3 = get_next_level(pagemap, pml4, virt_addr, pg_size, 3, pml4_entry);
 
     if (pg_size == Size1GiB) {
-        pml3[pml3_entry] = (pt_entry_t)(phys_addr | real_flags | PT_FLAG_BLOCK);
+        pml3[pml3_entry] = pte_new(phys_addr, real_flags | PT_FLAG_BLOCK);
         return;
     }
 
     pml2 = get_next_level(pagemap, pml3, virt_addr, pg_size, 2, pml3_entry);
 
     if (pg_size == Size2MiB) {
-        pml2[pml2_entry] = (pt_entry_t)(phys_addr | real_flags | PT_FLAG_BLOCK);
+        pml2[pml2_entry] = pte_new(phys_addr, real_flags | PT_FLAG_BLOCK);
         return;
     }
 
     pml1 = get_next_level(pagemap, pml2, virt_addr, pg_size, 1, pml2_entry);
 
-    pml1[pml1_entry] = (pt_entry_t)(phys_addr | real_flags | PT_FLAG_4K_PAGE);
+    pml1[pml1_entry] = pte_new(phys_addr, real_flags | PT_FLAG_4K_PAGE);
 }
 
 #elif defined (__riscv)
