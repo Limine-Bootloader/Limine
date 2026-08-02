@@ -499,8 +499,8 @@ static struct limine_mp_info *try_acpi_smp(size_t   *cpu_count,
     uint64_t bsp_mpidr;
     asm volatile ("mrs %0, mpidr_el1" : "=r"(bsp_mpidr));
 
-    // This bit is Res1 in the system reg, but not included in the MPIDR from MADT
-    bsp_mpidr &= ~((uint64_t)1 << 31);
+    // The MADT carries the affinity fields alone, so Res1, U and MT must go.
+    bsp_mpidr &= (uint64_t)0xff00ffffff;
 
     *_bsp_mpidr = bsp_mpidr;
 
@@ -607,8 +607,8 @@ static struct limine_mp_info *try_dtb_smp( void *dtb,
     uint64_t bsp_mpidr;
     asm volatile ("mrs %0, mpidr_el1" : "=r"(bsp_mpidr));
 
-    // This bit is Res1 in the system reg, but not included in the MPIDR from DT
-    bsp_mpidr &= ~((uint64_t)1 << 31);
+    // The device tree carries the affinity fields alone, so Res1, U and MT must go.
+    bsp_mpidr &= (uint64_t)0xff00ffffff;
 
     *_bsp_mpidr = bsp_mpidr;
 
