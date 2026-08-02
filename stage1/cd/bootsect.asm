@@ -25,7 +25,7 @@ skip_bpb:
     mov ds, si
     mov es, si
     mov ss, si
-    mov sp, 0x7c00
+    mov esp, 0x7c00
     sti
 
     ; int 13h?
