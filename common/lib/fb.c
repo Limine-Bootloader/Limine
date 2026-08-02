@@ -158,9 +158,89 @@ static void fb_flush_riscv_nozicbom(volatile void *base, size_t length) {
     asm volatile ("fence rw, rw" ::: "memory");
 }
 #elif defined (__loongarch64)
+// cacop's code[2:0] names a cache in the order CPUCFG 0x10 lists them, one leaf
+// per present bit (manual section 4.2.3.1), so the numbering is a property of
+// the part rather than of the architecture.
+#define LOONGARCH_CACHE_CFG 0x10
+#define LOONGARCH_L1_IU_PRESENT ((uint32_t)1 << 0)
+#define LOONGARCH_L1_IU_UNIFY ((uint32_t)1 << 1)
+#define LOONGARCH_L1_D_PRESENT ((uint32_t)1 << 2)
+// Levels two and up repeat one layout every seven bits from bit 3.
+#define LOONGARCH_LX_FIRST_BIT 3
+#define LOONGARCH_LX_BITS 7
+#define LOONGARCH_LX_IU_PRESENT ((uint32_t)1 << 0)
+#define LOONGARCH_LX_IU_UNIFY ((uint32_t)1 << 1)
+#define LOONGARCH_LX_IU_INCLUSIVE ((uint32_t)1 << 3)
+#define LOONGARCH_LX_D_PRESENT ((uint32_t)1 << 4)
+#define LOONGARCH_LX_D_INCLUSIVE ((uint32_t)1 << 6)
+#define LOONGARCH_MAX_LEAVES 6
+
+// Where a writeback lands is decided by the inclusion relations between levels,
+// so maintaining one leaf does not reach memory by itself. An instruction cache
+// holds no data and is never written back, and a leaf that contains every level
+// below it makes maintaining those levels redundant.
+static uint32_t loongarch_writeback_leaves(void) {
+    uint32_t cfg = loongarch_cpucfg(LOONGARCH_CACHE_CFG);
+    uint32_t mask = 0;
+    unsigned leaf = 0;
+    unsigned outermost = 0;
+    bool outermost_inclusive = false;
+
+    if (cfg & LOONGARCH_L1_IU_PRESENT) {
+        if (cfg & LOONGARCH_L1_IU_UNIFY) {
+            mask |= (uint32_t)1 << leaf;
+            outermost = leaf;
+        }
+        leaf++;
+    }
+
+    if (cfg & LOONGARCH_L1_D_PRESENT) {
+        mask |= (uint32_t)1 << leaf;
+        outermost = leaf;
+        leaf++;
+    }
+
+    for (uint32_t lx = cfg >> LOONGARCH_LX_FIRST_BIT;
+         lx != 0 && leaf < LOONGARCH_MAX_LEAVES; lx >>= LOONGARCH_LX_BITS) {
+        if (lx & LOONGARCH_LX_IU_PRESENT) {
+            if (lx & LOONGARCH_LX_IU_UNIFY) {
+                mask |= (uint32_t)1 << leaf;
+                outermost = leaf;
+                outermost_inclusive = (lx & LOONGARCH_LX_IU_INCLUSIVE) != 0;
+            }
+            leaf++;
+        }
+
+        if ((lx & LOONGARCH_LX_D_PRESENT) && leaf < LOONGARCH_MAX_LEAVES) {
+            mask |= (uint32_t)1 << leaf;
+            outermost = leaf;
+            outermost_inclusive = (lx & LOONGARCH_LX_D_INCLUSIVE) != 0;
+            leaf++;
+        }
+    }
+
+    if (outermost_inclusive) {
+        return (uint32_t)1 << outermost;
+    }
+
+    return mask;
+}
+
+// cacop takes the cache as an immediate, so each leaf needs its own loop.
+#define LOONGARCH_WRITEBACK(code) \
+    for (uintptr_t ptr = start; ptr < end; ptr += clsz) { \
+        asm volatile ("cacop " code ", %0, 0" :: "r"(ptr) : "memory"); \
+    }
+
 static void fb_flush_loongarch64(volatile void *base, size_t length) {
-    // cacop code[4:3]=2 is hit writeback+invalidate, code[2:0] selects the cache
-    // in CPUCFG10 order: leaf 0 is the L1 I-cache, leaf 1 the L1 D-cache.
+    static uint32_t leaves = 0;
+    static bool probed = false;
+
+    if (!probed) {
+        leaves = loongarch_writeback_leaves();
+        probed = true;
+    }
+
     const size_t clsz = 64;
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, clsz);
     uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), clsz, return);
@@ -168,9 +248,43 @@ static void fb_flush_loongarch64(volatile void *base, size_t length) {
     // Hit-mode cacop probes the cache like a load and acts only on a hit, and the
     // manual gives no ordering between it and prior stores, so drain them first.
     asm volatile ("dbar 0" ::: "memory");
-    for (uintptr_t ptr = start; ptr < end; ptr += clsz) {
-        asm volatile ("cacop 0x11, %0, 0" :: "r"(ptr) : "memory");
+
+    for (unsigned leaf = 0; leaf < LOONGARCH_MAX_LEAVES; leaf++) {
+        if (!(leaves & ((uint32_t)1 << leaf))) {
+            continue;
+        }
+
+        switch (leaf) {
+            case 0: {
+                LOONGARCH_WRITEBACK("0x10");
+                break;
+            }
+            case 1: {
+                LOONGARCH_WRITEBACK("0x11");
+                break;
+            }
+            case 2: {
+                LOONGARCH_WRITEBACK("0x12");
+                break;
+            }
+            case 3: {
+                LOONGARCH_WRITEBACK("0x13");
+                break;
+            }
+            case 4: {
+                LOONGARCH_WRITEBACK("0x14");
+                break;
+            }
+            case 5: {
+                LOONGARCH_WRITEBACK("0x15");
+                break;
+            }
+            default: {
+                break;
+            }
+        }
     }
+
     asm volatile ("dbar 0" ::: "memory");
 }
 #endif
