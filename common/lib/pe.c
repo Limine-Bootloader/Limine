@@ -335,6 +335,8 @@ again:
         }
     }
 
+    uint64_t prev_section_top = 0;
+
     for (size_t i = 0; i < nt_hdrs->FileHeader.NumberOfSections; i++) {
         IMAGE_SECTION_HEADER *section = &sections[i];
 
@@ -351,6 +353,14 @@ again:
         if ((uint64_t)section->VirtualAddress + section->VirtualSize > image_size) {
             panic(true, "pe: Section %U virtual size exceeds image bounds", (uint64_t)i);
         }
+
+        // The PE specification has section VAs ascending and adjacent, so one
+        // starting below the previous top would overwrite it once copied.
+        if ((uint64_t)section->VirtualAddress < prev_section_top) {
+            panic(true, "pe: Section %U overlaps or is out of order", (uint64_t)i);
+        }
+
+        prev_section_top = (uint64_t)section->VirtualAddress + section->VirtualSize;
 
         if (section->VirtualAddress % alignment != 0) {
             panic(true, "pe: Section %U is not aligned to SectionAlignment", (uint64_t)i);
