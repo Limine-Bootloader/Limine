@@ -462,6 +462,8 @@ noreturn static void jump_to_kernel(struct boot_param *p) {
     void (*kernel_entry)(uint64_t efi_boot, uint64_t cmdline, uint64_t st);
     kernel_entry = p->kernel_base + (TO_PHYS(header->kernel_entry) - header->load_offset);
 
+    sync_icache_range((uintptr_t)p->kernel_base, (uintptr_t)p->kernel_base + p->kernel_size);
+
     asm volatile ("csrxchg $r0, %0, 0x0" :: "r" (0x4) : "memory");
     asm volatile ("csrwr   %0,  0x180"   :: "r" (CSR_DMW0_INIT) : "memory");
     asm volatile ("csrwr   %0,  0x181"   :: "r" (CSR_DMW1_INIT) : "memory");
