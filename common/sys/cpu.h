@@ -394,6 +394,7 @@ struct riscv_hart {
     const char *isa_string;
     size_t hartid;
     uint32_t acpi_uid;
+    uint32_t cbom_block_size;
     uint8_t mmu_type;
     uint8_t flags;
 };
@@ -405,6 +406,8 @@ extern struct riscv_hart *hart_list;
 extern struct riscv_hart *bsp_hart;
 
 bool riscv_check_isa_extension_for(size_t hartid, const char *ext, size_t *maj, size_t *min);
+
+size_t riscv_cbom_block_size(void);
 
 static inline bool riscv_check_isa_extension(const char *ext, size_t *maj, size_t *min) {
     return riscv_check_isa_extension_for(bsp_hartid, ext, maj, min);
