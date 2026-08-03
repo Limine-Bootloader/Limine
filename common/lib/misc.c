@@ -477,24 +477,8 @@ bool efi_exit_boot_services(void) {
                 continue;
 
             if (top > untouched_memmap[j].base && top <= untouched_memmap[j].base + untouched_memmap[j].length) {
-                if (untouched_memmap[j].base < base) {
-                    new_entry->NumberOfPages = (base - untouched_memmap[j].base) / 4096;
-
-                    efi_copy_i++;
-                    if (efi_copy_i == EFI_COPY_MAX_ENTRIES) {
-                        panic(false, "efi: New memory map exhausted");
-                    }
-                    new_entry = (void *)efi_copy + efi_copy_i * efi_desc_size;
-                    memcpy(new_entry, orig_entry, efi_desc_size);
-
-                    new_entry->NumberOfPages -= (base - untouched_memmap[j].base) / 4096;
-                    new_entry->PhysicalStart = base;
-                    new_entry->VirtualStart = 0;
-
-                    length = new_entry->NumberOfPages * 4096;
-                    top = base + length;
-                }
-
+                // The match caps top at the region's top, so once anything
+                // below it is split off the rest lies inside and is ours.
                 if (untouched_memmap[j].base > base) {
                     new_entry->NumberOfPages = (untouched_memmap[j].base - base) / 4096;
 
@@ -508,36 +492,9 @@ bool efi_exit_boot_services(void) {
                     new_entry->NumberOfPages -= (untouched_memmap[j].base - base) / 4096;
                     new_entry->PhysicalStart = untouched_memmap[j].base;
                     new_entry->VirtualStart = 0;
-
-                    base = new_entry->PhysicalStart;
-                    length = new_entry->NumberOfPages * 4096;
-                    top = base + length;
-                }
-
-                if (length < untouched_memmap[j].length) {
-                    panic(false, "efi: Memory map corruption");
                 }
 
                 new_entry->Type = EfiConventionalMemory;
-
-                if (length == untouched_memmap[j].length) {
-                    // It's a perfect match!
-                    break;
-                }
-
-                new_entry->NumberOfPages = untouched_memmap[j].length / 4096;
-
-                efi_copy_i++;
-                if (efi_copy_i == EFI_COPY_MAX_ENTRIES) {
-                    panic(false, "efi: New memory map exhausted");
-                }
-                new_entry = (void *)efi_copy + efi_copy_i * efi_desc_size;
-                memcpy(new_entry, orig_entry, efi_desc_size);
-
-                new_entry->NumberOfPages = (length - untouched_memmap[j].length) / 4096;
-                new_entry->PhysicalStart = base + untouched_memmap[j].length;
-                new_entry->VirtualStart = 0;
-
                 break;
             }
         }
