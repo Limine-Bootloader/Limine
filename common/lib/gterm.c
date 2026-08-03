@@ -904,7 +904,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
         term->rows = min_rows;
 
         flanterm_context_reinit(term);
-        flanterm_fb_set_flush_callback(term, (void *)fb_flush);
+        flanterm_fb_set_flush_callback(term, fb_flush_cb);
     }
 
     term_backend = GTERM;
