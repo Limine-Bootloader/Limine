@@ -58,6 +58,18 @@ struct rhct_mmu {
     uint8_t mmu_type;
 } __attribute__((packed));
 
+// The block size fields hold the base-2 logarithm of the size in bytes, and
+// zero where the platform does not report one.
+struct rhct_cmo {
+    struct rhct_header header;
+    uint8_t reserved0;
+    uint8_t cbom_block_size;
+    uint8_t cbop_block_size;
+    uint8_t cboz_block_size;
+} __attribute__((packed));
+
+#define RHCT_CMO_BLOCK_SIZE_MAX_LOG2 12
+
 void *riscv_fdt = NULL;
 
 size_t bsp_hartid;
@@ -149,6 +161,7 @@ static void init_riscv_acpi(void) {
         const char *isa_string = NULL;
         uint8_t mmu_type = 0;
         uint8_t flags = 0;
+        uint32_t cbom_block_size = 0;
 
         for (uint32_t i = 0; i < hart_info->offsets_len; i++) {
             uint32_t node_offset = hart_info->offsets[i];
@@ -173,6 +186,15 @@ static void init_riscv_acpi(void) {
                         isa_node->isa_string[isa_node->isa_string_len - 1] != '\0')
                         break;
                     isa_string = isa_node->isa_string;
+                    break;
+                }
+                case RHCT_CMO: {
+                    if (node->size < sizeof(struct rhct_cmo))
+                        break;
+                    uint8_t log2_size = ((struct rhct_cmo *)node)->cbom_block_size;
+                    if (log2_size == 0 || log2_size > RHCT_CMO_BLOCK_SIZE_MAX_LOG2)
+                        break;
+                    cbom_block_size = (uint32_t)1 << log2_size;
                     break;
                 }
                 case RHCT_MMU:
@@ -202,7 +224,7 @@ static void init_riscv_acpi(void) {
         hart->hartid = hartid;
         hart->acpi_uid = acpi_uid;
         hart->isa_string = isa_string;
-        hart->cbom_block_size = 0;
+        hart->cbom_block_size = cbom_block_size;
         hart->mmu_type = mmu_type;
         hart->flags = flags;
 
