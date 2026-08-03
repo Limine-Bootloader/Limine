@@ -702,6 +702,7 @@ struct file_handle *fat32_open(struct volume *part, const char *path) {
             uint64_t block_size = (uint64_t)context.sectors_per_cluster * (uint64_t)context.bytes_per_sector;
 
             if (ret->size_bytes > (uint64_t)ret->chain_len * block_size) {
+                pmm_free(ret->cluster_chain, ret->chain_len * sizeof(uint32_t));
                 pmm_free(ret, sizeof(struct fat32_file_handle));
                 pmm_free(handle, sizeof(struct file_handle));
                 return NULL;
