@@ -140,29 +140,6 @@ static bool fb_flush_riscv(volatile void *base, size_t length) {
     return true;
 }
 
-static bool fb_flush_riscv_nozicbom(volatile void *base, size_t length) {
-    (void)base;
-    (void)length;
-
-    // Without Zicbom, there is no portable instruction to flush dirty cache lines.
-    // Read through a dedicated eviction buffer to create cache pressure and displace
-    // dirty framebuffer lines. 128 KB covers typical RISC-V L1 D-caches (32-64 KB).
-    static volatile uint8_t *eviction_buf = NULL;
-    #define EVICTION_BUF_SIZE (128 * 1024)
-    if (eviction_buf == NULL) {
-        eviction_buf = ext_mem_alloc(EVICTION_BUF_SIZE);
-    }
-
-    volatile uint64_t *p = (volatile uint64_t *)eviction_buf;
-    for (size_t i = 0; i < EVICTION_BUF_SIZE / sizeof(uint64_t); i += (64 / sizeof(uint64_t))) {
-        (void)p[i];
-    }
-    asm volatile ("fence rw, rw" ::: "memory");
-
-    // Pressure evicts into the next cache level, not to memory, so a write-back
-    // cache larger than the buffer keeps the lines this was meant to push out.
-    return false;
-}
 #elif defined (__loongarch64)
 // cacop's code[2:0] names a cache in the order CPUCFG 0x10 lists them, one leaf
 // per present bit (manual section 4.2.3.1), so the numbering is a property of
@@ -296,6 +273,20 @@ static bool fb_flush_loongarch64(volatile void *base, size_t length) {
 }
 #endif
 
+bool fb_flush_reliable(void) {
+    static bool probed = false;
+    static bool reliable = true;
+
+    if (!probed) {
+#if defined (__riscv)
+        reliable = riscv_check_isa_extension("zicbom", NULL, NULL);
+#endif
+        probed = true;
+    }
+
+    return reliable;
+}
+
 bool fb_flush(volatile void *base, size_t length) {
     typedef bool (*flush_fn)(volatile void *, size_t);
     static flush_fn fn = NULL;
@@ -306,8 +297,6 @@ bool fb_flush(volatile void *base, size_t length) {
 #elif defined (__riscv)
         if (riscv_check_isa_extension("zicbom", NULL, NULL)) {
             fn = fb_flush_riscv;
-        } else {
-            fn = fb_flush_riscv_nozicbom;
         }
 #elif defined (__loongarch64)
         fn = fb_flush_loongarch64;
@@ -318,8 +307,8 @@ bool fb_flush(volatile void *base, size_t length) {
         return fn(base, length);
     }
 
-    // Architectures without a callback keep the framebuffer coherent with stores.
-    return true;
+    // Coherent by construction, or with no way to get there.
+    return fb_flush_reliable();
 }
 
 void fb_flush_cb(volatile void *base, size_t length) {
