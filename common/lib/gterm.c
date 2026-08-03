@@ -797,13 +797,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
     }
 
 #if defined (UEFI)
-    if (serial || COM_OUTPUT) {
-        term_fallback();
-        return true;
-    }
-
-    // Writes that cannot be pushed out reach the panel only by chance.
-    if (!fb_flush_reliable()) {
+    if (serial || COM_OUTPUT || !fb_flush_reliable()) {
         return false;
     }
 #endif
