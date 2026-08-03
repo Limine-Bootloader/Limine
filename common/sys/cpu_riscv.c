@@ -202,6 +202,7 @@ static void init_riscv_acpi(void) {
         hart->hartid = hartid;
         hart->acpi_uid = acpi_uid;
         hart->isa_string = isa_string;
+        hart->cbom_block_size = 0;
         hart->mmu_type = mmu_type;
         hart->flags = flags;
 
@@ -263,6 +264,12 @@ static void init_riscv_fdt(const void *fdt) {
             }
         }
 
+        uint32_t cbom_block_size = 0;
+        if ((prop = fdt_getprop(fdt, node, "riscv,cbom-block-size", &prop_len))
+         && prop_len == 4) {
+            cbom_block_size = fdt32_ld(prop);
+        }
+
         const char *isa_string = fdt_getprop(fdt, node, "riscv,isa", NULL);
         if (isa_string == NULL) {
             print("riscv: missing isa string for hartid %U, skipping.\n", (uint64_t)hartid);
@@ -282,6 +289,7 @@ static void init_riscv_fdt(const void *fdt) {
         hart->hartid = hartid;
         hart->acpi_uid = 0;
         hart->isa_string = isa_string;
+        hart->cbom_block_size = cbom_block_size;
         hart->mmu_type = mmu_type;
         hart->flags = flags;
 
@@ -419,6 +427,16 @@ static bool extension_matches(const struct isa_extension *ext, const char *name)
     }
     // Make sure `name` is not longer.
     return *name == '\0';
+}
+
+size_t riscv_cbom_block_size(void) {
+    // The device tree property is optional and Zicbom leaves the block size
+    // implementation defined; 64 is what every part documented so far uses.
+    uint32_t size = riscv_get_hart(bsp_hartid)->cbom_block_size;
+    if (size == 0 || (size & (size - 1)) != 0) {
+        return 64;
+    }
+    return size;
 }
 
 bool riscv_check_isa_extension_for(size_t hartid, const char *name, size_t *maj, size_t *min) {

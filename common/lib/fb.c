@@ -129,7 +129,7 @@ static void fb_flush_aarch64(volatile void *base, size_t length) {
 #elif defined (__riscv)
 __attribute__((target("arch=+zicbom")))
 static void fb_flush_riscv(volatile void *base, size_t length) {
-    const size_t cbom_block_size = 0x40;
+    const size_t cbom_block_size = riscv_cbom_block_size();
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, cbom_block_size);
     uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), cbom_block_size, return);
     for (uintptr_t ptr = start; ptr < end; ptr += cbom_block_size) {
