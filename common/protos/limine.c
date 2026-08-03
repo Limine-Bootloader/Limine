@@ -1418,7 +1418,9 @@ FEAT_END
     struct fb_info *fbs;
     size_t fbs_count;
 
-    bool preserve_screen = have_request(LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID);
+    // A clear that cannot be flushed only partly reaches memory.
+    bool preserve_screen = have_request(LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID)
+                        || !fb_flush_reliable();
 
     term_notready();
 

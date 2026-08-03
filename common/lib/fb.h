@@ -42,11 +42,12 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
 
 void fb_clear(struct fb_info *fb);
 
-// Returns whether the writes are known to have reached memory. A false result
-// means the platform offers no mechanism that can guarantee it.
+bool fb_flush_reliable(void);
+
+// False means no mechanism exists, not that a flush was attempted and failed.
 bool fb_flush(volatile void *base, size_t length);
 
-// Same, shaped for flanterm's callback, which has no return value.
+// flanterm's callback type has no return value.
 void fb_flush_cb(volatile void *base, size_t length);
 
 #endif
