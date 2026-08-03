@@ -123,22 +123,24 @@ void fb_clear(struct fb_info *fb) {
 }
 
 #if defined (__aarch64__)
-static void fb_flush_aarch64(volatile void *base, size_t length) {
-    clean_dcache_poc((uintptr_t)base, CHECKED_ADD((uintptr_t)base, length, return));
+static bool fb_flush_aarch64(volatile void *base, size_t length) {
+    clean_dcache_poc((uintptr_t)base, CHECKED_ADD((uintptr_t)base, length, return false));
+    return true;
 }
 #elif defined (__riscv)
 __attribute__((target("arch=+zicbom")))
-static void fb_flush_riscv(volatile void *base, size_t length) {
+static bool fb_flush_riscv(volatile void *base, size_t length) {
     const size_t cbom_block_size = riscv_cbom_block_size();
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, cbom_block_size);
-    uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), cbom_block_size, return);
+    uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return false), cbom_block_size, return false);
     for (uintptr_t ptr = start; ptr < end; ptr += cbom_block_size) {
         asm volatile("cbo.flush (%0)" :: "r"(ptr) : "memory");
     }
     asm volatile ("fence rw, rw" ::: "memory");
+    return true;
 }
 
-static void fb_flush_riscv_nozicbom(volatile void *base, size_t length) {
+static bool fb_flush_riscv_nozicbom(volatile void *base, size_t length) {
     (void)base;
     (void)length;
 
@@ -156,6 +158,10 @@ static void fb_flush_riscv_nozicbom(volatile void *base, size_t length) {
         (void)p[i];
     }
     asm volatile ("fence rw, rw" ::: "memory");
+
+    // Pressure evicts into the next cache level, not to memory, so a write-back
+    // cache larger than the buffer keeps the lines this was meant to push out.
+    return false;
 }
 #elif defined (__loongarch64)
 // cacop's code[2:0] names a cache in the order CPUCFG 0x10 lists them, one leaf
@@ -232,7 +238,7 @@ static uint32_t loongarch_writeback_leaves(void) {
         asm volatile ("cacop " code ", %0, 0" :: "r"(ptr) : "memory"); \
     }
 
-static void fb_flush_loongarch64(volatile void *base, size_t length) {
+static bool fb_flush_loongarch64(volatile void *base, size_t length) {
     static uint32_t leaves = 0;
     static bool probed = false;
 
@@ -243,7 +249,7 @@ static void fb_flush_loongarch64(volatile void *base, size_t length) {
 
     const size_t clsz = 64;
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, clsz);
-    uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return), clsz, return);
+    uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return false), clsz, return false);
 
     // Hit-mode cacop probes the cache like a load and acts only on a hit, and the
     // manual gives no ordering between it and prior stores, so drain them first.
@@ -286,11 +292,12 @@ static void fb_flush_loongarch64(volatile void *base, size_t length) {
     }
 
     asm volatile ("dbar 0" ::: "memory");
+    return true;
 }
 #endif
 
-void fb_flush(volatile void *base, size_t length) {
-    typedef void (*flush_fn)(volatile void *, size_t);
+bool fb_flush(volatile void *base, size_t length) {
+    typedef bool (*flush_fn)(volatile void *, size_t);
     static flush_fn fn = NULL;
 
     if (fn == NULL) {
@@ -308,6 +315,13 @@ void fb_flush(volatile void *base, size_t length) {
     }
 
     if (fn != NULL) {
-        fn(base, length);
+        return fn(base, length);
     }
+
+    // Architectures without a callback keep the framebuffer coherent with stores.
+    return true;
+}
+
+void fb_flush_cb(volatile void *base, size_t length) {
+    (void)fb_flush(base, length);
 }
