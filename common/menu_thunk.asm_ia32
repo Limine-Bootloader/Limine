@@ -1,13 +1,27 @@
+%ifdef UEFI
+extern _GLOBAL_OFFSET_TABLE_
+%endif
+
+section .data
+
+stack_at_first_entry:
+    dq 0
+
 section .text
 
 global menu
 extern _menu
 menu:
     pop eax
-    call .L1
-.L1:
+%ifdef UEFI
+    call .get_got
+.get_got:
     pop eax
-    add eax, .L3 - .L1
+    add eax, _GLOBAL_OFFSET_TABLE_ + $$ - .get_got wrt ..gotpc
+    lea eax, [eax + stack_at_first_entry wrt ..gotoff]
+%else
+    mov eax, stack_at_first_entry
+%endif
     cmp dword [eax], 0
     jne .L2
     mov [eax], esp
@@ -17,10 +31,6 @@ menu:
     mov edi, [esp]
     mov esp, [eax]
     push edi
-    jmp .L4
-
-.L3:
-    dq 0
 
 .L4:
     push 0
