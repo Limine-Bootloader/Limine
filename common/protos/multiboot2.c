@@ -466,6 +466,13 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         ranges->target = relocated_base;
     }
 
+    // multiboot_reloc_stub reads the range fields with 32-bit loads, so a
+    // target it cannot address is truncated rather than refused.
+    if (ranges->target > 0x100000000
+     || ranges->length > 0x100000000 - ranges->target) {
+        panic(true, "multiboot2: Executable does not fit under 4GiB");
+    }
+
     if (!check_usable_memory(ranges->target, ranges->target + ranges->length)) {
 reloc_fail:
         panic(true, "multiboot2: Could not find viable load address for executable");
