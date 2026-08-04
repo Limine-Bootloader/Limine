@@ -92,8 +92,10 @@ static int32_t sa_cmp_idx(int32_t i, int32_t j) {
   int32_t ri, rj;
   if (g_sa_ctx.rank[i] != g_sa_ctx.rank[j])
     return g_sa_ctx.rank[i] - g_sa_ctx.rank[j];
-  ri = (i + (int32_t)g_sa_ctx.k < (int32_t)g_sa_ctx.n) ? g_sa_ctx.rank[i + g_sa_ctx.k] : -1;
-  rj = (j + (int32_t)g_sa_ctx.k < (int32_t)g_sa_ctx.n) ? g_sa_ctx.rank[j + g_sa_ctx.k] : -1;
+  /* k doubles until the ranks separate, so it can exceed INT32_MAX; comparing
+     in size_t keeps the offset arithmetic away from signed overflow. */
+  ri = ((size_t)i + g_sa_ctx.k < g_sa_ctx.n) ? g_sa_ctx.rank[(size_t)i + g_sa_ctx.k] : -1;
+  rj = ((size_t)j + g_sa_ctx.k < g_sa_ctx.n) ? g_sa_ctx.rank[(size_t)j + g_sa_ctx.k] : -1;
   return ri - rj;
 }
 
