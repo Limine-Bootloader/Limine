@@ -212,6 +212,11 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         panic(true, "multiboot1: Executable load address is not usable memory");
     }
 
+    if (entry_point < ranges->target
+     || entry_point >= ranges->target + ranges->length) {
+        panic(true, "multiboot1: Entry point is outside the executable");
+    }
+
     size_t n_modules;
     size_t modules_cmdlines_size = 0;
 
