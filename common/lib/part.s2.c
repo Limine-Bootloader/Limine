@@ -399,8 +399,16 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
 
     uint64_t ebr_sector = 0;
     uint64_t prev_ebr_sector = 0;
+    int i = 0;
 
-    for (int i = 0; i < partition; i++) {
+    // Partitions are probed in order, so carry on from where the last probe
+    // stopped instead of following the chain from its head every time.
+    if (extended_part->ebr_walk_index <= partition) {
+        i = extended_part->ebr_walk_index;
+        ebr_sector = extended_part->ebr_walk_sector;
+    }
+
+    for (; i < partition; i++) {
         uint64_t entry_offset = ebr_sector * 512 + 0x1ce;
 
         if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
@@ -425,6 +433,9 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
             return END_OF_TABLE;  // EBR points outside extended partition
         }
     }
+
+    extended_part->ebr_walk_index = partition;
+    extended_part->ebr_walk_sector = ebr_sector;
 
     uint64_t entry_offset = ebr_sector * 512 + 0x1be;
 
