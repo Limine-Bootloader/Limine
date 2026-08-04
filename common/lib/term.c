@@ -9,6 +9,7 @@
 #include <mm/mtrr.h>
 #include <mm/efi_pt.h>
 #include <drivers/vga_textmode.h>
+#include <lib/gterm.h>
 #include <flanterm_backends/fb.h>
 
 #if defined (BIOS)
@@ -282,7 +283,7 @@ void term_prepare_post_ebs(void) {
         NULL, 0, 0, 1,
         0, 0,
         0,
-        FLANTERM_FB_ROTATE_0
+        gterm_get_rotation(NULL)
     );
 
     if (post_ebs_term != NULL) {
