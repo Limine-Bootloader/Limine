@@ -1,6 +1,7 @@
 #include <e9print.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #if defined (_LIMINE_PROTO)
 #include <flanterm.h>
@@ -9,7 +10,7 @@ extern struct flanterm_context *ft_ctx;
 
 static const char CONVERSION_TABLE[] = "0123456789abcdef";
 
-void e9_putc(char c) {
+void putchar(char c) {
 #if defined (__x86_64__) || defined (__i386__)
     __asm__ __volatile__ ("outb %0, %1" :: "a" (c), "Nd" (0xe9) : "memory");
 #endif
@@ -23,23 +24,27 @@ void e9_putc(char c) {
 #endif
 }
 
-void e9_print(const char *msg) {
+void print(const char *msg) {
     for (size_t i = 0; msg[i]; i++) {
-        e9_putc(msg[i]);
+        putchar(msg[i]);
     }
 }
 
-void e9_puts(const char *msg) {
-    e9_print(msg);
-    e9_putc('\n');
+void puts(const char *msg) {
+    print(msg);
+    putchar('\n');
 }
 
-static void e9_printhex(size_t num) {
+static void printhex(uint64_t num, bool prefix) {
     int i;
     char buf[17];
 
+    if (prefix) {
+        print("0x");
+    }
+
     if (!num) {
-        e9_print("0x0");
+        putchar('0');
         return;
     }
 
@@ -51,16 +56,15 @@ static void e9_printhex(size_t num) {
     }
 
     i++;
-    e9_print("0x");
-    e9_print(&buf[i]);
+    print(&buf[i]);
 }
 
-static void e9_printdec(size_t num) {
+static void printdec(uint64_t num) {
     int i;
     char buf[21] = {0};
 
     if (!num) {
-        e9_putc('0');
+        putchar('0');
         return;
     }
 
@@ -70,29 +74,66 @@ static void e9_printdec(size_t num) {
     }
 
     i++;
-    e9_print(buf + i);
+    print(buf + i);
 }
 
-void e9_printf(const char *format, ...) {
+void printf(const char *format, ...) {
     va_list argp;
     va_start(argp, format);
 
     while (*format != '\0') {
-        if (*format == '%') {
+        if (*format != '%') {
+            putchar(*format++);
+            continue;
+        }
+
+        format++;
+        bool prefix = false;
+        if (*format == '#') {
+            prefix = true;
             format++;
-            if (*format == 'x') {
-                e9_printhex(va_arg(argp, size_t));
-            } else if (*format == 'd') {
-                e9_printdec(va_arg(argp, size_t));
-            } else if (*format == 's') {
-                e9_print(va_arg(argp, char*));
-            }
-        } else {
-            e9_putc(*format);
+        }
+
+        int width = 0;                      // 0 int, 1 long, 2 long long, 3 size_t
+        if (*format == 'l') {
+            width = format[1] == 'l' ? 2 : 1;
+            format += width;
+        } else if (*format == 'z') {
+            width = 3;
+            format++;
+        }
+
+        switch (*format) {
+            case 'x':
+                printhex(width == 0 ? va_arg(argp, unsigned)
+                          : width == 1 ? va_arg(argp, unsigned long)
+                          : width == 2 ? va_arg(argp, unsigned long long)
+                                       : va_arg(argp, size_t), prefix);
+                break;
+            case 'u':
+                printdec(width == 0 ? va_arg(argp, unsigned)
+                          : width == 1 ? va_arg(argp, unsigned long)
+                          : width == 2 ? va_arg(argp, unsigned long long)
+                                       : va_arg(argp, size_t));
+                break;
+            case 'd':
+                printdec(va_arg(argp, int));
+                break;
+            case 'p':
+                printhex((uintptr_t)va_arg(argp, void *), true);
+                break;
+            case 's':
+                print(va_arg(argp, char *));
+                break;
+            case 'c':
+                putchar(va_arg(argp, int));
+                break;
+            default:
+                putchar(*format);
+                break;
         }
         format++;
     }
 
-    e9_putc('\n');
     va_end(argp);
 }

@@ -10,15 +10,15 @@ struct multiboot_info {
 
 void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
     if (magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
-        e9_printf("multiboot2: Invalid magic: %x\n", magic);
+        printf("multiboot2: Invalid magic: %#x\n", magic);
         goto out;
     }
 
-    e9_printf("Welcome to the multiboot2 test kernel: ");
-    e9_printf("\t size=%d", mb_info_addr->size);
-    e9_printf("\t reserved=%d", mb_info_addr->reserved);
+    printf("Welcome to the multiboot2 test kernel: \n");
+    printf("\t size=%d\n", mb_info_addr->size);
+    printf("\t reserved=%d\n", mb_info_addr->reserved);
 
-    e9_print("\nTags:\n");
+    print("\nTags:\n");
 
     size_t add_size = 0;
 
@@ -33,46 +33,46 @@ void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
         switch (tag->type) {
             case MULTIBOOT_TAG_TYPE_CMDLINE: {
                 struct multiboot_tag_string *cmdline = (struct multiboot_tag_string *)tag;
-                e9_printf("\t cmdline:");
-                e9_printf("\t\t string=%s", cmdline->string);
+                printf("\t cmdline:\n");
+                printf("\t\t string=%s\n", cmdline->string);
                 break;
             }
 
             case MULTIBOOT_TAG_TYPE_BOOT_LOADER_NAME: {
                 struct multiboot_tag_string *name = (struct multiboot_tag_string *)tag;
-                e9_printf("\t bootloader_name:");
-                e9_printf("\t\t string=%s", name->string);
+                printf("\t bootloader_name:\n");
+                printf("\t\t string=%s\n", name->string);
                 break;
             }
 
             case MULTIBOOT_TAG_TYPE_ACPI_OLD: {
                 struct multiboot_tag_old_acpi *old_acpi = (struct multiboot_tag_old_acpi *)tag;
-                e9_printf("\t acpi_old:");
-                e9_printf("\t\t rsdp=%s", old_acpi->rsdp);
+                printf("\t acpi_old:\n");
+                printf("\t\t rsdp=%s\n", old_acpi->rsdp);
                 break;
             }
 
             case MULTIBOOT_TAG_TYPE_ACPI_NEW: {
                 struct multiboot_tag_new_acpi *new_acpi = (struct multiboot_tag_new_acpi *)tag;
-                e9_printf("\t acpi_new:");
-                e9_printf("\t\t rsdp=%s", new_acpi->rsdp);
+                printf("\t acpi_new:\n");
+                printf("\t\t rsdp=%s\n", new_acpi->rsdp);
                 break;
             }
 
             case MULTIBOOT_TAG_TYPE_MODULE: {
                 struct multiboot_tag_module *module = (struct multiboot_tag_module *)tag;
-                e9_printf("\t module:");
-                e9_printf("\t\t mod_start=%x", module->mod_start);
-                e9_printf("\t\t mod_end=%x", module->mod_end);
-                e9_printf("\t\t cmdline=%s", module->cmdline);
+                printf("\t module:\n");
+                printf("\t\t mod_start=%#x\n", module->mod_start);
+                printf("\t\t mod_end=%#x\n", module->mod_end);
+                printf("\t\t cmdline=%s\n", module->cmdline);
                 break;
             }
 
             case MULTIBOOT_TAG_TYPE_BASIC_MEMINFO: {
                 struct multiboot_tag_basic_meminfo *meminfo = (struct multiboot_tag_basic_meminfo *)tag;
-                e9_printf("\t basic_meminfo:");
-                e9_printf("\t\t mem_lower=%x", meminfo->mem_lower);
-                e9_printf("\t\t mem_upper=%x", meminfo->mem_upper);
+                printf("\t basic_meminfo:\n");
+                printf("\t\t mem_lower=%#x\n", meminfo->mem_lower);
+                printf("\t\t mem_upper=%#x\n", meminfo->mem_upper);
                 break;
             }
 
@@ -80,20 +80,20 @@ void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
 
             case MULTIBOOT_TAG_TYPE_MMAP: {
                 struct multiboot_tag_mmap *mmap = (struct multiboot_tag_mmap *)tag;
-                e9_printf("\t mmap:");
-                e9_printf("\t\t entry_size=%d", mmap->entry_size);
-                e9_printf("\t\t entry_version=%d", mmap->entry_version);
-                e9_printf("\t\t entries:");
+                printf("\t mmap:\n");
+                printf("\t\t entry_size=%d\n", mmap->entry_size);
+                printf("\t\t entry_version=%d\n", mmap->entry_version);
+                printf("\t\t entries:\n");
 
                 struct multiboot_mmap_entry *m = (struct multiboot_mmap_entry *)(mmap->entries);
 
                 size_t entry_count = (mmap->size - sizeof(struct multiboot_tag_mmap)) / sizeof(struct multiboot_mmap_entry);
-                e9_printf("\t\t entry count: %d", entry_count);
+                printf("\t\t entry count: %d\n", entry_count);
 
                 for (size_t i = 0; i < entry_count; i++) {
-                    e9_printf("\t\t\t addr=%x", m[i].addr);
-                    e9_printf("\t\t\t len=%x", m[i].len);
-                    e9_printf("\t\t\t type=%x", m[i].type);
+                    printf("\t\t\t addr=%#llx\n", m[i].addr);
+                    printf("\t\t\t len=%#llx\n", m[i].len);
+                    printf("\t\t\t type=%#x\n", m[i].type);
                 }
 
                 break;
@@ -101,11 +101,11 @@ void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
 
             case MULTIBOOT_TAG_TYPE_EFI_MMAP: {
                 struct multiboot_tag_efi_mmap *mmap = (struct multiboot_tag_efi_mmap *)tag;
-                e9_printf("\t efi_mmap:");
-                e9_printf("\t\t descr_vers=%d", mmap->descr_vers);
-                e9_printf("\t\t descr_size=%d", mmap->descr_size);
-                e9_printf("\t\t size=%d", mmap->size);
-                e9_printf("\t\t entries:");
+                printf("\t efi_mmap:\n");
+                printf("\t\t descr_vers=%d\n", mmap->descr_vers);
+                printf("\t\t descr_size=%d\n", mmap->descr_size);
+                printf("\t\t size=%d\n", mmap->size);
+                printf("\t\t entries:\n");
 
                 struct memory_descriptor {
                     uint32_t type;
@@ -117,16 +117,16 @@ void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
                 };
 
                 size_t entry_count = (mmap->size - sizeof(struct multiboot_tag_efi_mmap)) / mmap->descr_size;
-                e9_printf("\t\t entry count: %d", entry_count);
+                printf("\t\t entry count: %d\n", entry_count);
 
                 for (size_t i = 0; i < entry_count; i++) {
                     struct memory_descriptor *m = (struct memory_descriptor *)(mmap->efi_mmap + i * mmap->descr_size);
 
-                    e9_printf("\t\t\t type=%x", m->type);
-                    e9_printf("\t\t\t physical_start=%x", m->physical_start);
-                    e9_printf("\t\t\t virtual_start=%x", m->virtual_start);
-                    e9_printf("\t\t\t pages=%x", m->pages);
-                    e9_printf("\t\t\t attribute=%x", m->attribute);
+                    printf("\t\t\t type=%#x\n", m->type);
+                    printf("\t\t\t physical_start=%#llx\n", m->physical_start);
+                    printf("\t\t\t virtual_start=%#llx\n", m->virtual_start);
+                    printf("\t\t\t pages=%#llx\n", m->pages);
+                    printf("\t\t\t attribute=%#llx\n", m->attribute);
                 }
 
                 break;
@@ -137,22 +137,22 @@ void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
             case MULTIBOOT_TAG_TYPE_FRAMEBUFFER: {
                 struct multiboot_tag_framebuffer *fb = (struct multiboot_tag_framebuffer *)tag;
 
-                e9_printf("\t framebuffer:");
-                e9_printf("\t\t framebuffer_pitch: %d", fb->common.framebuffer_pitch);
-                e9_printf("\t\t framebuffer_width: %d", fb->common.framebuffer_width);
-                e9_printf("\t\t framebuffer_height: %d", fb->common.framebuffer_height);
-                e9_printf("\t\t framebuffer_bpp: %d", fb->common.framebuffer_bpp);
-                e9_printf("\t\t framebuffer_type: %d", fb->common.framebuffer_type);
-                e9_printf("\t\t framebuffer_address: %x", fb->common.framebuffer_addr);
+                printf("\t framebuffer:\n");
+                printf("\t\t framebuffer_pitch: %d\n", fb->common.framebuffer_pitch);
+                printf("\t\t framebuffer_width: %d\n", fb->common.framebuffer_width);
+                printf("\t\t framebuffer_height: %d\n", fb->common.framebuffer_height);
+                printf("\t\t framebuffer_bpp: %d\n", fb->common.framebuffer_bpp);
+                printf("\t\t framebuffer_type: %d\n", fb->common.framebuffer_type);
+                printf("\t\t framebuffer_address: %#llx\n", fb->common.framebuffer_addr);
 
                 switch (fb->common.framebuffer_type) {
                     case MULTIBOOT_FRAMEBUFFER_TYPE_RGB: {
-                        e9_printf("\t\t framebuffer_red_field_position: %x", fb->framebuffer_red_field_position);
-                        e9_printf("\t\t framebuffer_red_mask_size: %x", fb->framebuffer_red_mask_size);
-                        e9_printf("\t\t framebuffer_green_field_position: %x", fb->framebuffer_green_field_position);
-                        e9_printf("\t\t framebuffer_green_mask_size: %x", fb->framebuffer_green_mask_size);
-                        e9_printf("\t\t framebuffer_blue_field_position: %x", fb->framebuffer_blue_field_position);
-                        e9_printf("\t\t framebuffer_blue_mask_size: %x", fb->framebuffer_blue_mask_size);
+                        printf("\t\t framebuffer_red_field_position: %#x\n", fb->framebuffer_red_field_position);
+                        printf("\t\t framebuffer_red_mask_size: %#x\n", fb->framebuffer_red_mask_size);
+                        printf("\t\t framebuffer_green_field_position: %#x\n", fb->framebuffer_green_field_position);
+                        printf("\t\t framebuffer_green_mask_size: %#x\n", fb->framebuffer_green_mask_size);
+                        printf("\t\t framebuffer_blue_field_position: %#x\n", fb->framebuffer_blue_field_position);
+                        printf("\t\t framebuffer_blue_mask_size: %#x\n", fb->framebuffer_blue_mask_size);
                         break;
                     }
 
@@ -164,7 +164,7 @@ void multiboot2_main(uint32_t magic, struct multiboot_info* mb_info_addr) {
 
             case MULTIBOOT_TAG_TYPE_NETWORK: {
                 struct multiboot_tag_network *network = (struct multiboot_tag_network *)tag;
-                e9_printf("\t network tag exists");
+                printf("\t network tag exists\n");
                 break;
             }
         }
