@@ -9,6 +9,8 @@
 bool gterm_init(struct fb_info **ret, size_t *_fbs_count,
                 char *config, size_t width, size_t height);
 
+int gterm_get_rotation(char *config);
+
 struct flanterm_params {
     uint32_t *canvas;
     size_t canvas_size;

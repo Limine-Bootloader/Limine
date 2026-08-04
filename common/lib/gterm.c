@@ -517,17 +517,22 @@ struct gterm_config {
     bool font_scale_is_default;
 };
 
-static void gterm_parse_config(char *config, struct gterm_config *cfg) {
-    cfg->fb_rotation = FLANTERM_FB_ROTATE_0;
+int gterm_get_rotation(char *config) {
     char *rotation_str = config_get_value(config, 0, "INTERFACE_ROTATION");
     if (rotation_str != NULL) {
         int rotation_val = strtoui(rotation_str, NULL, 10);
         switch (rotation_val) {
-            case 90: cfg->fb_rotation = FLANTERM_FB_ROTATE_90; break;
-            case 180: cfg->fb_rotation = FLANTERM_FB_ROTATE_180; break;
-            case 270: cfg->fb_rotation = FLANTERM_FB_ROTATE_270; break;
+            case 90: return FLANTERM_FB_ROTATE_90;
+            case 180: return FLANTERM_FB_ROTATE_180;
+            case 270: return FLANTERM_FB_ROTATE_270;
         }
     }
+
+    return FLANTERM_FB_ROTATE_0;
+}
+
+static void gterm_parse_config(char *config, struct gterm_config *cfg) {
+    cfg->fb_rotation = gterm_get_rotation(config);
 
     cfg->ansi_colours[0] = 0x00000000;
     cfg->ansi_colours[1] = 0x00aa0000;
