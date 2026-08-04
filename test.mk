@@ -1,3 +1,5 @@
+.DELETE_ON_ERROR:
+
 .PHONY: test-clean
 test-clean:
 	$(MAKE) -C test -f test.mk clean

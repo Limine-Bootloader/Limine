@@ -1,3 +1,5 @@
+.DELETE_ON_ERROR:
+
 override CC := $(CC_FOR_TARGET)
 override CFLAGS := -O2 -g -Wall -Wextra
 override LDFLAGS :=
