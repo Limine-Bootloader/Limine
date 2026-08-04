@@ -56,6 +56,7 @@ static bool stage3_init(struct volume *part) {
 
     if (stage3->size != (size_t)limine_bios_sys_size) {
         print("limine-bios.sys size incorrect.\n");
+        fclose(stage3);
         return false;
     }
 
