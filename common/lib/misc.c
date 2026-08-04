@@ -10,6 +10,7 @@
 #include <lib/uri.h>
 #include <lib/bli.h>
 #include <lib/rng_seed.h>
+#include <lib/term.h>
 #include <lib/tpm.h>
 #include <fs/file.h>
 #include <mm/pmm.h>
@@ -374,6 +375,10 @@ bool efi_exit_boot_services(void) {
     // Pull entropy from EFI_RNG_PROTOCOL while it's still callable and
     // publish it for the kernel to mix into its early RNG state.
     rng_seed_install();
+
+    // Every path past this point ends with the allocator locked out, and
+    // panic() reaches term_fallback(), so build its terminal now.
+    term_prepare_post_ebs();
 
     // Free the buffer init_memmap left us; the loop below manages
     // allocation lifetime itself.

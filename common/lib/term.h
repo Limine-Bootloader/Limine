@@ -55,6 +55,9 @@ static inline void set_cursor_pos_helper(size_t x, size_t y) {
 
 void term_notready(void);
 void term_fallback(void);
+#if defined (UEFI)
+void term_prepare_post_ebs(void);
+#endif
 void _term_write(struct flanterm_context *term, uint64_t buf, uint64_t count);
 
 #endif
