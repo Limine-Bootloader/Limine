@@ -596,7 +596,7 @@ noreturn void limine_load(char *config, char *cmdline) {
         uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
         // Check if start marker hit
-        if (i + 32 <= image_size_before_bss
+        if (i + sizeof(limine_requests_start_marker) <= image_size_before_bss
          && p[0] == limine_requests_start_marker[0] && p[1] == limine_requests_start_marker[1]
          && p[2] == limine_requests_start_marker[2] && p[3] == limine_requests_start_marker[3]) {
             base_revision = 0;
@@ -607,12 +607,12 @@ noreturn void limine_load(char *config, char *cmdline) {
         }
 
         // Check if end marker hit
-        if (i + 16 <= image_size_before_bss
+        if (i + sizeof(limine_requests_end_marker) <= image_size_before_bss
          && p[0] == limine_requests_end_marker[0] && p[1] == limine_requests_end_marker[1]) {
             break;
         }
 
-        if (i + 24 <= image_size_before_bss
+        if (i + sizeof(limine_base_revision) <= image_size_before_bss
          && p[0] == limine_base_revision[0] && p[1] == limine_base_revision[1]) {
             if (base_revision_found) {
                 panic(true, "limine: Duplicated base revision tag");
@@ -667,7 +667,7 @@ noreturn void limine_load(char *config, char *cmdline) {
             uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
             // Check if start marker hit
-            if (i + 32 <= image_size_before_bss
+            if (i + sizeof(limine_requests_start_marker) <= image_size_before_bss
              && p[0] == limine_requests_start_marker[0] && p[1] == limine_requests_start_marker[1]
              && p[2] == limine_requests_start_marker[2] && p[3] == limine_requests_start_marker[3]) {
                 requests_count = 0;
@@ -675,12 +675,12 @@ noreturn void limine_load(char *config, char *cmdline) {
             }
 
             // Check if end marker hit
-            if (i + 16 <= image_size_before_bss
+            if (i + sizeof(limine_requests_end_marker) <= image_size_before_bss
              && p[0] == limine_requests_end_marker[0] && p[1] == limine_requests_end_marker[1]) {
                 break;
             }
 
-            if (i + 32 > image_size_before_bss) {
+            if (i + sizeof(uint64_t[4]) > image_size_before_bss) {
                 continue;
             }
             if (p[0] != common_magic[0]) {
