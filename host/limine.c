@@ -1281,7 +1281,7 @@ static int enroll_config(int argc, char *argv[]) {
 
     char *bootloader = NULL;
     FILE *bootloader_file = NULL;
-    bool quiet = false;
+    bool quiet_arg = false;
     bool reset = false;
 
     for (int i = 1; i < argc; i++) {
@@ -1290,7 +1290,7 @@ static int enroll_config(int argc, char *argv[]) {
             return EXIT_SUCCESS;
         } else if (strcmp(argv[i], "--quiet") == 0) {
             remove_arg(&argc, argv, i--);
-            quiet = true;
+            quiet_arg = true;
         } else if (strcmp(argv[i], "--reset") == 0) {
             remove_arg(&argc, argv, i--);
             reset = true;
@@ -1409,7 +1409,7 @@ static int enroll_config(int argc, char *argv[]) {
         goto cleanup;
     }
 
-    if (!quiet) {
+    if (!quiet_arg) {
         fprintf(stderr, "Config file hash successfully %s.\n", reset ? "reset" : "enrolled");
     }
     ret = EXIT_SUCCESS;
