@@ -506,6 +506,7 @@ skip_save:;
         if (!device_cache_block(block)) {
             if (!uninstalling) {
                 free(ud->data);
+                ud->data = NULL;
             }
             return false;
         }
