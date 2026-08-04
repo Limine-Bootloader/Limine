@@ -228,6 +228,7 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
     status = gBS->LocateHandle(ByProtocol, &gop_guid, NULL, &handles_size, handles);
 
     if (status != EFI_SUCCESS && status != EFI_BUFFER_TOO_SMALL) {
+        *ret = NULL;
         *_fbs_count = 0;
         return;
     }
@@ -238,6 +239,7 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
     status = gBS->LocateHandle(ByProtocol, &gop_guid, NULL, &handles_size, handles);
     if (status != EFI_SUCCESS) {
         pmm_free(handles, handles_alloc);
+        *ret = NULL;
         *_fbs_count = 0;
         return;
     }
