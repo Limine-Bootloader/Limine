@@ -75,7 +75,7 @@ _pit_sleep_and_quit_on_keypress:
 
   .loop:
     cmp dword [int_08_ticks_counter], edx
-    je .done
+    jae .done
 
     cmp byte [.aux_poll], 0
     je .no_aux
