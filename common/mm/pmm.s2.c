@@ -321,6 +321,12 @@ void init_memmap(void) {
 
     gBS->GetMemoryMap(&efi_mmap_size, tmp_mmap, &mmap_key, &efi_desc_size, &efi_desc_ver);
 
+    // EFI_BUFFER_TOO_SMALL promises only MemoryMapSize, and the descriptor may
+    // grow, so the size the firmware reports has to be checked, not assumed.
+    if (efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR)) {
+        goto fail;
+    }
+
     memmap_max_entries = (efi_mmap_size / efi_desc_size) + 512;
 
     efi_mmap_size += 4096;
