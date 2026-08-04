@@ -238,7 +238,12 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
       if (i + lim > srcsz)
         lim = srcsz - i;
       for (ml = 4; ml <= lim; ++ml) {
-        size_t c = off_bytes + (ml - 4 >= 7) + dp[i + ml];
+        size_t c;
+        /* (size_t)-1 marks a suffix with no encoding. Adding to it wraps, which
+           would make an unusable parse look like the cheapest one. */
+        if (dp[i + ml] == (size_t)-1)
+          continue;
+        c = off_bytes + (ml - 4 >= 7) + dp[i + ml];
         if (c < mcost) {
           mcost = c;  mlen = (uint32_t)ml;
         }
