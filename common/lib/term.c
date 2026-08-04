@@ -24,6 +24,11 @@ size_t terms_i = 0;
 static struct flanterm_context fallback_ctx;
 static struct flanterm_context *fallback_terms[1];
 
+#if defined (UEFI)
+// Built while the allocator is live, for panic() to use once it is not.
+static struct flanterm_context *post_ebs_term = NULL;
+#endif
+
 int term_backend = _NOT_READY;
 
 void term_notready(void) {
@@ -37,6 +42,14 @@ void term_notready(void) {
 
     for (size_t i = 0; i < terms_i; i++) {
         struct flanterm_context *term = terms[i];
+
+#if defined (UEFI)
+        // Never released: pmm_free panics once allocations are locked out,
+        // which is the state this terminal exists to be usable in.
+        if (term == post_ebs_term) {
+            continue;
+        }
+#endif
 
         term->deinit(term, pmm_free_size_t);
     }
@@ -242,6 +255,42 @@ static bool dummy_handle(void) {
     return true;
 }
 
+#if defined (UEFI)
+void term_prepare_post_ebs(void) {
+    if (post_ebs_term != NULL || fb_fbs_count == 0) {
+        return;
+    }
+
+    // ConOut is gone once boot services are, so the framebuffer is the only
+    // output left. Where writes to it cannot be made to reach memory there is
+    // nothing to fall back to, and a terminal would only cost memory to draw a
+    // message that never appears.
+    if (!fb_flush_reliable()) {
+        return;
+    }
+
+    post_ebs_term = flanterm_fb_init(ext_mem_alloc_size_t, pmm_free_size_t,
+        (void *)(uintptr_t)fb_fbs[0].framebuffer_addr, fb_fbs[0].framebuffer_width,
+        fb_fbs[0].framebuffer_height, fb_fbs[0].framebuffer_pitch,
+        fb_fbs[0].red_mask_size, fb_fbs[0].red_mask_shift,
+        fb_fbs[0].green_mask_size, fb_fbs[0].green_mask_shift,
+        fb_fbs[0].blue_mask_size, fb_fbs[0].blue_mask_shift,
+        NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL, 0, 0, 1,
+        0, 0,
+        0,
+        FLANTERM_FB_ROTATE_0
+    );
+
+    if (post_ebs_term != NULL) {
+        flanterm_fb_set_flush_callback(post_ebs_term, fb_flush_cb);
+    }
+}
+#endif
+
 void term_fallback(void) {
 #if defined (UEFI)
     int prev_backend = term_backend;
@@ -309,27 +358,12 @@ void term_fallback(void) {
         term->set_text_fg_default(term);
         term->set_text_bg_default(term);
     } else {
-        if (fb_fbs_count == 0) {
+        if (post_ebs_term == NULL) {
             goto fail;
         }
 
-        terms[0] = flanterm_fb_init(ext_mem_alloc_size_t, pmm_free_size_t,
-            (void *)(uintptr_t)fb_fbs[0].framebuffer_addr, fb_fbs[0].framebuffer_width,
-            fb_fbs[0].framebuffer_height, fb_fbs[0].framebuffer_pitch,
-            fb_fbs[0].red_mask_size, fb_fbs[0].red_mask_shift,
-            fb_fbs[0].green_mask_size, fb_fbs[0].green_mask_shift,
-            fb_fbs[0].blue_mask_size, fb_fbs[0].blue_mask_shift,
-            NULL,
-            NULL, NULL,
-            NULL, NULL,
-            NULL, NULL,
-            NULL, 0, 0, 1,
-            0, 0,
-            0,
-            FLANTERM_FB_ROTATE_0
-        );
-
-        flanterm_fb_set_flush_callback(terms[0], fb_flush_cb);
+        terms[0] = post_ebs_term;
+        term_backend = FALLBACK;
     }
 
     return;
