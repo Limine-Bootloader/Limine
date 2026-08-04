@@ -655,11 +655,14 @@ noreturn void limine_load(char *config, char *cmdline) {
             if (limine_reqs[i] == 0) {
                 break;
             }
+            // _get_request compares the whole ID before its own bound applies.
+            uint64_t reqs_off = limine_reqs[i] - virtual_base;
             if (limine_reqs[i] < virtual_base
-             || limine_reqs[i] - virtual_base >= image_size_before_bss) {
+             || reqs_off >= image_size_before_bss
+             || image_size_before_bss - reqs_off < sizeof(uint64_t[4])) {
                 panic(true, "limine: .limine_reqs entry outside kernel image");
             }
-            requests[i] = (void *)(uintptr_t)((limine_reqs[i] - virtual_base) + physical_base);
+            requests[i] = (void *)(uintptr_t)(reqs_off + physical_base);
             requests_count++;
         }
     } else {
