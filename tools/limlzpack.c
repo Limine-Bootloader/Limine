@@ -383,7 +383,8 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "? fseek\n");  return 1;
   }
   insz = (size_t)inszl;
-  if (insz >= SIZE_MAX / 8) {
+  /* longest_matches() builds a suffix array indexed with int32_t. */
+  if (insz > (size_t)INT32_MAX || insz >= SIZE_MAX / 8) {
     fprintf(stderr, "? input too large\n");  return 1;
   }
   inbuf = malloc(insz);  outbuf = malloc(insz * 2);
