@@ -592,7 +592,8 @@ noreturn void limine_load(char *config, char *cmdline) {
     bool base_revision_found = false;
     uint64_t *base_rev_p1_ptr = NULL;
     uint64_t *base_rev_p2_ptr = NULL;
-    for (size_t i = 0; i <= image_size_before_bss; i += 8) {
+    // Each test bounds itself; stop where the smallest cannot match.
+    for (size_t i = 0; i + sizeof(limine_requests_end_marker) <= image_size_before_bss; i += 8) {
         uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
         // Check if start marker hit
@@ -663,7 +664,8 @@ noreturn void limine_load(char *config, char *cmdline) {
         }
     } else {
         uint64_t common_magic[2] = { LIMINE_COMMON_MAGIC };
-        for (size_t i = 0; i <= image_size_before_bss; i += 8) {
+        // Each test bounds itself; stop where the smallest cannot match.
+        for (size_t i = 0; i + sizeof(limine_requests_end_marker) <= image_size_before_bss; i += 8) {
             uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
             // Check if start marker hit
