@@ -681,7 +681,7 @@ static int bios_install(int argc, char *argv[]) {
 
 #ifndef __BYTE_ORDER__
     uint32_t endcheck = 0x12345678;
-    uint8_t endbyte = *((uint8_t *)&endcheck);
+    unsigned char endbyte = *((unsigned char *)&endcheck);
     bigendian = endbyte == 0x12;
 #endif
 
