@@ -228,14 +228,61 @@ static void init_backings(void) {
             continue;
         }
         struct flanterm_fb_context *ctx = (struct flanterm_fb_context *)terms[i];
-        if (ctx->rotation != FLANTERM_FB_ROTATE_0) {
-            continue;
-        }
         backings[i].fb_ctx = ctx;
         backings[i].pixels_size = POINTER_W * ctx->font_scale_x
                                 * POINTER_H * ctx->font_scale_y
                                 * sizeof(uint32_t);
         backings[i].pixels = ext_mem_alloc(backings[i].pixels_size);
+    }
+}
+
+// The sprite bypasses flanterm to write the framebuffer directly, so it has to
+// apply the same rotation flanterm does. Logical coordinates in, physical out.
+static void pointer_phys(struct flanterm_fb_context *ctx, size_t x, size_t y,
+                         size_t *px, size_t *py) {
+    switch (ctx->rotation) {
+        default:
+        case FLANTERM_FB_ROTATE_0: {
+            *px = x;
+            *py = y;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_90: {
+            *px = ctx->height - 1 - y;
+            *py = x;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_180: {
+            *px = ctx->width - 1 - x;
+            *py = ctx->height - 1 - y;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_270: {
+            *px = y;
+            *py = ctx->width - 1 - x;
+            break;
+        }
+    }
+}
+
+// A logical row is only contiguous at 0 and 180, so flush by physical row.
+static void pointer_flush_box(struct flanterm_fb_context *ctx,
+                              size_t x, size_t y, size_t w, size_t h) {
+    if (ctx->flush_callback == NULL || w == 0 || h == 0) {
+        return;
+    }
+
+    size_t stride = ctx->pitch / sizeof(uint32_t);
+    size_t ax, ay, bx, by;
+    pointer_phys(ctx, x, y, &ax, &ay);
+    pointer_phys(ctx, x + w - 1, y + h - 1, &bx, &by);
+
+    size_t x0 = ax < bx ? ax : bx, x1 = ax < bx ? bx : ax;
+    size_t y0 = ay < by ? ay : by, y1 = ay < by ? by : ay;
+
+    for (size_t py = y0; py <= y1; py++) {
+        ctx->flush_callback(ctx->framebuffer + py * stride + x0,
+                            (x1 - x0 + 1) * sizeof(uint32_t));
     }
 }
 
@@ -247,16 +294,17 @@ static void pointer_erase_sprite(struct pointer_backing *bk) {
     }
     bk->drawn = false;
 
+    size_t stride = ctx->pitch / sizeof(uint32_t);
+
     for (size_t row = 0; row < bk->h; row++) {
-        volatile uint32_t *line = ctx->framebuffer
-            + (bk->y + row) * (ctx->pitch / sizeof(uint32_t)) + bk->x;
         for (size_t col = 0; col < bk->w; col++) {
-            line[col] = bk->pixels[row * bk->w + col];
-        }
-        if (ctx->flush_callback != NULL) {
-            ctx->flush_callback(line, bk->w * sizeof(uint32_t));
+            size_t fbx, fby;
+            pointer_phys(ctx, bk->x + col, bk->y + row, &fbx, &fby);
+            ctx->framebuffer[fby * stride + fbx] = bk->pixels[row * bk->w + col];
         }
     }
+
+    pointer_flush_box(ctx, bk->x, bk->y, bk->w, bk->h);
 }
 
 static void pointer_draw_sprite(struct pointer_backing *bk) {
@@ -297,23 +345,25 @@ static void pointer_draw_sprite(struct pointer_backing *bk) {
     bk->w = w;
     bk->h = h;
 
+    size_t stride = ctx->pitch / sizeof(uint32_t);
+
     for (size_t row = 0; row < h; row++) {
-        volatile uint32_t *line = ctx->framebuffer
-            + (y + row) * (ctx->pitch / sizeof(uint32_t)) + x;
         const char *shape_row = pointer_shape[(row + clip_y) / sy];
         for (size_t col = 0; col < w; col++) {
-            bk->pixels[row * w + col] = line[col];
+            size_t fbx, fby;
+            pointer_phys(ctx, x + col, y + row, &fbx, &fby);
+            volatile uint32_t *pixel = ctx->framebuffer + fby * stride + fbx;
+            bk->pixels[row * w + col] = *pixel;
             char c = shape_row[(col + clip_x) / sx];
             if (c == '#') {
-                line[col] = black;
+                *pixel = black;
             } else if (c == '.') {
-                line[col] = white;
+                *pixel = white;
             }
         }
-        if (ctx->flush_callback != NULL) {
-            ctx->flush_callback(line, w * sizeof(uint32_t));
-        }
     }
+
+    pointer_flush_box(ctx, x, y, w, h);
 
     bk->drawn = true;
 }
