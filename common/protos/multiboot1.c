@@ -208,6 +208,10 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         panic(true, "multiboot1: Executable does not fit under 4GiB");
     }
 
+    if (!check_usable_memory(ranges->target, ranges->target + ranges->length)) {
+        panic(true, "multiboot1: Executable load address is not usable memory");
+    }
+
     size_t n_modules;
     size_t modules_cmdlines_size = 0;
 
