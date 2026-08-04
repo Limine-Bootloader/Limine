@@ -447,7 +447,7 @@ error:
     return false;
 }
 
-static bool _device_read(void *_buffer, uint64_t loc, size_t count) {
+static bool device_read_raw(void *_buffer, uint64_t loc, size_t count) {
     uint8_t *buffer = _buffer;
     uint64_t progress = 0;
     while (progress < count) {
@@ -469,7 +469,7 @@ static bool _device_read(void *_buffer, uint64_t loc, size_t count) {
     return true;
 }
 
-static bool _device_write(const void *_buffer, uint64_t loc, size_t count) {
+static bool device_write_raw(const void *_buffer, uint64_t loc, size_t count) {
     struct uninstall_data *ud = NULL;
 
     if (uninstalling) {
@@ -485,11 +485,11 @@ static bool _device_write(const void *_buffer, uint64_t loc, size_t count) {
 
     ud->data = malloc(count);
     if (ud->data == NULL) {
-        perror_wrap("error: _device_write(): malloc()");
+        perror_wrap("error: device_write_raw(): malloc()");
         return false;
     }
 
-    if (!_device_read(ud->data, loc, count)) {
+    if (!device_read_raw(ud->data, loc, count)) {
         free(ud->data);
         return false;
     }
@@ -540,7 +540,7 @@ static bool uninstall(bool quiet_arg) {
     for (size_t i = 0; i < uninstall_data_i; i++) {
         struct uninstall_data *ud = &uninstall_data[i];
         bool retry = false;
-        while (!_device_write(ud->data, ud->loc, ud->count)) {
+        while (!device_write_raw(ud->data, ud->loc, ud->count)) {
             if (retry) {
                 fprintf(stderr, "warning: Retry failed.\n");
                 print_write_fail = true;
@@ -581,13 +581,13 @@ static bool uninstall(bool quiet_arg) {
 
 #define device_read(BUFFER, LOC, COUNT)        \
     do {                                       \
-        if (!_device_read(BUFFER, LOC, COUNT)) \
+        if (!device_read_raw(BUFFER, LOC, COUNT)) \
             goto cleanup;                      \
     } while (0)
 
 #define device_write(BUFFER, LOC, COUNT)        \
     do {                                        \
-        if (!_device_write(BUFFER, LOC, COUNT)) \
+        if (!device_write_raw(BUFFER, LOC, COUNT)) \
             goto cleanup;                       \
     } while (0)
 
