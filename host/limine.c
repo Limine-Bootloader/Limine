@@ -1208,10 +1208,6 @@ bios_boot_autodetected:;
     // Save the original partition table of the device
     device_read(orig_mbr, 440, 70);
 
-    // Write the bootsector from the bootloader to the device
-    device_write(&bootloader_img[0], 0, 512);
-
-    // Write the rest of stage 2 to the device
     if ((uint64_t)bootloader_file_size - 512 > stage2_max) {
         fprintf(stderr, "error: Stage 2 needs %" PRIu64 " bytes at offset 0x%" PRIx64 ", but only\n",
                 (uint64_t)bootloader_file_size - 512, stage2_loc);
@@ -1219,6 +1215,11 @@ bios_boot_autodetected:;
                 stage2_max);
         goto cleanup;
     }
+
+    // Write the bootsector from the bootloader to the device
+    device_write(&bootloader_img[0], 0, 512);
+
+    // Write the rest of stage 2 to the device
     device_write(&bootloader_img[512], stage2_loc, bootloader_file_size - 512);
 
     // Hardcode in the bootsector the location of stage 2
