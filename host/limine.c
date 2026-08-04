@@ -1096,11 +1096,15 @@ part_too_low:
         }
 
         if (part_ndx != NULL) {
-            if (sscanf(part_ndx, "%" SCNu32, &partition_num) != 1) {
-                fprintf(stderr, "error: Invalid partition number format.\n");
+            char *part_ndx_end;
+            unsigned long part_ndx_val = strtoul(part_ndx, &part_ndx_end, 10);
+            if (part_ndx[0] < '0' || part_ndx[0] > '9' || *part_ndx_end != '\0'
+             || part_ndx_val == 0 || part_ndx_val > UINT32_MAX) {
+                fprintf(stderr, "error: Invalid partition number `%s`: expected a whole"
+                                " number starting at 1.\n", part_ndx);
                 goto cleanup;
             }
-            partition_num--;
+            partition_num = (uint32_t)part_ndx_val - 1;
             if (partition_num >= ENDSWAP(gpt_header.number_of_partition_entries)) {
                 fprintf(stderr, "error: Partition number is too large.\n");
                 goto cleanup;
