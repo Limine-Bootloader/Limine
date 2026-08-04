@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <time.h>
 
 #ifndef LIMINE_NO_BIOS
 #include "limine-bios-hdd.h"
@@ -928,11 +927,20 @@ static int bios_install(int argc, char *argv[]) {
         // We're no longer GPT.
         gpt = 0;
 
-        // Generate pseudorandom MBR disk ID.
-        srand(time(NULL));
+        // Derive the MBR disk ID from the GPT disk GUID rather than from the
+        // clock: two images converted in the same second would otherwise share
+        // an ID, and this keeps the conversion reproducible.
+        uint32_t disk_id = 2166136261u;
+        const unsigned char *guid = (const unsigned char *)gpt_header.disk_guid;
+        for (size_t i = 0; i < sizeof(gpt_header.disk_guid); i++) {
+            disk_id = (disk_id ^ guid[i]) * 16777619u;
+        }
+        if (disk_id == 0) {
+            disk_id = 1;
+        }
         for (size_t i = 0; i < 4; i++) {
-            uint8_t r = rand();
-            device_write(&r, 0x1b8 + i, 1);
+            uint8_t b = (uint8_t)(disk_id >> (i * 8));
+            device_write(&b, 0x1b8 + i, 1);
         }
 
         // Write out the partition entries.
