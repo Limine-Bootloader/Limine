@@ -66,6 +66,8 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
         return false;
     }
 
+    bool ok = false;
+
     switch (mode_info->PixelFormat) {
         case PixelBlueGreenRedReserved8BitPerColor:
             ret->framebuffer_bpp = 32;
@@ -90,7 +92,7 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
                | mode_info->PixelInformation.GreenMask
                | mode_info->PixelInformation.BlueMask
                | mode_info->PixelInformation.ReservedMask) == 0) {
-                return false;
+                goto out;
             }
             ret->framebuffer_bpp = linear_masks_to_bpp(
                                       mode_info->PixelInformation.RedMask,
@@ -108,7 +110,7 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
                                       mode_info->PixelInformation.BlueMask);
             break;
         default:
-            return false;
+            goto out;
     }
 
     ret->memory_model = 0x06;
@@ -116,11 +118,15 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
     ret->framebuffer_width = mode_info->HorizontalResolution;
     ret->framebuffer_height = mode_info->VerticalResolution;
 
-    if (!validate_pitch(ret, mode)) {
-        return false;
-    }
+    ok = validate_pitch(ret, mode);
 
-    return true;
+out:
+    // UEFI calls this buffer callee allocated but never gives the caller
+    // ownership of it, so leave one the protocol is still pointing at alone.
+    if (gop->Mode == NULL || mode_info != gop->Mode->Info) {
+        gBS->FreePool(mode_info);
+    }
+    return ok;
 }
 
 bool gop_force_16 = false;
@@ -299,6 +305,10 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
             continue;
         }
 
+        uint32_t mode_width = mode_info->HorizontalResolution;
+        uint32_t mode_height = mode_info->VerticalResolution;
+        gBS->FreePool(mode_info);
+
         if (preset_modes[i] == -1) {
             preset_modes[i] = gop->Mode->Mode;
         }
@@ -332,8 +342,8 @@ fallback:
                          edid_width += ((uint64_t)fb->edid->det_timing_desc1[4] & 0xf0) << 4;
                 uint64_t edid_height = (uint64_t)fb->edid->det_timing_desc1[5];
                          edid_height += ((uint64_t)fb->edid->det_timing_desc1[7] & 0xf0) << 4;
-                if (edid_width >= mode_info->HorizontalResolution
-                 && edid_height >= mode_info->VerticalResolution) {
+                if (edid_width >= mode_width
+                 && edid_height >= mode_height) {
                     _target_width = edid_width;
                     _target_height = edid_height;
                     _target_bpp = 32;
