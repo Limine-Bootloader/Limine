@@ -33,6 +33,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
     } else {
         *_fbs_count = 0;
         pmm_free(*ret, sizeof(struct fb_info));
+        *ret = NULL;
     }
 #elif defined (UEFI)
     init_gop(ret, _fbs_count, target_width, target_height, target_bpp);
