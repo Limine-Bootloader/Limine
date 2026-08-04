@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-void e9_putc(char c);
-void e9_print(const char *msg);
-void e9_puts(const char *msg);
-void e9_printf(const char *format, ...);
+void putchar(char c);
+void print(const char *msg);
+void puts(const char *msg);
+void printf(const char *format, ...) __attribute__((format(printf, 1, 2)));

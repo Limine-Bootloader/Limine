@@ -260,31 +260,31 @@ static char *firmware_type_str(uint64_t t) {
 }
 
 static void print_file(struct limine_file *file) {
-    e9_printf("File->Revision: %d", file->revision);
-    e9_printf("File->Address: %x", file->address);
-    e9_printf("File->Size: %x", file->size);
-    e9_printf("File->Path: %s", file->path);
-    e9_printf("File->String: %s", file->string);
-    e9_printf("File->MediaType: %d", file->media_type);
-    e9_printf("File->PartIndex: %d", file->partition_index);
-    e9_printf("File->TFTPIP: %d.%d.%d.%d",
+    printf("File->Revision: %lu\n", file->revision);
+    printf("File->Address: %p\n", file->address);
+    printf("File->Size: %#lx\n", file->size);
+    printf("File->Path: %s\n", file->path);
+    printf("File->String: %s\n", file->string);
+    printf("File->MediaType: %d\n", file->media_type);
+    printf("File->PartIndex: %d\n", file->partition_index);
+    printf("File->TFTPIP: %d.%d.%d.%d\n",
               file->tftp_ipv4[0],
               file->tftp_ipv4[1],
               file->tftp_ipv4[2],
               file->tftp_ipv4[3]);
-    e9_printf("File->TFTPPort: %d", file->tftp_port);
-    e9_printf("File->MBRDiskId: %x", file->mbr_disk_id);
-    e9_printf("File->GPTDiskUUID: %x-%x-%x-%x",
+    printf("File->TFTPPort: %d\n", file->tftp_port);
+    printf("File->MBRDiskId: %#x\n", file->mbr_disk_id);
+    printf("File->GPTDiskUUID: %#x-%#x-%#x-%#lx\n",
               file->gpt_disk_uuid.a,
               file->gpt_disk_uuid.b,
               file->gpt_disk_uuid.c,
               *(uint64_t *)file->gpt_disk_uuid.d);
-    e9_printf("File->GPTPartUUID: %x-%x-%x-%x",
+    printf("File->GPTPartUUID: %#x-%#x-%#x-%#lx\n",
               file->gpt_part_uuid.a,
               file->gpt_part_uuid.b,
               file->gpt_part_uuid.c,
               *(uint64_t *)file->gpt_part_uuid.d);
-    e9_printf("File->PartUUID: %x-%x-%x-%x",
+    printf("File->PartUUID: %#x-%#x-%#x-%#lx\n",
               file->part_uuid.a,
               file->part_uuid.b,
               file->part_uuid.c,
@@ -294,16 +294,16 @@ static void print_file(struct limine_file *file) {
 uint32_t ctr = 0;
 
 void ap_entry(struct limine_mp_info *info) {
-    e9_printf("Hello from AP!");
+    printf("Hello from AP!\n");
 
 #if defined (__x86_64__)
-    e9_printf("My LAPIC ID: %x", info->lapic_id);
+    printf("My LAPIC ID: %#x\n", info->lapic_id);
 #elif defined (__aarch64__)
-    e9_printf("My MPIDR: %x", info->mpidr);
+    printf("My MPIDR: %#lx\n", info->mpidr);
 #elif defined (__riscv)
-    e9_printf("My Hart ID: %x", info->hartid);
+    printf("My Hart ID: %#lx\n", info->hartid);
 #elif defined (__loongarch__)
-    e9_printf("My Phys ID: %x", info->phys_id);
+    printf("My Phys ID: %#lx\n", info->phys_id);
 #endif
 
     __atomic_fetch_add(&ctr, 1, __ATOMIC_SEQ_CST);
@@ -337,19 +337,19 @@ static void simple_free(void *ptr, size_t size) {
 }
 
 static void limine_main(void) {
-    e9_printf("\nWe're alive");
+    printf("\nWe're alive\n");
 
     if (LIMINE_LOADED_BASE_REVISION_VALID(limine_base_revision) == true) {
-        e9_printf("Bootloader has loaded us using base revision %d",
+        printf("Bootloader has loaded us using base revision %lu\n",
                   LIMINE_LOADED_BASE_REVISION(limine_base_revision));
     }
 
     if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
-        e9_printf("Limine base revision not supported");
+        printf("Limine base revision not supported\n");
         for (;;);
     }
 
-    e9_printf("");
+    printf("\n");
 
     struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
 
@@ -396,163 +396,163 @@ static void limine_main(void) {
 
     uint64_t executable_slide = (uint64_t)executable_start - 0xffffffff80000000;
 
-    e9_printf("Executable start: %x", executable_start);
-    e9_printf("Executable slide: %x", executable_slide);
+    printf("Executable start: %p\n", executable_start);
+    printf("Executable slide: %#lx\n", executable_slide);
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (bootloader_info_request.response == NULL) {
-        e9_printf("Bootloader info not passed");
+        printf("Bootloader info not passed\n");
         break;
     }
     struct limine_bootloader_info_response *bootloader_info_response = bootloader_info_request.response;
-    e9_printf("Bootloader info feature, revision %d", bootloader_info_response->revision);
-    e9_printf("Bootloader name: %s", bootloader_info_response->name);
-    e9_printf("Bootloader version: %s", bootloader_info_response->version);
+    printf("Bootloader info feature, revision %lu\n", bootloader_info_response->revision);
+    printf("Bootloader name: %s\n", bootloader_info_response->name);
+    printf("Bootloader version: %s\n", bootloader_info_response->version);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (executable_cmdline_request.response == NULL) {
-        e9_printf("Executable command line not passed");
+        printf("Executable command line not passed\n");
         break;
     }
     struct limine_executable_cmdline_response *executable_cmdline_response = executable_cmdline_request.response;
-    e9_printf("Executable command line feature, revision %d", executable_cmdline_response->revision);
-    e9_printf("Command line: %s", executable_cmdline_response->cmdline);
+    printf("Executable command line feature, revision %lu\n", executable_cmdline_response->revision);
+    printf("Command line: %s\n", executable_cmdline_response->cmdline);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (firmware_type_request.response == NULL) {
-        e9_printf("Firmware type not passed");
+        printf("Firmware type not passed\n");
         break;
     }
     struct limine_firmware_type_response *firmware_type_response = firmware_type_request.response;
-    e9_printf("Firmware type feature, revision %d", firmware_type_response->revision);
-    e9_printf("Firmware type: %s", firmware_type_str(firmware_type_response->firmware_type));
+    printf("Firmware type feature, revision %lu\n", firmware_type_response->revision);
+    printf("Firmware type: %s\n", firmware_type_str(firmware_type_response->firmware_type));
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (executable_address_request.response == NULL) {
-        e9_printf("Executable address not passed");
+        printf("Executable address not passed\n");
         break;
     }
     struct limine_executable_address_response *exec_addr_response = executable_address_request.response;
-    e9_printf("Executable address feature, revision %d", exec_addr_response->revision);
-    e9_printf("Physical base: %x", exec_addr_response->physical_base);
-    e9_printf("Virtual base: %x", exec_addr_response->virtual_base);
+    printf("Executable address feature, revision %lu\n", exec_addr_response->revision);
+    printf("Physical base: %#lx\n", exec_addr_response->physical_base);
+    printf("Virtual base: %#lx\n", exec_addr_response->virtual_base);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (hhdm_request.response == NULL) {
-        e9_printf("HHDM not passed");
+        printf("HHDM not passed\n");
         break;
     }
     struct limine_hhdm_response *hhdm_response = hhdm_request.response;
-    e9_printf("HHDM feature, revision %d", hhdm_response->revision);
-    e9_printf("Higher half direct map at: %x", hhdm_response->offset);
+    printf("HHDM feature, revision %lu\n", hhdm_response->revision);
+    printf("Higher half direct map at: %#lx\n", hhdm_response->offset);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (memmap_request.response == NULL) {
-        e9_printf("Memory map not passed");
+        printf("Memory map not passed\n");
         break;
     }
     struct limine_memmap_response *memmap_response = memmap_request.response;
-    e9_printf("Memory map feature, revision %d", memmap_response->revision);
-    e9_printf("%d memory map entries", memmap_response->entry_count);
+    printf("Memory map feature, revision %lu\n", memmap_response->revision);
+    printf("%lu memory map entries\n", memmap_response->entry_count);
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry *e = memmap_response->entries[i];
-        e9_printf("%x->%x %s", e->base, e->base + e->length, get_memmap_type(e->type));
+        printf("%#lx->%#lx %s\n", e->base, e->base + e->length, get_memmap_type(e->type));
     }
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (framebuffer_request.response == NULL) {
-        e9_printf("Framebuffer not passed");
+        printf("Framebuffer not passed\n");
         break;
     }
     struct limine_framebuffer_response *fb_response = framebuffer_request.response;
-    e9_printf("Framebuffers feature, revision %d", fb_response->revision);
-    e9_printf("%d framebuffer(s)", fb_response->framebuffer_count);
+    printf("Framebuffers feature, revision %lu\n", fb_response->revision);
+    printf("%lu framebuffer(s)\n", fb_response->framebuffer_count);
     for (size_t i = 0; i < fb_response->framebuffer_count; i++) {
         struct limine_framebuffer *fb = fb_response->framebuffers[i];
-        e9_printf("Address: %x", fb->address);
-        e9_printf("Width: %d", fb->width);
-        e9_printf("Height: %d", fb->height);
-        e9_printf("Pitch: %d", fb->pitch);
-        e9_printf("BPP: %d", fb->bpp);
-        e9_printf("Memory model: %d", fb->memory_model);
-        e9_printf("Red mask size: %d", fb->red_mask_size);
-        e9_printf("Red mask shift: %d", fb->red_mask_shift);
-        e9_printf("Green mask size: %d", fb->green_mask_size);
-        e9_printf("Green mask shift: %d", fb->green_mask_shift);
-        e9_printf("Blue mask size: %d", fb->blue_mask_size);
-        e9_printf("Blue mask shift: %d", fb->blue_mask_shift);
-        e9_printf("EDID size: %d", fb->edid_size);
-        e9_printf("EDID at: %x", fb->edid);
-        e9_printf("Video modes:");
+        printf("Address: %p\n", fb->address);
+        printf("Width: %lu\n", fb->width);
+        printf("Height: %lu\n", fb->height);
+        printf("Pitch: %lu\n", fb->pitch);
+        printf("BPP: %d\n", fb->bpp);
+        printf("Memory model: %d\n", fb->memory_model);
+        printf("Red mask size: %d\n", fb->red_mask_size);
+        printf("Red mask shift: %d\n", fb->red_mask_shift);
+        printf("Green mask size: %d\n", fb->green_mask_size);
+        printf("Green mask shift: %d\n", fb->green_mask_shift);
+        printf("Blue mask size: %d\n", fb->blue_mask_size);
+        printf("Blue mask shift: %d\n", fb->blue_mask_shift);
+        printf("EDID size: %lu\n", fb->edid_size);
+        printf("EDID at: %p\n", fb->edid);
+        printf("Video modes:\n");
         for (size_t j = 0; j < fb->mode_count; j++) {
-            e9_printf("  %dx%dx%d", fb->modes[j]->width, fb->modes[j]->height, fb->modes[j]->bpp);
+            printf("  %lux%lux%lu\n", (unsigned long)fb->modes[j]->width, (unsigned long)fb->modes[j]->height, (unsigned long)fb->modes[j]->bpp);
         }
     }
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (fip_request.response == NULL) {
-        e9_printf("Flanterm FB init params not passed");
+        printf("Flanterm FB init params not passed\n");
         break;
     }
     struct limine_flanterm_fb_init_params_response *fip_response = fip_request.response;
-    e9_printf("Flanterm FB init params feature, revision %d", fip_response->revision);
-    e9_printf("%d entry/entries", fip_response->entry_count);
+    printf("Flanterm FB init params feature, revision %lu\n", fip_response->revision);
+    printf("%lu entry/entries\n", fip_response->entry_count);
     for (size_t i = 0; i < fip_response->entry_count; i++) {
         struct limine_flanterm_fb_init_params *p = fip_response->entries[i];
-        e9_printf("--- Entry %d ---", i);
-        e9_printf("Canvas: %x (size: %x)", p->canvas, p->canvas_size);
-        e9_printf("Default BG: %x, FG: %x", p->default_bg, p->default_fg);
-        e9_printf("Default BG bright: %x, FG bright: %x", p->default_bg_bright, p->default_fg_bright);
-        e9_printf("ANSI colours: %x %x %x %x %x %x %x %x",
+        printf("--- Entry %lu ---\n", i);
+        printf("Canvas: %#lx (size: %#lx)\n", (unsigned long)p->canvas, p->canvas_size);
+        printf("Default BG: %#x, FG: %#x\n", p->default_bg, p->default_fg);
+        printf("Default BG bright: %#x, FG bright: %#x\n", p->default_bg_bright, p->default_fg_bright);
+        printf("ANSI colours: %#x %#x %#x %#x %#x %#x %#x %#x\n",
             p->ansi_colours[0], p->ansi_colours[1], p->ansi_colours[2], p->ansi_colours[3],
             p->ansi_colours[4], p->ansi_colours[5], p->ansi_colours[6], p->ansi_colours[7]);
-        e9_printf("ANSI bright: %x %x %x %x %x %x %x %x",
+        printf("ANSI bright: %#x %#x %#x %#x %#x %#x %#x %#x\n",
             p->ansi_bright_colours[0], p->ansi_bright_colours[1], p->ansi_bright_colours[2], p->ansi_bright_colours[3],
             p->ansi_bright_colours[4], p->ansi_bright_colours[5], p->ansi_bright_colours[6], p->ansi_bright_colours[7]);
-        e9_printf("Font: %x (%dx%d)", p->font, p->font_width, p->font_height);
-        e9_printf("Font spacing: %d, scale: %dx%d", p->font_spacing, p->font_scale_x, p->font_scale_y);
-        e9_printf("Margin: %d, Rotation: %d", p->margin, p->rotation);
+        printf("Font: %#lx (%lux%lu)\n", (unsigned long)p->font, p->font_width, p->font_height);
+        printf("Font spacing: %lu, scale: %lux%lu\n", p->font_spacing, p->font_scale_x, p->font_scale_y);
+        printf("Margin: %lu, Rotation: %lu\n", p->margin, p->rotation);
     }
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (exec_file_request.response == NULL) {
-        e9_printf("Executable file not passed");
+        printf("Executable file not passed\n");
         break;
     }
     struct limine_executable_file_response *exec_file_response = exec_file_request.response;
-    e9_printf("Executable file feature, revision %d", exec_file_response->revision);
+    printf("Executable file feature, revision %lu\n", exec_file_response->revision);
     print_file(exec_file_response->executable_file);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (module_request.response == NULL) {
-        e9_printf("Modules not passed");
+        printf("Modules not passed\n");
         break;
     }
     struct limine_module_response *module_response = module_request.response;
-    e9_printf("Modules feature, revision %d", module_response->revision);
-    e9_printf("%d module(s)", module_response->module_count);
+    printf("Modules feature, revision %lu\n", module_response->revision);
+    printf("%lu module(s)\n", module_response->module_count);
     for (size_t i = 0; i < module_response->module_count; i++) {
         struct limine_file *f = module_response->modules[i];
-        e9_printf("---");
+        printf("---\n");
         print_file(f);
     }
 
@@ -574,124 +574,124 @@ FEAT_START
             }
         }
         if (plain == NULL) {
-            e9_printf("gzip: FAIL (plain module not found)");
+            printf("gzip: FAIL (plain module not found)\n");
         } else if (decompressed == NULL) {
-            e9_printf("gzip: FAIL (decompressed module not found)");
+            printf("gzip: FAIL (decompressed module not found)\n");
         } else if (plain->size != decompressed->size) {
-            e9_printf("gzip: FAIL (size mismatch: plain=%x, decompressed=%x)",
+            printf("gzip: FAIL (size mismatch: plain=%#x, decompressed=%#x)\n",
                       plain->size, decompressed->size);
         } else if (memcmp(plain->address, decompressed->address, plain->size) != 0) {
-            e9_printf("gzip: FAIL (content mismatch, size=%x)", plain->size);
+            printf("gzip: FAIL (content mismatch, size=%#x)\n", plain->size);
         } else {
-            e9_printf("gzip: pass (size=%x)", plain->size);
+            printf("gzip: pass (size=%#x)\n", plain->size);
         }
     }
 #endif
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (rsdp_request.response == NULL) {
-        e9_printf("RSDP not passed");
+        printf("RSDP not passed\n");
         break;
     }
     struct limine_rsdp_response *rsdp_response = rsdp_request.response;
-    e9_printf("RSDP feature, revision %d", rsdp_response->revision);
-    e9_printf("RSDP at: %x", rsdp_response->address);
+    printf("RSDP feature, revision %lu\n", rsdp_response->revision);
+    printf("RSDP at: %p\n", rsdp_response->address);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (smbios_request.response == NULL) {
-        e9_printf("SMBIOS not passed");
+        printf("SMBIOS not passed\n");
         break;
     }
     struct limine_smbios_response *smbios_response = smbios_request.response;
-    e9_printf("SMBIOS feature, revision %d", smbios_response->revision);
-    e9_printf("SMBIOS 32-bit entry at: %x", smbios_response->entry_32);
-    e9_printf("SMBIOS 64-bit entry at: %x", smbios_response->entry_64);
+    printf("SMBIOS feature, revision %lu\n", smbios_response->revision);
+    printf("SMBIOS 32-bit entry at: %p\n", smbios_response->entry_32);
+    printf("SMBIOS 64-bit entry at: %p\n", smbios_response->entry_64);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (est_request.response == NULL) {
-        e9_printf("EFI system table not passed");
+        printf("EFI system table not passed\n");
         break;
     }
     struct limine_efi_system_table_response *est_response = est_request.response;
-    e9_printf("EFI system table feature, revision %d", est_response->revision);
-    e9_printf("EFI system table at: %x", est_response->address);
+    printf("EFI system table feature, revision %lu\n", est_response->revision);
+    printf("EFI system table at: %p\n", est_response->address);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (tpm_event_log_request.response == NULL) {
-        e9_printf("TPM event log not passed");
+        printf("TPM event log not passed\n");
         break;
     }
     struct limine_tpm_event_log_response *tpm_event_log_response = tpm_event_log_request.response;
-    e9_printf("TPM event log feature, revision %d", tpm_event_log_response->revision);
-    e9_printf("Format: %d (TCG_%s)", tpm_event_log_response->format,
+    printf("TPM event log feature, revision %lu\n", tpm_event_log_response->revision);
+    printf("Format: %lu (TCG_%s)\n", tpm_event_log_response->format,
               tpm_event_log_response->format == LIMINE_TPM_EVENT_LOG_FORMAT_TCG_2 ? "2" : "1.2");
-    e9_printf("Size: %x bytes", tpm_event_log_response->size);
-    e9_printf("Address: %x", tpm_event_log_response->address);
+    printf("Size: %#lx bytes\n", tpm_event_log_response->size);
+    printf("Address: %p\n", tpm_event_log_response->address);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (efi_memmap_request.response == NULL) {
-        e9_printf("EFI memory map not passed");
+        printf("EFI memory map not passed\n");
         break;
     }
     struct limine_efi_memmap_response *efi_memmap_response = efi_memmap_request.response;
-    e9_printf("EFI memory map feature, revision %d", efi_memmap_response->revision);
-    e9_printf("EFI memory map at: %x", efi_memmap_response->memmap);
-    e9_printf("EFI memory map size: %x", efi_memmap_response->memmap_size);
-    e9_printf("EFI memory descriptor size: %x", efi_memmap_response->desc_size);
-    e9_printf("EFI memory descriptor version: %d", efi_memmap_response->desc_version);
+    printf("EFI memory map feature, revision %lu\n", efi_memmap_response->revision);
+    printf("EFI memory map at: %p\n", efi_memmap_response->memmap);
+    printf("EFI memory map size: %#lx\n", efi_memmap_response->memmap_size);
+    printf("EFI memory descriptor size: %#lx\n", efi_memmap_response->desc_size);
+    printf("EFI memory descriptor version: %lu\n", efi_memmap_response->desc_version);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (date_at_boot_request.response == NULL) {
-        e9_printf("Boot time not passed");
+        printf("Boot time not passed\n");
         break;
     }
     struct limine_date_at_boot_response *date_at_boot_response = date_at_boot_request.response;
-    e9_printf("Date at boot feature, revision %d", date_at_boot_response->revision);
-    e9_printf("Timestamp: %d", date_at_boot_response->timestamp);
+    printf("Date at boot feature, revision %lu\n", date_at_boot_response->revision);
+    printf("Timestamp: %lu\n", date_at_boot_response->timestamp);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (_mp_request.response == NULL) {
-        e9_printf("MP info not passed");
+        printf("MP info not passed\n");
         break;
     }
     struct limine_mp_response *mp_response = _mp_request.response;
-    e9_printf("MP feature, revision %d", mp_response->revision);
-    e9_printf("Flags: %x", mp_response->flags);
+    printf("MP feature, revision %lu\n", mp_response->revision);
+    printf("Flags: %#lx\n", (unsigned long)mp_response->flags);
 #if defined (__x86_64__)
-    e9_printf("BSP LAPIC ID: %x", mp_response->bsp_lapic_id);
+    printf("BSP LAPIC ID: %#x\n", mp_response->bsp_lapic_id);
 #elif defined (__aarch64__)
-    e9_printf("BSP MPIDR: %x", mp_response->bsp_mpidr);
+    printf("BSP MPIDR: %#lx\n", mp_response->bsp_mpidr);
 #elif defined (__riscv)
-    e9_printf("BSP Hart ID: %x", mp_response->bsp_hartid);
+    printf("BSP Hart ID: %#lx\n", mp_response->bsp_hartid);
 #elif defined (__loongarch__)
-    e9_printf("BSP Phys ID: %x", mp_response->bsp_phys_id);
+    printf("BSP Phys ID: %#lx\n", mp_response->bsp_phys_id);
 #endif
-    e9_printf("CPU count: %d", mp_response->cpu_count);
+    printf("CPU count: %lu\n", mp_response->cpu_count);
     for (size_t i = 0; i < mp_response->cpu_count; i++) {
         struct limine_mp_info *cpu = mp_response->cpus[i];
-        e9_printf("Processor ID: %x", cpu->processor_id);
+        printf("Processor ID: %#lx\n", (unsigned long)cpu->processor_id);
 #if defined (__x86_64__)
-        e9_printf("LAPIC ID: %x", cpu->lapic_id);
+        printf("LAPIC ID: %#x\n", cpu->lapic_id);
 #elif defined (__aarch64__)
-        e9_printf("MPIDR: %x", cpu->mpidr);
+        printf("MPIDR: %#lx\n", cpu->mpidr);
 #elif defined (__riscv)
-        e9_printf("Hart ID: %x", cpu->hartid);
+        printf("Hart ID: %#lx\n", cpu->hartid);
 #elif defined (__loongarch__)
-        e9_printf("Phys ID: %x", cpu->phys_id);
+        printf("Phys ID: %#lx\n", cpu->phys_id);
 #endif
 
 
@@ -715,63 +715,63 @@ FEAT_START
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (_dtb_request.response == NULL) {
-        e9_printf("Device tree blob not passed");
+        printf("Device tree blob not passed\n");
         break;
     }
     struct limine_dtb_response *dtb_response = _dtb_request.response;
-    e9_printf("Device tree blob feature, revision %d", dtb_response->revision);
-    e9_printf("Device tree blob pointer: %x", dtb_response->dtb_ptr);
+    printf("Device tree blob feature, revision %lu\n", dtb_response->revision);
+    printf("Device tree blob pointer: %p\n", dtb_response->dtb_ptr);
     uint32_t dtb_magic = *(uint32_t*)dtb_response->dtb_ptr;
-    e9_printf("Device tree header magic: %x", dtb_magic);
+    printf("Device tree header magic: %#x\n", dtb_magic);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     if (_pm_request.response == NULL) {
-        e9_printf("Paging mode not passed");
+        printf("Paging mode not passed\n");
         break;
     }
     struct limine_paging_mode_response *pm_response = _pm_request.response;
-    e9_printf("Paging mode feature, revision %d", pm_response->revision);
-    e9_printf("  mode: %d", pm_response->mode);
+    printf("Paging mode feature, revision %lu\n", pm_response->revision);
+    printf("  mode: %lu\n", pm_response->mode);
 FEAT_END
 
 #if defined (__riscv)
 FEAT_START
-    e9_printf("");
+    printf("\n");
     struct limine_riscv_bsp_hartid_response *bsp_response = _bsp_request.response;
     if (bsp_response == NULL) {
-        e9_printf("RISC-V BSP Hart ID was not passed");
+        printf("RISC-V BSP Hart ID was not passed\n");
         break;
     }
-    e9_printf("RISC-V BSP Hart ID: %x", bsp_response->bsp_hartid);
+    printf("RISC-V BSP Hart ID: %#lx\n", bsp_response->bsp_hartid);
 FEAT_END
 #endif
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     struct limine_tsc_frequency_response *tsc_freq_response = tsc_freq_request.response;
     if (tsc_freq_response == NULL) {
-        e9_printf("TSC frequency not passed");
+        printf("TSC frequency not passed\n");
         break;
     }
-    e9_printf("TSC frequency feature, revision %d", tsc_freq_response->revision);
-    e9_printf("Frequency: %d Hz", tsc_freq_response->frequency);
+    printf("TSC frequency feature, revision %lu\n", tsc_freq_response->revision);
+    printf("Frequency: %lu Hz\n", tsc_freq_response->frequency);
 FEAT_END
 
 FEAT_START
-    e9_printf("");
+    printf("\n");
     struct limine_bootloader_performance_response *perf_response = _perf_request.response;
     if (perf_response == NULL) {
-        e9_printf("Bootloader performance not passed");
+        printf("Bootloader performance not passed\n");
         break;
     }
-    e9_printf("Bootloader performance feature, revision %d", perf_response->revision);
-    e9_printf("Reset time: %d usec", perf_response->reset_usec);
-    e9_printf("Init time: %d usec", perf_response->init_usec);
-    e9_printf("Exec time: %d usec", perf_response->exec_usec);
+    printf("Bootloader performance feature, revision %lu\n", perf_response->revision);
+    printf("Reset time: %lu usec\n", perf_response->reset_usec);
+    printf("Init time: %lu usec\n", perf_response->init_usec);
+    printf("Exec time: %lu usec\n", perf_response->exec_usec);
 FEAT_END
 
 #ifdef ENABLE_QEMU_SHUTDOWN
