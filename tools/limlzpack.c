@@ -203,7 +203,8 @@ static int encode_len_tail_ml(byte ** outp, byte * out_end, size_t n) {
   return 0;
 }
 
-static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t srcsz) {
+static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t srcsz,
+                        const char ** why) {
   const byte * src = (const byte *) srcv;
   byte * dstp = (byte *) dst;
   byte * out = dstp, * out_end = dstp + dstcap;
@@ -274,6 +275,10 @@ static size_t limlzpack(void * dst, size_t dstcap, const void * srcv, size_t src
     }
     dp[i] = best_cost;  pick[i].lit = best_lit;
     pick[i].mlen = best_len;  pick[i].off = best_off;
+  }
+  if (dp[0] == (size_t)-1) {
+    *why = "a stretch of over 270 bytes contains no repeated 4-byte sequence";
+    goto fail;
   }
   int terminated = 0;
   for (i = 0; i < srcsz; ) {
@@ -389,9 +394,14 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "? fread\n");  return 1;
   }
   fclose(fin);
-  outsz = limlzpack(outbuf, insz * 2, inbuf, insz);
+  const char * why = NULL;
+  outsz = limlzpack(outbuf, insz * 2, inbuf, insz, &why);
   if (!outsz) {
-    fprintf(stderr, "? limlzpack\n");  return 1;
+    if (why)
+      fprintf(stderr, "? limlzpack: %s\n", why);
+    else
+      fprintf(stderr, "? limlzpack\n");
+    return 1;
   }
   uint32_t crc = ENDSWAP(crc32_nibble(inbuf, insz));
   if (fwrite(&crc, sizeof(crc), 1, fout) != 1
