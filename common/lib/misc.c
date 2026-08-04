@@ -415,7 +415,12 @@ bool efi_exit_boot_services(void) {
             if (status) {
                 goto fail;
             }
-            efi_copy_alloc = CHECKED_MUL(efi_mmap_alloc, (UINTN)2, goto fail);
+            // Cutting a descriptor at both edges of every region we own can
+            // add two descriptors per region on top of the firmware's own.
+            UINTN split_slack = CHECKED_MUL((UINTN)untouched_memmap_entries, (UINTN)2, goto fail);
+            split_slack = CHECKED_MUL(split_slack, efi_desc_size, goto fail);
+            efi_copy_alloc = CHECKED_ADD(CHECKED_MUL(efi_mmap_alloc, (UINTN)2, goto fail),
+                                         split_slack, goto fail);
             status = gBS->AllocatePool(EfiLoaderData, efi_copy_alloc,
                                        (void **)&efi_copy);
             if (status) {
@@ -459,49 +464,59 @@ bool efi_exit_boot_services(void) {
 
     for (size_t i = 0; i < entry_count; i++) {
         EFI_MEMORY_DESCRIPTOR *orig_entry = (void *)efi_mmap + i * efi_desc_size;
-        EFI_MEMORY_DESCRIPTOR *new_entry = (void *)efi_copy + efi_copy_i * efi_desc_size;
 
         if (orig_entry->NumberOfPages == 0) {
             continue;
         }
 
-        memcpy(new_entry, orig_entry, efi_desc_size);
-
         uint64_t base = orig_entry->PhysicalStart;
-        uint64_t length = orig_entry->NumberOfPages * 4096;
-        uint64_t top = base + length;
+        uint64_t top = base + orig_entry->NumberOfPages * 4096;
 
-        // Find for a match in the untouched memory map
-        for (size_t j = 0; j < untouched_memmap_entries; j++) {
-            if (untouched_memmap[j].type != MEMMAP_USABLE)
-                continue;
+        // Emit the descriptor in runs, cut wherever it crosses the edge of a
+        // region we own. Firmware is free to describe several of our regions
+        // with one descriptor, so matching just one of them would leave the
+        // others held as loader memory.
+        for (uint64_t cur = base; cur < top;) {
+            uint64_t run_top = top;
+            bool owned = false;
 
-            if (top > untouched_memmap[j].base && top <= untouched_memmap[j].base + untouched_memmap[j].length) {
-                // The match caps top at the region's top, so once anything
-                // below it is split off the rest lies inside and is ours.
-                if (untouched_memmap[j].base > base) {
-                    new_entry->NumberOfPages = (untouched_memmap[j].base - base) / 4096;
+            for (size_t j = 0; j < untouched_memmap_entries; j++) {
+                if (untouched_memmap[j].type != MEMMAP_USABLE)
+                    continue;
 
-                    efi_copy_i++;
-                    if (efi_copy_i == EFI_COPY_MAX_ENTRIES) {
-                        panic(false, "efi: New memory map exhausted");
+                uint64_t reg_base = untouched_memmap[j].base;
+                uint64_t reg_top = CHECKED_ADD(reg_base, untouched_memmap[j].length, continue);
+
+                if (cur >= reg_base && cur < reg_top) {
+                    owned = true;
+                    if (reg_top < run_top) {
+                        run_top = reg_top;
                     }
-                    new_entry = (void *)efi_copy + efi_copy_i * efi_desc_size;
-                    memcpy(new_entry, orig_entry, efi_desc_size);
-
-                    new_entry->NumberOfPages -= (untouched_memmap[j].base - base) / 4096;
-                    new_entry->PhysicalStart = untouched_memmap[j].base;
-                    new_entry->VirtualStart = 0;
+                    break;
                 }
 
-                new_entry->Type = EfiConventionalMemory;
-                break;
+                if (reg_base > cur && reg_base < run_top) {
+                    run_top = reg_base;
+                }
             }
-        }
 
-        efi_copy_i++;
-        if (efi_copy_i == EFI_COPY_MAX_ENTRIES) {
-            panic(false, "efi: New memory map exhausted");
+            EFI_MEMORY_DESCRIPTOR *new_entry = (void *)efi_copy + efi_copy_i * efi_desc_size;
+            memcpy(new_entry, orig_entry, efi_desc_size);
+            new_entry->PhysicalStart = cur;
+            new_entry->NumberOfPages = (run_top - cur) / 4096;
+            if (owned) {
+                new_entry->Type = EfiConventionalMemory;
+            }
+            if (cur != base) {
+                new_entry->VirtualStart = 0;
+            }
+
+            efi_copy_i++;
+            if (efi_copy_i == EFI_COPY_MAX_ENTRIES) {
+                panic(false, "efi: New memory map exhausted");
+            }
+
+            cur = run_top;
         }
     }
 
