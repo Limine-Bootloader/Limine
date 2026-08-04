@@ -592,11 +592,12 @@ noreturn void limine_load(char *config, char *cmdline) {
     bool base_revision_found = false;
     uint64_t *base_rev_p1_ptr = NULL;
     uint64_t *base_rev_p2_ptr = NULL;
-    for (size_t i = 0; i + 32 <= image_size_before_bss; i += 8) {
+    for (size_t i = 0; i <= image_size_before_bss; i += 8) {
         uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
         // Check if start marker hit
-        if (p[0] == limine_requests_start_marker[0] && p[1] == limine_requests_start_marker[1]
+        if (i + 32 <= image_size_before_bss
+         && p[0] == limine_requests_start_marker[0] && p[1] == limine_requests_start_marker[1]
          && p[2] == limine_requests_start_marker[2] && p[3] == limine_requests_start_marker[3]) {
             base_revision = 0;
             base_revision_found = false;
@@ -606,11 +607,13 @@ noreturn void limine_load(char *config, char *cmdline) {
         }
 
         // Check if end marker hit
-        if (p[0] == limine_requests_end_marker[0] && p[1] == limine_requests_end_marker[1]) {
+        if (i + 16 <= image_size_before_bss
+         && p[0] == limine_requests_end_marker[0] && p[1] == limine_requests_end_marker[1]) {
             break;
         }
 
-        if (p[0] == limine_base_revision[0] && p[1] == limine_base_revision[1]) {
+        if (i + 24 <= image_size_before_bss
+         && p[0] == limine_base_revision[0] && p[1] == limine_base_revision[1]) {
             if (base_revision_found) {
                 panic(true, "limine: Duplicated base revision tag");
             }
@@ -660,21 +663,26 @@ noreturn void limine_load(char *config, char *cmdline) {
         }
     } else {
         uint64_t common_magic[2] = { LIMINE_COMMON_MAGIC };
-        for (size_t i = 0; i + 32 <= image_size_before_bss; i += 8) {
+        for (size_t i = 0; i <= image_size_before_bss; i += 8) {
             uint64_t *p = (void *)(uintptr_t)physical_base + i;
 
             // Check if start marker hit
-            if (p[0] == limine_requests_start_marker[0] && p[1] == limine_requests_start_marker[1]
+            if (i + 32 <= image_size_before_bss
+             && p[0] == limine_requests_start_marker[0] && p[1] == limine_requests_start_marker[1]
              && p[2] == limine_requests_start_marker[2] && p[3] == limine_requests_start_marker[3]) {
                 requests_count = 0;
                 continue;
             }
 
             // Check if end marker hit
-            if (p[0] == limine_requests_end_marker[0] && p[1] == limine_requests_end_marker[1]) {
+            if (i + 16 <= image_size_before_bss
+             && p[0] == limine_requests_end_marker[0] && p[1] == limine_requests_end_marker[1]) {
                 break;
             }
 
+            if (i + 32 > image_size_before_bss) {
+                continue;
+            }
             if (p[0] != common_magic[0]) {
                 continue;
             }
