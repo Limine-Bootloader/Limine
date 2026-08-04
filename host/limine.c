@@ -381,6 +381,7 @@ error:
 
 static bool load_uninstall_data(const char *filename) {
     size_t loaded_count = 0;
+    uint64_t count = 0;
 
     if (!quiet) {
         fprintf(stderr, "Loading uninstall data from file: `%s`...\n", filename);
@@ -392,17 +393,19 @@ static bool load_uninstall_data(const char *filename) {
         goto error;
     }
 
-    if (fread(&uninstall_data_i, sizeof(uint64_t), 1, udfile) != 1) {
+    // A short read still copies what it got, so the count stays local until the
+    // whole file has loaded: free_uninstall_data() walks whatever is published.
+    if (fread(&count, sizeof(uint64_t), 1, udfile) != 1) {
         goto fread_error;
     }
 
-    if (uninstall_data_i > UNINSTALL_DATA_MAX) {
+    if (count > UNINSTALL_DATA_MAX) {
         fprintf(stderr, "error: load_uninstall_data(): too many entries (%zu > %d)\n",
-                (size_t)uninstall_data_i, UNINSTALL_DATA_MAX);
+                (size_t)count, UNINSTALL_DATA_MAX);
         goto error;
     }
 
-    for (size_t i = 0; i < uninstall_data_i; i++) {
+    for (size_t i = 0; i < count; i++) {
         if (fread(&uninstall_data[i].loc, sizeof(uint64_t), 1, udfile) != 1) {
             goto fread_error;
         }
@@ -424,6 +427,8 @@ static bool load_uninstall_data(const char *filename) {
         }
         loaded_count++;
     }
+
+    uninstall_data_i = count;
 
     fclose(udfile);
     return true;
