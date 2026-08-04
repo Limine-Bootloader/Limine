@@ -478,6 +478,11 @@ reloc_fail:
         panic(true, "multiboot2: Could not find viable load address for executable");
     }
 
+    if (entry_point < ranges->target
+     || entry_point >= ranges->target + ranges->length) {
+        panic(true, "multiboot2: Entry point is outside the executable");
+    }
+
     // Reserve the kernel's target so later module/info sources can't be
     // allocated on top of it.
     elsewhere_reserve_target(ranges->target, ranges->length);
