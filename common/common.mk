@@ -1,4 +1,5 @@
 .SUFFIXES:
+.DELETE_ON_ERROR:
 
 override SRCDIR := $(shell pwd -P)
 
