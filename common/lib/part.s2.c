@@ -495,6 +495,10 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
     struct mbr_entry entry;
 
     if (partition > 3) {
+        if (volume->ebr_part != NULL) {
+            return mbr_get_logical_part(ret, volume->ebr_part, partition - 4);
+        }
+
         for (int i = 0; i < 4; i++) {
             uint64_t entry_offset = 0x1be + sizeof(struct mbr_entry) * i;
 
@@ -514,24 +518,26 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
                 continue;
             }
 
-            struct volume extended_part = {0};
+            struct volume *extended_part = ext_mem_alloc(sizeof(struct volume));
 
 #if defined (UEFI)
-            extended_part.efi_handle  = volume->efi_handle;
-            extended_part.block_io    = volume->block_io;
+            extended_part->efi_handle  = volume->efi_handle;
+            extended_part->block_io    = volume->block_io;
 #elif defined (BIOS)
-            extended_part.drive       = volume->drive;
+            extended_part->drive       = volume->drive;
 #endif
-            extended_part.fastest_xfer_size = volume->fastest_xfer_size;
-            extended_part.index       = volume->index;
-            extended_part.is_optical  = volume->is_optical;
-            extended_part.partition   = i + 1;
-            extended_part.sector_size = volume->sector_size;
-            extended_part.first_sect  = entry.first_sect;
-            extended_part.sect_count  = entry.sect_count;
-            extended_part.backing_dev = volume;
+            extended_part->fastest_xfer_size = volume->fastest_xfer_size;
+            extended_part->index       = volume->index;
+            extended_part->is_optical  = volume->is_optical;
+            extended_part->partition   = i + 1;
+            extended_part->sector_size = volume->sector_size;
+            extended_part->first_sect  = entry.first_sect;
+            extended_part->sect_count  = entry.sect_count;
+            extended_part->backing_dev = volume;
 
-            return mbr_get_logical_part(ret, &extended_part, partition - 4);
+            volume->ebr_part = extended_part;
+
+            return mbr_get_logical_part(ret, extended_part, partition - 4);
         }
 
         return END_OF_TABLE;
