@@ -154,33 +154,28 @@ static bool fb_flush_riscv(volatile void *base, size_t length) {
 #define LOONGARCH_LX_BITS 7
 #define LOONGARCH_LX_IU_PRESENT ((uint32_t)1 << 0)
 #define LOONGARCH_LX_IU_UNIFY ((uint32_t)1 << 1)
-#define LOONGARCH_LX_IU_INCLUSIVE ((uint32_t)1 << 3)
 #define LOONGARCH_LX_D_PRESENT ((uint32_t)1 << 4)
-#define LOONGARCH_LX_D_INCLUSIVE ((uint32_t)1 << 6)
 #define LOONGARCH_MAX_LEAVES 6
 
 // Where a writeback lands is decided by the inclusion relations between levels,
 // so maintaining one leaf does not reach memory by itself. An instruction cache
-// holds no data and is never written back, and a leaf that contains every level
-// below it makes maintaining those levels redundant.
+// holds no data and is never written back. The manual does not say an inclusive
+// level writes its inner copies back rather than merely invalidating them, so
+// every data leaf is maintained.
 static uint32_t loongarch_writeback_leaves(void) {
     uint32_t cfg = loongarch_cpucfg(LOONGARCH_CACHE_CFG);
     uint32_t mask = 0;
     unsigned leaf = 0;
-    unsigned outermost = 0;
-    bool outermost_inclusive = false;
 
     if (cfg & LOONGARCH_L1_IU_PRESENT) {
         if (cfg & LOONGARCH_L1_IU_UNIFY) {
             mask |= (uint32_t)1 << leaf;
-            outermost = leaf;
         }
         leaf++;
     }
 
     if (cfg & LOONGARCH_L1_D_PRESENT) {
         mask |= (uint32_t)1 << leaf;
-        outermost = leaf;
         leaf++;
     }
 
@@ -189,22 +184,14 @@ static uint32_t loongarch_writeback_leaves(void) {
         if (lx & LOONGARCH_LX_IU_PRESENT) {
             if (lx & LOONGARCH_LX_IU_UNIFY) {
                 mask |= (uint32_t)1 << leaf;
-                outermost = leaf;
-                outermost_inclusive = (lx & LOONGARCH_LX_IU_INCLUSIVE) != 0;
             }
             leaf++;
         }
 
         if ((lx & LOONGARCH_LX_D_PRESENT) && leaf < LOONGARCH_MAX_LEAVES) {
             mask |= (uint32_t)1 << leaf;
-            outermost = leaf;
-            outermost_inclusive = (lx & LOONGARCH_LX_D_INCLUSIVE) != 0;
             leaf++;
         }
-    }
-
-    if (outermost_inclusive) {
-        return (uint32_t)1 << outermost;
     }
 
     return mask;
