@@ -85,6 +85,9 @@ static int set_pos(FILE *stream, uint64_t pos) {
 #define SIZEOF_ARRAY(array) (sizeof(array) / sizeof(array[0]))
 #define DIV_ROUNDUP(a, b) (((a) + ((b) - 1)) / (b))
 
+// The loader enumerates at most this many; keep the installer in step.
+#define MAX_GPT_PARTITIONS 256
+
 struct gpt_table_header {
     // the head
     char     signature[8];
@@ -782,10 +785,15 @@ static int bios_install(int argc, char *argv[]) {
     }
 
     struct gpt_table_header secondary_gpt_header;
+    uint32_t gpt_entry_count = 0;
     if (gpt) {
         if (ENDSWAP(gpt_header.size_of_partition_entry) < sizeof(struct gpt_entry)) {
             fprintf(stderr, "error: GPT partition entry size too small, aborting.\n");
             goto cleanup;
+        }
+        gpt_entry_count = ENDSWAP(gpt_header.number_of_partition_entries);
+        if (gpt_entry_count > MAX_GPT_PARTITIONS) {
+            gpt_entry_count = MAX_GPT_PARTITIONS;
         }
         if (!quiet) {
             fprintf(stderr, "Secondary header at LBA 0x%" PRIx64 ".\n",
@@ -840,7 +848,7 @@ static int bios_install(int argc, char *argv[]) {
             goto no_mbr_conv;
         }
 
-        for (int64_t i = 0; i < (int64_t)ENDSWAP(gpt_header.number_of_partition_entries); i++) {
+        for (int64_t i = 0; i < (int64_t)gpt_entry_count; i++) {
             struct gpt_entry gpt_entry;
             uint64_t entry_offset = (uint64_t)i * ENDSWAP(gpt_header.size_of_partition_entry);
             if (add_u64_overflow(part_entry_base, entry_offset, &entry_offset)) {
@@ -1105,7 +1113,7 @@ part_too_low:
                 goto cleanup;
             }
             partition_num = (uint32_t)part_ndx_val - 1;
-            if (partition_num >= ENDSWAP(gpt_header.number_of_partition_entries)) {
+            if (partition_num >= gpt_entry_count) {
                 fprintf(stderr, "error: Partition number is too large.\n");
                 goto cleanup;
             }
@@ -1131,7 +1139,7 @@ part_too_low:
             }
         } else {
             // Try to autodetect the BIOS boot partition
-            for (partition_num = 0; partition_num < ENDSWAP(gpt_header.number_of_partition_entries); partition_num++) {
+            for (partition_num = 0; partition_num < gpt_entry_count; partition_num++) {
                 uint64_t entry_off = (uint64_t)partition_num * ENDSWAP(gpt_header.size_of_partition_entry);
                 if (add_u64_overflow(gpt_part_entry_base, entry_off, &entry_off)) {
                     fprintf(stderr, "error: GPT partition entry offset overflows.\n");
