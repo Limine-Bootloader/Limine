@@ -92,14 +92,6 @@ static struct riscv_hart *riscv_find_hart(size_t hartid) {
     return NULL;
 }
 
-static struct riscv_hart *riscv_get_hart(size_t hartid) {
-    struct riscv_hart *hart = riscv_find_hart(hartid);
-    if (hart == NULL) {
-        panic(false, "no `struct riscv_hart` for hartid %U", (uint64_t)hartid);
-    }
-    return hart;
-}
-
 static inline struct rhct_hart_info *rhct_get_hart_info(struct rhct *rhct, uint32_t acpi_uid) {
     uint32_t offset = rhct->nodes_offset;
     for (uint32_t i = 0; i < rhct->nodes_len; i++) {
@@ -475,8 +467,14 @@ size_t riscv_cbom_block_size(void) {
 }
 
 bool riscv_check_isa_extension_for(size_t hartid, const char *name, size_t *maj, size_t *min) {
+    // panic() flushes the framebuffer, and the flush comes back through here.
+    struct riscv_hart *hart = riscv_find_hart(hartid);
+    if (hart == NULL) {
+        return false;
+    }
+
     // Skip the `rv{32,64}` prefix so it's not parsed as extensions.
-    const char *isa_string = riscv_get_hart(hartid)->isa_string + 4;
+    const char *isa_string = hart->isa_string + 4;
 
     struct isa_extension ext;
     while (parse_extension(&isa_string, &ext)) {
