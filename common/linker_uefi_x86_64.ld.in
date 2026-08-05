@@ -72,6 +72,10 @@ SECTIONS
    data_end = .;
     } :data
 
+    /* The image is padded to a 4096 multiple of the last byte with file
+       contents, so a coarser .bss would push __data_rawend past the file. */
+    ASSERT(ALIGNOF(.bss) <= 0x1000, ".bss alignment exceeds 4096")
+
     __bss_end = ABSOLUTE(ALIGN(0x1000));
     __bss_size = ABSOLUTE(__bss_end - __bss_start);
 
