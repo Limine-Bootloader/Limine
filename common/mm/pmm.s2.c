@@ -321,8 +321,8 @@ void init_memmap(void) {
 
     gBS->GetMemoryMap(&efi_mmap_size, tmp_mmap, &mmap_key, &efi_desc_size, &efi_desc_ver);
 
-    // EFI_BUFFER_TOO_SMALL promises only MemoryMapSize, and the descriptor may
-    // grow, so the size the firmware reports has to be checked, not assumed.
+    // EFI_BUFFER_TOO_SMALL promises only MemoryMapSize, so the descriptor size
+    // this call reports has to be checked before it is divided by.
     if (efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR)) {
         goto fail;
     }
@@ -352,7 +352,10 @@ void init_memmap(void) {
     }
 
     status = gBS->GetMemoryMap(&efi_mmap_size, efi_mmap, &mmap_key, &efi_desc_size, &efi_desc_ver);
-    if (status) {
+
+    // GetMemoryMap() reports a descriptor size per call, and it is this one the
+    // walk below strides by.
+    if (status || efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR)) {
         gBS->FreePool(efi_mmap);
         gBS->FreePool(memmap);
         gBS->FreePool(untouched_memmap);
