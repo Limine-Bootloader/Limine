@@ -992,9 +992,16 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
             panic(true, "elf: Attempted to load ELF file with PHDRs with different permissions sharing the same memory page.");
         }
 
+        uint64_t rounded_top = ALIGN_UP(phdr_end, align, panic(true, "elf: PHDR alignment overflow"));
+
         prev_top = phdr_end;
-        prev_rounded_top = ALIGN_UP(phdr_end, align, panic(true, "elf: PHDR alignment overflow"));
-        prev_flags = phdr->p_flags & 0b111;
+
+        // A coarsely aligned segment covers pages that later segments land on,
+        // so the bound is the highest rounded top seen.
+        if (rounded_top > prev_rounded_top) {
+            prev_rounded_top = rounded_top;
+            prev_flags = phdr->p_flags & 0b111;
+        }
 
         if (phdr->p_vaddr < min_vaddr) {
             min_vaddr = phdr->p_vaddr;
