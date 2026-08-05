@@ -297,7 +297,10 @@ static void init_riscv_fdt(const void *fdt) {
         uint32_t cbom_block_size = 0;
         if ((prop = fdt_getprop(fdt, node, "riscv,cbom-block-size", &prop_len))
          && prop_len == 4) {
-            cbom_block_size = fdt32_ld(prop);
+            uint32_t size = fdt32_ld(prop);
+            if (size != 0 && size <= (uint32_t)1 << RHCT_CMO_BLOCK_SIZE_MAX_LOG2) {
+                cbom_block_size = size;
+            }
         }
 
         const char *isa_string = fdt_getprop(fdt, node, "riscv,isa", NULL);
