@@ -83,13 +83,21 @@ uint64_t riscv_time_base_frequency(void) {
     return cached_time_base_freq;
 }
 
-static struct riscv_hart *riscv_get_hart(size_t hartid) {
+static struct riscv_hart *riscv_find_hart(size_t hartid) {
     for (struct riscv_hart *hart = hart_list; hart != NULL; hart = hart->next) {
         if (hart->hartid == hartid) {
             return hart;
         }
     }
-    panic(false, "no `struct riscv_hart` for hartid %U", (uint64_t)hartid);
+    return NULL;
+}
+
+static struct riscv_hart *riscv_get_hart(size_t hartid) {
+    struct riscv_hart *hart = riscv_find_hart(hartid);
+    if (hart == NULL) {
+        panic(false, "no `struct riscv_hart` for hartid %U", (uint64_t)hartid);
+    }
+    return hart;
 }
 
 static inline struct rhct_hart_info *rhct_get_hart_info(struct rhct *rhct, uint32_t acpi_uid) {
@@ -454,7 +462,9 @@ static bool extension_matches(const struct isa_extension *ext, const char *name)
 size_t riscv_cbom_block_size(void) {
     // The device tree property is optional and Zicbom leaves the block size
     // implementation defined; 64 is what every part documented so far uses.
-    uint32_t size = riscv_get_hart(bsp_hartid)->cbom_block_size;
+    // panic() flushes the framebuffer, so panicking here would recurse.
+    struct riscv_hart *hart = riscv_find_hart(bsp_hartid);
+    uint32_t size = hart == NULL ? 0 : hart->cbom_block_size;
     if (size == 0 || (size & (size - 1)) != 0) {
         return 64;
     }
