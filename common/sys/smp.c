@@ -778,6 +778,11 @@ static struct limine_mp_info *try_dtb_smp( void *dtb,
         (*cpu_count)++;
     }
 
+    if (*cpu_count == 0) {
+        pmm_free(ret, max_cpus * sizeof(struct limine_mp_info));
+        return NULL;
+    }
+
     return ret;
 }
 
@@ -883,6 +888,11 @@ struct limine_mp_info *init_smp(size_t *cpu_count, pagemap_t pagemap, uint64_t h
 
         (*cpu_count)++;
         continue;
+    }
+
+    if (*cpu_count == 0) {
+        pmm_free(ret, num_cpus * sizeof(struct limine_mp_info));
+        return NULL;
     }
 
     return ret;
