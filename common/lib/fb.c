@@ -291,8 +291,10 @@ bool fb_flush_reliable(void) {
 bool fb_flush(volatile void *base, size_t length) {
     typedef bool (*flush_fn)(volatile void *, size_t);
     static flush_fn fn = NULL;
+    static bool probed = false;
 
-    if (fn == NULL) {
+    if (!probed) {
+        probed = true;
 #if defined (__aarch64__)
         fn = fb_flush_aarch64;
 #elif defined (__riscv)
