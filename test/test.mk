@@ -140,17 +140,19 @@ flanterm_fb.o: ../flanterm/src/flanterm_backends/fb.c
 test.elf: limine.o e9print.o memory.o flanterm.o flanterm_fb.o
 	$(LD) $(LDFLAGS) $^ -o $@
 
+# These are 32-bit where test.elf's objects are not, so they need names of
+# their own.
 multiboot2.elf: multiboot2_trampoline.o
-	$(CC) $(CFLAGS_MB) -c memory.c -o memory.o
+	$(CC) $(CFLAGS_MB) -c memory.c -o memory.mb.o
 	$(CC) $(CFLAGS_MB) -c multiboot2.c -o multiboot2.o
-	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.o
-	$(LD) $(LDFLAGS_MB2) $^ memory.o multiboot2.o e9print.o -o $@
+	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.mb.o
+	$(LD) $(LDFLAGS_MB2) $^ memory.mb.o multiboot2.o e9print.mb.o -o $@
 
 multiboot.elf: multiboot_trampoline.o
-	$(CC) $(CFLAGS_MB) -c memory.c -o memory.o
+	$(CC) $(CFLAGS_MB) -c memory.c -o memory.mb.o
 	$(CC) $(CFLAGS_MB) -c multiboot.c -o multiboot.o
-	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.o
-	$(LD) $(LDFLAGS_MB1) $^ memory.o multiboot.o e9print.o -o $@
+	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.mb.o
+	$(LD) $(LDFLAGS_MB1) $^ memory.mb.o multiboot.o e9print.mb.o -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -161,5 +163,6 @@ multiboot.elf: multiboot_trampoline.o
 clean:
 	rm -rf test.elf limine.o e9print.o memory.o
 	rm -rf flanterm.o flanterm_fb.o
+	rm -rf e9print.mb.o memory.mb.o
 	rm -rf multiboot2.o multiboot2.elf multiboot2_trampoline.o
 	rm -rf multiboot.o multiboot_trampoline.o multiboot.elf
