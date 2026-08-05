@@ -464,6 +464,15 @@ static void *_get_request(uint64_t id[4], size_t size) {
 // has to fit in the image.
 #define get_request(VAR, REQ) _get_request((uint64_t[4])REQ, sizeof(*(VAR)))
 
+// A request that gained fields in a later revision is only required to carry
+// the prefix every revision has, so name the first field a later one added.
+#define get_request_rev0(VAR, REQ, REV1_MEMBER) \
+    _get_request((uint64_t[4])REQ, offsetof(typeof(*(VAR)), REV1_MEMBER))
+
+// Whether the fields get_request_rev0() left outside the bound are there.
+#define request_has_rev1(VAR) \
+    ((VAR)->revision >= 1 && (uintptr_t)(VAR) + sizeof(*(VAR)) <= requests_top)
+
 // For presence tests, where nothing past the ID is read.
 #define have_request(REQ) (_get_request((uint64_t[4])REQ, sizeof(uint64_t[4])) != NULL)
 
@@ -935,7 +944,7 @@ hhdm_fail:
         randomise_hhdm_base = strcasecmp(randomise_hhdm_base_s, "yes") == 0;
     }
 FEAT_START
-    struct limine_paging_mode_request *pm_request = get_request(pm_request, LIMINE_PAGING_MODE_REQUEST_ID);
+    struct limine_paging_mode_request *pm_request = get_request_rev0(pm_request, LIMINE_PAGING_MODE_REQUEST_ID, max_mode);
     if (pm_request == NULL)
         break;
 
@@ -943,7 +952,7 @@ FEAT_START
     paging_mode = paging_mode_limine_to_vmm(target_mode);
 
     int kern_min_mode = PAGING_MODE_MIN, kern_max_mode = paging_mode;
-    if (pm_request->revision >= 1) {
+    if (request_has_rev1(pm_request)) {
         kern_min_mode = (int)paging_mode_limine_to_vmm(pm_request->min_mode);
         kern_max_mode = (int)paging_mode_limine_to_vmm(pm_request->max_mode);
     }
@@ -1233,7 +1242,7 @@ FEAT_END
 
     // Modules
 FEAT_START
-    struct limine_module_request *module_request = get_request(module_request, LIMINE_MODULE_REQUEST_ID);
+    struct limine_module_request *module_request = get_request_rev0(module_request, LIMINE_MODULE_REQUEST_ID, internal_module_count);
     if (module_request == NULL) {
         break; // next feature
     }
@@ -1245,7 +1254,7 @@ FEAT_START
             break;
     }
 
-    if (module_request->revision >= 1) {
+    if (request_has_rev1(module_request)) {
         module_count += module_request->internal_module_count;
     }
 
@@ -1267,7 +1276,7 @@ FEAT_START
         bool module_required = true;
         bool module_path_allocated = false;
 
-        if (module_request->revision >= 1 && i < module_request->internal_module_count) {
+        if (request_has_rev1(module_request) && i < module_request->internal_module_count) {
             uint64_t *internal_modules = (void *)get_phys_addr(module_request->internal_modules);
             struct limine_internal_module *internal_module = (void *)get_phys_addr(internal_modules[i]);
 
@@ -1309,7 +1318,7 @@ FEAT_START
 
             module_required = internal_module->flags & LIMINE_INTERNAL_MODULE_REQUIRED;
         } else {
-            size_t config_index = i - (module_request->revision >= 1 ? module_request->internal_module_count : 0);
+            size_t config_index = i - (request_has_rev1(module_request) ? module_request->internal_module_count : 0);
 
             // Try MODULE_STRING first, then fall back to MODULE_CMDLINE
             struct conf_tuple conf_tuple =
