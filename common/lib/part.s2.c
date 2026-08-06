@@ -368,8 +368,13 @@ static void gpt_memo_store(struct volume *volume,
 // genuine alternate at the end wins over whatever a corrupt primary points at.
 static bool gpt_locate_header(struct volume *volume,
                               struct gpt_table_header *header, int *lb_size) {
+    // The size a table was written for belongs to the image, not to the medium
+    // it ends up on: a 512-byte-LBA GPT reads correctly from 2048-byte optical
+    // media, which is what an ISOHYBRID is. So this is probed rather than taken
+    // from the volume's sector size. 2048 is optical.
     int lb_guesses[] = {
         512,
+        2048,
         4096
     };
 
