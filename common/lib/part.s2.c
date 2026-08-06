@@ -156,35 +156,292 @@ struct gpt_entry {
     uint16_t partition_name[36];
 } __attribute__((packed));
 
-bool gpt_get_guid(struct guid *guid, struct volume *volume) {
-    struct gpt_table_header header = {0};
+// Bitwise: this is stage 2, where a table costs more space than the loop costs
+// time over the few kilobytes a GPT occupies.
+static uint32_t crc32_update(uint32_t crc, const void *buffer, size_t count) {
+    const uint8_t *bytes = buffer;
 
+    for (size_t i = 0; i < count; i++) {
+        crc ^= bytes[i];
+        for (int bit = 0; bit < 8; bit++) {
+            crc = (crc & 1) ? (crc >> 1) ^ 0xedb88320 : crc >> 1;
+        }
+    }
+
+    return crc;
+}
+
+// Streamed so a header claiming a whole block, or an entry array, needs no
+// buffer of its own.
+static bool crc32_volume_range(struct volume *volume, uint64_t loc,
+                               uint64_t count, uint32_t *crc) {
+    uint8_t chunk[512];
+
+    while (count > 0) {
+        uint64_t step = count < sizeof(chunk) ? count : sizeof(chunk);
+        if (!volume_read(volume, chunk, loc, step)) {
+            return false;
+        }
+        *crc = crc32_update(*crc, chunk, step);
+        loc += step;
+        count -= step;
+    }
+
+    return true;
+}
+
+// 64 times the 16384 bytes UEFI requires be reserved for the entry array.
+#define GPT_MAX_ARRAY_SIZE (1024 * 1024)
+
+// UEFI 2.11 section 5.3.2 requires four checks before a GPT may be used: the
+// signature, the header CRC, that MyLBA names the block the header was read
+// from, and the entry array CRC.
+static bool gpt_verify_header(struct volume *volume,
+                              struct gpt_table_header *header,
+                              uint64_t header_lba, int lb_size) {
+    if (strncmp(header->signature, "EFI PART", 8)) {
+        return false;
+    }
+
+    if (header->revision != 0x00010000) {
+        return false;
+    }
+
+    // HeaderSize bounds the CRC's extent, and is itself bounded by the defined
+    // fields below and the header's own block above.
+    if (header->header_size < sizeof(struct gpt_table_header)
+     || (uint64_t)header->header_size > (uint64_t)lb_size) {
+        return false;
+    }
+
+    if (header->my_lba != header_lba) {
+        return false;
+    }
+
+    uint64_t header_loc = CHECKED_MUL(header_lba, (uint64_t)lb_size, return false);
+
+    struct gpt_table_header zeroed = *header;
+    zeroed.crc32 = 0;
+
+    uint32_t crc = crc32_update(0xffffffff, &zeroed, sizeof(zeroed));
+    if (header->header_size > sizeof(zeroed)) {
+        uint64_t tail = CHECKED_ADD(header_loc, sizeof(zeroed), return false);
+        if (!crc32_volume_range(volume, tail,
+                                header->header_size - sizeof(zeroed), &crc)) {
+            return false;
+        }
+    }
+
+    if (~crc != header->crc32) {
+        return false;
+    }
+
+    // "shall be set to a value of 128 x 2^n", which is to say a power of two no
+    // smaller than an entry. Revisions before 2.8 allowed any multiple of 8.
+    uint32_t entry_size = header->size_of_partition_entry;
+    if (entry_size < sizeof(struct gpt_entry)
+     || (entry_size & (entry_size - 1)) != 0) {
+        return false;
+    }
+
+    uint64_t array_size = CHECKED_MUL((uint64_t)header->number_of_partition_entries,
+                                      (uint64_t)entry_size, return false);
+    if (array_size == 0) {
+        return false;
+    }
+
+    // A resource limit, not a conformance one: the specification states no
+    // maximum, and the geometry below cannot supply one because it bounds the
+    // array by FirstUsableLBA, which the same table writes.
+    if (array_size > GPT_MAX_ARRAY_SIZE) {
+        return false;
+    }
+
+    // The array is reserved outside the usable range: it precedes FirstUsableLBA
+    // on the primary, and follows LastUsableLBA and precedes its own header on
+    // the alternate.
+    uint64_t array_lba = header->partition_entry_lba;
+    uint64_t array_blocks = (array_size + (uint64_t)lb_size - 1) / (uint64_t)lb_size;
+    uint64_t array_end = CHECKED_ADD(array_lba, array_blocks, return false);
+
+    if (header->first_usable_lba > header->last_usable_lba) {
+        return false;
+    }
+
+    if (array_lba < header->first_usable_lba) {
+        if (array_end > header->first_usable_lba) {
+            return false;
+        }
+    } else if (array_lba <= header->last_usable_lba || array_end > header_lba) {
+        return false;
+    }
+
+    if (volume->sect_count != (uint64_t)-1) {
+        uint64_t device_blocks = volume->sect_count / (uint64_t)(lb_size / 512);
+        if (header->last_usable_lba >= device_blocks || array_end > device_blocks) {
+            return false;
+        }
+    }
+
+    uint64_t array_loc = CHECKED_MUL(array_lba, (uint64_t)lb_size, return false);
+
+    crc = 0xffffffff;
+    if (!crc32_volume_range(volume, array_loc, array_size, &crc)) {
+        return false;
+    }
+
+    return ~crc == header->partition_entry_array_crc32;
+}
+
+// Enumeration asks for one partition index at a time, so without this the entry
+// array is verified once per index, and its size is set by the table being
+// verified. Re-reading the header and comparing it is cheap where recomputing
+// the array CRC is not.
+static struct volume *gpt_memo_volume = NULL;
+static struct gpt_table_header gpt_memo_header;
+static uint64_t gpt_memo_lba;
+static int gpt_memo_lb_size;
+
+// A volume with no valid GPT is asked again for every partition index, and
+// answering costs the whole search: two block sizes, each verifying the primary
+// and the block it names. Confirmed by re-reading rather than on the pointer
+// alone, so a recycled volume cannot inherit the answer.
+static struct volume *gpt_memo_none_volume = NULL;
+static struct gpt_table_header gpt_memo_none_block;
+static bool gpt_memo_none_readable;
+
+static bool gpt_memo_none_hit(struct volume *volume) {
+    struct gpt_table_header fresh;
+
+    if (gpt_memo_none_volume != volume) {
+        return false;
+    }
+
+    if (!volume_read(volume, &fresh, 512, sizeof(fresh))) {
+        return !gpt_memo_none_readable;
+    }
+
+    return gpt_memo_none_readable
+        && memcmp(&fresh, &gpt_memo_none_block, sizeof(fresh)) == 0;
+}
+
+static void gpt_memo_none_store(struct volume *volume) {
+    gpt_memo_none_volume = volume;
+    gpt_memo_none_readable = volume_read(volume, &gpt_memo_none_block, 512,
+                                         sizeof(gpt_memo_none_block));
+}
+
+static bool gpt_memo_hit(struct volume *volume,
+                         struct gpt_table_header *header, int *lb_size) {
+    struct gpt_table_header fresh;
+
+    if (gpt_memo_volume != volume) {
+        return false;
+    }
+
+    uint64_t loc = CHECKED_MUL(gpt_memo_lba, (uint64_t)gpt_memo_lb_size,
+                               return false);
+
+    if (!volume_read(volume, &fresh, loc, sizeof(fresh))
+     || memcmp(&fresh, &gpt_memo_header, sizeof(fresh)) != 0) {
+        return false;
+    }
+
+    *header = gpt_memo_header;
+    *lb_size = gpt_memo_lb_size;
+    return true;
+}
+
+static void gpt_memo_store(struct volume *volume,
+                           const struct gpt_table_header *header,
+                           uint64_t header_lba, int lb_size) {
+    gpt_memo_volume = volume;
+    gpt_memo_header = *header;
+    gpt_memo_lba = header_lba;
+    gpt_memo_lb_size = lb_size;
+}
+
+// UEFI 2.11 section 5.3.2 requires falling back to the alternate header when the
+// primary does not verify, and places it in the last block. A disk imaged onto a
+// larger one keeps its alternate where the smaller one ended, so the block the
+// primary names is tried after the last block rather than instead of it: a
+// genuine alternate at the end wins over whatever a corrupt primary points at.
+static bool gpt_locate_header(struct volume *volume,
+                              struct gpt_table_header *header, int *lb_size) {
     int lb_guesses[] = {
         512,
         4096
     };
-    int lb_size = -1;
+
+    if (gpt_memo_hit(volume, header, lb_size)) {
+        return true;
+    }
+
+    if (gpt_memo_none_hit(volume)) {
+        return false;
+    }
 
     for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
-        // read header, located after the first block
-        if (!volume_read(volume, &header, lb_guesses[i] * 1, sizeof(header)))
-            continue;
+        int guess = lb_guesses[i];
+        uint64_t candidates[2];
+        size_t candidate_count = 0;
 
-        // check the header
-        // 'EFI PART'
-        if (strncmp(header.signature, "EFI PART", 8))
-            continue;
+        if (volume_read(volume, header, (uint64_t)guess * 1, sizeof(*header))) {
+            if (gpt_verify_header(volume, header, 1, guess)) {
+                *lb_size = guess;
+                gpt_memo_store(volume, header, 1, guess);
+                return true;
+            }
 
-        lb_size = lb_guesses[i];
-        break;
+            // The signature is what identifies the block as a header at all,
+            // so only a header that failed its CRC is followed. Without it the
+            // field is not an LBA, it is whatever happens to be at offset 32.
+            if (!strncmp(header->signature, "EFI PART", 8)
+             && header->alternate_lba > 1) {
+                candidates[candidate_count++] = header->alternate_lba;
+            }
+        }
+
+        if (volume->sect_count != (uint64_t)-1 && guess >= 512) {
+            uint64_t blocks = volume->sect_count / (uint64_t)(guess / 512);
+            if (blocks >= 2) {
+                // Ahead of whatever the primary claimed.
+                if (candidate_count > 0 && candidates[0] == blocks - 1) {
+                    candidate_count = 0;
+                }
+                candidates[candidate_count++] = blocks - 1;
+                if (candidate_count == 2) {
+                    uint64_t claimed = candidates[0];
+                    candidates[0] = candidates[1];
+                    candidates[1] = claimed;
+                }
+            }
+        }
+
+        for (size_t j = 0; j < candidate_count; j++) {
+            uint64_t loc = CHECKED_MUL(candidates[j], (uint64_t)guess, continue);
+
+            if (volume_read(volume, header, loc, sizeof(*header))
+             && gpt_verify_header(volume, header, candidates[j], guess)) {
+                *lb_size = guess;
+                gpt_memo_store(volume, header, candidates[j], guess);
+                return true;
+            }
+        }
     }
 
-    if (lb_size == -1) {
+    gpt_memo_none_store(volume);
+
+    return false;
+}
+
+bool gpt_get_guid(struct guid *guid, struct volume *volume) {
+    struct gpt_table_header header = {0};
+    int lb_size;
+
+    if (!gpt_locate_header(volume, &header, &lb_size)) {
         return false;
     }
-
-    if (header.revision != 0x00010000)
-        return false;
 
     *guid = header.disk_guid;
 
@@ -197,33 +454,11 @@ bool gpt_get_guid(struct guid *guid, struct volume *volume) {
 
 static int gpt_get_part(struct volume *ret, struct volume *volume, int partition) {
     struct gpt_table_header header = {0};
+    int lb_size;
 
-    int lb_guesses[] = {
-        512,
-        4096
-    };
-    int lb_size = -1;
-
-    for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
-        // read header, located after the first block
-        if (!volume_read(volume, &header, lb_guesses[i] * 1, sizeof(header)))
-            continue;
-
-        // check the header
-        // 'EFI PART'
-        if (strncmp(header.signature, "EFI PART", 8))
-            continue;
-
-        lb_size = lb_guesses[i];
-        break;
-    }
-
-    if (lb_size == -1) {
+    if (!gpt_locate_header(volume, &header, &lb_size)) {
         return INVALID_TABLE;
     }
-
-    if (header.revision != 0x00010000)
-        return INVALID_TABLE;
 
     // parse the entries if reached here
     uint32_t entry_count = header.number_of_partition_entries;
