@@ -676,6 +676,275 @@ cleanup:
     return false;
 }
 
+#define GPT_HEADER_SIZE 92
+#define GPT_HEADER_CRC_OFFSET 16
+
+// A resource limit, not a conformance one: the specification states no maximum,
+// and the geometry that does bound the array is written by the same table. 64
+// times the 16384 bytes UEFI requires be reserved.
+#define GPT_MAX_ARRAY_SIZE (1024 * 1024)
+
+// Bitwise: this runs a handful of times per install, so a table would cost more
+// space than the loop costs time.
+static uint32_t crc32_update(uint32_t crc, const void *buffer, size_t count) {
+    const uint8_t *bytes = buffer;
+
+    for (size_t i = 0; i < count; i++) {
+        crc ^= bytes[i];
+        for (int bit = 0; bit < 8; bit++) {
+            crc = (crc & 1) ? (crc >> 1) ^ 0xedb88320 : crc >> 1;
+        }
+    }
+
+    return crc;
+}
+
+// Read from the device rather than taken from the struct, whose members C is
+// free to pad, and with the CRC's own field zeroed the way the CRC was formed.
+static bool gpt_header_crc(uint64_t loc, uint32_t header_size, uint32_t *out) {
+    uint8_t chunk[512];
+    uint32_t crc = 0xffffffff;
+    uint32_t done = 0;
+
+    while (done < header_size) {
+        uint32_t step = header_size - done;
+        if (step > sizeof(chunk)) {
+            step = sizeof(chunk);
+        }
+
+        if (!device_read_raw(chunk, loc + done, step)) {
+            return false;
+        }
+
+        for (uint32_t i = 0; i < step; i++) {
+            if (done + i >= GPT_HEADER_CRC_OFFSET
+             && done + i < GPT_HEADER_CRC_OFFSET + 4) {
+                chunk[i] = 0;
+            }
+        }
+
+        crc = crc32_update(crc, chunk, step);
+        done += step;
+    }
+
+    *out = ~crc;
+    return true;
+}
+
+static bool gpt_entry_array_crc(uint64_t loc, uint64_t size, uint32_t *out) {
+    uint8_t chunk[512];
+    uint32_t crc = 0xffffffff;
+
+    while (size > 0) {
+        size_t step = size < sizeof(chunk) ? (size_t)size : sizeof(chunk);
+
+        if (!device_read_raw(chunk, loc, step)) {
+            return false;
+        }
+
+        crc = crc32_update(crc, chunk, step);
+        loc += step;
+        size -= step;
+    }
+
+    *out = ~crc;
+    return true;
+}
+
+// UEFI 2.11 section 5.3.2 requires four checks before a GPT may be used: the
+// signature, the header CRC, that MyLBA names the block the header was read
+// from, and the entry array CRC.
+static bool gpt_verify_header(const struct gpt_table_header *header,
+                              uint64_t header_lba, uint64_t lb_size,
+                              uint64_t device_blocks) {
+    uint32_t header_size, entry_size, crc;
+    uint64_t header_loc, array_loc, array_size;
+
+    if (strncmp(header->signature, "EFI PART", 8) != 0) {
+        return false;
+    }
+
+    if (ENDSWAP(header->revision) != 0x00010000) {
+        return false;
+    }
+
+    header_size = ENDSWAP(header->header_size);
+    if (header_size < GPT_HEADER_SIZE || (uint64_t)header_size > lb_size) {
+        return false;
+    }
+
+    if (ENDSWAP(header->my_lba) != header_lba) {
+        return false;
+    }
+
+    if (mul_u64_overflow(header_lba, lb_size, &header_loc)) {
+        return false;
+    }
+
+    if (!gpt_header_crc(header_loc, header_size, &crc)
+     || crc != ENDSWAP(header->crc32)) {
+        return false;
+    }
+
+    // "shall be set to a value of 128 x 2^n", which is to say a power of two no
+    // smaller than an entry. Revisions before 2.8 allowed any multiple of 8.
+    entry_size = ENDSWAP(header->size_of_partition_entry);
+    if (entry_size < sizeof(struct gpt_entry)
+     || (entry_size & (entry_size - 1)) != 0) {
+        return false;
+    }
+
+    if (mul_u64_overflow(ENDSWAP(header->number_of_partition_entries),
+                         entry_size, &array_size)) {
+        return false;
+    }
+
+    if (array_size == 0 || array_size > GPT_MAX_ARRAY_SIZE) {
+        return false;
+    }
+
+    // The array is reserved outside the usable range: it precedes FirstUsableLBA
+    // on the primary, and follows LastUsableLBA and precedes its own header on
+    // the alternate.
+    uint64_t array_lba = ENDSWAP(header->partition_entry_lba);
+    uint64_t array_blocks = (array_size + lb_size - 1) / lb_size;
+    uint64_t array_end;
+
+    if (add_u64_overflow(array_lba, array_blocks, &array_end)) {
+        return false;
+    }
+
+    uint64_t first_usable = ENDSWAP(header->first_usable_lba);
+    uint64_t last_usable = ENDSWAP(header->last_usable_lba);
+
+    if (first_usable > last_usable) {
+        return false;
+    }
+
+    if (array_lba < first_usable) {
+        if (array_end > first_usable) {
+            return false;
+        }
+    } else if (array_lba <= last_usable || array_end > header_lba) {
+        return false;
+    }
+
+    // Nothing above relates the table to the medium it was found on.
+    if (device_blocks != 0
+     && (last_usable >= device_blocks || array_end > device_blocks)) {
+        return false;
+    }
+
+    if (mul_u64_overflow(array_lba, lb_size, &array_loc)) {
+        return false;
+    }
+
+    return gpt_entry_array_crc(array_loc, array_size, &crc)
+        && crc == ENDSWAP(header->partition_entry_array_crc32);
+}
+
+// Probed rather than read from AlternateLBA, because a header that failed its
+// own CRC cannot be trusted to say where its alternate lives.
+static bool device_last_block(uint64_t lb_size, uint64_t *out) {
+    uint8_t probe;
+    uint64_t lo = 0, hi = 1, loc;
+
+    if (!device_read_raw(&probe, 0, 1)) {
+        return false;
+    }
+
+    for (;;) {
+        if (mul_u64_overflow(hi, lb_size, &loc)
+         || !device_read_raw(&probe, loc, 1)) {
+            break;
+        }
+
+        lo = hi;
+        if (hi > UINT64_MAX / 2) {
+            return false;
+        }
+        hi *= 2;
+    }
+
+    while (lo + 1 < hi) {
+        uint64_t mid = lo + (hi - lo) / 2;
+
+        if (mul_u64_overflow(mid, lb_size, &loc)
+         || !device_read_raw(&probe, loc, 1)) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+
+    *out = lo;
+    return true;
+}
+
+// UEFI 2.11 section 5.3.2 requires falling back to the alternate header when the
+// primary does not verify, and places it in the last block. A disk imaged onto a
+// larger one keeps its alternate where the smaller one ended, so the block the
+// primary names is tried after the last block rather than instead of it: a
+// genuine alternate at the end wins over whatever a corrupt primary points at.
+static bool gpt_locate_header(struct gpt_table_header *header,
+                              uint64_t *lb_size_out, uint64_t *header_lba_out) {
+    uint64_t lb_guesses[] = { 512, 4096 };
+
+    for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
+        uint64_t lb_size = lb_guesses[i], last, loc, device_blocks = 0;
+        uint64_t candidates[2];
+        size_t candidate_count = 0, j;
+        bool have_last = device_last_block(lb_size, &last);
+
+        if (have_last) {
+            device_blocks = last + 1;
+        }
+
+        if (device_read_raw(header, lb_size, sizeof(*header))) {
+            if (gpt_verify_header(header, 1, lb_size, device_blocks)) {
+                *lb_size_out = lb_size;
+                *header_lba_out = 1;
+                return true;
+            }
+
+            // The signature is what identifies the block as a header at all,
+            // so only a header that failed its CRC is followed. Without it the
+            // field is not an LBA, it is whatever happens to be at offset 32.
+            if (strncmp(header->signature, "EFI PART", 8) == 0
+             && ENDSWAP(header->alternate_lba) > 1) {
+                candidates[candidate_count++] = ENDSWAP(header->alternate_lba);
+            }
+        }
+
+        if (have_last && last >= 1) {
+            if (candidate_count > 0 && candidates[0] == last) {
+                candidate_count = 0;
+            }
+            candidates[candidate_count++] = last;
+            if (candidate_count == 2) {
+                uint64_t claimed = candidates[0];
+                candidates[0] = candidates[1];
+                candidates[1] = claimed;
+            }
+        }
+
+        for (j = 0; j < candidate_count; j++) {
+            if (mul_u64_overflow(candidates[j], lb_size, &loc)) {
+                continue;
+            }
+
+            if (device_read_raw(header, loc, sizeof(*header))
+             && gpt_verify_header(header, candidates[j], lb_size, device_blocks)) {
+                *lb_size_out = lb_size;
+                *header_lba_out = candidates[j];
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 static int bios_install(int argc, char *argv[]) {
     int ok = EXIT_FAILURE;
     bool force = false;
@@ -769,50 +1038,24 @@ static int bios_install(int argc, char *argv[]) {
     // Probe for GPT and logical block size
     int gpt = 0;
     struct gpt_table_header gpt_header;
-    uint64_t lb_guesses[] = { 512, 4096 };
     uint64_t lb_size = 0;
-    for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
-        device_read(&gpt_header, lb_guesses[i], sizeof(struct gpt_table_header));
-        if (!strncmp(gpt_header.signature, "EFI PART", 8)) {
-            lb_size = lb_guesses[i];
-            gpt = 1;
-            if (!quiet) {
-                fprintf(stderr, "Installing to GPT. Logical block size of %" PRIu64 " bytes.\n",
-                        lb_guesses[i]);
-            }
-            break;
-        }
-    }
-
-    struct gpt_table_header secondary_gpt_header;
+    uint64_t gpt_header_lba = 0;
+    bool gpt_from_alternate = false;
     uint32_t gpt_entry_count = 0;
-    if (gpt) {
-        if (ENDSWAP(gpt_header.size_of_partition_entry) < sizeof(struct gpt_entry)) {
-            fprintf(stderr, "error: GPT partition entry size too small, aborting.\n");
-            goto cleanup;
-        }
+
+    if (gpt_locate_header(&gpt_header, &lb_size, &gpt_header_lba)) {
+        gpt_from_alternate = gpt_header_lba != 1;
+        gpt = 1;
         gpt_entry_count = ENDSWAP(gpt_header.number_of_partition_entries);
         if (gpt_entry_count > MAX_GPT_PARTITIONS) {
             gpt_entry_count = MAX_GPT_PARTITIONS;
         }
         if (!quiet) {
-            fprintf(stderr, "Secondary header at LBA 0x%" PRIx64 ".\n",
-                    ENDSWAP(gpt_header.alternate_lba));
-        }
-        uint64_t secondary_loc;
-        if (mul_u64_overflow(lb_size, ENDSWAP(gpt_header.alternate_lba), &secondary_loc)) {
-            fprintf(stderr, "error: GPT alternate LBA out of range, aborting.\n");
-            goto cleanup;
-        }
-        device_read(&secondary_gpt_header, secondary_loc,
-              sizeof(struct gpt_table_header));
-        if (!strncmp(secondary_gpt_header.signature, "EFI PART", 8)) {
-            if (!quiet) {
-                fprintf(stderr, "Secondary header valid.\n");
+            fprintf(stderr, "Installing to GPT. Logical block size of %" PRIu64 " bytes.\n",
+                    lb_size);
+            if (gpt_from_alternate) {
+                fprintf(stderr, "warning: Primary GPT did not verify; using the alternate header.\n");
             }
-        } else {
-            fprintf(stderr, "error: Secondary header not valid, aborting.\n");
-            goto cleanup;
         }
     }
 
