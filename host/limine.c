@@ -1162,12 +1162,39 @@ static int bios_install(int argc, char *argv[]) {
             device_write(empty_lba, i * lb_size, lb_size);
         }
 
-        // ... nuke secondary GPT.
-        uint64_t alt_lba = ENDSWAP(gpt_header.alternate_lba);
-        if (alt_lba >= 32) {
+        // ... nuke the alternate GPT the header names and the one at the end of
+        // the device: a disk imaged onto a larger one carries both, and leaving
+        // either behind is what makes a GPT-aware reader disagree with the MBR
+        // this conversion writes. Each is wiped only if a header really sits on
+        // it, so a wrong AlternateLBA cannot direct the erase at unrelated data.
+        uint64_t alternates[2];
+        size_t alternate_count = 0, ai;
+        uint64_t last_block;
+
+        if (gpt_from_alternate) {
+            alternates[alternate_count++] = gpt_header_lba;
+        } else if (ENDSWAP(gpt_header.alternate_lba) >= 33) {
+            alternates[alternate_count++] = ENDSWAP(gpt_header.alternate_lba);
+        }
+
+        if (device_last_block(lb_size, &last_block) && last_block >= 33
+         && (alternate_count == 0 || alternates[0] != last_block)) {
+            alternates[alternate_count++] = last_block;
+        }
+
+        for (ai = 0; ai < alternate_count; ai++) {
+            struct gpt_table_header probe;
+            uint64_t probe_loc;
+
+            if (mul_u64_overflow(alternates[ai], lb_size, &probe_loc)
+             || !device_read_raw(&probe, probe_loc, sizeof(probe))
+             || strncmp(probe.signature, "EFI PART", 8) != 0) {
+                continue;
+            }
+
             for (size_t i = 0; i < 33; i++) {
                 uint64_t wipe_loc;
-                if (mul_u64_overflow(alt_lba - 32 + i, lb_size, &wipe_loc)) {
+                if (mul_u64_overflow(alternates[ai] - 32 + i, lb_size, &wipe_loc)) {
                     fprintf(stderr, "error: GPT alternate LBA out of range, aborting.\n");
                     goto cleanup;
                 }
