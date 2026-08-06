@@ -410,6 +410,24 @@ int init_config(size_t config_size) {
     // add trailing newline if not present
     config_addr[config_size - 2] = '\n';
 
+    // handle backslash-newline line continuation
+    size_t write = 0;
+    for (size_t read = 0; read < config_size; read++) {
+        if (config_addr[read] == '\\' && read + 1 < config_size) {
+            if (config_addr[read + 1] == '\n') {
+                read++;
+                continue;
+            }
+            if (config_addr[read + 1] == '\r' && read + 2 < config_size && config_addr[read + 2] == '\n') {
+                read += 2;
+                continue;
+            }
+        }
+        config_addr[write++] = config_addr[read];
+    }
+
+    config_size = write;
+
     size_t config_alloc_size = config_size;
 
     // remove windows carriage returns and spaces at the start and end of lines, if any
