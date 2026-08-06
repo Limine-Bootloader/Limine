@@ -888,7 +888,9 @@ static bool device_last_block(uint64_t lb_size, uint64_t *out) {
 // genuine alternate at the end wins over whatever a corrupt primary points at.
 static bool gpt_locate_header(struct gpt_table_header *header,
                               uint64_t *lb_size_out, uint64_t *header_lba_out) {
-    uint64_t lb_guesses[] = { 512, 4096 };
+    // Probed, not taken from the device: the size a table was written for
+    // belongs to the image. 2048 is optical, and matches device_init().
+    uint64_t lb_guesses[] = { 512, 2048, 4096 };
 
     for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
         uint64_t lb_size = lb_guesses[i], last, loc, device_blocks = 0;
