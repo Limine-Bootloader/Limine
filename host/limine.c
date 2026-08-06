@@ -1157,8 +1157,14 @@ static int bios_install(int argc, char *argv[]) {
             goto cleanup;
         }
 
-        // ... nuke primary GPT + protective MBR.
-        for (size_t i = 0; i < 34; i++) {
+        // ... nuke primary GPT + protective MBR. The reserve is not 34 blocks on
+        // every disk -- UEFI puts FirstUsableLBA at 34 or more for a 512-byte
+        // block and at 6 or more for a 4096-byte one -- so the header's own value
+        // is what stops the erase reaching data.
+        uint64_t first_usable = ENDSWAP(gpt_header.first_usable_lba);
+        uint64_t reserve = first_usable < 34 ? first_usable : 34;
+
+        for (uint64_t i = 0; i < reserve; i++) {
             device_write(empty_lba, i * lb_size, lb_size);
         }
 
@@ -1192,9 +1198,21 @@ static int bios_install(int argc, char *argv[]) {
                 continue;
             }
 
-            for (size_t i = 0; i < 33; i++) {
+            uint64_t last_usable = ENDSWAP(gpt_header.last_usable_lba);
+            uint64_t alt_first = alternates[ai] - 32;
+
+            // LastUsableLBA is unbounded by the checks a header must pass.
+            if (last_usable >= alternates[ai]) {
+                continue;
+            }
+
+            if (alt_first <= last_usable) {
+                alt_first = last_usable + 1;
+            }
+
+            for (uint64_t lba = alt_first; lba <= alternates[ai]; lba++) {
                 uint64_t wipe_loc;
-                if (mul_u64_overflow(alternates[ai] - 32 + i, lb_size, &wipe_loc)) {
+                if (mul_u64_overflow(lba, lb_size, &wipe_loc)) {
                     fprintf(stderr, "error: GPT alternate LBA out of range, aborting.\n");
                     goto cleanup;
                 }
