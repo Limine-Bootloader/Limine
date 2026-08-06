@@ -1111,30 +1111,40 @@ static int bios_install(int argc, char *argv[]) {
                 goto no_mbr_conv;
             }
 
-            if (ENDSWAP(gpt_entry.starting_lba) > UINT32_MAX) {
+            // An MBR entry counts 512-byte sectors while a GPT entry counts
+            // logical blocks, so the two agree only on a 512-byte device.
+            uint64_t start_lba = ENDSWAP(gpt_entry.starting_lba);
+            uint64_t end_lba = ENDSWAP(gpt_entry.ending_lba);
+            uint64_t start_sect, sect_count;
+
+            if (end_lba < start_lba) {
+                if (!quiet) {
+                    fprintf(stderr, "Partition %" PRIi64 " ends before it starts, will not convert GPT.\n", i + 1);
+                }
+                goto no_mbr_conv;
+            }
+
+            if (mul_u64_overflow(start_lba, lb_size / 512, &start_sect)
+             || start_sect > UINT32_MAX) {
                 if (!quiet) {
                     fprintf(stderr, "Starting LBA of partition %" PRIi64 " is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
                 }
                 goto no_mbr_conv;
             }
-            part_to_conv[part_to_conv_i].lba_start = ENDSWAP(gpt_entry.starting_lba);
-            lba2chs(part_to_conv[part_to_conv_i].chs_start, part_to_conv[part_to_conv_i].lba_start);
 
-            if (ENDSWAP(gpt_entry.ending_lba) > UINT32_MAX) {
-                if (!quiet) {
-                    fprintf(stderr, "Ending LBA of partition %" PRIi64 " is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
-                }
-                goto no_mbr_conv;
-            }
-            part_to_conv[part_to_conv_i].lba_end = ENDSWAP(gpt_entry.ending_lba);
-            lba2chs(part_to_conv[part_to_conv_i].chs_end, part_to_conv[part_to_conv_i].lba_end);
-
-            if (part_to_conv[part_to_conv_i].lba_end - part_to_conv[part_to_conv_i].lba_start + 1 > UINT32_MAX) {
+            if (mul_u64_overflow(end_lba - start_lba + 1, lb_size / 512, &sect_count)
+             || sect_count > UINT32_MAX
+             || start_sect + sect_count - 1 > UINT32_MAX) {
                 if (!quiet) {
                     fprintf(stderr, "Sector count of partition %" PRIi64 " is greater than UINT32_MAX, will not convert GPT.\n", i + 1);
                 }
                 goto no_mbr_conv;
             }
+
+            part_to_conv[part_to_conv_i].lba_start = start_sect;
+            part_to_conv[part_to_conv_i].lba_end = start_sect + sect_count - 1;
+            lba2chs(part_to_conv[part_to_conv_i].chs_start, part_to_conv[part_to_conv_i].lba_start);
+            lba2chs(part_to_conv[part_to_conv_i].chs_end, part_to_conv[part_to_conv_i].lba_end);
 
             int type = gpt2mbr_type(ENDSWAP(gpt_entry.partition_type_guid[0]),
                                     ENDSWAP(gpt_entry.partition_type_guid[1]));
