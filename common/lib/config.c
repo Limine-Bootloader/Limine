@@ -410,33 +410,53 @@ int init_config(size_t config_size) {
     // add trailing newline if not present
     config_addr[config_size - 2] = '\n';
 
+    // handle backslash-newline line continuation
+    size_t write = 0;
+    for (size_t read = 0; read < config_size; read++) {
+        if (config_addr[read] == '\\' && read + 1 < config_size) {
+            if (config_addr[read + 1] == '\n') {
+                read++;
+                continue;
+            }
+            if (config_addr[read + 1] == '\r' && read + 2 < config_size && config_addr[read + 2] == '\n') {
+                read += 2;
+                continue;
+            }
+        }
+        config_addr[write++] = config_addr[read];
+    }
+
+    config_size = write;
+
     size_t config_alloc_size = config_size;
 
-    // remove windows carriage returns and spaces at the start and end of lines, if any
-    for (size_t i = 0; i < config_size; i++) {
-        size_t skip = 0;
-        if (config_addr[i] == ' ' || config_addr[i] == '\t') {
-            while (i + skip < config_size && (config_addr[i + skip] == ' ' || config_addr[i + skip] == '\t')) {
-                skip++;
+    // Remove carriage returns and leading/trailing whitespace from lines
+    {
+        size_t trim_write = 0;
+        bool at_line_start = true;
+        for (size_t read = 0; read < config_size; read++) {
+            char c = config_addr[read];
+
+            if (c == '\r') {
+                continue;
             }
-            if (i + skip < config_size && config_addr[i + skip] == '\n') {
-                goto skip_loop;
+
+            if (at_line_start && (c == ' ' || c == '\t')) {
+                continue;
             }
-            skip = 0;
+
+            if (c == '\n') {
+                while (trim_write > 0 && (config_addr[trim_write - 1] == ' ' || config_addr[trim_write - 1] == '\t')) {
+                    trim_write--;
+                }
+                at_line_start = true;
+            } else {
+                at_line_start = false;
+            }
+
+            config_addr[trim_write++] = c;
         }
-        while (i + skip < config_size
-            && ((config_addr[i + skip] == '\r')
-                || ((!i || config_addr[i - 1] == '\n') && (config_addr[i + skip] == ' ' || config_addr[i + skip] == '\t')))
-        ) {
-            skip++;
-        }
-skip_loop:
-        if (skip) {
-            for (size_t j = i; j < config_size - skip; j++)
-                config_addr[j] = config_addr[j + skip];
-            config_size -= skip;
-            i--; // re-examine character shifted into position i
-        }
+        config_size = trim_write;
     }
 
     // Load macros
