@@ -1225,6 +1225,9 @@ FEAT_START
     stack_size_request->response = reported_addr(stack_size_response);
 FEAT_END
 
+    // Every port's ABI requires a 16-byte aligned SP at the entry point.
+    stack_size = ALIGN_UP(stack_size, 16, panic(true, "limine: Stack size overflow"));
+
     // Executable file
 FEAT_START
     struct limine_executable_file_request *executable_file_request = get_request(executable_file_request, LIMINE_EXECUTABLE_FILE_REQUEST_ID);
