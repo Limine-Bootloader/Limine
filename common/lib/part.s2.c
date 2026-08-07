@@ -570,6 +570,11 @@ bool is_valid_mbr(struct volume *volume) {
     // Check if actually valid mbr
     uint16_t hint = 0;
 
+    if (!volume_read(volume, &hint, 510, sizeof(uint16_t)))
+        return false;
+    if (hint != 0xaa55)
+        return false;
+
     if (!volume_read(volume, &hint, 446, sizeof(uint8_t)))
         return false;
     if ((uint8_t)hint != 0x00 && (uint8_t)hint != 0x80)
