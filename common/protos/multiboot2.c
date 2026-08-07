@@ -583,8 +583,10 @@ reloc_fail:
 
         int bits = elf_bits(kernel, kernel_file_size);
 
-        if ((bits == 64 && section_hdr_info.section_entry_size < sizeof(struct elf64_shdr)) ||
-            (bits == 32 && section_hdr_info.section_entry_size < sizeof(struct elf32_shdr))) {
+        // No sections means no stride to check; the walk below cannot run.
+        if (section_hdr_info.num != 0
+         && ((bits == 64 && section_hdr_info.section_entry_size < sizeof(struct elf64_shdr))
+          || (bits == 32 && section_hdr_info.section_entry_size < sizeof(struct elf32_shdr)))) {
             panic(true, "multiboot2: ELF section entry size too small");
         }
 
