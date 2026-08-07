@@ -1276,6 +1276,17 @@ static void menu_init_term(void) {
         }
 #endif
     }
+
+    // Terminal too small for menu, fall back to text console. Checked here so
+    // that a later re-init cannot re-establish a size the menu cannot draw.
+    if (terms[0]->cols < 40 || terms[0]->rows < 16) {
+#if defined (BIOS)
+        vga_textmode_init(true);
+#elif defined (UEFI)
+        serial = true;
+        term_fallback();
+#endif
+    }
 }
 
 #if defined(UEFI)
@@ -1811,16 +1822,6 @@ noreturn void _menu(bool first_run) {
     }
 
     menu_init_term();
-
-    if (terms[0]->cols < 40 || terms[0]->rows < 16) {
-        // Terminal too small for menu, fall back to text console
-#if defined (BIOS)
-        vga_textmode_init(true);
-#elif defined (UEFI)
-        serial = true;
-        term_fallback();
-#endif
-    }
 
     if (!quiet) {
         mouse_init();
