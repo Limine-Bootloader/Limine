@@ -402,6 +402,12 @@ bool efi_exit_boot_services(void) {
         efi_mmap_size = efi_mmap_alloc;
         status = gBS->GetMemoryMap(&efi_mmap_size, efi_mmap, &efi_mmap_key,
                                    &efi_desc_size, &efi_desc_ver);
+
+        // The rebuild strides by this call's size, not an earlier call's.
+        if (efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR)) {
+            goto fail;
+        }
+
         if (status == EFI_BUFFER_TOO_SMALL) {
             // Map grew (or first iteration). Free both buffers and
             // reallocate, with slack for the descriptors AllocatePool
