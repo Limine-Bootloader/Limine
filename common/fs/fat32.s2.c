@@ -322,6 +322,21 @@ static uint32_t *cache_cluster_chain(struct fat32_context *context,
         max_clusters = FAT32_MAX_CHAIN_LENGTH;
     }
 
+    // Every cluster in a chain has an entry in the FAT, so a chain longer than
+    // the FAT has entries must repeat one.
+    uint64_t fat_size = (uint64_t)context->sectors_per_fat * context->bytes_per_sector;
+    uint64_t fat_entries;
+    if (context->type == 12) {
+        fat_entries = (fat_size * 2) / 3;
+    } else if (context->type == 16) {
+        fat_entries = fat_size / sizeof(uint16_t);
+    } else {
+        fat_entries = fat_size / sizeof(uint32_t);
+    }
+    if (fat_entries < max_clusters) {
+        max_clusters = fat_entries;
+    }
+
     uint32_t cluster = initial_cluster;
     size_t chain_length;
     for (chain_length = 1; chain_length <= max_clusters; chain_length++) {
