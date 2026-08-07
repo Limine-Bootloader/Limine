@@ -509,10 +509,23 @@ again:
 
         size_t range_index = 0;
 
+        // The image is allocated at SizeOfImage, so a range rounded past it
+        // would map memory the image does not own.
+        uint64_t image_top = *virtual_base
+            + ALIGN_UP(image_size, 0x1000, panic(true, "pe: Alignment overflow"));
+
         if (!headers_within_section) {
             struct mem_range *range = &ranges[range_index++];
             range->base = *virtual_base;
-            range->length = ALIGN_UP(nt_hdrs->OptionalHeader.SizeOfHeaders, 0x1000, panic(true, "pe: Alignment overflow"));
+
+            uint64_t top = *virtual_base
+                + ALIGN_UP(nt_hdrs->OptionalHeader.SizeOfHeaders, 0x1000, panic(true, "pe: Alignment overflow"));
+
+            if (top > image_top) {
+                top = image_top;
+            }
+
+            range->length = top - range->base;
             range->permissions = MEM_RANGE_R;
         }
 
@@ -523,7 +536,15 @@ again:
 
             struct mem_range *range = &ranges[range_index++];
             range->base = *virtual_base + ALIGN_DOWN(section->VirtualAddress, alignment);
-            range->length = ALIGN_UP(section->VirtualSize + misalign, alignment, panic(true, "pe: Alignment overflow"));
+
+            uint64_t top = range->base
+                + ALIGN_UP(section->VirtualSize + misalign, alignment, panic(true, "pe: Alignment overflow"));
+
+            if (top > image_top) {
+                top = image_top;
+            }
+
+            range->length = top - range->base;
 
             if (section->Characteristics & IMAGE_SCN_MEM_EXECUTE) {
                 range->permissions |= MEM_RANGE_X;
