@@ -4,10 +4,6 @@
 .global riscv_spinup
 riscv_spinup:
 .option norelax
-        li      t0, (2 << 32)
-        csrw    sstatus, t0
-        csrw    sie, zero
-
         lla     t0, 0f
         add     t0, t0, a3
         csrw    stvec, t0
@@ -19,6 +15,11 @@ riscv_spinup:
 0:
         // The manual asks for one after every `satp` write too.
         sfence.vma
+
+        // The trap above sets SPP, so the handoff state is written after it.
+        li      t0, (2 << 32)
+        csrw    sstatus, t0
+        csrw    sie, zero
         csrw    stvec, zero
 
         mv      t0, a0
