@@ -1276,9 +1276,22 @@ no_mbr_conv:;
         mbr = 1;
 
         uint8_t hint8 = 0;
+        uint16_t hint16 = 0;
         uint32_t hint32 = 0;
 
         bool any_active = false;
+
+        device_read(&hint16, 510, sizeof(uint16_t));
+        hint16 = ENDSWAP(hint16);
+        if (hint16 != 0xaa55) {
+            if (!force) {
+                mbr = 0;
+            } else {
+                hint16 = 0xaa55;
+                hint16 = ENDSWAP(hint16);
+                device_write(&hint16, 510, sizeof(uint16_t));
+            }
+        }
 
         device_read(&hint8, 446, sizeof(uint8_t));
         if (hint8 != 0x00 && hint8 != 0x80) {
