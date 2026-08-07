@@ -24,11 +24,15 @@ smp_trampoline_start:
         add     t0, t1, t0
         csrw    stvec, t0
         ld      t0, smp_tpl_satp(a1)
-        csrw    satp, t0
+        // Hence before the switch: a fence after it would never execute.
         sfence.vma
+        csrw    satp, t0
         unimp
 .align 4
 0:
+        // The manual asks for one after every `satp` write too.
+        sfence.vma
+
         // Relocate the smp_info and passed_info pointers to the higher half.
         add     a0, t1, a0
         add     a1, t1, a1
