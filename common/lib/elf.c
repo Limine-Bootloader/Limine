@@ -321,6 +321,8 @@ static void elf64_add_relocation_count(size_t *count, uint64_t add) {
 struct elf64_reloc_state {
     struct elf64_rela **relocs;
     size_t relocs_i;
+    // RELR encodes addresses only, so an entry is synthesised per relocation.
+    struct elf64_rela *relr_pool;
     size_t relr_count;
     uint64_t symtab_offset;
     uint64_t symtab_ent;
@@ -505,10 +507,14 @@ end_of_pt_segment:
     }
     struct elf64_rela **relocs = ext_mem_alloc_counted(relocs_i, sizeof(struct elf64_rela *));
 
+    struct elf64_rela *relr_pool = NULL;
     if (relr_size != 0) {
         size_t relr_i;
+        if (relr_count != 0) {
+            relr_pool = ext_mem_alloc_counted(relr_count, sizeof(struct elf64_rela));
+        }
         for (relr_i = 0; relr_i < relr_count; relr_i++) {
-            relocs[relr_i] = ext_mem_alloc(sizeof(struct elf64_rela));
+            relocs[relr_i] = &relr_pool[relr_i];
             relocs[relr_i]->r_info = R_INTERNAL_RELR;
         }
 
@@ -548,6 +554,7 @@ end_of_pt_segment:
 
     st->relocs = relocs;
     st->relocs_i = relocs_i;
+    st->relr_pool = relr_pool;
     st->relr_count = relr_count;
     st->symtab_offset = symtab_offset;
     st->symtab_ent = symtab_ent;
@@ -559,9 +566,7 @@ end_of_pt_segment:
 }
 
 static void elf64_free_relocations(struct elf64_reloc_state *st) {
-    for (size_t i = 0; i < st->relr_count; i++) {
-        pmm_free(st->relocs[i], sizeof(struct elf64_rela));
-    }
+    pmm_free(st->relr_pool, st->relr_count * sizeof(struct elf64_rela));
     pmm_free(st->relocs, st->relocs_i * sizeof(struct elf64_rela *));
 }
 
