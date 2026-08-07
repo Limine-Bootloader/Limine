@@ -55,9 +55,9 @@ void pmm_randomise_memory(void) {
         if (memmap[i].type != MEMMAP_USABLE)
             continue;
 
-#if defined (BIOS)
-        // We're not going to randomise memory above 4GiB from protected mode,
-        // are we?
+#if defined (__i386__)
+        // A 32-bit build cannot address it, and the cast below truncates
+        // rather than failing.
         if (memmap[i].base >= 0x100000000) {
             continue;
         }
