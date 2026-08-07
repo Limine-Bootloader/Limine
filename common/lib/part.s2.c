@@ -674,7 +674,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
 
     for (int link = 0; link < MAX_LOGICAL_PARTITIONS; link++) {
         // The memo pairs an EBR with the count of logicals before it, so it has
-        // to be taken before this EBR's own entry is counted.
+        // to be taken before this EBR's own entries are counted.
         extended_part->ebr_walk_index = accepted;
         extended_part->ebr_walk_sector = ebr_sector;
 
@@ -690,32 +690,48 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
             return END_OF_TABLE;
         }
 
-        uint64_t entry_offset = ebr_sector * 512 + 0x1be;
+        uint32_t link_first_sect = 0;
+        bool have_link = false;
 
-        if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
-            return END_OF_TABLE;
-        }
+        // The first two entries are a convention rather than a rule: util-linux
+        // takes data from any slot and the link from the first extended entry.
+        for (int i = 0; i < 4; i++) {
+            uint64_t entry_offset = ebr_sector * 512 + 0x1be + sizeof(struct mbr_entry) * i;
 
-        if (mbr_logical_entry_valid(extended_part, ebr_sector, &entry, &first_sect_64)) {
+            if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
+                return END_OF_TABLE;
+            }
+
+            if (entry.type == 0x0f || entry.type == 0x05) {
+                if (!have_link) {
+                    have_link = true;
+                    link_first_sect = entry.first_sect;
+                }
+                continue;
+            }
+
+            if (!mbr_logical_entry_valid(extended_part, ebr_sector, &entry, &first_sect_64)) {
+                continue;
+            }
+
             if (accepted == partition) {
                 found = true;
                 break;
             }
+
             accepted++;
         }
 
-        entry_offset = ebr_sector * 512 + 0x1ce;
-
-        if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
-            return END_OF_TABLE;
+        if (found) {
+            break;
         }
 
-        if (entry.type != 0x0f && entry.type != 0x05) {
+        if (!have_link) {
             return END_OF_TABLE;
         }
 
         uint64_t prev_ebr_sector = ebr_sector;
-        ebr_sector = entry.first_sect;
+        ebr_sector = link_first_sect;
 
         // Detect circular chain: if new sector points to 0 or backwards, it's invalid
         // (EBR sectors should always increase within the extended partition)
