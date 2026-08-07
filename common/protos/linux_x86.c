@@ -447,7 +447,10 @@ noreturn void linux_load(char *config, char *cmdline) {
             panic(true, "linux: Failed to allocate memory for kernel");
         }
 
-        kernel_load_addr += kernel_align;
+        // The bound above is not a multiple of the alignment, so the step can
+        // pass it rather than land on it, and a 32-bit uintptr_t then wraps.
+        kernel_load_addr = CHECKED_ADD(kernel_load_addr, kernel_align,
+                panic(true, "linux: Failed to allocate memory for kernel"));
     }
 
     fread(kernel_file, (void *)kernel_load_addr, real_mode_code_size, kernel_file->size - real_mode_code_size);
