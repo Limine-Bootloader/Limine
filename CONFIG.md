@@ -368,6 +368,11 @@ A resource can be one of the following:
   from the server Limine booted from. This resource is only available when
   booting off PXE.
 
+For MBR, the four primary partitions take the numbers 1 to 4 by the slot they
+occupy, whether or not that slot is used, and logical partitions are numbered
+from 5 upwards by counting along the extended partition's chain, skipping any
+entry that is not a valid partition.
+
 A path can optionally be suffixed with a BLAKE2b or BLAKE3 hash for the
 referenced file, by appending a pound character (`#`) followed by the hash.
 E.g.: `boot():/somemodule.tar#ca6914d2...446b470a`.
