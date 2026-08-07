@@ -678,6 +678,18 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
         extended_part->ebr_walk_index = accepted;
         extended_part->ebr_walk_sector = ebr_sector;
 
+        // Each EBR is an MBR-format sector of its own that is_valid_mbr() never
+        // saw, and util-linux ends the chain at one lacking the signature.
+        uint16_t signature;
+
+        if (!volume_read(extended_part, &signature, ebr_sector * 512 + 510, sizeof(uint16_t))) {
+            return END_OF_TABLE;
+        }
+
+        if (signature != 0xaa55) {
+            return END_OF_TABLE;
+        }
+
         uint64_t entry_offset = ebr_sector * 512 + 0x1be;
 
         if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
