@@ -633,6 +633,24 @@ uint32_t mbr_get_id(struct volume *volume) {
 // Maximum number of logical partitions to prevent infinite loops from circular EBR chains
 #define MAX_LOGICAL_PARTITIONS 256
 
+// A data entry's start is relative to the EBR that carries it, where the chain
+// link's is relative to the extended partition.
+static bool mbr_logical_entry_valid(struct volume *extended_part, uint64_t ebr_sector,
+                                    struct mbr_entry *entry, uint64_t *first_sect) {
+    if (entry->type == 0 || entry->sect_count == 0) {
+        return false;
+    }
+
+    uint64_t rel_first = CHECKED_ADD(ebr_sector, entry->first_sect, return false);
+    if (!partition_range_valid(extended_part, rel_first, entry->sect_count)) {
+        return false;
+    }
+
+    *first_sect = CHECKED_ADD(extended_part->first_sect, rel_first, return false);
+
+    return partition_range_valid(extended_part->backing_dev, *first_sect, entry->sect_count);
+}
+
 static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part,
                                 int partition) {
     struct mbr_entry entry;
@@ -643,18 +661,38 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
     }
 
     uint64_t ebr_sector = 0;
-    uint64_t prev_ebr_sector = 0;
-    int i = 0;
+    uint64_t first_sect_64 = 0;
+    int accepted = 0;
+    bool found = false;
 
     // Partitions are probed in order, so carry on from where the last probe
     // stopped instead of following the chain from its head every time.
     if (extended_part->ebr_walk_index <= partition) {
-        i = extended_part->ebr_walk_index;
+        accepted = extended_part->ebr_walk_index;
         ebr_sector = extended_part->ebr_walk_sector;
     }
 
-    for (; i < partition; i++) {
-        uint64_t entry_offset = ebr_sector * 512 + 0x1ce;
+    for (int link = 0; link < MAX_LOGICAL_PARTITIONS; link++) {
+        // The memo pairs an EBR with the count of logicals before it, so it has
+        // to be taken before this EBR's own entry is counted.
+        extended_part->ebr_walk_index = accepted;
+        extended_part->ebr_walk_sector = ebr_sector;
+
+        uint64_t entry_offset = ebr_sector * 512 + 0x1be;
+
+        if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
+            return END_OF_TABLE;
+        }
+
+        if (mbr_logical_entry_valid(extended_part, ebr_sector, &entry, &first_sect_64)) {
+            if (accepted == partition) {
+                found = true;
+                break;
+            }
+            accepted++;
+        }
+
+        entry_offset = ebr_sector * 512 + 0x1ce;
 
         if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
             return END_OF_TABLE;
@@ -664,12 +702,12 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
             return END_OF_TABLE;
         }
 
-        prev_ebr_sector = ebr_sector;
+        uint64_t prev_ebr_sector = ebr_sector;
         ebr_sector = entry.first_sect;
 
         // Detect circular chain: if new sector points to 0 or backwards, it's invalid
         // (EBR sectors should always increase within the extended partition)
-        if (ebr_sector == 0 || (i > 0 && ebr_sector <= prev_ebr_sector)) {
+        if (ebr_sector == 0 || ebr_sector <= prev_ebr_sector) {
             return END_OF_TABLE;  // Circular or corrupted EBR chain
         }
 
@@ -679,31 +717,8 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
         }
     }
 
-    extended_part->ebr_walk_index = partition;
-    extended_part->ebr_walk_sector = ebr_sector;
-
-    uint64_t entry_offset = ebr_sector * 512 + 0x1be;
-
-    if (!volume_read(extended_part, &entry, entry_offset, sizeof(struct mbr_entry))) {
+    if (!found) {
         return END_OF_TABLE;
-    }
-
-    if (entry.type == 0)
-        return NO_PARTITION;
-
-    // Validate sect_count is non-zero
-    if (entry.sect_count == 0) {
-        return NO_PARTITION;
-    }
-
-    uint64_t logical_rel_first = CHECKED_ADD(ebr_sector, entry.first_sect, return NO_PARTITION);
-    if (!partition_range_valid(extended_part, logical_rel_first, entry.sect_count)) {
-        return NO_PARTITION;
-    }
-
-    uint64_t first_sect_64 = CHECKED_ADD(extended_part->first_sect, logical_rel_first, return NO_PARTITION);
-    if (!partition_range_valid(extended_part->backing_dev, first_sect_64, entry.sect_count)) {
-        return NO_PARTITION;
     }
 
 #if defined (UEFI)
