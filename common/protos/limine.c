@@ -1399,7 +1399,8 @@ FEAT_START
         // Delete all /memory@... nodes.
         // The executable must use the given UEFI memory map instead.
         while (true) {
-            int offset = fdt_subnode_offset_namelen(dtb, 0, "memory@", 7);
+            // libfdt matches a unit address only if this name has no `@`.
+            int offset = fdt_subnode_offset_namelen(dtb, 0, "memory", 6);
 
             if (offset == -FDT_ERR_NOTFOUND) {
                 break;
