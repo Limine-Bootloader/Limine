@@ -951,6 +951,7 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
     uint64_t min_vaddr = (uint64_t)-1;
     uint64_t max_vaddr = 0;
     uint64_t prev_top = 0;
+    uint64_t prev_rounded_base = 0;
     uint64_t prev_rounded_top = 0;
     uint32_t prev_flags = 0;
     for (uint16_t i = 0; i < hdr->ph_num; i++) {
@@ -991,6 +992,11 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
         uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
         uint64_t rounded_base = phdr->p_vaddr & ~(align - 1);
 
+        // elf64_get_ranges() cannot represent aligned bases that run backwards.
+        if (ranges != NULL && rounded_base < prev_rounded_base) {
+            panic(true, "elf: PHDRs are not ordered by their aligned base");
+        }
+
         if (ranges != NULL
          && rounded_base < prev_rounded_top
          && (phdr->p_flags & 0b111) != prev_flags) {
@@ -1000,6 +1006,7 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
         uint64_t rounded_top = ALIGN_UP(phdr_end, align, panic(true, "elf: PHDR alignment overflow"));
 
         prev_top = phdr_end;
+        prev_rounded_base = rounded_base;
 
         // A coarsely aligned segment covers pages that later segments land on,
         // so the bound is the highest rounded top seen.
