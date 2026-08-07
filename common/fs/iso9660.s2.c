@@ -122,14 +122,15 @@ static bool iso9660_find_PVD(struct iso9660_primary_volume *desc, struct volume 
         if (!volume_read(vol, desc, offset, sizeof(struct iso9660_primary_volume))) {
             return false;
         }
-        if (memcmp(desc->volume_descriptor.identifier, "CD001", 5) != 0
-         || desc->volume_descriptor.version != 1) {
+        if (memcmp(desc->volume_descriptor.identifier, "CD001", 5) != 0) {
             return false;
         }
 
         switch (desc->volume_descriptor.type) {
         case ISO9660_VDT_PRIMARY:
-            return true;
+            // ECMA-119 9.4.4 gives the primary descriptor version 1. The
+            // field is type-dependent: 9.5.3 gives an enhanced descriptor 2.
+            return desc->volume_descriptor.version == 1;
         case ISO9660_VDT_TERMINATOR:
             return false;
         }
