@@ -112,8 +112,8 @@ Miscellaneous:
   Defaults to not verbose.
 * `randomise_memory` - If set to `yes`, randomise the contents of RAM at bootup
   in order to find bugs related to non zeroed memory or for security reasons.
-  This option will slow down boot time significantly. For the BIOS port of
-  Limine, this will only randomise memory below 4GiB.
+  This option will slow down boot time significantly. In the case of IA-32,
+  BIOS or UEFI, this will only randomise memory below 4GiB.
 * `randomize_memory` - Alias of `randomise_memory`.
 * `hash_mismatch_panic` - If set to `no`, do not panic if there is a hash
   mismatch for a file, but print a warning instead. Forced to `yes` when
