@@ -834,6 +834,8 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct mem_range **_r
     struct elf64_hdr *hdr = (void *)elf;
 
     uint64_t ranges_count = 0;
+    uint64_t image_base = (uint64_t)-1;
+    uint64_t image_top = 0;
 
     if (hdr->phdr_size < sizeof(struct elf64_phdr)) {
         panic(true, "elf: phdr_size < sizeof(struct elf64_phdr)");
@@ -854,8 +856,23 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct mem_range **_r
             }
         }
 
+        uint64_t load_addr = phdr->p_vaddr + slide;
+
+        if (load_addr < image_base) {
+            image_base = load_addr;
+        }
+
+        uint64_t seg_top = CHECKED_ADD(load_addr, phdr->p_memsz,
+            panic(true, "elf: p_vaddr + p_memsz overflow in PHDR %u", i));
+
+        if (seg_top > image_top) {
+            image_top = seg_top;
+        }
+
         ranges_count++;
     }
+
+    image_top = ALIGN_UP(image_top, 4096, panic(true, "elf: Alignment overflow"));
 
     if (ranges_count == 0) {
         panic(true, "elf: No higher half PHDRs exist");
@@ -881,8 +898,21 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct mem_range **_r
         uint64_t this_top = load_addr + phdr->p_memsz;
 
         uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
-        ranges[r].base = load_addr & ~(align - 1);
-        ranges[r].length = ALIGN_UP(this_top - ranges[r].base, align, panic(true, "elf: Alignment overflow"));
+        uint64_t base = load_addr & ~(align - 1);
+        uint64_t top = ALIGN_UP(this_top, align, panic(true, "elf: Alignment overflow"));
+
+        // The image spans the lowest p_vaddr to the highest, so a range rounded
+        // past either end would map memory it does not own.
+        if (base < image_base) {
+            base = image_base;
+        }
+
+        if (top > image_top) {
+            top = image_top;
+        }
+
+        ranges[r].base = base;
+        ranges[r].length = top - base;
 
         if (phdr->p_flags & ELF_PF_X) {
             ranges[r].permissions |= MEM_RANGE_X;
