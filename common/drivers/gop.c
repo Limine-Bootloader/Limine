@@ -307,7 +307,9 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
 
         uint32_t mode_width = mode_info->HorizontalResolution;
         uint32_t mode_height = mode_info->VerticalResolution;
-        gBS->FreePool(mode_info);
+        if (gop->Mode == NULL || mode_info != gop->Mode->Info) {
+            gBS->FreePool(mode_info);
+        }
 
         if (preset_modes[i] == -1) {
             preset_modes[i] = gop->Mode->Mode;
