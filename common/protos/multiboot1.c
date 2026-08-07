@@ -464,7 +464,7 @@ modeset:;
             fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
             if (fbs_count == 0) {
 #if defined (UEFI)
-                goto skip_modeset;
+                panic(true, "multiboot1: Failed to set video mode");
 #elif defined (BIOS)
 textmode:
                 vga_textmode_init(false);
@@ -500,10 +500,6 @@ textmode:
         }
 
         multiboot1_info->flags |= (1 << 12);
-
-#if defined (UEFI)
-skip_modeset:;
-#endif
     } else {
 #if defined (UEFI)
         panic(true, "multiboot1: Cannot use text mode with UEFI.");
