@@ -491,8 +491,9 @@ refresh:
                     set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
                     print("%s%s\e[0m", menu_branding_colour, menu_branding);
                 } else {
+                    size_t keep = max_len > 3 ? max_len - 3 : 0;
                     set_cursor_pos_helper(1, y);
-                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
+                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, keep);
                 }
             }
             print("\n\n");
@@ -1415,8 +1416,9 @@ static void print_entry_comment(const struct menu_entry *entry, size_t row) {
         set_cursor_pos_helper((terms[0]->cols - comment_len) / 2, row);
         print("\e[36m%s\e[0m", entry->comment);
     } else {
+        size_t keep = max_len > 3 ? max_len - 3 : 0;
         set_cursor_pos_helper(1, row);
-        print("\e[36m%S...\e[0m", entry->comment, (size_t)(max_len - 3));
+        print("\e[36m%S...\e[0m", entry->comment, keep);
     }
     FOR_TERM(TERM->scroll_enabled = true);
 }
@@ -1862,8 +1864,9 @@ refresh:
                     set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
                     print("%s%s\e[0m", menu_branding_colour, menu_branding);
                 } else {
+                    size_t keep = max_len > 3 ? max_len - 3 : 0;
                     set_cursor_pos_helper(1, y);
-                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, (size_t)(max_len - 3));
+                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, keep);
                 }
             }
             print("\n\n\n\n");
