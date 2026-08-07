@@ -121,6 +121,11 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     if (header.magic + header.flags + header.checksum)
         panic(true, "multiboot1: Header checksum is invalid");
 
+    // Bits 0-2 are the defined requirements; the rest of 0-15 must be refused.
+    if (header.flags & 0xfff8) {
+        panic(true, "multiboot1: Header requires unsupported features");
+    }
+
     bool section_hdr_info_valid = false;
     struct elf_section_hdr_info section_hdr_info = {0};
 
