@@ -46,6 +46,11 @@ enter_in_el1:
     msr sctlr_el1, x2
     isb
 
+    // The firmware's entries are global, so no ASID change retires them.
+    tlbi vmalle1
+    dsb nsh
+    isb
+
     // Zero out VBAR to avoid confusion
     msr vbar_el1, xzr
 
@@ -126,6 +131,13 @@ enter_in_el2:
     // HCR: E2H + TGE + RW + SWIO
     ldr x8, =0x488000002
     msr hcr_el2, x8
+    isb
+
+    // Must follow the write above: VMALLE1 reaches EL2&0 only once E2H and
+    // TGE are both set, and EL1&0 before that.
+    tlbi vmalle1
+    dsb nsh
+    isb
 
     // Disable FP/SIMD/SVE (VHE CPTR_EL2 layout, CPACR-like)
     msr cptr_el2, xzr
