@@ -282,6 +282,13 @@ static bool device_flush_cache(void) {
         return false;
     }
 
+    // fwrite() only fills the stdio buffer; the block does not reach the host
+    // environment until this returns.
+    if (fflush(device) != 0) {
+        perror_wrap("error: device_flush_cache(): fflush()");
+        return false;
+    }
+
     cache_state = CACHE_CLEAN;
     return true;
 }
@@ -1720,6 +1727,10 @@ static int enroll_config(int argc, char *argv[]) {
     }
     if (fwrite(bootloader, bootloader_size, 1, bootloader_file) != 1) {
         perror_wrap("error: enroll_config(): fwrite()");
+        goto cleanup;
+    }
+    if (fflush(bootloader_file) != 0) {
+        perror_wrap("error: enroll_config(): fflush()");
         goto cleanup;
     }
 
