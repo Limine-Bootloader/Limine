@@ -238,6 +238,7 @@ bool init_vbe(struct fb_info *ret,
                                                    vbe_info.vid_modes_off);
 
     struct resolution fallback_resolutions[] = {
+        { 0,    0,   0  },   // Overridden by EDID
         { 1024, 768, 32 },
         { 800,  600, 32 },
         { 640,  480, 32 },
@@ -250,21 +251,6 @@ bool init_vbe(struct fb_info *ret,
     };
 
     if (!target_width || !target_height || !target_bpp) {
-        struct edid_info_struct *edid_info = get_edid_info();
-        if (edid_info != NULL) {
-            int edid_width   = (int)edid_info->det_timing_desc1[2];
-                edid_width  += ((int)edid_info->det_timing_desc1[4] & 0xf0) << 4;
-            int edid_height  = (int)edid_info->det_timing_desc1[5];
-                edid_height += ((int)edid_info->det_timing_desc1[7] & 0xf0) << 4;
-            if (edid_width && edid_height) {
-                target_width  = edid_width;
-                target_height = edid_height;
-                target_bpp    = 32;
-                printv("vbe: EDID detected screen resolution of %ux%u\n",
-                       target_width, target_height);
-                goto retry;
-            }
-        }
         goto fallback;
     } else {
         printv("vbe: Requested resolution of %ux%ux%u\n",
@@ -335,6 +321,26 @@ retry:
     }
 
 fallback:
+    if (current_fallback == 0) {
+        current_fallback++;
+
+        struct edid_info_struct *edid_info = get_edid_info();
+        if (edid_info != NULL) {
+            int edid_width   = (int)edid_info->det_timing_desc1[2];
+                edid_width  += ((int)edid_info->det_timing_desc1[4] & 0xf0) << 4;
+            int edid_height  = (int)edid_info->det_timing_desc1[5];
+                edid_height += ((int)edid_info->det_timing_desc1[7] & 0xf0) << 4;
+            if (edid_width && edid_height) {
+                target_width  = edid_width;
+                target_height = edid_height;
+                target_bpp    = 32;
+                printv("vbe: EDID detected screen resolution of %ux%u\n",
+                       target_width, target_height);
+                goto retry;
+            }
+        }
+    }
+
     if (current_fallback < SIZEOF_ARRAY(fallback_resolutions)) {
         target_width  = fallback_resolutions[current_fallback].width;
         target_height = fallback_resolutions[current_fallback].height;
