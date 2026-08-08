@@ -162,6 +162,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
 #if defined (UEFI)
     bool is_framebuffer_required = false;
+    uint32_t console_flags = 0;
 #endif
 
     uint64_t entry_point = 0xffffffff;
@@ -243,9 +244,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                 if (tag->size < sizeof(struct multiboot_header_tag_console_flags))
                     break;
                 struct multiboot_header_tag_console_flags *flags = (void *)tag;
-                if ((flags->console_flags & (1 << 1)) && (flags->console_flags & (1 << 0))) {
-                    panic(true, "multiboot2: OS requested EGA text mode, but UEFI does not support it");
-                }
+                console_flags = flags->console_flags;
 #endif
                 break;
             }
@@ -306,6 +305,14 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         }
         tag = (struct multiboot_header_tag *)((uintptr_t)tag + tag_stride);
     }
+
+#if defined (UEFI)
+    // Neither declaration of framebuffer support, so text is all that is left
+    // and UEFI has none. After the loop: either may follow the console tag.
+    if ((console_flags & 1) && fbtag == NULL && !is_framebuffer_required) {
+        panic(true, "multiboot2: OS requires text mode, but UEFI does not support it");
+    }
+#endif
 
     bool section_hdr_info_valid = false;
     struct elf_section_hdr_info section_hdr_info = {0};
