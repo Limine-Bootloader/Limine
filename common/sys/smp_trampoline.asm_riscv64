@@ -16,6 +16,10 @@ smp_trampoline_start:
 #define smp_tpl_info_struct     16
 #define smp_tpl_hhdm_offset     24
 
+        // The code this hart is about to fetch was written by another one, and
+        // `fence.i` orders only the fetches of the hart that executes it.
+        fence.i
+
         ld      a0, smp_tpl_info_struct(a1)
         ld      t1, smp_tpl_hhdm_offset(a1)
 
@@ -86,6 +90,9 @@ smp_trampoline_start:
 
         // Load sp from reserved field of info struct
         ld      sp, 16(a0)
+
+        // The entry point may have been written after the fence above.
+        fence.i
 
         jr      t0
 
