@@ -113,6 +113,12 @@ smp_trampoline_start:
 // Alignment required by VBAR register
 .align 12
 2:
+    // The firmware's entries are global and survive the stage having been
+    // off. VMALLE1 follows HCR_EL2.{E2H, TGE}, so this suits both paths.
+    tlbi vmalle1
+    dsb nsh
+    isb
+
     // Zero out VBAR to avoid confusion
     msr vbar_el1, xzr
 
