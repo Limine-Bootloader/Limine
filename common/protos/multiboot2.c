@@ -829,7 +829,8 @@ textmode:
                 tag->common.framebuffer_type = MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT;
                 tag->common.size = sizeof(struct multiboot_tag_framebuffer_common);
 #elif defined (UEFI)
-                if (is_framebuffer_required) {
+                // Bit 0 makes a console mandatory, and none can be provided here.
+                if (is_framebuffer_required || (console_flags & 1)) {
                     panic(true, "multiboot2: Failed to set video mode");
                 } else {
                     goto skip_modeset;
