@@ -24,12 +24,12 @@ enter_in_el1:
     dsb sy
     isb
 
-    // Switch the page table registers
+    // Switch the page table registers. TTBR1 has to be live before anything
+    // can fault, the vector above being a higher half address, and TCR goes
+    // last because it is the write that breaks the fetches in progress.
     msr mair_el1, x3
-    msr tcr_el1, x4
-    msr ttbr0_el1, x5
     msr ttbr1_el1, x6
-    msr sctlr_el1, x2
+    msr tcr_el1, x4
     isb
     dsb sy
     isb
@@ -40,6 +40,12 @@ enter_in_el1:
 // Alignment required by VBAR register
 .align 11
 1:
+    // Completed here so that they are reached whether the switch faulted or
+    // fell through.
+    msr ttbr0_el1, x5
+    msr sctlr_el1, x2
+    isb
+
     // Zero out VBAR to avoid confusion
     msr vbar_el1, xzr
 
@@ -85,12 +91,11 @@ enter_in_el2:
     dsb sy
     isb
 
-    // Switch the page table registers (VHE redirects to EL2)
+    // Switch the page table registers (VHE redirects to EL2), ordered as in
+    // enter_in_el1 above and for the same reason.
     msr mair_el1, x3
-    msr tcr_el1, x4
-    msr ttbr0_el1, x5
     msr ttbr1_el1, x6
-    msr sctlr_el1, x2
+    msr tcr_el1, x4
     isb
     dsb sy
     isb
@@ -101,6 +106,13 @@ enter_in_el2:
 // Alignment required by VBAR register
 .align 11
 5:
+    // Completed here so that they are reached whether the switch faulted or
+    // fell through, and while HCR_EL2 still has the value the writes above
+    // were redirected under.
+    msr ttbr0_el1, x5
+    msr sctlr_el1, x2
+    isb
+
     // Zero out VBAR to avoid confusion
     msr vbar_el1, xzr
 
