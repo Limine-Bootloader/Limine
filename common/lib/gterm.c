@@ -852,7 +852,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
                             &default_bg_bright, &default_fg_bright,
                             cfg.font, cfg.font_width, cfg.font_height, cfg.font_spacing,
                             font_scale_x, font_scale_y,
-                            margin, cfg.fb_rotation);
+                            margin, cfg.fb_rotation, true);
 
         if (terms[terms_i] != NULL) {
             terms_i++;

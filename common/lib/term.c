@@ -270,6 +270,7 @@ void term_prepare_post_ebs(void) {
         return;
     }
 
+    // Staged with autoflush off so that building it does not paint the screen.
     post_ebs_term = flanterm_fb_init(ext_mem_alloc_size_t, pmm_free_size_t,
         (void *)(uintptr_t)fb_fbs[0].framebuffer_addr, fb_fbs[0].framebuffer_width,
         fb_fbs[0].framebuffer_height, fb_fbs[0].framebuffer_pitch,
@@ -283,7 +284,8 @@ void term_prepare_post_ebs(void) {
         NULL, 0, 0, 1,
         0, 0,
         0,
-        gterm_get_rotation(NULL)
+        gterm_get_rotation(NULL),
+        false
     );
 
     if (post_ebs_term != NULL) {
@@ -365,6 +367,9 @@ void term_fallback(void) {
 
         terms[0] = post_ebs_term;
         term_backend = FALLBACK;
+
+        // Staged with autoflush off, so this is where it is allowed to paint.
+        terms[0]->autoflush = true;
     }
 
     return;
