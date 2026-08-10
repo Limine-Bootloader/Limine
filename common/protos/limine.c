@@ -1790,11 +1790,7 @@ FEAT_END
     // fallback could no longer open a file for itself.
     void *smp_dtb = NULL;
     if (have_request(LIMINE_MP_REQUEST_ID)) {
-#if defined (__aarch64__)
         smp_dtb = get_device_tree_blob(config, 0, false);
-#elif defined (__loongarch64)
-        smp_dtb = get_device_tree_blob(NULL, 0, false);
-#endif
     }
 #endif
 
