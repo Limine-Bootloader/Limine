@@ -50,7 +50,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/iczelia/pdgzip.git \
         pdgzip \
-        ce578d3f815bf591b78d1689c09b05acf173c095
+        b4a4a6a0405aa35cfd7d3f33d4089a64134031f2
     cp pdgzip/pdgzip.c common/compress/pdgzip.c
     cp pdgzip/pdgzip.h common/compress/pdgzip.h
 
