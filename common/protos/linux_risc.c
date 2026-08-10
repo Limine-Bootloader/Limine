@@ -426,21 +426,36 @@ noreturn static void jump_to_kernel(struct boot_param *p) {
 
     asm ("msr daifset, 0xF");
 
-    // Disable MMU
+    // Disable MMU. A load issued after this takes the Device-nGnRnE attribute
+    // and need not return what was written cacheably, so the handoff registers
+    // are read here and nothing is read from memory again.
     if (current_el() == 2) {
         uint64_t sctlr;
         asm volatile ("mrs %0, sctlr_el2" : "=r"(sctlr));
         sctlr &= ~1;
-        asm volatile ("msr sctlr_el2, %0" :: "r"(sctlr));
+        asm volatile ("msr sctlr_el2, %0\n\t"
+                      "isb\n\t"
+                      "mov x0, %1\n\t"
+                      "mov x1, xzr\n\t"
+                      "mov x2, xzr\n\t"
+                      "mov x3, xzr\n\t"
+                      "br %2"
+                      :: "r"(sctlr), "r"((uint64_t)p->dtb), "r"(kernel_entry)
+                      : "x0", "x1", "x2", "x3", "memory");
     } else {
         uint64_t sctlr;
         asm volatile ("mrs %0, sctlr_el1" : "=r"(sctlr));
         sctlr &= ~1;
-        asm volatile ("msr sctlr_el1, %0" :: "r"(sctlr));
+        asm volatile ("msr sctlr_el1, %0\n\t"
+                      "isb\n\t"
+                      "mov x0, %1\n\t"
+                      "mov x1, xzr\n\t"
+                      "mov x2, xzr\n\t"
+                      "mov x3, xzr\n\t"
+                      "br %2"
+                      :: "r"(sctlr), "r"((uint64_t)p->dtb), "r"(kernel_entry)
+                      : "x0", "x1", "x2", "x3", "memory");
     }
-    asm volatile ("isb");
-
-    kernel_entry((uint64_t)p->dtb, 0, 0, 0);
 #elif defined(__loongarch__)
 // LoongArch kernel used to store virtual address in header.kernel_entry
 // clearing the high 16bits ensures compatibility
