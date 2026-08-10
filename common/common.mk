@@ -200,6 +200,7 @@ ifeq ($(TARGET),uefi-loongarch64)
         -fshort-wchar \
         -march=loongarch64 \
         -mabi=lp64s \
+        -mno-relax \
         -mfpu=none \
         -msimd=none
     override CPPFLAGS_FOR_TARGET := \
