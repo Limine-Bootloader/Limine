@@ -1785,6 +1785,19 @@ FEAT_START
     tpm_event_log_request->response = reported_addr(tpm_event_log_response);
 FEAT_END
 
+#if defined (__aarch64__) || defined (__loongarch64)
+    // init_smp() runs once boot services are gone, where its device tree
+    // fallback could no longer open a file for itself.
+    void *smp_dtb = NULL;
+    if (have_request(LIMINE_MP_REQUEST_ID)) {
+#if defined (__aarch64__)
+        smp_dtb = get_device_tree_blob(config, 0, false);
+#elif defined (__loongarch64)
+        smp_dtb = get_device_tree_blob(NULL, 0, false);
+#endif
+    }
+#endif
+
     efi_exit_boot_services();
 #endif
 
@@ -1852,14 +1865,15 @@ FEAT_START
 #elif defined (__aarch64__)
     uint64_t bsp_mpidr;
 
-    mp_info = init_smp(config, &cpu_count, &bsp_mpidr,
+    mp_info = init_smp(smp_dtb, &cpu_count, &bsp_mpidr,
                         pagemap, LIMINE_MAIR(fb_attr), LIMINE_TCR(tsz, pa, ds), LIMINE_SCTLR,
                         direct_map_offset);
 #elif defined (__riscv)
     mp_info = init_smp(&cpu_count, pagemap, direct_map_offset);
 #elif defined (__loongarch64)
     uint32_t bsp_phys_id;
-    mp_info = init_smp(&cpu_count, &bsp_phys_id, pagemap, direct_map_offset);
+    mp_info = init_smp(smp_dtb, &cpu_count, &bsp_phys_id, pagemap,
+                        direct_map_offset);
 #else
 #error Unknown architecture
 #endif
@@ -1920,6 +1934,12 @@ FEAT_START
 
     mp_request->response = reported_addr(mp_response);
 FEAT_END
+
+#if defined (__aarch64__) || defined (__loongarch64)
+    if (smp_dtb != NULL) {
+        pmm_free(smp_dtb, fdt_totalsize(smp_dtb));
+    }
+#endif
 
 #if defined (__x86_64__) || defined (__i386__)
     // If there was no MP request, the kernel has no way to tell us it supports
