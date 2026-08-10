@@ -301,6 +301,7 @@ dist:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/contrib"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.gitignore"
+	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.github"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/freestanding-c-hdrs/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/limine-protocol/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/picoefi/.git"
