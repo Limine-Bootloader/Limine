@@ -373,7 +373,8 @@ static void limine_main(void) {
             fip->font, fip->font_width, fip->font_height, fip->font_spacing,
             fip->font_scale_x, fip->font_scale_y,
             fip->margin,
-            fip->rotation
+            fip->rotation,
+            true
         );
     } else {
         ft_ctx = flanterm_fb_init(
@@ -390,7 +391,8 @@ static void limine_main(void) {
             NULL, 0, 0, 1,
             0, 0,
             0,
-            FLANTERM_FB_ROTATE_0
+            FLANTERM_FB_ROTATE_0,
+            true
         );
     }
 
