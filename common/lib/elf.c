@@ -146,6 +146,12 @@ static bool elf32_validate(struct elf32_hdr *hdr) {
         panic(true, "elf: Not an IA-32 ELF file.");
     }
 
+    // The gABI naturally aligns every structure it defines within the file.
+    if (hdr->phoff % 4 != 0 || hdr->phdr_size % 4 != 0
+     || hdr->shoff % 4 != 0 || hdr->shdr_size % 4 != 0) {
+        panic(true, "elf: Header table is not naturally aligned in the file");
+    }
+
     return true;
 }
 
@@ -177,6 +183,12 @@ static bool elf64_validate(struct elf64_hdr *hdr) {
 #else
 #error Unknown architecture
 #endif
+
+    // The gABI naturally aligns every structure it defines within the file.
+    if (hdr->phoff % 8 != 0 || hdr->phdr_size % 8 != 0
+     || hdr->shoff % 8 != 0 || hdr->shdr_size % 8 != 0) {
+        panic(true, "elf: Header table is not naturally aligned in the file");
+    }
 
     return true;
 }
