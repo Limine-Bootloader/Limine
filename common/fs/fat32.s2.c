@@ -17,7 +17,6 @@
 struct fat32_context {
     struct volume *part;
     int type;
-    char *label;
     uint16_t bytes_per_sector;
     uint8_t sectors_per_cluster;
     uint16_t reserved_sectors;
@@ -220,31 +219,6 @@ bytes_per_sector_valid:;
             break;
         default:
             __builtin_unreachable();
-    }
-
-    // get the volume label
-    struct fat32_directory_entry _current_directory;
-    struct fat32_directory_entry *current_directory;
-
-    switch (context->type) {
-        case 12:
-        case 16:
-            current_directory = NULL;
-            break;
-        case 32:
-            _current_directory.cluster_num_low = context->root_directory_cluster & 0xFFFF;
-            _current_directory.cluster_num_high = context->root_directory_cluster >> 16;
-            current_directory = &_current_directory;
-            break;
-        default:
-            __builtin_unreachable();
-    }
-
-    char *vol_label;
-    if (fat32_open_in(context, current_directory, (struct fat32_directory_entry *)&vol_label, NULL) == 0) {
-        context->label = vol_label;
-    } else {
-        context->label = NULL;
     }
 
     return 0;
@@ -617,7 +591,29 @@ char *fat32_get_label(struct volume *part) {
         return NULL;
     }
 
-    return context.label;
+    struct fat32_directory_entry _current_directory;
+    struct fat32_directory_entry *current_directory;
+
+    switch (context.type) {
+        case 12:
+        case 16:
+            current_directory = NULL;
+            break;
+        case 32:
+            _current_directory.cluster_num_low = context.root_directory_cluster & 0xFFFF;
+            _current_directory.cluster_num_high = context.root_directory_cluster >> 16;
+            current_directory = &_current_directory;
+            break;
+        default:
+            __builtin_unreachable();
+    }
+
+    char *label;
+    if (fat32_open_in(&context, current_directory, (struct fat32_directory_entry *)&label, NULL) != 0) {
+        return NULL;
+    }
+
+    return label;
 }
 
 static uint64_t fat32_read(struct file_handle *handle, void *buf, uint64_t loc, uint64_t count);
