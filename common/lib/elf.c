@@ -384,6 +384,11 @@ static bool elf64_prepare_relocations(uint8_t *elf, size_t file_size, struct elf
             return false;
         }
 
+        // The gABI naturally aligns every structure it defines within the file.
+        if (phdr->p_offset % 8 != 0) {
+            return false;
+        }
+
         for (uint64_t j = 0; j < phdr->p_filesz / sizeof(struct elf64_dyn); j++) {
             struct elf64_dyn *dyn = (void *)elf + (phdr->p_offset + j * sizeof(struct elf64_dyn));
 
@@ -478,6 +483,15 @@ end_of_pt_segment:
         }
     } else if (dt_pltrelsz != 0) {
         panic(true, "elf: DT_PLTRELSZ without DT_JMPREL");
+    }
+
+    // Both the table and the stride, since every walk here steps by an entry
+    // size the file supplies.
+    if (rela_offset % 8 != 0 || rela_ent % 8 != 0
+     || relr_offset % 8 != 0
+     || symtab_offset % 8 != 0 || symtab_ent % 8 != 0
+     || dt_jmprel % 8 != 0) {
+        panic(true, "elf: Dynamic table is not naturally aligned in the file");
     }
 
     size_t relocs_i = 0;
