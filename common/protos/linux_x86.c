@@ -422,10 +422,19 @@ noreturn void linux_load(char *config, char *cmdline) {
     // Start at pref_address: the decompressor relocates itself up to
     // LOAD_PHYSICAL_ADDR (= pref_address) and scribbles init_size bytes from
     // there, so loading below it would leave that range unreserved.
+    // XLF_KERNEL_64 with XLF_CAN_BE_LOADED_ABOVE_4G is the kernel saying it has a
+    // 64-bit entry point and may sit above 4GiB; otherwise the handoff is 32-bit.
+    uint64_t kernel_addr_limit = 0xffffffff;
+#if defined (UEFI) && defined (__x86_64__)
+    if ((setup_header->xloadflags & 3) == 3) {
+        kernel_addr_limit = UINT64_MAX;
+    }
+#endif
     uintptr_t kernel_search_start = 0x100000;
     if (setup_header->version >= 0x20a
      && setup_header->pref_address >= 0x100000
-     && setup_header->pref_address + (uint64_t)kernel_alloc_size <= UINTPTR_MAX) {
+     && kernel_alloc_size <= kernel_addr_limit
+     && setup_header->pref_address <= kernel_addr_limit - kernel_alloc_size) {
         kernel_search_start = (uintptr_t)setup_header->pref_address;
     }
     // Non-relocatable kernels must be loaded at their required address; do
@@ -452,6 +461,12 @@ noreturn void linux_load(char *config, char *cmdline) {
         kernel_load_addr = CHECKED_ADD(kernel_load_addr, kernel_align,
                 panic(true, "linux: Failed to allocate memory for kernel"));
     }
+
+#if defined (UEFI) && defined (__x86_64__)
+    if (kernel_load_addr > 0xffffffff) {
+        use_64_bit_proto = true;
+    }
+#endif
 
     fread(kernel_file, (void *)kernel_load_addr, real_mode_code_size, kernel_file->size - real_mode_code_size);
 
