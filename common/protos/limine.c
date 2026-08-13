@@ -1225,7 +1225,7 @@ FEAT_START
     stack_size_request->response = reported_addr(stack_size_response);
 FEAT_END
 
-    // Every port's ABI requires a 16-byte aligned SP at the entry point.
+    // x86-64 enters at 8 mod 16 from this, the return address having been pushed.
     stack_size = ALIGN_UP(stack_size, 16, panic(true, "limine: Stack size overflow"));
 
     // Executable file
