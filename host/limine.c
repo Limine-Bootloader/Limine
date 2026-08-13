@@ -378,7 +378,12 @@ static bool store_uninstall_data(const char *filename) {
         }
     }
 
-    fclose(udfile);
+    // A buffered write can fail here rather than at the fwrite that queued it.
+    if (fclose(udfile) != 0) {
+        perror_wrap("error: store_uninstall_data(): fclose()");
+        return false;
+    }
+
     return true;
 
 fwrite_error:
@@ -1605,8 +1610,12 @@ uninstall_mode_cleanup:
         free(empty_lba);
     if (cache)
         free(cache);
-    if (device != NULL)
-        fclose(device);
+    if (device != NULL) {
+        if (fclose(device) != 0) {
+            perror_wrap("error: bios_install(): fclose()");
+            ok = EXIT_FAILURE;
+        }
+    }
 
     return ok;
 }
@@ -1757,7 +1766,10 @@ cleanup:
         free(bootloader);
     }
     if (bootloader_file != NULL) {
-        fclose(bootloader_file);
+        if (fclose(bootloader_file) != 0) {
+            perror_wrap("error: enroll_config(): fclose()");
+            ret = EXIT_FAILURE;
+        }
     }
     return ret;
 }
