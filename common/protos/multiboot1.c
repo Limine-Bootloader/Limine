@@ -466,7 +466,9 @@ modeset:;
             fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
             if (fbs_count == 0) {
 #if defined (UEFI)
-                panic(true, "multiboot1: Failed to set video mode");
+                // GRUB warns and boots rather than refusing, and that is what
+                // Multiboot 1 images are written and tested against.
+                goto skip_modeset;
 #elif defined (BIOS)
 textmode:
                 vga_textmode_init(false);
@@ -502,10 +504,12 @@ textmode:
         }
 
         multiboot1_info->flags |= (1 << 12);
-    } else {
+
 #if defined (UEFI)
-        panic(true, "multiboot1: Cannot use text mode with UEFI.");
-#elif defined (BIOS)
+skip_modeset:;
+#endif
+    } else {
+#if defined (BIOS)
         vga_textmode_init(false);
 #endif
     }
