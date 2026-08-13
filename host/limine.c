@@ -1273,6 +1273,11 @@ static int bios_install(int argc, char *argv[]) {
             device_write(part_to_conv[i].chs_end, 0x1be + i * 16 + 5, 3);
         }
 
+        // The protective MBR was wiped above, and its boot signature with it.
+        uint16_t mbr_signature = 0xaa55;
+        mbr_signature = ENDSWAP(mbr_signature);
+        device_write(&mbr_signature, 510, sizeof(uint16_t));
+
         if (!quiet) {
             fprintf(stderr, "Conversion successful.\n");
         }
