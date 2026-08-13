@@ -166,6 +166,7 @@ ifeq ($(TARGET),uefi-aarch64)
         -fshort-wchar \
         -mcpu=generic \
         -march=armv8-a+nofp+nosimd \
+        -mno-outline-atomics \
         -mgeneral-regs-only
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
