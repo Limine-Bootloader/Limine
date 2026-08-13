@@ -702,7 +702,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
                 return END_OF_TABLE;
             }
 
-            if (entry.type == 0x0f || entry.type == 0x05) {
+            if (entry.type == 0x0f || entry.type == 0x05 || entry.type == 0x85) {
                 if (!have_link) {
                     have_link = true;
                     link_first_sect = entry.first_sect;
@@ -805,8 +805,9 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
                 continue;
             }
 
-            if (entry.type != 0x0f && entry.type != 0x05)
+            if (entry.type != 0x0f && entry.type != 0x05 && entry.type != 0x85) {
                 continue;
+            }
 
             // Validate extended partition has non-zero size
             if (entry.sect_count == 0) {
