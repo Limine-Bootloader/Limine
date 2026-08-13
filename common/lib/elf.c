@@ -868,8 +868,6 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct mem_range **_r
     struct elf64_hdr *hdr = (void *)elf;
 
     uint64_t ranges_count = 0;
-    uint64_t image_base = (uint64_t)-1;
-    uint64_t image_top = 0;
 
     if (hdr->phdr_size < sizeof(struct elf64_phdr)) {
         panic(true, "elf: phdr_size < sizeof(struct elf64_phdr)");
@@ -890,23 +888,8 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct mem_range **_r
             }
         }
 
-        uint64_t load_addr = phdr->p_vaddr + slide;
-
-        if (load_addr < image_base) {
-            image_base = load_addr;
-        }
-
-        uint64_t seg_top = CHECKED_ADD(load_addr, phdr->p_memsz,
-            panic(true, "elf: p_vaddr + p_memsz overflow in PHDR %u", i));
-
-        if (seg_top > image_top) {
-            image_top = seg_top;
-        }
-
         ranges_count++;
     }
-
-    image_top = ALIGN_UP(image_top, 4096, panic(true, "elf: Alignment overflow"));
 
     if (ranges_count == 0) {
         panic(true, "elf: No higher half PHDRs exist");
@@ -929,21 +912,12 @@ static void elf64_get_ranges(uint8_t *elf, uint64_t slide, struct mem_range **_r
         }
 
         uint64_t load_addr = phdr->p_vaddr + slide;
-        uint64_t this_top = load_addr + phdr->p_memsz;
+        uint64_t this_top = CHECKED_ADD(load_addr, phdr->p_memsz,
+            panic(true, "elf: p_vaddr + p_memsz overflow in PHDR %u", i));
 
-        uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
-        uint64_t base = load_addr & ~(align - 1);
-        uint64_t top = ALIGN_UP(this_top, align, panic(true, "elf: Alignment overflow"));
-
-        // The image spans the lowest p_vaddr to the highest, so a range rounded
-        // past either end would map memory it does not own.
-        if (base < image_base) {
-            base = image_base;
-        }
-
-        if (top > image_top) {
-            top = image_top;
-        }
+        // p_align is an alignment, not an extent; the gABI loads by the page.
+        uint64_t base = ALIGN_DOWN(load_addr, 4096);
+        uint64_t top = ALIGN_UP(this_top, 4096, panic(true, "elf: Alignment overflow"));
 
         ranges[r].base = base;
         ranges[r].length = top - base;
@@ -1015,7 +989,6 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
     uint64_t min_vaddr = (uint64_t)-1;
     uint64_t max_vaddr = 0;
     uint64_t prev_top = 0;
-    uint64_t prev_rounded_base = 0;
     uint64_t prev_rounded_top = 0;
     uint32_t prev_flags = 0;
     for (uint16_t i = 0; i < hdr->ph_num; i++) {
@@ -1051,15 +1024,7 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
             panic(true, "elf: Attempted to load ELF file with overlapping or out of order PHDRs (%u)", i);
         }
 
-        // elf64_get_ranges() rounds each segment out to its own p_align, so the
-        // conflict has to be looked for at that same granularity.
-        uint64_t align = phdr->p_align <= 1 ? 1 : phdr->p_align;
-        uint64_t rounded_base = phdr->p_vaddr & ~(align - 1);
-
-        // elf64_get_ranges() cannot represent aligned bases that run backwards.
-        if (ranges != NULL && rounded_base < prev_rounded_base) {
-            panic(true, "elf: PHDRs are not ordered by their aligned base");
-        }
+        uint64_t rounded_base = ALIGN_DOWN(phdr->p_vaddr, 4096);
 
         if (ranges != NULL
          && rounded_base < prev_rounded_top
@@ -1067,17 +1032,9 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
             panic(true, "elf: Attempted to load ELF file with PHDRs with different permissions sharing the same memory page.");
         }
 
-        uint64_t rounded_top = ALIGN_UP(phdr_end, align, panic(true, "elf: PHDR alignment overflow"));
-
         prev_top = phdr_end;
-        prev_rounded_base = rounded_base;
-
-        // A coarsely aligned segment covers pages that later segments land on,
-        // so the bound is the highest rounded top seen.
-        if (rounded_top > prev_rounded_top) {
-            prev_rounded_top = rounded_top;
-            prev_flags = phdr->p_flags & 0b111;
-        }
+        prev_rounded_top = ALIGN_UP(phdr_end, 4096, panic(true, "elf: PHDR alignment overflow"));
+        prev_flags = phdr->p_flags & 0b111;
 
         if (phdr->p_vaddr < min_vaddr) {
             min_vaddr = phdr->p_vaddr;
@@ -1091,6 +1048,9 @@ bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t 
     if (min_vaddr == (uint64_t)-1) {
         panic(true, "elf: No usable PHDRs exist");
     }
+
+    // Precedes the slide, which is derived from min_vaddr and must agree.
+    min_vaddr = ALIGN_DOWN(min_vaddr, 4096);
 
     if (lower_to_higher) {
         slide = FIXED_HIGHER_HALF_OFFSET_64 - min_vaddr;
