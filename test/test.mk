@@ -89,6 +89,7 @@ ifeq ($(ARCH),aarch64)
 override CFLAGS += \
     -mcpu=generic \
     -march=armv8-a+nofp+nosimd \
+    -mno-outline-atomics \
     -mgeneral-regs-only
 endif
 
