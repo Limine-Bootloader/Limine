@@ -17,7 +17,7 @@ uint8_t acpi_checksum(void *ptr, size_t size) {
 
 #if defined (BIOS)
 
-void *acpi_get_rsdp(void) {
+static void *acpi_get_rsdp_impl(bool log) {
     size_t ebda = EBDA;
 
     for (size_t i = ebda; i < 0x100000; i += 16) {
@@ -27,12 +27,18 @@ void *acpi_get_rsdp(void) {
         }
         if (!memcmp((char *)i, "RSD PTR ", 8)
          && !acpi_checksum((void *)i, 20)) {
-            printv("acpi: Found RSDP at %p\n", i);
+            if (log) {
+                printv("acpi: Found RSDP at %p\n", i);
+            }
             return (void *)i;
         }
     }
 
     return NULL;
+}
+
+void *acpi_get_rsdp(void) {
+    return acpi_get_rsdp_impl(true);
 }
 
 /// Returns the RSDP v1 pointer if available or else NULL.
@@ -205,10 +211,14 @@ void *acpi_get_rsdp_v2(void) {
     return NULL;
 }
 
-void *acpi_get_table(const char *signature, int index) {
+static void *acpi_get_table_impl(const char *signature, int index, bool log) {
     int cnt = 0;
 
+#if defined (BIOS)
+    struct rsdp *rsdp = acpi_get_rsdp_impl(log);
+#else
     struct rsdp *rsdp = acpi_get_rsdp();
+#endif
     if (rsdp == NULL)
         return NULL;
 
@@ -229,7 +239,9 @@ void *acpi_get_table(const char *signature, int index) {
 
     // Validate RSDT/XSDT header length
     if (rsdt->header.length < sizeof(struct sdt)) {
-        printv("acpi: Invalid %s header length\n", use_xsdt ? "XSDT" : "RSDT");
+        if (log) {
+            printv("acpi: Invalid %s header length\n", use_xsdt ? "XSDT" : "RSDT");
+        }
         return NULL;
     }
 
@@ -250,16 +262,32 @@ void *acpi_get_table(const char *signature, int index) {
         if (!memcmp(ptr->signature, signature, 4)
          && cnt++ == index) {
             if (acpi_checksum(ptr, ptr->length)) {
-                printv("acpi: warning: bad checksum in \"%s\", using anyway\n", signature);
+                if (log) {
+                    printv("acpi: warning: bad checksum in \"%s\", using anyway\n", signature);
+                }
             }
-            printv("acpi: Found \"%s\" at %p\n", signature, ptr);
+            if (log) {
+                printv("acpi: Found \"%s\" at %p\n", signature, ptr);
+            }
             return ptr;
         }
     }
 
-    printv("acpi: \"%s\" not found\n", signature);
+    if (log) {
+        printv("acpi: \"%s\" not found\n", signature);
+    }
     return NULL;
 }
+
+void *acpi_get_table(const char *signature, int index) {
+    return acpi_get_table_impl(signature, index, true);
+}
+
+#if defined (BIOS)
+void *acpi_get_table_quiet(const char *signature, int index) {
+    return acpi_get_table_impl(signature, index, false);
+}
+#endif
 
 static bool acpi_padding_is_safe(uint64_t base, uint64_t length) {
     if (length == 0) {
