@@ -931,8 +931,13 @@ static inline uint32_t loongarch_phys_id(void) {
     return csr_read32(LOONGARCH_CSR_CPUID);
 }
 
-static inline bool core_pic_startable(uint32_t flags) {
-    return flags & MADT_CORE_PIC_ENABLED;
+static inline bool core_pic_startable(struct madt_core_pic *core_pic) {
+    // ACPI 6.6 5.2.12.20: an invalid physical ID voids the whole structure.
+    if (core_pic->core_id == MADT_CORE_PIC_ID_INVALID) {
+        return false;
+    }
+
+    return core_pic->flags & MADT_CORE_PIC_ENABLED;
 }
 
 static void csr_mail_send(uint64_t data, int cpu, int mailbox) {
@@ -1019,7 +1024,7 @@ static struct limine_mp_info *try_acpi_smp(size_t *cpu_count, uint32_t *bsp_phys
 
         struct madt_core_pic *core_pic = (void *)madt_ptr;
 
-        if (core_pic_startable(core_pic->flags))
+        if (core_pic_startable(core_pic))
             max_cpus++;
     }
 
@@ -1043,7 +1048,7 @@ static struct limine_mp_info *try_acpi_smp(size_t *cpu_count, uint32_t *bsp_phys
 
         struct madt_core_pic *core_pic = (void *)madt_ptr;
 
-        if (!core_pic_startable(core_pic->flags))
+        if (!core_pic_startable(core_pic))
             continue;
 
         struct limine_mp_info *info_struct = &ret[*cpu_count];

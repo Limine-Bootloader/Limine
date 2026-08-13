@@ -197,7 +197,7 @@ struct madt_core_pic {
 } __attribute__((packed));
 
 #define MADT_CORE_PIC_ENABLED        ((uint32_t)1 << 0)
-#define MADT_CORE_PIC_ONLINE_CAPABLE ((uint32_t)1 << 1)
+#define MADT_CORE_PIC_ID_INVALID     ((uint32_t)0xFFFFFFFF)
 
 struct acpi_bgrt {
     struct sdt header;
