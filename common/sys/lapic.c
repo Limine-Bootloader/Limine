@@ -274,7 +274,8 @@ void lapic_configure_bsp(void) {
 done:
     // The MADT-derived overrides are optional. The handoff state is not: it
     // needs no ACPI data and the protocol promises it unconditionally.
-    lapic_prep_lint(found ? madt : NULL, bsp_acpi_uid, is_x2);
+    // A UID no entry can carry still picks up the all-processor overrides.
+    lapic_prep_lint(madt, found ? bsp_acpi_uid : 0xffffffff, is_x2);
     lapic_configure_handoff_state();
 }
 
