@@ -826,6 +826,7 @@ bool elf64_load_section(uint8_t *elf, size_t file_size, void *buffer, const char
 
 static uint64_t elf64_max_align(uint8_t *elf) {
     uint64_t ret = 0;
+    size_t loadable = 0;
 
     struct elf64_hdr *hdr = (void *)elf;
 
@@ -852,13 +853,22 @@ static uint64_t elf64_max_align(uint8_t *elf) {
         }
 #endif
 
+        loadable++;
+
         if (phdr->p_align > ret) {
             ret = phdr->p_align;
         }
     }
 
-    if (ret == 0) {
+    if (loadable == 0) {
         panic(true, "elf: Executable has no loadable segments");
+    }
+
+    // The gABI permits a p_align of 0 or 1, meaning no alignment required, but
+    // this is also the allocation and KASLR slide granularity and the pagemap
+    // is built by the page.
+    if (ret < 4096) {
+        ret = 4096;
     }
 
     return ret;
