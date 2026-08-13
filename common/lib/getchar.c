@@ -175,7 +175,8 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
 }
 
 #if defined (BIOS)
-int _pit_sleep_and_quit_on_keypress(uint32_t ticks, uint32_t aux_poll);
+int _pit_sleep_and_quit_on_keypress(uint32_t ticks, uint32_t aux_poll,
+                                    uint64_t tsc_deadline);
 
 // XXX: sync with lib/sleep.asm_bios_ia32.
 #define PIT_SLEEP_AUX_BREAK (-100)
@@ -273,6 +274,10 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
         return 0;
     }
 
+    uint64_t tsc_deadline = rdtsc_deadline(milliseconds > UINT64_MAX / 1000
+                                         ? UINT64_MAX
+                                         : milliseconds * 1000);
+
     // Hand over mouse state accumulated while nobody was listening (e.g. a
     // pointer position preserved across a menu re-entry) before blocking.
     if (mouse_mode == MOUSE_MODE_FULL && mouse_state_pending()) {
@@ -284,7 +289,7 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
     bool aux_poll = mouse_present();
 
     if (!serial && !aux_poll) {
-        return _pit_sleep_and_quit_on_keypress(ticks, 0);
+        return _pit_sleep_and_quit_on_keypress(ticks, 0, tsc_deadline);
     }
 
     uint32_t start = mmind(0x46c);
@@ -293,7 +298,7 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
     for (;;) {
         uint32_t remaining = ticks - elapsed;
         int ret = _pit_sleep_and_quit_on_keypress(serial && remaining > 1 ? 1 : remaining,
-                                                  aux_poll);
+                                                  aux_poll, tsc_deadline);
 
         if (ret == PIT_SLEEP_AUX_BREAK) {
             int ev = mouse_process_pending();
@@ -313,6 +318,10 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
             if (ret != 0) {
                 return ret;
             }
+        }
+
+        if (rdtsc_deadline_expired(tsc_deadline)) {
+            return 0;
         }
 
         uint32_t now = mmind(0x46c);
