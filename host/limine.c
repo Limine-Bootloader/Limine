@@ -307,6 +307,9 @@ static bool device_cache_block(uint64_t block) {
         return false;
     }
 
+    // A short read still copies what it got.
+    cached_block = (uint64_t)-1;
+
     size_t ret = fread(cache, block_size, 1, device);
     if (ret != 1) {
         if (ferror(device)) {
