@@ -162,6 +162,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
 #if defined (UEFI)
     bool is_framebuffer_required = false;
+    bool is_framebuffer_declared = false;
     uint32_t console_flags = 0;
 #endif
 
@@ -217,6 +218,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                         case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
                         #if defined (UEFI)
                             is_framebuffer_required = is_required;
+                            is_framebuffer_declared = true;
                         #endif
                             break;
                         case MULTIBOOT_TAG_TYPE_ACPI_NEW:
@@ -309,7 +311,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 #if defined (UEFI)
     // Neither declaration of framebuffer support, so text is all that is left
     // and UEFI has none. After the loop: either may follow the console tag.
-    if ((console_flags & 1) && fbtag == NULL && !is_framebuffer_required) {
+    if ((console_flags & 1) && fbtag == NULL && !is_framebuffer_declared) {
         panic(true, "multiboot2: OS requires text mode, but UEFI does not support it");
     }
 #endif
