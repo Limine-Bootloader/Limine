@@ -556,6 +556,42 @@ static inline uint64_t rdtsc_usec(void) {
          + exec_ticks % tsc_freq * 1000000 / tsc_freq;
 }
 
+static inline uint64_t rdtsc_deadline(uint64_t us) {
+    if (tsc_freq == 0) {
+        return 0;
+    }
+
+    uint64_t seconds = us / 1000000;
+    uint64_t remainder = us % 1000000;
+
+    uint64_t ticks;
+    if (__builtin_mul_overflow(seconds, tsc_freq, &ticks)) {
+        return UINT64_MAX;
+    }
+
+    uint64_t remainder_ticks;
+    if (__builtin_mul_overflow(remainder, tsc_freq / 1000000,
+                               &remainder_ticks)) {
+        return UINT64_MAX;
+    }
+    remainder_ticks += remainder * (tsc_freq % 1000000) / 1000000;
+
+    if (__builtin_add_overflow(ticks, remainder_ticks, &ticks)) {
+        return UINT64_MAX;
+    }
+
+    uint64_t now = rdtsc();
+    if (__builtin_add_overflow(now, ticks, &ticks)) {
+        return UINT64_MAX;
+    }
+
+    return ticks;
+}
+
+static inline bool rdtsc_deadline_expired(uint64_t deadline) {
+    return deadline != 0 && rdtsc() >= deadline;
+}
+
 static inline void stall(uint64_t us) {
     uint64_t ticks = (tsc_freq * us + 999999) / 1000000;
     uint64_t next_stop = rdtsc() + ticks;
