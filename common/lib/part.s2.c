@@ -303,9 +303,9 @@ static uint64_t gpt_memo_lba;
 static int gpt_memo_lb_size;
 
 // A volume with no valid GPT is asked again for every partition index, and
-// answering costs the whole search: two block sizes, each verifying the primary
-// and the block it names. Confirmed by re-reading rather than on the pointer
-// alone, so a recycled volume cannot inherit the answer.
+// answering costs the whole search: three block sizes, up to three blocks
+// tried at each. Confirmed by re-reading rather than on the pointer alone, so
+// a recycled volume cannot inherit the answer.
 static struct volume *gpt_memo_none_volume = NULL;
 static struct gpt_table_header gpt_memo_none_block;
 static bool gpt_memo_none_readable;
