@@ -671,6 +671,13 @@ noreturn void limine_load(char *config, char *cmdline) {
              || image_size_before_bss - reqs_off < sizeof(uint64_t[4])) {
                 panic(true, "limine: .limine_reqs entry outside kernel image");
             }
+
+            // _get_request() reads the ID through this pointer as 64-bit
+            // loads, which riscv64 and loongarch64 are permitted to trap on.
+            if (reqs_off % sizeof(uint64_t) != 0) {
+                panic(true, "limine: .limine_reqs entry is not 8-byte aligned");
+            }
+
             requests[i] = (void *)(uintptr_t)(reqs_off + physical_base);
             requests_count++;
         }
