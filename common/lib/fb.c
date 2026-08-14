@@ -156,6 +156,13 @@ static bool fb_flush_riscv(volatile void *base, size_t length) {
 #define LOONGARCH_LX_IU_UNIFY ((uint32_t)1 << 1)
 #define LOONGARCH_LX_D_PRESENT ((uint32_t)1 << 4)
 #define LOONGARCH_MAX_LEAVES 6
+// Only four caches carry a size word: 0x11 is the one 0x10's L1 IU Present
+// names, 0x12 its L1 D, 0x13 its L2 IU and 0x14 its L3 IU. Each holds
+// log2(line bytes) in bits 30:24.
+#define LOONGARCH_L2_IU_PRESENT ((uint32_t)1 << LOONGARCH_LX_FIRST_BIT)
+#define LOONGARCH_L3_IU_PRESENT ((uint32_t)1 << (LOONGARCH_LX_FIRST_BIT + LOONGARCH_LX_BITS))
+#define LOONGARCH_LINESIZE_SHIFT 24
+#define LOONGARCH_LINESIZE_MASK 0x7f
 
 // Where a writeback lands is decided by the inclusion relations between levels,
 // so maintaining one leaf does not reach memory by itself. An instruction cache
@@ -215,6 +222,49 @@ static uint32_t loongarch_leaves(void) {
     return leaves;
 }
 
+// A maintained L2 or L3 *data* cache has no size word at all, so its line cannot
+// be read. Striding by the smallest line any present cache reports covers every
+// line of all of them; a larger stride would leave every other line dirty.
+static size_t loongarch_line_size(void) {
+    static size_t clsz = 0;
+
+    if (clsz != 0) {
+        return clsz;
+    }
+
+    static const uint32_t present[4] = {
+        LOONGARCH_L1_IU_PRESENT, LOONGARCH_L1_D_PRESENT,
+        LOONGARCH_L2_IU_PRESENT, LOONGARCH_L3_IU_PRESENT
+    };
+    uint32_t cfg = loongarch_cpucfg(LOONGARCH_CACHE_CFG);
+
+    for (unsigned i = 0; i < 4; i++) {
+        if (!(cfg & present[i])) {
+            continue;
+        }
+
+        uint32_t word = loongarch_cpucfg(0x11 + i);
+        unsigned log2 = (word >> LOONGARCH_LINESIZE_SHIFT) & LOONGARCH_LINESIZE_MASK;
+
+        // A line narrower than a pointer, or wider than any plausible cache, is
+        // a field this part does not populate rather than a size.
+        if (log2 < 3 || log2 > 12) {
+            continue;
+        }
+
+        size_t line = (size_t)1 << log2;
+        if (clsz == 0 || line < clsz) {
+            clsz = line;
+        }
+    }
+
+    if (clsz == 0) {
+        clsz = 64;
+    }
+
+    return clsz;
+}
+
 static bool fb_flush_loongarch64(volatile void *base, size_t length) {
     uint32_t leaves = loongarch_leaves();
 
@@ -224,7 +274,7 @@ static bool fb_flush_loongarch64(volatile void *base, size_t length) {
         return false;
     }
 
-    const size_t clsz = 64;
+    const size_t clsz = loongarch_line_size();
     uintptr_t start = ALIGN_DOWN((uintptr_t)base, clsz);
     uintptr_t end = ALIGN_UP(CHECKED_ADD((uintptr_t)base, length, return false), clsz, return false);
 
