@@ -508,6 +508,7 @@ static bool device_write_raw(const void *_buffer, uint64_t loc, size_t count) {
 
     if (!device_read_raw(ud->data, loc, count)) {
         free(ud->data);
+        ud->data = NULL;
         return false;
     }
 
