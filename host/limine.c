@@ -1185,25 +1185,13 @@ static int bios_install(int argc, char *argv[]) {
             goto cleanup;
         }
 
-        // ... nuke primary GPT + protective MBR. The reserve is the protective
-        // MBR, the header, and the 16384 bytes UEFI reserves for the entry
-        // array whatever the block size -- 34 blocks at 512, 10 at 2048, 6 at
-        // 4096. The header's own value bounds it where that is smaller.
-        uint64_t first_usable = ENDSWAP(gpt_header.first_usable_lba);
-        uint64_t reserve_max = 2 + (16384 + lb_size - 1) / lb_size;
-        uint64_t reserve = first_usable < reserve_max ? first_usable : reserve_max;
-
-        for (uint64_t i = 0; i < reserve; i++) {
-            device_write(empty_lba, i * lb_size, lb_size);
-        }
-
-        // ... nuke the alternate GPT the header names and the one at the end of
+        // ... find the alternate GPT the header names and the one at the end of
         // the device: a disk imaged onto a larger one carries both, and leaving
         // either behind is what makes a GPT-aware reader disagree with the MBR
         // this conversion writes. Each is wiped only if a header really sits on
         // it, so a wrong AlternateLBA cannot direct the erase at unrelated data.
-        uint64_t alternates[2];
-        size_t alternate_count = 0, ai;
+        uint64_t alternates[2], alt_first[2];
+        size_t alternate_count = 0, wipe_count = 0, ai;
         uint64_t last_block;
 
         // The alternate reserve is the header and the same 16384 bytes, without
@@ -1221,6 +1209,8 @@ static int bios_install(int argc, char *argv[]) {
             alternates[alternate_count++] = last_block;
         }
 
+        // Settle every erase before performing any of them: a rejection
+        // knowable in advance must not depend on the undo succeeding.
         for (ai = 0; ai < alternate_count; ai++) {
             struct gpt_table_header probe;
             uint64_t probe_loc;
@@ -1232,18 +1222,40 @@ static int bios_install(int argc, char *argv[]) {
             }
 
             uint64_t last_usable = ENDSWAP(gpt_header.last_usable_lba);
-            uint64_t alt_first = alternates[ai] - (alt_reserve - 1);
+            uint64_t first = alternates[ai] - (alt_reserve - 1);
 
-            // LastUsableLBA is unbounded by the checks a header must pass.
+            // LastUsableLBA is unbounded by the checks a header must pass, and
+            // a table calling its own alternate usable leaves it neither
+            // erasable there nor safe to leave behind.
             if (last_usable >= alternates[ai]) {
-                continue;
+                fprintf(stderr, "error: GPT places an alternate header inside"
+                                " its usable range, aborting.\n");
+                goto cleanup;
             }
 
-            if (alt_first <= last_usable) {
-                alt_first = last_usable + 1;
+            if (first <= last_usable) {
+                first = last_usable + 1;
             }
 
-            for (uint64_t lba = alt_first; lba <= alternates[ai]; lba++) {
+            alternates[wipe_count] = alternates[ai];
+            alt_first[wipe_count] = first;
+            wipe_count++;
+        }
+
+        // ... nuke primary GPT + protective MBR. The reserve is the protective
+        // MBR, the header, and the 16384 bytes UEFI reserves for the entry
+        // array whatever the block size -- 34 blocks at 512, 10 at 2048, 6 at
+        // 4096. The header's own value bounds it where that is smaller.
+        uint64_t first_usable = ENDSWAP(gpt_header.first_usable_lba);
+        uint64_t reserve_max = 2 + (16384 + lb_size - 1) / lb_size;
+        uint64_t reserve = first_usable < reserve_max ? first_usable : reserve_max;
+
+        for (uint64_t i = 0; i < reserve; i++) {
+            device_write(empty_lba, i * lb_size, lb_size);
+        }
+
+        for (ai = 0; ai < wipe_count; ai++) {
+            for (uint64_t lba = alt_first[ai]; lba <= alternates[ai]; lba++) {
                 uint64_t wipe_loc;
                 if (mul_u64_overflow(lba, lb_size, &wipe_loc)) {
                     fprintf(stderr, "error: GPT alternate LBA out of range, aborting.\n");
