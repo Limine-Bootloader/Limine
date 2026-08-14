@@ -699,7 +699,9 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
             }
 
             if (entry.type == 0x0f || entry.type == 0x05 || entry.type == 0x85) {
-                if (!have_link) {
+                // An empty slot carrying an extended type is not the link, and
+                // latching it would hide a real one in a later slot.
+                if (!have_link && entry.sect_count != 0) {
                     have_link = true;
                     link_first_sect = entry.first_sect;
                 }
