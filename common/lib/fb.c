@@ -203,13 +203,25 @@ static uint32_t loongarch_writeback_leaves(void) {
         asm volatile ("cacop " code ", %0, 0" :: "r"(ptr) : "memory"); \
     }
 
-static bool fb_flush_loongarch64(volatile void *base, size_t length) {
+static uint32_t loongarch_leaves(void) {
     static uint32_t leaves = 0;
     static bool probed = false;
 
     if (!probed) {
         leaves = loongarch_writeback_leaves();
         probed = true;
+    }
+
+    return leaves;
+}
+
+static bool fb_flush_loongarch64(volatile void *base, size_t length) {
+    uint32_t leaves = loongarch_leaves();
+
+    // No data cache and a CPUCFG word the part does not implement both read as
+    // zero here, so a flush cannot be promised even where none was needed.
+    if (leaves == 0) {
+        return false;
     }
 
     const size_t clsz = 64;
@@ -268,6 +280,8 @@ bool fb_flush_reliable(void) {
     if (!probed) {
 #if defined (__riscv)
         reliable = riscv_check_isa_extension("zicbom", NULL, NULL);
+#elif defined (__loongarch64)
+        reliable = loongarch_leaves() != 0;
 #endif
         probed = true;
     }
