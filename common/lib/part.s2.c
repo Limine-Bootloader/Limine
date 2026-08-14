@@ -635,12 +635,8 @@ uint32_t mbr_get_id(struct volume *volume) {
 
 // A data entry's start is relative to the EBR that carries it, where the chain
 // link's is relative to the extended partition.
-static bool mbr_logical_entry_valid(struct volume *extended_part, uint64_t ebr_sector,
-                                    struct mbr_entry *entry, uint64_t *first_sect) {
-    if (entry->type == 0 || entry->sect_count == 0) {
-        return false;
-    }
-
+static bool mbr_logical_entry_contained(struct volume *extended_part, uint64_t ebr_sector,
+                                        struct mbr_entry *entry, uint64_t *first_sect) {
     uint64_t rel_first = CHECKED_ADD(ebr_sector, entry->first_sect, return false);
     if (!partition_range_valid(extended_part, rel_first, entry->sect_count)) {
         return false;
@@ -710,11 +706,26 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
                 continue;
             }
 
-            if (!mbr_logical_entry_valid(extended_part, ebr_sector, &entry, &first_sect_64)) {
+            // The running system counts on size alone, so a type byte tested
+            // here would shift every number after it.
+            if (entry.sect_count == 0) {
+                continue;
+            }
+
+            bool contained = mbr_logical_entry_contained(extended_part, ebr_sector,
+                                                         &entry, &first_sect_64);
+
+            // A number here has to match the one the running system gives the
+            // same partition, and the first two slots are counted whether or
+            // not they lie inside the extended partition.
+            if (!contained && i >= 2) {
                 continue;
             }
 
             if (accepted == partition) {
+                if (!contained) {
+                    return NO_PARTITION;
+                }
                 found = true;
                 break;
             }
