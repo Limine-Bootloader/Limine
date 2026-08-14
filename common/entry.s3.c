@@ -4,7 +4,6 @@
 #include <lib/term.h>
 #include <lib/real.h>
 #include <lib/misc.h>
-#include <lib/rand.h>
 #include <lib/libc.h>
 #include <lib/part.h>
 #include <lib/config.h>
@@ -35,6 +34,8 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
     gBS = SystemTable->BootServices;
     gRT = SystemTable->RuntimeServices;
     efi_image_handle = ImageHandle;
+
+    reseed_stack_guard();
 
     calibrate_tsc();
     usec_at_bootloader_entry = rdtsc_usec();
@@ -165,9 +166,6 @@ opened:
 #endif
 
 noreturn void stage3_common(void) {
-    // A zero low byte stops string overflows from writing the canary intact.
-    __stack_chk_guard = safe_rand64() & ~(uintptr_t)0xff;
-
 #if defined (__x86_64__) || defined (__i386__)
     init_flush_irqs();
     init_io_apics();

@@ -88,6 +88,8 @@ noreturn void entry(uint8_t boot_drive, int boot_from) {
         panic(false, "Could not enable A20 line");
     }
 
+    reseed_stack_guard();
+
     calibrate_tsc();
     uint64_t usec_at_entry = rdtsc_usec();
 

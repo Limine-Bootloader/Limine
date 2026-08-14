@@ -2,10 +2,15 @@
 #include <stddef.h>
 #include <lib/misc.h>
 #include <lib/print.h>
+#include <lib/rand.h>
 
-// Overwritten from a hardware entropy source once stage 3 is up. The build
-// time value is all the BIOS stage 2 parsers have.
+// Reseeded at the entry point, before anything parses a disk.
 uintptr_t __stack_chk_guard = (uintptr_t)0x7a19f4c6e2b3d500ULL;
+
+void reseed_stack_guard(void) {
+    // A zero low byte stops string overflows from writing the canary intact.
+    __stack_chk_guard = safe_rand64() & ~(uintptr_t)0xff;
+}
 
 noreturn void __stack_chk_fail(void) {
     panic(false, "Stack smashing detected");
