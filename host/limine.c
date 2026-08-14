@@ -861,17 +861,29 @@ static bool gpt_verify_header(const struct gpt_table_header *header,
 
 // Probed rather than read from AlternateLBA, because a header that failed its
 // own CRC cannot be trusted to say where its alternate lives.
-static bool device_last_block(uint64_t lb_size, uint64_t *out) {
+// The last byte, not the first: a medium ending mid-block carries no such block,
+// and the loader counts blocks by dividing the medium rather than by probing.
+static bool device_block_present(uint64_t block, uint64_t lb_size) {
     uint8_t probe;
-    uint64_t lo = 0, hi = 1, loc;
+    uint64_t loc;
 
-    if (!device_read_raw(&probe, 0, 1)) {
+    if (mul_u64_overflow(block, lb_size, &loc)
+     || add_u64_overflow(loc, lb_size - 1, &loc)) {
+        return false;
+    }
+
+    return device_read_raw(&probe, loc, 1);
+}
+
+static bool device_last_block(uint64_t lb_size, uint64_t *out) {
+    uint64_t lo = 0, hi = 1;
+
+    if (!device_block_present(0, lb_size)) {
         return false;
     }
 
     for (;;) {
-        if (mul_u64_overflow(hi, lb_size, &loc)
-         || !device_read_raw(&probe, loc, 1)) {
+        if (!device_block_present(hi, lb_size)) {
             break;
         }
 
@@ -885,11 +897,10 @@ static bool device_last_block(uint64_t lb_size, uint64_t *out) {
     while (lo + 1 < hi) {
         uint64_t mid = lo + (hi - lo) / 2;
 
-        if (mul_u64_overflow(mid, lb_size, &loc)
-         || !device_read_raw(&probe, loc, 1)) {
-            hi = mid;
-        } else {
+        if (device_block_present(mid, lb_size)) {
             lo = mid;
+        } else {
+            hi = mid;
         }
     }
 
