@@ -39,6 +39,7 @@ extern bool stage3_loaded;
 #endif
 
 extern uintptr_t __stack_chk_guard;
+void reseed_stack_guard(void);
 
 extern bool quiet, serial, editor_enabled, help_hidden, hash_mismatch_panic, secure_boot_active, measured_boot, firmware_logo;
 
