@@ -361,6 +361,23 @@ static void gpt_memo_store(struct volume *volume,
     gpt_memo_lb_size = lb_size;
 }
 
+// A hybrid MBR carries its 0xEE entry beside the real ones, so it counts too.
+static bool gpt_protective_mbr(struct volume *volume) {
+    for (int i = 0; i < 4; i++) {
+        uint8_t type;
+
+        if (!volume_read(volume, &type, 0x1be + 16 * i + 4, sizeof(type))) {
+            return false;
+        }
+
+        if (type == 0xee) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // UEFI 2.11 section 5.3.2 requires falling back to the alternate header when the
 // primary does not verify, and places it in the last block. A disk imaged onto a
 // larger one keeps its alternate where the smaller one ended, so the block the
@@ -385,6 +402,8 @@ static bool gpt_locate_header(struct volume *volume,
     if (gpt_memo_none_hit(volume)) {
         return false;
     }
+
+    bool protective = gpt_protective_mbr(volume);
 
     for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
         int guess = lb_guesses[i];
@@ -421,6 +440,12 @@ static bool gpt_locate_header(struct volume *volume,
                     candidates[1] = claimed;
                 }
             }
+        }
+
+        // A disk reformatted to MBR keeps a backup header the new table did not
+        // reach, and LBA 0 is what says whether that header is still live.
+        if (!protective) {
+            continue;
         }
 
         for (size_t j = 0; j < candidate_count; j++) {
