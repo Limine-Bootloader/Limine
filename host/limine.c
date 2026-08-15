@@ -772,7 +772,7 @@ static bool gpt_entry_array_crc(uint64_t loc, uint64_t size, uint32_t *out) {
 // from, and the entry array CRC.
 static bool gpt_verify_header(const struct gpt_table_header *header,
                               uint64_t header_lba, uint64_t lb_size,
-                              uint64_t device_blocks) {
+                              uint64_t device_blocks, uint64_t *budget) {
     uint32_t header_size, entry_size, crc;
     uint64_t header_loc, array_loc, array_size;
 
@@ -815,7 +815,8 @@ static bool gpt_verify_header(const struct gpt_table_header *header,
         return false;
     }
 
-    if (array_size == 0 || array_size > GPT_MAX_ARRAY_SIZE) {
+    if (array_size == 0 || array_size > GPT_MAX_ARRAY_SIZE
+     || array_size > *budget) {
         return false;
     }
 
@@ -854,6 +855,8 @@ static bool gpt_verify_header(const struct gpt_table_header *header,
     if (mul_u64_overflow(array_lba, lb_size, &array_loc)) {
         return false;
     }
+
+    *budget -= array_size;
 
     return gpt_entry_array_crc(array_loc, array_size, &crc)
         && crc == ENDSWAP(header->partition_entry_array_crc32);
@@ -936,6 +939,9 @@ static bool gpt_locate_header(struct gpt_table_header *header,
     // belongs to the image. 2048 is optical, and matches device_init().
     uint64_t lb_guesses[] = { 512, 2048, 4096 };
     bool protective = gpt_protective_mbr();
+    // A header that fails its array CRC has already paid for it, so the budget
+    // covers the two locations the recovery rule names rather than one call.
+    uint64_t budget = GPT_MAX_ARRAY_SIZE * 2;
 
     for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
         uint64_t lb_size = lb_guesses[i], last, loc, device_blocks = 0;
@@ -948,7 +954,7 @@ static bool gpt_locate_header(struct gpt_table_header *header,
         }
 
         if (device_read_raw(header, lb_size, sizeof(*header))) {
-            if (gpt_verify_header(header, 1, lb_size, device_blocks)) {
+            if (gpt_verify_header(header, 1, lb_size, device_blocks, &budget)) {
                 *lb_size_out = lb_size;
                 *header_lba_out = 1;
                 return true;
@@ -987,7 +993,7 @@ static bool gpt_locate_header(struct gpt_table_header *header,
             }
 
             if (device_read_raw(header, loc, sizeof(*header))
-             && gpt_verify_header(header, candidates[j], lb_size, device_blocks)) {
+             && gpt_verify_header(header, candidates[j], lb_size, device_blocks, &budget)) {
                 *lb_size_out = lb_size;
                 *header_lba_out = candidates[j];
                 return true;
