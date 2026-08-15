@@ -869,8 +869,8 @@ static uint64_t elf64_max_align(uint8_t *elf) {
         }
 
 #if defined (__i386__)
-        // The allocator takes the alignment as a size_t, where a wider value
-        // truncates to zero and every allocation then lands at address 0.
+        // The allocator takes the alignment as a size_t, so a wider value
+        // truncates to zero and every base it computes comes out zero.
         if (phdr->p_align > SIZE_MAX) {
             panic(true, "elf: p_align is too large for a 32-bit port");
         }
