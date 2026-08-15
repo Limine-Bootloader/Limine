@@ -596,6 +596,29 @@ static void elf64_free_relocations(struct elf64_reloc_state *st) {
     pmm_free(st->relocs, st->relocs_i * sizeof(struct elf64_rela *));
 }
 
+// r_offset is the executable's to choose and real toolchains emit misaligned
+// DT_RELR targets, so these go a byte at a time: riscv64 without Zicclsm and
+// loongarch64 without UAL may trap a wide unaligned access, and neither a
+// packed type nor memcpy stops one being emitted on both.
+static uint64_t reloc_load(const void *p) {
+    const volatile uint8_t *s = p;
+    uint64_t v = 0;
+
+    for (size_t i = 0; i < sizeof(v); i++) {
+        v |= (uint64_t)s[i] << (i * 8);
+    }
+
+    return v;
+}
+
+static void reloc_store(void *p, uint64_t v) {
+    volatile uint8_t *d = p;
+
+    for (size_t i = 0; i < sizeof(v); i++) {
+        d[i] = (uint8_t)(v >> (i * 8));
+    }
+}
+
 static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t *elf, void *buffer, uint64_t vaddr, size_t size, uint64_t slide) {
     struct elf64_rela **relocs = st->relocs;
     size_t relocs_i = st->relocs_i;
@@ -617,7 +640,7 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
             continue;
 
         // It's inside it, calculate where it is
-        uint64_t *ptr = (uint64_t *)(buffer + (relocation->r_addr - vaddr));
+        void *ptr = buffer + (relocation->r_addr - vaddr);
 
         switch (relocation->r_info) {
 #if defined (__x86_64__) || defined (__i386__)
@@ -642,12 +665,12 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
             case R_LARCH_RELATIVE:
 #endif
             {
-                *ptr = slide + relocation->r_addend;
+                reloc_store(ptr, slide + relocation->r_addend);
                 break;
             }
             case R_INTERNAL_RELR:
             {
-                *ptr += slide;
+                reloc_store(ptr, reloc_load(ptr) + slide);
                 break;
             }
 #if defined (__x86_64__) || defined (__i386__)
@@ -678,7 +701,7 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                 struct elf64_sym *s = (void *)elf + symtab_offset + sym_offset;
                 if (s->st_shndx == SHN_UNDEF) {
                     if ((s->st_info >> 4) == STB_WEAK) {
-                        *ptr = 0;
+                        reloc_store(ptr, 0);
                         break;
                     }
                     if (strtab_size == 0) {
@@ -690,11 +713,11 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                     }
                     panic(true, "elf: Unresolved symbol \"%S\"", elf + strtab_offset + s->st_name, (size_t)(strtab_size - s->st_name));
                 }
-                *ptr = slide + s->st_value
+                uint64_t value = slide + s->st_value;
 #if defined (__aarch64__)
-                       + relocation->r_addend
+                value += relocation->r_addend;
 #endif
-                ;
+                reloc_store(ptr, value);
                 break;
             }
 #if defined (__x86_64__) || defined (__i386__)
@@ -723,7 +746,7 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                 struct elf64_sym *s = (void *)elf + symtab_offset + sym_offset;
                 if (s->st_shndx == SHN_UNDEF) {
                     if ((s->st_info >> 4) == STB_WEAK) {
-                        *ptr = 0;
+                        reloc_store(ptr, 0);
                         break;
                     }
                     if (strtab_size == 0) {
@@ -735,7 +758,7 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                     }
                     panic(true, "elf: Unresolved symbol \"%S\"", elf + strtab_offset + s->st_name, (size_t)(strtab_size - s->st_name));
                 }
-                *ptr = slide + s->st_value + relocation->r_addend;
+                reloc_store(ptr, slide + s->st_value + relocation->r_addend);
                 break;
             }
             default: {
