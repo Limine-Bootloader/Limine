@@ -149,9 +149,11 @@ static bool fb_flush_riscv(volatile void *base, size_t length) {
 #define LOONGARCH_L1_IU_PRESENT ((uint32_t)1 << 0)
 #define LOONGARCH_L1_IU_UNIFY ((uint32_t)1 << 1)
 #define LOONGARCH_L1_D_PRESENT ((uint32_t)1 << 2)
-// Levels two and up repeat one layout every seven bits from bit 3.
+// Levels two and up repeat one layout every seven bits from bit 3, for L2 and
+// L3 alone: the word defines nothing above bit 16.
 #define LOONGARCH_LX_FIRST_BIT 3
 #define LOONGARCH_LX_BITS 7
+#define LOONGARCH_LX_LEVELS 2
 #define LOONGARCH_LX_IU_PRESENT ((uint32_t)1 << 0)
 #define LOONGARCH_LX_IU_UNIFY ((uint32_t)1 << 1)
 #define LOONGARCH_LX_D_PRESENT ((uint32_t)1 << 4)
@@ -186,8 +188,9 @@ static uint32_t loongarch_writeback_leaves(void) {
         leaf++;
     }
 
-    for (uint32_t lx = cfg >> LOONGARCH_LX_FIRST_BIT;
-         lx != 0 && leaf < LOONGARCH_MAX_LEAVES; lx >>= LOONGARCH_LX_BITS) {
+    for (unsigned level = 0; level < LOONGARCH_LX_LEVELS; level++) {
+        uint32_t lx = cfg >> (LOONGARCH_LX_FIRST_BIT + level * LOONGARCH_LX_BITS);
+
         if (lx & LOONGARCH_LX_IU_PRESENT) {
             if (lx & LOONGARCH_LX_IU_UNIFY) {
                 mask |= (uint32_t)1 << leaf;
@@ -195,7 +198,7 @@ static uint32_t loongarch_writeback_leaves(void) {
             leaf++;
         }
 
-        if ((lx & LOONGARCH_LX_D_PRESENT) && leaf < LOONGARCH_MAX_LEAVES) {
+        if (lx & LOONGARCH_LX_D_PRESENT) {
             mask |= (uint32_t)1 << leaf;
             leaf++;
         }
