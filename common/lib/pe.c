@@ -414,21 +414,26 @@ again:
         while (reloc_dir->Size - reloc_block_offset >= sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
             IMAGE_BASE_RELOCATION_BLOCK *block = (IMAGE_BASE_RELOCATION_BLOCK *)((uintptr_t)*physical_base + reloc_dir->VirtualAddress + reloc_block_offset);
 
+            // The block header lives in the image these relocations write to,
+            // where the directory above does not, so its fields are taken once.
+            uint32_t block_va = block->VirtualAddress;
+            uint32_t block_size = block->SizeOfBlock;
+
             // Validate SizeOfBlock to prevent infinite loop (if 0) and underflow (if too small)
-            if (block->SizeOfBlock < sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
+            if (block_size < sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
                 panic(true, "pe: Invalid relocation block size");
             }
 
-            if (block->SizeOfBlock > reloc_dir->Size - reloc_block_offset) {
+            if (block_size > reloc_dir->Size - reloc_block_offset) {
                 panic(true, "pe: Relocation block size exceeds directory");
             }
 
-            if (block->VirtualAddress >= image_size) {
+            if (block_va >= image_size) {
                 panic(true, "pe: Relocation block VirtualAddress out of bounds");
             }
 
-            uintptr_t block_base = *physical_base + block->VirtualAddress;
-            size_t entries = (block->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION_BLOCK)) / sizeof(uint16_t);
+            uintptr_t block_base = *physical_base + block_va;
+            size_t entries = (block_size - sizeof(IMAGE_BASE_RELOCATION_BLOCK)) / sizeof(uint16_t);
             uint16_t *relocs = (uint16_t *)(block + 1);
 
             for (size_t i = 0; i < entries; i++) {
@@ -452,7 +457,7 @@ again:
                         panic(true, "pe: Unsupported relocation type %u", type);
                 }
 
-                if ((uint64_t)block->VirtualAddress + offset + write_size > image_size) {
+                if ((uint64_t)block_va + offset + write_size > image_size) {
                     panic(true, "pe: Relocation offset out of bounds");
                 }
 
@@ -466,7 +471,7 @@ again:
                 }
             }
 
-            reloc_block_offset += block->SizeOfBlock;
+            reloc_block_offset += block_size;
         }
     }
 
