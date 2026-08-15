@@ -689,6 +689,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
     }
 
     uint64_t ebr_sector = 0;
+    uint64_t ebr_size = extended_part->sect_count;
     uint64_t first_sect_64 = 0;
     int accepted = 0;
     bool found = false;
@@ -698,6 +699,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
     if (extended_part->ebr_walk_index <= partition) {
         accepted = extended_part->ebr_walk_index;
         ebr_sector = extended_part->ebr_walk_sector;
+        ebr_size = extended_part->ebr_walk_size;
     }
 
     for (int link = 0; link < MAX_LOGICAL_PARTITIONS; link++) {
@@ -705,6 +707,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
         // to be taken before this EBR's own entries are counted.
         extended_part->ebr_walk_index = accepted;
         extended_part->ebr_walk_sector = ebr_sector;
+        extended_part->ebr_walk_size = ebr_size;
 
         // Each EBR is an MBR-format sector of its own that is_valid_mbr() never
         // saw, and util-linux ends the chain at one lacking the signature.
@@ -719,6 +722,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
         }
 
         uint32_t link_first_sect = 0;
+        uint32_t link_sect_count = 0;
         bool have_link = false;
 
         // The first two entries are a convention rather than a rule: util-linux
@@ -736,6 +740,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
                 if (!have_link && entry.sect_count != 0) {
                     have_link = true;
                     link_first_sect = entry.first_sect;
+                    link_sect_count = entry.sect_count;
                 }
                 continue;
             }
@@ -749,10 +754,14 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
             bool contained = mbr_logical_entry_contained(extended_part, ebr_sector,
                                                          &entry, &first_sect_64);
 
+            // Containment in the extended partition does not imply containment
+            // in the extent the link that led to this EBR declared.
+            bool within_link = (uint64_t)entry.first_sect + entry.sect_count <= ebr_size;
+
             // A number here has to match the one the running system gives the
             // same partition, and the first two slots are counted whether or
             // not they lie inside the extended partition.
-            if (!contained && i >= 2) {
+            if (i >= 2 && (!contained || !within_link)) {
                 continue;
             }
 
@@ -777,6 +786,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
 
         uint64_t prev_ebr_sector = ebr_sector;
         ebr_sector = link_first_sect;
+        ebr_size = link_sect_count;
 
         // Detect circular chain: if new sector points to 0 or backwards, it's invalid
         // (EBR sectors should always increase within the extended partition)
@@ -879,6 +889,9 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
             extended_part->first_sect  = entry.first_sect;
             extended_part->sect_count  = entry.sect_count;
             extended_part->backing_dev = volume;
+
+            // The head EBR may describe the whole extended partition.
+            extended_part->ebr_walk_size = entry.sect_count;
 
             volume->ebr_part = extended_part;
 
