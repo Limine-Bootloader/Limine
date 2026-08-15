@@ -198,7 +198,8 @@ static bool crc32_volume_range(struct volume *volume, uint64_t loc,
 // from, and the entry array CRC.
 static bool gpt_verify_header(struct volume *volume,
                               struct gpt_table_header *header,
-                              uint64_t header_lba, int lb_size) {
+                              uint64_t header_lba, int lb_size,
+                              uint64_t *budget) {
     if (strncmp(header->signature, "EFI PART", 8)) {
         return false;
     }
@@ -253,7 +254,7 @@ static bool gpt_verify_header(struct volume *volume,
     // A resource limit, not a conformance one: the specification states no
     // maximum, and the geometry below cannot supply one because it bounds the
     // array by FirstUsableLBA, which the same table writes.
-    if (array_size > GPT_MAX_ARRAY_SIZE) {
+    if (array_size > GPT_MAX_ARRAY_SIZE || array_size > *budget) {
         return false;
     }
 
@@ -284,6 +285,8 @@ static bool gpt_verify_header(struct volume *volume,
     }
 
     uint64_t array_loc = CHECKED_MUL(array_lba, (uint64_t)lb_size, return false);
+
+    *budget -= array_size;
 
     crc = 0xffffffff;
     if (!crc32_volume_range(volume, array_loc, array_size, &crc)) {
@@ -395,6 +398,10 @@ static bool gpt_locate_header(struct volume *volume,
         4096
     };
 
+    // A header that fails its array CRC has already paid for it, so the budget
+    // covers the two locations the recovery rule names rather than one call.
+    uint64_t budget = GPT_MAX_ARRAY_SIZE * 2;
+
     if (gpt_memo_hit(volume, header, lb_size)) {
         return true;
     }
@@ -411,7 +418,7 @@ static bool gpt_locate_header(struct volume *volume,
         size_t candidate_count = 0;
 
         if (volume_read(volume, header, (uint64_t)guess * 1, sizeof(*header))) {
-            if (gpt_verify_header(volume, header, 1, guess)) {
+            if (gpt_verify_header(volume, header, 1, guess, &budget)) {
                 *lb_size = guess;
                 gpt_memo_store(volume, header, 1, guess);
                 return true;
@@ -452,7 +459,7 @@ static bool gpt_locate_header(struct volume *volume,
             uint64_t loc = CHECKED_MUL(candidates[j], (uint64_t)guess, continue);
 
             if (volume_read(volume, header, loc, sizeof(*header))
-             && gpt_verify_header(volume, header, candidates[j], guess)) {
+             && gpt_verify_header(volume, header, candidates[j], guess, &budget)) {
                 *lb_size = guess;
                 gpt_memo_store(volume, header, candidates[j], guess);
                 return true;
