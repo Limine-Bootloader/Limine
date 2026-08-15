@@ -580,7 +580,7 @@ noreturn void linux_load(char *config, char *cmdline) {
     }
 #endif
 
-    p.dtb = get_device_tree_blob(config, 0x1000, true);
+    p.dtb = get_device_tree_blob(config, 0x1000, true, true);
 
     prepare_device_tree_blob(&p);
 

@@ -1403,7 +1403,7 @@ FEAT_START
         break; // next feature
     }
 
-    void *dtb = get_device_tree_blob(config, 0, true);
+    void *dtb = get_device_tree_blob(config, 0, true, true);
 
     if (dtb) {
         // Delete all /memory@... nodes.
@@ -1794,10 +1794,11 @@ FEAT_END
 
 #if defined (__aarch64__) || defined (__loongarch64)
     // init_smp() runs once boot services are gone, where its device tree
-    // fallback could no longer open a file for itself.
+    // fallback could no longer open a file for itself. ACPI answers first, so a
+    // dtb_path this boot never reads must cost it the tree rather than the boot.
     void *smp_dtb = NULL;
     if (have_request(LIMINE_MP_REQUEST_ID)) {
-        smp_dtb = get_device_tree_blob(config, 0, false);
+        smp_dtb = get_device_tree_blob(config, 0, false, false);
     }
 #endif
 
