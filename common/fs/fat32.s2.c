@@ -311,9 +311,27 @@ static uint32_t *cache_cluster_chain(struct fat32_context *context,
         max_clusters = fat_entries;
     }
 
+    // The bound above comes from the filesystem; this one comes from the medium,
+    // which is what shrinking a partition moves and the BPB does not follow.
+    uint64_t readable_cluster_limit = cluster_limit;
+    if (context->part->sect_count != (uint64_t)-1) {
+        uint64_t volume_sectors = CHECKED_MUL((uint64_t)context->part->sect_count, 512, return NULL)
+                                / context->bytes_per_sector;
+        uint64_t data_clusters = 0;
+        if (volume_sectors > context->data_start_lba) {
+            data_clusters = (volume_sectors - context->data_start_lba) / context->sectors_per_cluster;
+        }
+        if (data_clusters + 1 < readable_cluster_limit) {
+            readable_cluster_limit = data_clusters + 1;
+        }
+    }
+
     uint32_t cluster = initial_cluster;
     size_t chain_length;
     for (chain_length = 1; chain_length <= max_clusters; chain_length++) {
+        if (cluster > readable_cluster_limit) {
+            return NULL;
+        }
         if (read_cluster_from_map(context, cluster, &cluster) != 0) {
             return NULL;
         }
