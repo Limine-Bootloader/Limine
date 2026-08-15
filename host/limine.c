@@ -1480,7 +1480,7 @@ part_too_low:
     // Default location of stage2 for MBR (in post MBR gap)
     uint64_t stage2_loc = 512;
 
-    // The MBR sanity checks below reject any partition starting before LBA 63,
+    // The MBR sanity checks above reject any partition starting before LBA 63,
     // so LBAs 1 through 62 are ours. The GPT path narrows this to the size of
     // the partition it picks.
     uint64_t stage2_max = 62 * 512;
