@@ -106,8 +106,11 @@ ifeq ($(ARCH),loongarch64)
 override CFLAGS += \
     -march=loongarch64 \
     -mabi=lp64s \
+    -mno-relax \
     -mfpu=none \
     -msimd=none
+override LDFLAGS += \
+    --no-relax
 endif
 
 override CFLAGS_MB := \
