@@ -450,7 +450,8 @@ static void *_get_request(uint64_t id[4], size_t size) {
 
         // The scan only proves the 32-byte ID is inside the image. Anything
         // past it, revision and response included, has to be checked here.
-        if ((uintptr_t)p + size > requests_top) {
+        // Widen before adding: at pointer width the sum wraps on 32-bit ports.
+        if ((uint64_t)(uintptr_t)p + size > requests_top) {
             continue;
         }
 
@@ -471,7 +472,8 @@ static void *_get_request(uint64_t id[4], size_t size) {
 
 // Whether the fields get_request_rev0() left outside the bound are there.
 #define request_has_rev1(VAR) \
-    ((VAR)->revision >= 1 && (uintptr_t)(VAR) + sizeof(*(VAR)) <= requests_top)
+    ((VAR)->revision >= 1 \
+     && (uint64_t)(uintptr_t)(VAR) + sizeof(*(VAR)) <= requests_top)
 
 // For presence tests, where nothing past the ID is read.
 #define have_request(REQ) (_get_request((uint64_t[4])REQ, sizeof(uint64_t[4])) != NULL)
