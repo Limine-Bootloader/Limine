@@ -185,8 +185,7 @@ struct madt_riscv_intc {
     uint32_t acpi_processor_uid;
 } __attribute__((packed));
 
-#define MADT_RISCV_INTC_ENABLED        ((uint32_t)1 << 0)
-#define MADT_RISCV_INTC_ONLINE_CAPABLE ((uint32_t)1 << 1)
+#define MADT_RISCV_INTC_ENABLED ((uint32_t)1 << 0)
 
 struct madt_core_pic {
     struct madt_header header;
