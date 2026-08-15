@@ -52,6 +52,7 @@ struct volume {
     struct volume *ebr_part;
     int ebr_walk_index;
     uint64_t ebr_walk_sector;
+    uint64_t ebr_walk_size;
 
     uint64_t first_sect;
     uint64_t sect_count;
