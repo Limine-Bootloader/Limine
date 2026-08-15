@@ -999,13 +999,13 @@ FEAT_START
 FEAT_END
 
     if (!paging_mode_set) {
-        // The per-architecture default above does not consult the supported
-        // range, which both the config and the HHDM span can narrow.
+        // With no request the protocol assumes max_mode is the default, so a
+        // supported range above it is refused rather than raised past.
         if (paging_mode > max_supported_paging_mode) {
             paging_mode = max_supported_paging_mode;
         }
         if (paging_mode < min_supported_paging_mode) {
-            paging_mode = min_supported_paging_mode;
+            panic(true, "limine: Default paging mode lower than minimum allowable paging mode");
         }
 
         set_paging_mode(randomise_hhdm_base);
