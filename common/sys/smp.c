@@ -349,6 +349,10 @@ enum {
     BOOT_WITH_ACPI_PARK
 };
 
+// PROTOCOL.md promises both mpidr fields as the affinity bits alone, which is
+// also the form ACPI table 5.36 gives the MADT's own field.
+#define MPIDR_AFFINITY_MASK ((uint64_t)0xff00ffffff)
+
 static uint32_t psci_cpu_on = 0xC4000003;
 
 static bool try_start_ap(int boot_method, uint64_t method_ptr,
@@ -499,8 +503,7 @@ static struct limine_mp_info *try_acpi_smp(size_t   *cpu_count,
     uint64_t bsp_mpidr;
     asm volatile ("mrs %0, mpidr_el1" : "=r"(bsp_mpidr));
 
-    // The MADT carries the affinity fields alone, so Res1, U and MT must go.
-    bsp_mpidr &= (uint64_t)0xff00ffffff;
+    bsp_mpidr &= MPIDR_AFFINITY_MASK;
 
     *_bsp_mpidr = bsp_mpidr;
 
@@ -558,18 +561,20 @@ static struct limine_mp_info *try_acpi_smp(size_t   *cpu_count,
                 if (!(gicc->flags & 1))
                     continue;
 
+                uint64_t mpidr = gicc->mpidr & MPIDR_AFFINITY_MASK;
+
                 struct limine_mp_info *info_struct = &ret[*cpu_count];
 
                 info_struct->processor_id = gicc->acpi_uid;
-                info_struct->mpidr = gicc->mpidr;
+                info_struct->mpidr = mpidr;
 
                 // Do not try to restart the BSP
-                if (gicc->mpidr == bsp_mpidr) {
+                if (mpidr == bsp_mpidr) {
                     (*cpu_count)++;
                     continue;
                 }
 
-                printv("smp: Found candidate AP for bring-up. Interface no.: %x, MPIDR: %X\n", gicc->iface_no, gicc->mpidr);
+                printv("smp: Found candidate AP for bring-up. Interface no.: %x, MPIDR: %X\n", gicc->iface_no, mpidr);
 
                 // Try to start the AP
                 if (!try_start_ap(boot_method, gicc->parking_addr, info_struct,
@@ -607,8 +612,7 @@ static struct limine_mp_info *try_dtb_smp( void *dtb,
     uint64_t bsp_mpidr;
     asm volatile ("mrs %0, mpidr_el1" : "=r"(bsp_mpidr));
 
-    // The device tree carries the affinity fields alone, so Res1, U and MT must go.
-    bsp_mpidr &= (uint64_t)0xff00ffffff;
+    bsp_mpidr &= MPIDR_AFFINITY_MASK;
 
     *_bsp_mpidr = bsp_mpidr;
 
@@ -699,6 +703,7 @@ static struct limine_mp_info *try_dtb_smp( void *dtb,
                 | ((uint64_t)bytes[7]);
         }
 
+        mpidr &= MPIDR_AFFINITY_MASK;
 
         struct limine_mp_info *info_struct = &ret[*cpu_count];
 
