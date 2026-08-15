@@ -111,6 +111,8 @@ override CFLAGS += \
 endif
 
 override CFLAGS_MB := \
+    -Wall \
+    -Wextra \
     -std=c11 \
     -nostdinc \
     -ffreestanding \
