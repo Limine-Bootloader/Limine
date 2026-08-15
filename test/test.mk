@@ -150,17 +150,23 @@ cc-runtime.mb.o: ../common/cc-runtime.s2.c
 
 # These are 32-bit where test.elf's objects are not, so they need names of
 # their own.
-multiboot2.elf: multiboot2_trampoline.o cc-runtime.mb.o
-	$(CC) $(CFLAGS_MB) -c memory.c -o memory.mb.o
-	$(CC) $(CFLAGS_MB) -c multiboot2.c -o multiboot2.o
-	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.mb.o
-	$(LD) $(LDFLAGS_MB2) $^ memory.mb.o multiboot2.o e9print.mb.o -o $@
+memory.mb.o: memory.c
+	$(CC) $(CFLAGS_MB) -c $< -o $@
 
-multiboot.elf: multiboot_trampoline.o cc-runtime.mb.o
-	$(CC) $(CFLAGS_MB) -c memory.c -o memory.mb.o
-	$(CC) $(CFLAGS_MB) -c multiboot.c -o multiboot.o
-	$(CC) $(CFLAGS_MB) -c e9print.c -o e9print.mb.o
-	$(LD) $(LDFLAGS_MB1) $^ memory.mb.o multiboot.o e9print.mb.o -o $@
+e9print.mb.o: e9print.c
+	$(CC) $(CFLAGS_MB) -c $< -o $@
+
+multiboot.o: multiboot.c
+	$(CC) $(CFLAGS_MB) -c $< -o $@
+
+multiboot2.o: multiboot2.c
+	$(CC) $(CFLAGS_MB) -c $< -o $@
+
+multiboot2.elf: multiboot2_trampoline.o cc-runtime.mb.o memory.mb.o multiboot2.o e9print.mb.o
+	$(LD) $(LDFLAGS_MB2) $^ -o $@
+
+multiboot.elf: multiboot_trampoline.o cc-runtime.mb.o memory.mb.o multiboot.o e9print.mb.o
+	$(LD) $(LDFLAGS_MB1) $^ -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
