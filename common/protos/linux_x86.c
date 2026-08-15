@@ -441,7 +441,18 @@ noreturn void linux_load(char *config, char *cmdline) {
     // not step up on failure.
     bool relocatable_kernel = setup_header->version >= 0x205
                            && setup_header->relocatable_kernel != 0;
+    // The walk gets the ceiling the search start already has, so that both ends
+    // of the range agree about what the handoff can express.
+    uint64_t kernel_addr_max = 0;
+    if (kernel_alloc_size <= kernel_addr_limit) {
+        kernel_addr_max = kernel_addr_limit - kernel_alloc_size;
+    }
     uintptr_t kernel_load_addr = ALIGN_UP(kernel_search_start, kernel_align, panic(true, "linux: Alignment overflow"));
+    // The loop bounds each step, not the address the walk starts from, and
+    // aligning up can pass the ceiling the search start was checked against.
+    if ((uint64_t)kernel_load_addr > kernel_addr_max) {
+        panic(true, "linux: Failed to allocate memory for kernel");
+    }
     for (;;) {
         if (memmap_alloc_range(kernel_load_addr,
                 ALIGN_UP(kernel_alloc_size, 4096, panic(true, "linux: Alignment overflow")),
@@ -452,12 +463,14 @@ noreturn void linux_load(char *config, char *cmdline) {
             panic(true, "linux: Non-relocatable kernel could not be loaded at required address %X", (uint64_t)kernel_load_addr);
         }
 
-        if (kernel_load_addr >= 0xfff00000) {
+        // The first bound is not a multiple of the alignment, so the step can
+        // pass it rather than land on it; the second is what the handoff can
+        // express, and passing that is what truncates the address to zero.
+        if (kernel_load_addr >= 0xfff00000
+         || (uint64_t)kernel_load_addr + kernel_align > kernel_addr_max) {
             panic(true, "linux: Failed to allocate memory for kernel");
         }
 
-        // The bound above is not a multiple of the alignment, so the step can
-        // pass it rather than land on it, and a 32-bit uintptr_t then wraps.
         kernel_load_addr = CHECKED_ADD(kernel_load_addr, kernel_align,
                 panic(true, "linux: Failed to allocate memory for kernel"));
     }
