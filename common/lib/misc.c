@@ -212,7 +212,7 @@ size_t get_trailing_zeros(uint64_t val) {
 }
 
 void *get_device_tree_blob(const char *config, size_t extra_size,
-                           bool measure) {
+                           bool measure, bool required) {
     int ret;
 
     size_t size = 0;
@@ -230,32 +230,45 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
             soft_panic = false;
         }
         if (dtb_path != NULL) {
-            struct file_handle *dtb_file;
-            if ((dtb_file = uri_open(dtb_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+            // A URI the parser refuses panics whatever required says, since
+            // ignoring one would silently drop a hash the config asked for.
+            struct file_handle *dtb_file = uri_open(dtb_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
 #if defined (__i386__)
                 , NULL, NULL
 #endif
-            )) == NULL)
+            );
+
+            if (dtb_file == NULL && required) {
                 panic(soft_panic, "dtb: Failed to open device tree blob with path `%#`. Is the path correct?", dtb_path);
-
-            dtb = dtb_file->fd;
-            size = dtb_file->size;
-            fclose(dtb_file);
-
-            ret = fdt_check_full(dtb, size);
-            if (ret != 0) {
-                panic(soft_panic, "dtb: Invalid device tree blob at `%#`: '%s'", dtb_path, fdt_strerror(ret));
             }
 
+            if (dtb_file != NULL) {
+                dtb = dtb_file->fd;
+                size = dtb_file->size;
+                fclose(dtb_file);
+
+                ret = fdt_check_full(dtb, size);
+                if (ret != 0) {
+                    if (required) {
+                        panic(soft_panic, "dtb: Invalid device tree blob at `%#`: '%s'", dtb_path, fdt_strerror(ret));
+                    }
+                    pmm_free(dtb, size);
+                    dtb = NULL;
+                    size = 0;
+                }
+            }
+
+            if (dtb != NULL) {
 #if defined (UEFI)
-            if (measure) {
-                tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "dtb_path: ", dtb_path);
-                tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                            dtb, size, "dtb_path: ", dtb_path);
-            }
+                if (measure) {
+                    tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "dtb_path: ", dtb_path);
+                    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                                dtb, size, "dtb_path: ", dtb_path);
+                }
 #endif
 
-            printv("dtb: loaded dtb at %p from file `%#`\n", dtb, dtb_path);
+                printv("dtb: loaded dtb at %p from file `%#`\n", dtb, dtb_path);
+            }
         }
     }
 
@@ -274,9 +287,15 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
             dtb = ext_mem_alloc(size);
             ret = fdt_open_into(cur_table->VendorTable, dtb, size);
             if (ret < 0) {
-                panic(true, "dtb: failed to resize new DTB");
+                if (required) {
+                    panic(true, "dtb: failed to resize new DTB");
+                }
+                pmm_free(dtb, size);
+                dtb = NULL;
+                size = 0;
+            } else {
+                printv("dtb: found dtb at %p via EFI\n", cur_table->VendorTable);
             }
-            printv("dtb: found dtb at %p via EFI\n", cur_table->VendorTable);
             break;
         }
     }
@@ -297,7 +316,12 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
 
         ret = fdt_open_into(dtb, new_tab, new_size);
         if (ret < 0) {
-            panic(true, "dtb: failed to resize new DTB");
+            if (required) {
+                panic(true, "dtb: failed to resize new DTB");
+            }
+            pmm_free(new_tab, new_size);
+            pmm_free(dtb, size);
+            return NULL;
         }
 
         pmm_free(dtb, size);
