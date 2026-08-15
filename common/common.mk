@@ -254,6 +254,7 @@ endif
 ifeq ($(TARGET),uefi-loongarch64)
     override LDFLAGS_FOR_TARGET += \
         -m elf64loongarch \
+        --no-relax \
         -pie \
         -z text
 endif
