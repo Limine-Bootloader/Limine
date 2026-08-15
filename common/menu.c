@@ -1279,7 +1279,7 @@ static void menu_init_term(void) {
 
     // Terminal too small for menu, fall back to text console. Checked here so
     // that a later re-init cannot re-establish a size the menu cannot draw.
-    if (terms[0]->cols < 40 || terms[0]->rows < 16) {
+    if (!quiet && (terms[0]->cols < 40 || terms[0]->rows < 16)) {
 #if defined (BIOS)
         vga_textmode_init(true);
 #elif defined (UEFI)
