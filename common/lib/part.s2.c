@@ -40,7 +40,10 @@ static bool cache_block(struct volume *volume, uint64_t block) {
 
     // Clamp xfer_size to remaining sectors in volume
     if (volume->sect_count != (uint64_t)-1) {
-        uint64_t volume_sectors = volume->sect_count / (volume->sector_size / 512);
+        // Rounded up because volume_read() bounds by sect_count * 512, so it
+        // admits the bytes of a trailing sector the volume only partly owns.
+        uint64_t volume_sectors = DIV_ROUNDUP(volume->sect_count,
+            (uint64_t)(volume->sector_size / 512), return false);
         uint64_t end_sector;
         if (__builtin_add_overflow(first_sect, volume_sectors, &end_sector)) {
             end_sector = UINT64_MAX;
