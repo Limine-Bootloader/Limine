@@ -431,6 +431,11 @@ again:
             sizeof(IMAGE_IMPORT_DESCRIPTOR) > image_size - import_dir->VirtualAddress) {
             panic(true, "pe: Import directory VirtualAddress out of bounds");
         }
+
+        if (import_dir->VirtualAddress % 4 != 0) {
+            panic(true, "pe: Import directory is not aligned in the image");
+        }
+
         IMAGE_IMPORT_DESCRIPTOR *import_desc = (IMAGE_IMPORT_DESCRIPTOR *)((uintptr_t)*physical_base + import_dir->VirtualAddress);
 
         if (import_desc->Name != 0) {
@@ -446,6 +451,11 @@ again:
         size_t reloc_block_offset = 0;
 
         while (reloc_dir->Size - reloc_block_offset >= sizeof(IMAGE_BASE_RELOCATION_BLOCK)) {
+            // Each base relocation block must start on a 32-bit boundary.
+            if (((uint64_t)reloc_dir->VirtualAddress + reloc_block_offset) % 4 != 0) {
+                panic(true, "pe: Relocation block is not aligned in the image");
+            }
+
             IMAGE_BASE_RELOCATION_BLOCK *block = (IMAGE_BASE_RELOCATION_BLOCK *)((uintptr_t)*physical_base + reloc_dir->VirtualAddress + reloc_block_offset);
 
             // The block header lives in the image these relocations write to,
