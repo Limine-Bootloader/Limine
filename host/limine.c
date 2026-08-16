@@ -1219,6 +1219,14 @@ static int bios_install(int argc, char *argv[]) {
             part_to_conv_i++;
         }
 
+        // The MBR checks below refuse a start under 63, but only after the
+        // conversion has committed. Nothing has been written here yet.
+        for (size_t i = 0; i < part_to_conv_i; i++) {
+            if (part_to_conv[i].lba_start < 63) {
+                goto part_too_low;
+            }
+        }
+
         // Nuke the GPTs.
         empty_lba = calloc(1, lb_size);
         if (empty_lba == NULL) {
