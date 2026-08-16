@@ -209,8 +209,9 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     }
 
     // multiboot_reloc_stub reads the range fields with 32-bit loads, so a
-    // target it cannot address is truncated rather than refused.
+    // target or length it cannot hold is truncated rather than refused.
     if (ranges->target > 0x100000000
+     || ranges->length > 0xffffffff
      || ranges->length > 0x100000000 - ranges->target) {
         panic(true, "multiboot1: Executable does not fit under 4GiB");
     }
