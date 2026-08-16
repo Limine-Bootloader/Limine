@@ -1229,8 +1229,7 @@ static int bios_install(int argc, char *argv[]) {
         // ... find the alternate GPT the header names and the one at the end of
         // the device: a disk imaged onto a larger one carries both, and leaving
         // either behind is what makes a GPT-aware reader disagree with the MBR
-        // this conversion writes. Each is wiped only if a header really sits on
-        // it, so a wrong AlternateLBA cannot direct the erase at unrelated data.
+        // this conversion writes.
         uint64_t alternates[2], alt_first[2];
         size_t alternate_count = 0, wipe_count = 0, ai;
         uint64_t last_block;
@@ -1256,6 +1255,9 @@ static int bios_install(int argc, char *argv[]) {
             struct gpt_table_header probe;
             uint64_t probe_loc;
 
+            // Checked by signature alone rather than by gpt_verify_header,
+            // deliberately: a wrong AlternateLBA reaches nothing, and a table
+            // this tool rejects may still be honoured by another reader.
             if (mul_u64_overflow(alternates[ai], lb_size, &probe_loc)
              || !device_read_raw(&probe, probe_loc, sizeof(probe))
              || strncmp(probe.signature, "EFI PART", 8) != 0) {
