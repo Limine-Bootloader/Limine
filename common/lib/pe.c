@@ -247,6 +247,27 @@ int pe_bits(uint8_t *image, size_t image_size) {
     return -1;
 }
 
+// A relocation's target alignment is the image's to choose, and a wide
+// unaligned access may trap on riscv64 and loongarch64.
+static uint64_t reloc_load(const void *p, size_t size) {
+    const volatile uint8_t *s = p;
+    uint64_t v = 0;
+
+    for (size_t i = 0; i < size; i++) {
+        v |= (uint64_t)s[i] << (i * 8);
+    }
+
+    return v;
+}
+
+static void reloc_store(void *p, uint64_t v, size_t size) {
+    volatile uint8_t *d = p;
+
+    for (size_t i = 0; i < size; i++) {
+        d[i] = (uint8_t)(v >> (i * 8));
+    }
+}
+
 bool pe64_load(uint8_t *image, size_t file_size, uint64_t *entry_point, uint64_t *_slide, uint32_t alloc_type, bool kaslr, struct mem_range **_ranges, uint64_t *_ranges_count, uint64_t *physical_base, uint64_t *virtual_base, uint64_t *_image_size, uint64_t *image_size_before_bss, bool *_is_reloc) {
     pe64_validate(image, file_size);
 
@@ -461,14 +482,9 @@ again:
                     panic(true, "pe: Relocation offset out of bounds");
                 }
 
-                switch (type) {
-                    case IMAGE_REL_BASED_HIGHLOW:
-                        *(uint32_t *)(block_base + offset) += slide;
-                        break;
-                    case IMAGE_REL_BASED_DIR64:
-                        *(uint64_t *)(block_base + offset) += slide;
-                        break;
-                }
+                void *ptr = (void *)(block_base + offset);
+
+                reloc_store(ptr, reloc_load(ptr, write_size) + slide, write_size);
             }
 
             reloc_block_offset += block_size;
