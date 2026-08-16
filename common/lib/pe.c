@@ -174,6 +174,11 @@ static void pe64_validate(uint8_t *image, size_t file_size) {
         panic(true, "pe: e_lfanew offset out of bounds");
     }
 
+    // The PE layout puts the header on an 8-byte boundary.
+    if (dos_hdr->e_lfanew % 8 != 0) {
+        panic(true, "pe: NT headers are not aligned in the file");
+    }
+
     IMAGE_NT_HEADERS64 *nt_hdrs = (IMAGE_NT_HEADERS64 *)(image + dos_hdr->e_lfanew);
 
     if (nt_hdrs->Signature != IMAGE_NT_SIGNATURE) {
@@ -228,6 +233,10 @@ int pe_bits(uint8_t *image, size_t image_size) {
         return -1;
     }
 
+    if (dos_hdr->e_lfanew % 8 != 0) {
+        return -1;
+    }
+
     IMAGE_NT_HEADERS64 *nt_hdrs = (IMAGE_NT_HEADERS64 *)(image + dos_hdr->e_lfanew);
 
     if (nt_hdrs->Signature != IMAGE_NT_SIGNATURE) {
@@ -279,6 +288,10 @@ bool pe64_load(uint8_t *image, size_t file_size, uint64_t *entry_point, uint64_t
     uint64_t sections_end = sections_offset + (uint64_t)nt_hdrs->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER);
     if (sections_end > file_size) {
         panic(true, "pe: Section headers extend beyond file bounds");
+    }
+
+    if (sections_offset % 4 != 0) {
+        panic(true, "pe: Section headers are not aligned in the file");
     }
 
     IMAGE_SECTION_HEADER *sections = (IMAGE_SECTION_HEADER *)((uintptr_t)&nt_hdrs->OptionalHeader + nt_hdrs->FileHeader.SizeOfOptionalHeader);
