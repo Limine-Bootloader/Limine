@@ -41,8 +41,6 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
         mouse_erase_pointer();
     }
 
-    FOR_TERM(TERM->autoflush = true);
-
     if (
 #if defined (BIOS)
       stage3_loaded == true &&
@@ -50,6 +48,9 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
       term_backend == _NOT_READY) {
         term_fallback();
     }
+
+    // Set on what term_fallback() installed, not on what it replaced.
+    FOR_TERM(TERM->autoflush = true);
 
     if (
 #if defined (BIOS)
