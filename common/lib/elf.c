@@ -1179,8 +1179,8 @@ again:
     return true;
 }
 
-bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t *entry_point,
-                          struct elsewhere_range **ranges) {
+bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_size,
+                          uint64_t *entry_point, struct elsewhere_range **ranges) {
     struct elf32_hdr *hdr = (void *)elf;
 
     elf32_validate(hdr);
@@ -1226,6 +1226,11 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t *entry_point,
         panic(true, "elf: No loadable segments");
     }
     uint64_t image_size_64 = max_paddr - min_paddr;
+    // ext_mem_alloc() panics unrecoverably and this extent comes from the file,
+    // so the caller's ceiling has to be applied before the buffer is taken.
+    if (image_size_64 > max_image_size) {
+        panic(true, "elf: Image extent exceeds the load limit");
+    }
     if (image_size_64 > SIZE_MAX) {
         panic(true, "elf: Image size exceeds address space");
     }
@@ -1269,8 +1274,8 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t *entry_point,
     return true;
 }
 
-bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t *entry_point,
-                          struct elsewhere_range **ranges) {
+bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_size,
+                          uint64_t *entry_point, struct elsewhere_range **ranges) {
     struct elf64_hdr *hdr = (void *)elf;
 
     elf64_validate(hdr);
@@ -1316,6 +1321,11 @@ bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t *entry_point,
         panic(true, "elf: No loadable segments");
     }
     uint64_t image_size = max_paddr - min_paddr;
+    // ext_mem_alloc() panics unrecoverably and this extent comes from the file,
+    // so the caller's ceiling has to be applied before the buffer is taken.
+    if (image_size > max_image_size) {
+        panic(true, "elf: Image extent exceeds the load limit");
+    }
     if (image_size > SIZE_MAX) {
         panic(true, "elf: Image size exceeds address space");
     }

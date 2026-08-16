@@ -187,14 +187,16 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
         switch (bits) {
             case 32:
-                if (!elf32_load_elsewhere(kernel, kernel_file_size, &entry_point, &ranges))
+                if (!elf32_load_elsewhere(kernel, kernel_file_size, 0xffffffff,
+                                          &entry_point, &ranges))
                     panic(true, "multiboot1: ELF32 load failure");
 
                 section_hdr_info = elf32_section_hdr_info(kernel, kernel_file_size);
                 section_hdr_info_valid = true;
                 break;
             case 64: {
-                if (!elf64_load_elsewhere(kernel, kernel_file_size, &entry_point, &ranges))
+                if (!elf64_load_elsewhere(kernel, kernel_file_size, 0xffffffff,
+                                          &entry_point, &ranges))
                     panic(true, "multiboot1: ELF64 load failure");
 
                 section_hdr_info = elf64_section_hdr_info(kernel, kernel_file_size);
