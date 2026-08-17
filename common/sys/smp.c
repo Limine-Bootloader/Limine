@@ -130,6 +130,17 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
     if (!lapic_check())
         return NULL;
 
+    // PROTOCOL.md promises this revert whenever the MP request is present, so
+    // it precedes the MADT search, which can return without it.
+    if (rdmsr(0x1b) & (1 << 10)) {
+        if (!x2apic) {
+            if (!x2apic_disable()) {
+                panic(false, "smp: Kernel does not support x2APIC and x2APIC cannot be disabled");
+            }
+            printv("smp: Firmware had x2APIC enabled, reverted to xAPIC mode\n");
+        }
+    }
+
     // Search for MADT table
     struct madt *madt = acpi_get_table("APIC", 0);
 
@@ -139,16 +150,6 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
     struct gdtr gdtr = gdt;
 
     uint32_t bsp_lapic_id;
-
-    // If x2APIC already enabled by firmware, try to revert to xAPIC
-    if (rdmsr(0x1b) & (1 << 10)) {
-        if (!x2apic) {
-            if (!x2apic_disable()) {
-                panic(false, "smp: Kernel does not support x2APIC and x2APIC cannot be disabled");
-            }
-            printv("smp: Firmware had x2APIC enabled, reverted to xAPIC mode\n");
-        }
-    }
 
     x2apic = x2apic && x2apic_enable();
 
