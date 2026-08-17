@@ -38,7 +38,7 @@ static void format_boot_var(CHAR16 *out, UINT16 num) {
 static bool find_boot_entry(CHAR16 *entry, uint16_t *out) {
     EFI_STATUS status;
     uint16_t boot_order[128];
-    size_t size = sizeof(boot_order);
+    UINTN size = sizeof(boot_order);
     EFI_GUID global_variable = EFI_GLOBAL_VARIABLE;
 
     status = gRT->GetVariable(L"BootOrder", &global_variable, NULL, &size, boot_order);
@@ -55,7 +55,7 @@ static bool find_boot_entry(CHAR16 *entry, uint16_t *out) {
 
         format_boot_var(var_name, boot_order[i]);
 
-        size_t buf_size = 0;
+        UINTN buf_size = 0;
         /* Query for buf size */
         if (gRT->GetVariable(var_name, &global_variable, NULL, &buf_size, NULL)
                 != EFI_BUFFER_TOO_SMALL) {
