@@ -659,12 +659,13 @@ static struct limine_mp_info *try_dtb_smp( void *dtb,
     int node;
     fdt_for_each_subnode(node, dtb, cpus) {
         const void *prop;
+        int prop_len;
 
         if (!(prop = fdt_getprop(dtb, node, "device_type", NULL)) || strcmp(prop, "cpu")) {
             continue;
         }
 
-        if (!(prop = fdt_getprop(dtb, node, "reg", NULL))) {
+        if (!(prop = fdt_getprop(dtb, node, "reg", &prop_len)) || prop_len < address_cells * 4) {
             continue;
         }
 
