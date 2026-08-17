@@ -371,16 +371,50 @@ static uint64_t reported_addr_64(uint64_t addr) {
 }
 #endif
 
-#define get_phys_addr(addr) ({ \
-    __auto_type get_phys_addr__addr = (addr); \
-    uintptr_t get_phys_addr__r; \
-    if (get_phys_addr__addr & ((uint64_t)1 << 63)) { \
-        get_phys_addr__r = physical_base + (get_phys_addr__addr - virtual_base); \
-    } else { \
-        get_phys_addr__r = get_phys_addr__addr; \
-    } \
-    get_phys_addr__r; \
-})
+// The executable has not run, so every pointer it hands us names initialised
+// data inside its own image. Bound them there in 64 bits: the sum wraps at
+// pointer width on the 32-bit ports.
+static void *get_image_ptr(uint64_t addr, uint64_t size, uint64_t align) {
+    uint64_t image_size = requests_top - physical_base;
+    uint64_t off;
+
+    if (addr & ((uint64_t)1 << 63)) {
+        if (addr < virtual_base) {
+            return NULL;
+        }
+        off = addr - virtual_base;
+    } else {
+        if (addr < physical_base) {
+            return NULL;
+        }
+        off = addr - physical_base;
+    }
+
+    if (off > image_size || size > image_size - off) {
+        return NULL;
+    }
+
+    if ((physical_base + off) % align != 0) {
+        return NULL;
+    }
+
+    return (void *)(uintptr_t)(physical_base + off);
+}
+
+// A string has to end inside the image as well as begin there.
+static char *get_image_str(uint64_t addr) {
+    char *ret = get_image_ptr(addr, 1, 1);
+    if (ret == NULL) {
+        return NULL;
+    }
+
+    uint64_t left = requests_top - (uint64_t)(uintptr_t)ret;
+    if (strnlen(ret, left) == left) {
+        return NULL;
+    }
+
+    return ret;
+}
 
 static struct limine_file get_file(struct file_handle *file, char *cmdline) {
     struct limine_file ret = {0};
@@ -1266,7 +1300,20 @@ FEAT_START
             break;
     }
 
-    if (request_has_rev1(module_request)) {
+    uint64_t *internal_modules = NULL;
+
+    // PROTOCOL.md does not require internal_modules to be non-NULL as it does
+    // path and string, so a request declaring none says nothing about it.
+    if (request_has_rev1(module_request) && module_request->internal_module_count != 0) {
+        uint64_t array_size = CHECKED_MUL(module_request->internal_module_count,
+                (uint64_t)sizeof(uint64_t),
+                panic(true, "limine: Too many internal modules"));
+
+        internal_modules = get_image_ptr(module_request->internal_modules, array_size, 8);
+        if (internal_modules == NULL) {
+            panic(true, "limine: Internal module array is outside the executable");
+        }
+
         module_count += module_request->internal_module_count;
     }
 
@@ -1288,12 +1335,18 @@ FEAT_START
         bool module_required = true;
         bool module_path_allocated = false;
 
-        if (request_has_rev1(module_request) && i < module_request->internal_module_count) {
-            uint64_t *internal_modules = (void *)get_phys_addr(module_request->internal_modules);
-            struct limine_internal_module *internal_module = (void *)get_phys_addr(internal_modules[i]);
+        if (internal_modules != NULL && i < module_request->internal_module_count) {
+            struct limine_internal_module *internal_module =
+                get_image_ptr(internal_modules[i], sizeof(struct limine_internal_module), 8);
+            if (internal_module == NULL) {
+                panic(true, "limine: Internal module is outside the executable");
+            }
 
-            module_path = (char *)get_phys_addr(internal_module->path);
-            module_cmdline = (char *)get_phys_addr(internal_module->string);
+            module_path = get_image_str(internal_module->path);
+            module_cmdline = get_image_str(internal_module->string);
+            if (module_path == NULL || module_cmdline == NULL) {
+                panic(true, "limine: Internal module path or string is outside the executable");
+            }
 
             bool module_compressed = internal_module->flags & LIMINE_INTERNAL_MODULE_COMPRESSED;
 
