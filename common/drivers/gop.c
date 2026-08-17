@@ -121,8 +121,8 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
     ok = validate_pitch(ret, mode);
 
 out:
-    // UEFI calls this buffer callee allocated but never gives the caller
-    // ownership of it, so leave one the protocol is still pointing at alone.
+    // UEFI calls this buffer callee allocated and says nothing about freeing
+    // it, so leave one the protocol is still pointing at alone.
     if (gop->Mode == NULL || mode_info != gop->Mode->Info) {
         gBS->FreePool(mode_info);
     }
