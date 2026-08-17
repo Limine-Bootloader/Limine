@@ -574,11 +574,11 @@ again:
         for (size_t i = 0; i < nt_hdrs->FileHeader.NumberOfSections; i++) {
             IMAGE_SECTION_HEADER *section = &sections[i];
 
-            uintptr_t misalign = section->VirtualAddress % alignment;
-
             struct mem_range *range = &ranges[range_index++];
-            range->base = *virtual_base + ALIGN_DOWN(section->VirtualAddress, alignment);
-            range->length = ALIGN_UP(section->VirtualSize + misalign, alignment, panic(true, "pe: Alignment overflow"));
+            range->base = *virtual_base + section->VirtualAddress;
+            // ALIGN_UP accumulates in its first argument's type, so the cast
+            // is what keeps a section rounding up past 4 GiB from truncating.
+            range->length = ALIGN_UP((uint64_t)section->VirtualSize, alignment, panic(true, "pe: Alignment overflow"));
 
             if (range->length > image_top - range->base) {
                 range->length = image_top - range->base;
