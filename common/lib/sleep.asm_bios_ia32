@@ -2,6 +2,8 @@ section .realmode
 
 int_08_ticks_counter: dd 0
 int_08_callback:      dd 0
+pit_ticks:            dd 0
+tsc_deadline:         dq 0
 
 int_08_isr:
     bits 16
@@ -20,8 +22,13 @@ _pit_sleep_and_quit_on_keypress:
     mov dword [int_08_callback], edx
     mov dword [0x08*4], int_08_isr
 
-    ; pit_ticks in edx
-    mov edx, dword [esp+4]
+    mov eax, dword [esp+4]
+    mov dword [pit_ticks], eax
+
+    mov eax, dword [esp+12]
+    mov dword [tsc_deadline], eax
+    mov eax, dword [esp+16]
+    mov dword [tsc_deadline+4], eax
 
     ; whether to also break out on pending PS/2 aux (mouse) data
     mov eax, dword [esp+8]
@@ -74,9 +81,23 @@ _pit_sleep_and_quit_on_keypress:
     mov byte [.aux_hit], 0
 
   .loop:
-    cmp dword [int_08_ticks_counter], edx
+    mov eax, dword [int_08_ticks_counter]
+    cmp eax, dword [cs:pit_ticks]
     jae .done
 
+    cmp dword [cs:tsc_deadline+4], 0
+    jne .check_tsc
+    cmp dword [cs:tsc_deadline], 0
+    je .check_aux
+  .check_tsc:
+    rdtsc
+    cmp edx, dword [cs:tsc_deadline+4]
+    ja .done
+    jb .check_aux
+    cmp eax, dword [cs:tsc_deadline]
+    jae .done
+
+  .check_aux:
     cmp byte [.aux_poll], 0
     je .no_aux
     in al, 0x64
