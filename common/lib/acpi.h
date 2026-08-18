@@ -215,6 +215,9 @@ void   *acpi_get_rsdp_v1(void);
 void   *acpi_get_rsdp_v2(void);
 
 void   *acpi_get_table(const char *signature, int index);
+#if defined (BIOS)
+void   *acpi_get_table_quiet(const char *signature, int index);
+#endif
 void    acpi_get_smbios(void **smbios32, void **smbios64);
 
 void acpi_map_tables(void);
