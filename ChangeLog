@@ -1,3 +1,75 @@
+2026-08-18  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.6.0 ***
+
+    Noteworthy changes compared to the previous release, 12.5.2:
+
+    **Special notes:**
+        Despite there being breaking changes in this release, no major version
+        bump is done; this is because they are corrections that bring
+        partition enumeration in line with the UEFI specification and with
+        util-linux, and they only affect setups that depended on Limine
+        diverging from both. This is technically in violation of Semantic
+        Versioning, but considered to be an acceptable exception.
+
+    Breaking changes:
+        - Logical partitions are now numbered as util-linux numbers them, by
+          counting accepted entries rather than by the slot they occupy. An
+          index used in `hdd(3:5):/...` or reported to an executable through
+          `limine_file.partition_index` may therefore differ from before, and
+          a config naming a logical partition may need updating. CONFIG.md
+          documents the numbering that results.
+        - MBR partition tables must once again carry the 0xAA55 boot
+          signature to be recognised. The partitions of a disk without one
+          are no longer enumerated at all.
+        - GPTs are now validated against the checks UEFI requires before
+          being used. A table failing any of them is no longer recognised.
+
+    New features:
+        - Support 5-level paging on aarch64 through FEAT_LPA2, making the
+          Limine boot protocol's 5-level paging mode available on that port.
+        - Build the bootloader with the stack protector enabled, using a
+          guard drawn from the hardware entropy sources.
+        - Recognise GPTs on media with 2048-byte logical blocks, in both the
+          loader and the `limine` host tool.
+        - Linux protocol: honour a `pref_address` above 4GiB when the kernel
+          declares it may be loaded there.
+        - Draw the mouse pointer sprite on rotated terminals.
+
+    Bug fixes:
+        - Clear EFI_MEMORY_XP on the 32-bit spinup trampoline on x86-64/UEFI.
+          An EfiLoaderCode allocation is not on its own a promise that the
+          pages may be executed, so firmware enforcing this would fail the
+          handoff.
+        - Synchronise the instruction stream after loading an executable, on
+          every architecture and in the PE loader as well as the ELF one.
+          Only aarch64 ELF images were maintained, so an executable could be
+          entered through stale cache contents.
+        - Write back the data cache, not the instruction cache, when flushing
+          the framebuffer on loongarch64. The `cacop` code in use addressed
+          the L1 instruction cache, so nothing drawn was reaching the
+          framebuffer.
+        - Delete the `memory@...` device tree nodes as intended. libfdt
+          matches a unit address only when the name it is given carries none,
+          so the nodes survived to contradict the memory map handed to the
+          executable, under the Limine and Linux protocols alike.
+        - Check that stage 2 fits before `limine bios-install` writes any of
+          it, rather than running past the post-MBR gap or the end of the
+          partition it is being installed into.
+        - Miscellaneous bug fixes throughout the ELF and PE loaders, the
+          Limine, Linux, and Multiboot protocols, the filesystem and
+          partition code, video mode selection, the architecture-specific
+          startup paths, the boot menu, and the host and build-time tools.
+
+    Miscellaneous:
+        - Limine boot protocol: `mpidr` and `bsp_mpidr` now carry the
+          affinity fields alone, as the specification was clarified to
+          require.
+        - Reduce the work spent loading large ELF executables, scanning VBE
+          mode lists, and walking GPT and EBR structures.
+        - Update the Flanterm, PicoEFI, pdgzip, and freestanding-c-hdrs
+          subprojects.
+
 2026-07-22  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.5.2 ***
@@ -2211,8 +2283,8 @@
 
     Bug fixes:
         - multiboot2 protocol: Do not panic if there is a ENTRY_ADDRESS_EFI64
-          tag, but there is a valid alternative entry point. This further aligns
-          our behaviour with GRUB2.
+          tag, but there is a valid alternative entry point. This further
+          aligns our behaviour with GRUB2.
 
     Miscellaneous:
         - Terminal: Significantly improve serial and fallback UEFI console's
