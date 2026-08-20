@@ -46,6 +46,8 @@ static void serial_write(size_t reg, uint8_t value) {
     outb(serial_base + reg, value);
 }
 
+// Runs from serial_out(), so nothing reached from here may print: a diagnostic
+// would re-enter serial_out() and recurse. Hence acpi_get_table_quiet() below.
 static bool serial_find(void) {
     uint16_t bda_port = mminw(0x400);
     if (bda_port != 0) {

@@ -211,6 +211,8 @@ void *acpi_get_rsdp_v2(void) {
     return NULL;
 }
 
+// A false log is not cosmetic: serial.c reaches this from inside serial_out(),
+// so anything below that prints unconditionally would recurse through it.
 static void *acpi_get_table_impl(const char *signature, int index, bool log) {
     int cnt = 0;
 
