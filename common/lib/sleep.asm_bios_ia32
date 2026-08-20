@@ -82,19 +82,19 @@ _pit_sleep_and_quit_on_keypress:
 
   .loop:
     mov eax, dword [int_08_ticks_counter]
-    cmp eax, dword [cs:pit_ticks]
+    cmp eax, dword [pit_ticks]
     jae .done
 
-    cmp dword [cs:tsc_deadline+4], 0
+    cmp dword [tsc_deadline+4], 0
     jne .check_tsc
-    cmp dword [cs:tsc_deadline], 0
+    cmp dword [tsc_deadline], 0
     je .check_aux
   .check_tsc:
     rdtsc
-    cmp edx, dword [cs:tsc_deadline+4]
+    cmp edx, dword [tsc_deadline+4]
     ja .done
     jb .check_aux
-    cmp eax, dword [cs:tsc_deadline]
+    cmp eax, dword [tsc_deadline]
     jae .done
 
   .check_aux:
