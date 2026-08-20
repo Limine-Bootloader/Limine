@@ -19,7 +19,7 @@ jobs:
         run: ./bootstrap && ./configure --enable-werror --enable-all && make all && make distclean
 
       - name: Set cross GCC version
-        run: echo "GCC_VERSION=16.1.0" >> $GITHUB_ENV
+        run: echo "GCC_VERSION=16.2.0" >> $GITHUB_ENV
 
       - name: Download GCC cross toolchains
         run: |
