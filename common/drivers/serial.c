@@ -121,7 +121,9 @@ void serial_out(uint8_t b) {
     }
 
     uint64_t deadline = rdtsc_deadline(100000);
-    size_t retries = 16;
+    // With no TSC there is no clock to wait against, so bound by poll count
+    // instead, comfortably above the 87 us a character takes at 115200 baud.
+    size_t retries = 10000;
 
     while ((serial_read(5) & 0x20) == 0) {
         if (deadline != 0 && !rdtsc_deadline_expired(deadline)) {
