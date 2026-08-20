@@ -9,6 +9,9 @@
 #include <sys/cpu.h>
 
 static bool serial_initialised = false;
+// Kept apart from serial, which also selects the menu's ASCII line drawing
+// and gates serial input: a stalled transmitter must change neither.
+static bool serial_stalled = false;
 static bool serial_mmio;
 static uintptr_t serial_base;
 uint32_t serial_baudrate;
@@ -113,7 +116,7 @@ static void serial_initialise(void) {
 void serial_out(uint8_t b) {
     serial_initialise();
 
-    if (!serial) {
+    if (!serial || serial_stalled) {
         return;
     }
 
@@ -128,7 +131,7 @@ void serial_out(uint8_t b) {
             continue;
         }
 
-        serial = false;
+        serial_stalled = true;
         return;
     }
     serial_write(0, b);
