@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <lib/misc.h>
 
 #if defined(__x86_64__) || defined(__i386__)
 
@@ -564,28 +565,15 @@ static inline uint64_t rdtsc_deadline(uint64_t us) {
     uint64_t seconds = us / 1000000;
     uint64_t remainder = us % 1000000;
 
-    uint64_t ticks;
-    if (__builtin_mul_overflow(seconds, tsc_freq, &ticks)) {
-        return UINT64_MAX;
-    }
+    uint64_t ticks = CHECKED_MUL(seconds, tsc_freq, return UINT64_MAX);
 
-    uint64_t remainder_ticks;
-    if (__builtin_mul_overflow(remainder, tsc_freq / 1000000,
-                               &remainder_ticks)) {
-        return UINT64_MAX;
-    }
+    uint64_t remainder_ticks = CHECKED_MUL(remainder, tsc_freq / 1000000, return UINT64_MAX);
     remainder_ticks += remainder * (tsc_freq % 1000000) / 1000000;
 
-    if (__builtin_add_overflow(ticks, remainder_ticks, &ticks)) {
-        return UINT64_MAX;
-    }
+    ticks = CHECKED_ADD(ticks, remainder_ticks, return UINT64_MAX);
 
     uint64_t now = rdtsc();
-    if (__builtin_add_overflow(now, ticks, &ticks)) {
-        return UINT64_MAX;
-    }
-
-    return ticks;
+    return CHECKED_ADD(now, ticks, return UINT64_MAX);
 }
 
 static inline bool rdtsc_deadline_expired(uint64_t deadline) {
