@@ -1145,6 +1145,17 @@ static int bios_install(int argc, char *argv[]) {
         } part_to_conv[4];
         size_t part_to_conv_i = 0;
 
+        // The cap bounds the work, so a table declaring more entries than it
+        // is one the loop below cannot examine in full: the refusals it makes
+        // per entry would silently not cover the rest.
+        if (ENDSWAP(gpt_header.number_of_partition_entries) > MAX_GPT_PARTITIONS) {
+            if (!quiet) {
+                fprintf(stderr, "GPT declares more than %d partition entries, will not convert GPT.\n",
+                        MAX_GPT_PARTITIONS);
+            }
+            goto no_mbr_conv;
+        }
+
         uint64_t part_entry_base;
         if (mul_u64_overflow(ENDSWAP(gpt_header.partition_entry_lba), lb_size, &part_entry_base)) {
             goto no_mbr_conv;
@@ -1179,6 +1190,16 @@ static int bios_install(int argc, char *argv[]) {
             if (end_lba < start_lba) {
                 if (!quiet) {
                     fprintf(stderr, "Partition %" PRIi64 " ends before it starts, will not convert GPT.\n", i + 1);
+                }
+                goto no_mbr_conv;
+            }
+
+            // The erase stops at FirstUsableLBA and resumes past
+            // LastUsableLBA, so it cannot reach a partition inside the range.
+            if (start_lba < ENDSWAP(gpt_header.first_usable_lba)
+             || end_lba > ENDSWAP(gpt_header.last_usable_lba)) {
+                if (!quiet) {
+                    fprintf(stderr, "Partition %" PRIi64 " lies outside the GPT usable range, will not convert GPT.\n", i + 1);
                 }
                 goto no_mbr_conv;
             }
