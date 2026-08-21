@@ -258,7 +258,7 @@ static bool dummy_handle(void) {
 
 #if defined (UEFI)
 void term_prepare_post_ebs(void) {
-    if (post_ebs_term != NULL || fb_fbs_count == 0) {
+    if (post_ebs_term != NULL) {
         return;
     }
 
@@ -270,13 +270,27 @@ void term_prepare_post_ebs(void) {
         return;
     }
 
+    // The graphical terminal is built on 32-bpp framebuffers only, so taking
+    // the first of those puts the panic on the screen the menu was drawn on.
+    struct fb_info *fb = NULL;
+    for (size_t i = 0; i < fb_fbs_count; i++) {
+        if (fb_fbs[i].framebuffer_bpp == 32) {
+            fb = &fb_fbs[i];
+            break;
+        }
+    }
+
+    if (fb == NULL) {
+        return;
+    }
+
     // Staged with autoflush off so that building it does not paint the screen.
     post_ebs_term = flanterm_fb_init(ext_mem_alloc_size_t, pmm_free_size_t,
-        (void *)(uintptr_t)fb_fbs[0].framebuffer_addr, fb_fbs[0].framebuffer_width,
-        fb_fbs[0].framebuffer_height, fb_fbs[0].framebuffer_pitch,
-        fb_fbs[0].red_mask_size, fb_fbs[0].red_mask_shift,
-        fb_fbs[0].green_mask_size, fb_fbs[0].green_mask_shift,
-        fb_fbs[0].blue_mask_size, fb_fbs[0].blue_mask_shift,
+        (void *)(uintptr_t)fb->framebuffer_addr, fb->framebuffer_width,
+        fb->framebuffer_height, fb->framebuffer_pitch,
+        fb->red_mask_size, fb->red_mask_shift,
+        fb->green_mask_size, fb->green_mask_shift,
+        fb->blue_mask_size, fb->blue_mask_shift,
         NULL,
         NULL, NULL,
         NULL, NULL,
