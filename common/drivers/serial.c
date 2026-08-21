@@ -9,12 +9,15 @@
 #include <sys/cpu.h>
 
 static bool serial_initialised = false;
+// Set once a port has been found. serial is cleared when the search fails and a
+// COM_OUTPUT build does not consult it, so it cannot stand for "a port exists".
+static bool serial_present = false;
 // Kept apart from serial, which also selects the menu's ASCII line drawing
 // and gates serial input: a stalled transmitter must change neither.
 static bool serial_stalled = false;
 static bool serial_mmio;
 static uintptr_t serial_base;
-uint32_t serial_baudrate;
+uint32_t serial_baudrate = 115200;
 
 struct acpi_gas {
     uint8_t address_space;
@@ -90,7 +93,8 @@ static bool serial_find(void) {
 }
 
 static void serial_initialise(void) {
-    if (serial_initialised || !serial) {
+    // COM_OUTPUT is a build-time output channel and does not depend on the key.
+    if (serial_initialised || (!serial && !COM_OUTPUT)) {
         return;
     }
 
@@ -113,12 +117,13 @@ static void serial_initialise(void) {
     serial_write(4, 0x0b);
 
     serial_initialised = true;
+    serial_present = true;
 }
 
 void serial_out(uint8_t b) {
     serial_initialise();
 
-    if (!serial || serial_stalled) {
+    if (!serial_present || serial_stalled) {
         return;
     }
 
@@ -144,7 +149,8 @@ void serial_out(uint8_t b) {
 int serial_in(void) {
     serial_initialise();
 
-    if (!serial || (serial_read(5) & 0x01) == 0) {
+    // Input stays keyed to the config; serial_present is what the read needs.
+    if (!serial || !serial_present || (serial_read(5) & 0x01) == 0) {
         return -1;
     }
     return serial_read(0);
