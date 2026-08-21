@@ -237,14 +237,16 @@ static void init_riscv_acpi(void) {
     }
 }
 
-static void init_riscv_fdt(const void *fdt) {
+static void init_riscv_fdt(const void *fdt, bool entry_dtb) {
     if (fdt_check_header(fdt)) {
         panic(false, "riscv: invalid device tree");
     }
 
     int cpus = fdt_path_offset(fdt, "/cpus");
     if (cpus < 0) {
-        panic(false, "riscv: missing `/cpus` node");
+        // Only an entry's own dtb_path is recoverable: _menu() re-runs this
+        // against global_dtb, so returning there would panic again.
+        panic(entry_dtb, "riscv: missing `/cpus` node");
     }
 
     int len;
@@ -344,9 +346,11 @@ void init_riscv(const char *config) {
         riscv_fdt = NULL;
     }
 
+    bool entry_dtb = false;
     bool prioritise_dtb = false;
     if (config != NULL) {
-        prioritise_dtb = config_get_value(config, 0, "dtb_path");
+        entry_dtb = config_get_value(config, 0, "dtb_path");
+        prioritise_dtb = entry_dtb;
     }
     if (!prioritise_dtb) {
         prioritise_dtb = config_get_value(NULL, 0, "global_dtb");
@@ -357,7 +361,7 @@ void init_riscv(const char *config) {
     } else {
         riscv_fdt = get_device_tree_blob(config, 0, false, true);
         if (riscv_fdt != NULL) {
-            init_riscv_fdt(riscv_fdt);
+            init_riscv_fdt(riscv_fdt, entry_dtb);
         } else {
             panic(false, "riscv: requires DTB or ACPI");
         }
@@ -368,13 +372,13 @@ void init_riscv(const char *config) {
     }
 
     if (bsp_hart == NULL) {
-        panic(false, "riscv: missing `struct riscv_hart` for BSP");
+        panic(entry_dtb, "riscv: missing `struct riscv_hart` for BSP");
     }
 
     // `g` is shorthand for `imafd`, so `rv64g` also implies the `i` base.
     if (strncasecmp(bsp_hart->isa_string, "rv64i", 5)
      && strncasecmp(bsp_hart->isa_string, "rv64g", 5)) {
-        panic(false, "unsupported cpu: %s", bsp_hart->isa_string);
+        panic(entry_dtb, "unsupported cpu: %s", bsp_hart->isa_string);
     }
 
     for (struct riscv_hart *hart = hart_list; hart != NULL; hart = hart->next) {
