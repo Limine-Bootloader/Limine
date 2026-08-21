@@ -1158,8 +1158,8 @@ static int bios_install(int argc, char *argv[]) {
             }
             device_read(&gpt_entry, entry_offset, sizeof(struct gpt_entry));
 
-            if (gpt_entry.unique_partition_guid[0] == 0 &&
-                gpt_entry.unique_partition_guid[1] == 0) {
+            if (gpt_entry.partition_type_guid[0] == 0 &&
+                gpt_entry.partition_type_guid[1] == 0) {
                 continue;
             }
 
@@ -1527,8 +1527,8 @@ part_too_low:
             }
             device_read(&gpt_entry, entry_off, sizeof(struct gpt_entry));
 
-            if (gpt_entry.unique_partition_guid[0] == 0 &&
-              gpt_entry.unique_partition_guid[1] == 0) {
+            if (gpt_entry.partition_type_guid[0] == 0 &&
+              gpt_entry.partition_type_guid[1] == 0) {
                 fprintf(stderr, "error: No such partition: %" PRIu32 ".\n", partition_num + 1);
                 goto cleanup;
             }
