@@ -53,7 +53,7 @@ static void serial_write(size_t reg, uint8_t value) {
 // would re-enter serial_out() and recurse. Hence acpi_get_table_quiet() below.
 static bool serial_find(void) {
     uint16_t bda_port = mminw(0x400);
-    if (bda_port != 0) {
+    if (bda_port != 0 && bda_port <= UINT16_MAX - 7) {
         serial_base = bda_port;
         serial_mmio = false;
         return true;
