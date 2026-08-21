@@ -1268,7 +1268,9 @@ static int bios_install(int argc, char *argv[]) {
         uint64_t alt_reserve = 1 + (16384 + lb_size - 1) / lb_size;
 
         if (gpt_from_alternate) {
-            alternates[alternate_count++] = gpt_header_lba;
+            if (gpt_header_lba >= alt_reserve) {
+                alternates[alternate_count++] = gpt_header_lba;
+            }
         } else if (ENDSWAP(gpt_header.alternate_lba) >= alt_reserve) {
             alternates[alternate_count++] = ENDSWAP(gpt_header.alternate_lba);
         }
