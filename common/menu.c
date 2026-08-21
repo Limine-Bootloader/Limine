@@ -473,9 +473,12 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
 
     size_t cell_map_size = terms[0]->cols * terms[0]->rows * sizeof(size_t);
     size_t *cell_map = ext_mem_alloc(cell_map_size);
-    bool window_moved_up = false;
+    bool window_moved_up;
 
 refresh:
+    // A keystroke starts a new search; the search itself re-enters below.
+    window_moved_up = false;
+rerender:
     mouse_erase_pointer();
     memset(cell_map, 0xff, cell_map_size);
     print("\e[2J\e[H");
@@ -644,16 +647,20 @@ tab_part:
 
         if (buffer[i] == 0 || current_line >= window_offset + window_size) {
             if (!printed_cursor) {
-                // A line taller than the window satisfies no offset, so once
-                // the search has moved both ways it has bracketed and stops.
-                if (i <= cursor_offset && !window_moved_up) {
+                // No offset renders a cursor whose own line is taller than the
+                // window, so both directions need a bound.
+                if (i <= cursor_offset && !window_moved_up
+                 && window_offset <= current_line) {
                     window_offset++;
-                    goto refresh;
+                    goto rerender;
                 }
-                if (i > cursor_offset) {
+                // The bound above can stop the descent with the window past
+                // the cursor's line, which the frame arithmetic below subtracts
+                // in size_t, so the ascent takes that case too.
+                if (i > cursor_offset || window_offset > current_line) {
                     window_moved_up = true;
                     window_offset--;
-                    goto refresh;
+                    goto rerender;
                 }
             }
             break;
