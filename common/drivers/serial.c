@@ -123,8 +123,16 @@ static void serial_initialise(void) {
 void serial_out(uint8_t b) {
     serial_initialise();
 
-    if (!serial_present || serial_stalled) {
+    if (!serial_present) {
         return;
+    }
+
+    if (serial_stalled) {
+        // A stall can be transient, so retry without paying the wait again.
+        if ((serial_read(5) & 0x20) == 0) {
+            return;
+        }
+        serial_stalled = false;
     }
 
     uint64_t deadline = rdtsc_deadline(100000);
