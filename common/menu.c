@@ -473,6 +473,7 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
 
     size_t cell_map_size = terms[0]->cols * terms[0]->rows * sizeof(size_t);
     size_t *cell_map = ext_mem_alloc(cell_map_size);
+    bool window_moved_up = false;
 
 refresh:
     mouse_erase_pointer();
@@ -542,7 +543,10 @@ refresh:
     set_cursor_pos_helper(0, tmpy + 1);
     print(serial ? "|" : "│");
 
+    // Where no offset renders the cursor the search gives up, so the cursor
+    // starts inside the frame rather than at the screen origin.
     size_t cursor_x, cursor_y;
+    terms[0]->get_cursor_pos(terms[0], &cursor_x, &cursor_y);
     size_t current_line = 0, line_offset = 0, window_size = _window_size;
     bool printed_cursor = false;
     bool printed_early = false;
@@ -640,11 +644,14 @@ tab_part:
 
         if (buffer[i] == 0 || current_line >= window_offset + window_size) {
             if (!printed_cursor) {
-                if (i <= cursor_offset) {
+                // A line taller than the window satisfies no offset, so once
+                // the search has moved both ways it has bracketed and stops.
+                if (i <= cursor_offset && !window_moved_up) {
                     window_offset++;
                     goto refresh;
                 }
                 if (i > cursor_offset) {
+                    window_moved_up = true;
                     window_offset--;
                     goto refresh;
                 }
