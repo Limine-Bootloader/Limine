@@ -1571,6 +1571,33 @@ bios_boot_autodetected:;
             goto cleanup;
         }
 
+        // The usable range is the header's own, so a crafted one moves it; the
+        // reserve UEFI states is the floor it cannot move.
+        if (starting_lba < 2 + (16384 + lb_size - 1) / lb_size) {
+            fprintf(stderr, "error: Partition %" PRIu32 " starts inside the GPT reserve.\n", partition_num + 1);
+            goto cleanup;
+        }
+
+        if (starting_lba < ENDSWAP(gpt_header.first_usable_lba)
+         || ending_lba > ENDSWAP(gpt_header.last_usable_lba)) {
+            fprintf(stderr, "error: Partition %" PRIu32 " lies outside the GPT usable range.\n", partition_num + 1);
+            goto cleanup;
+        }
+
+        // The alternate GPT sits at the end of the medium as the primary sits
+        // at the start, and no header can move where the medium ends.
+        uint64_t last_block;
+        if (!device_last_block(lb_size, &last_block)) {
+            fprintf(stderr, "error: Could not determine the size of the device.\n");
+            goto cleanup;
+        }
+        uint64_t end_reserve = (16384 + lb_size - 1) / lb_size;
+        if (last_block < 1 + end_reserve
+         || ending_lba > last_block - 1 - end_reserve) {
+            fprintf(stderr, "error: Partition %" PRIu32 " ends inside the alternate GPT.\n", partition_num + 1);
+            goto cleanup;
+        }
+
         uint64_t part_size;
         if (mul_u64_overflow(ending_lba - starting_lba + 1, lb_size, &part_size)) {
             fprintf(stderr, "error: Partition %" PRIu32 " size overflows.\n", partition_num + 1);
