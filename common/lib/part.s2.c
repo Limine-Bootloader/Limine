@@ -526,8 +526,9 @@ static int gpt_get_part(struct volume *ret, struct volume *volume, int partition
     }
 
     struct guid empty_guid = {0};
-    if (!memcmp(&entry.unique_partition_guid, &empty_guid, sizeof(struct guid)))
+    if (!memcmp(&entry.partition_type_guid, &empty_guid, sizeof(struct guid))) {
         return NO_PARTITION;
+    }
 
     // Validate that ending_lba >= starting_lba to prevent underflow
     if (entry.ending_lba < entry.starting_lba) {
