@@ -452,9 +452,18 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                 break;
         }
 
+        // A small align turns this into a byte-by-byte walk, each step scanning
+        // the memory map. The cap bounds that work, and below page alignment it
+        // bounds the reach with it.
+        uint64_t reloc_tries = 0;
+
         for (;;) {
             if (check_usable_memory(relocated_base, CHECKED_ADD(relocated_base, ranges->length, goto reloc_fail))) {
                 break;
+            }
+
+            if (++reloc_tries > 0x100000) {
+                goto reloc_fail;
             }
 
             if (reloc_ascend) {
