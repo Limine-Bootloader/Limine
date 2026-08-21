@@ -137,10 +137,10 @@ _pit_sleep_and_quit_on_keypress:
     cli
 
     ; Restore GDT
-    o32 lgdt [ss:.gdt]
+    o32 lgdt [.gdt]
 
     ; Restore IDT
-    o32 lidt [ss:.idt]
+    o32 lidt [.idt]
 
     ; Jump back to pmode
     mov ebx, cr0
