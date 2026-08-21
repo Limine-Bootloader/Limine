@@ -608,6 +608,14 @@ endif
 
 -include $(HEADER_DEPS)
 
+# Must precede the generic .c rule: make before 3.82 picks the first matching
+# pattern rule rather than the shortest stem, and both match a .s2.o target.
+ifeq ($(TARGET),bios)
+$(call MKESCAPE,$(BUILDDIR))/%.s2.o: ../%.s2.c
+	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(S2CFLAGS) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
+endif
+
 $(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
@@ -615,12 +623,6 @@ $(call MKESCAPE,$(BUILDDIR))/%.o: ../%.c
 $(call MKESCAPE,$(BUILDDIR))/%.o: ../%.S
 	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
 	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
-
-ifeq ($(TARGET),bios)
-$(call MKESCAPE,$(BUILDDIR))/%.s2.o: ../%.s2.c
-	$(MKDIR_P) "$$(dirname '$(call SHESCAPE,$@)')"
-	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(S2CFLAGS) $(CPPFLAGS_FOR_TARGET) -c '$(call SHESCAPE,$<)' -o '$(call SHESCAPE,$@)'
-endif
 
 ifeq ($(TARGET),bios)
 $(call MKESCAPE,$(BUILDDIR))/%.o: ../%.asm_ia32
