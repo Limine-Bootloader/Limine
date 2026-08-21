@@ -550,7 +550,8 @@ refresh:
     size_t tab_space_count = 0;
     for (size_t i = 0; ; i++) {
         // tab
-        if (buffer[i] == '\t') {
+        // Nothing renders above the window, so there is nothing to expand into.
+        if (buffer[i] == '\t' && current_line >= window_offset) {
             tab_space_count = 8 - (line_offset % 8);
             goto tab_part;
         }
