@@ -329,19 +329,22 @@ static void pmm_mark_uefi_pages_unclaimed(EFI_PHYSICAL_ADDRESS base,
 }
 
 static void pmm_claim_uefi_pages_fallback(EFI_PHYSICAL_ADDRESS base,
-                                          UINTN page_count) {
+                                          UINTN page_count, UINTN step_pages) {
     EFI_PHYSICAL_ADDRESS failed_base = 0;
     UINTN failed_pages = 0;
 
     while (page_count != 0) {
-        UINTN chunk_pages = MIN(page_count, UEFI_ALLOC_FALLBACK_PAGES);
+        UINTN chunk_pages = MIN(page_count, step_pages);
         EFI_PHYSICAL_ADDRESS alloc_base = base;
         EFI_STATUS status = gBS->AllocatePages(AllocateAddress,
                                                EfiLoaderCode,
                                                chunk_pages,
                                                &alloc_base);
 
-        if (status) {
+        if (status && chunk_pages > 1) {
+            // One refused page must not cost the whole chunk.
+            pmm_claim_uefi_pages_fallback(base, chunk_pages, 1);
+        } else if (status) {
             if (failed_pages == 0) {
                 failed_base = base;
             }
@@ -377,10 +380,9 @@ static void pmm_claim_uefi_pages(EFI_PHYSICAL_ADDRESS base, UINTN page_count) {
             continue;
         }
 
-        if (status && chunk_pages <= UEFI_ALLOC_FALLBACK_PAGES) {
-            pmm_mark_uefi_pages_unclaimed(base, chunk_pages);
-        } else if (status) {
-            pmm_claim_uefi_pages_fallback(base, chunk_pages);
+        if (status) {
+            pmm_claim_uefi_pages_fallback(base, chunk_pages,
+                                          UEFI_ALLOC_FALLBACK_PAGES);
         }
 
         base += (uint64_t)chunk_pages * PAGE_SIZE;
