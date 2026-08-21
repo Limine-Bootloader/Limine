@@ -294,6 +294,10 @@ bool pe64_load(uint8_t *image, size_t file_size, uint64_t *entry_point, uint64_t
         panic(true, "pe: Section headers are not aligned in the file");
     }
 
+    if (nt_hdrs->FileHeader.NumberOfSections == 0) {
+        panic(true, "pe: Executable has no sections");
+    }
+
     IMAGE_SECTION_HEADER *sections = (IMAGE_SECTION_HEADER *)((uintptr_t)&nt_hdrs->OptionalHeader + nt_hdrs->FileHeader.SizeOfOptionalHeader);
 
     bool is_reloc = true;
@@ -410,7 +414,7 @@ again:
 
     // Unless a section covers them, the headers get a read-only range of their
     // own, so their pages have to end before the first section begins.
-    if (nt_hdrs->FileHeader.NumberOfSections > 0 && sections[0].VirtualAddress != 0) {
+    if (sections[0].VirtualAddress != 0) {
         uint64_t headers_top = ALIGN_UP((uint64_t)nt_hdrs->OptionalHeader.SizeOfHeaders,
                                         0x1000, panic(true, "pe: Alignment overflow"));
 
