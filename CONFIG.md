@@ -2,19 +2,28 @@
 
 ## Location of the config file
 
-For EFI-booted Limine, `<EFI app path>/limine.conf` is taken into account
-first. On BIOS, or on EFI if that file is not found, Limine scans for the
-config file on *the boot drive*. Every partition of the boot drive is scanned
-sequentially - first partition first (or, on EFI, the partition containing the
-EFI executable of the booted Limine is scanned first), last partition last -
-for the presence of either a `/boot/limine/limine.conf`, `/boot/limine.conf`,
-`/limine/limine.conf`, or a `/limine.conf` file, in that order.
+Limine scans for the config file on *the boot drive*. On EFI, the volume
+containing the EFI executable of the booted Limine is scanned first. The
+drive is then scanned as a whole, followed by every partition sequentially -
+first partition first, last partition last. On each volume the candidates are
+tried in this order: on EFI, `<EFI app path>/limine.conf` first, or
+`/EFI/BOOT/limine.conf` where that path cannot be determined; then
+`/boot/limine/limine.conf`, `/boot/limine.conf`, `/limine/limine.conf`, and
+`/limine.conf`.
+
+These names are matched case insensitively; see [Paths](#paths) for how paths
+elsewhere in the config file are matched.
 
 Once the file is located, Limine will use it as its config file. Other possible
 candidates in subsequent partitions or directories are ignored.
 
 It is thus imperative that the intended config file is placed in a location
 that will not be shadowed by another candidate config file.
+
+On EFI, should Limine fail to determine which volume it was booted from - a
+condition it reports as a bug - it instead scans every volume it can see, for
+`/EFI/limine/limine.conf` and `/EFI/BOOT/limine.conf` before the four names
+above.
 
 ### Config via SMBIOS
 
@@ -61,6 +70,7 @@ entry's title.
 *Options* are simple `option_name: string...` style "assignments".
 The string can have spaces and other special characters, without requiring
 quotations. New lines are delimiters. Option names are not case sensitive.
+An option's value is truncated at 4095 characters.
 
 Some *options* are part of an entry (*local*), some other options are *global*.
 *Global options* can appear anywhere in the file and are not part of an entry,
@@ -74,18 +84,21 @@ Some options take *paths* as strings; these are described in the next section.
 
 Miscellaneous:
 
-* `timeout` - Specifies the timeout in seconds before the first *entry* is
-  automatically booted. Decimal values such as `0.25` are accepted. If set to
-  `no`, disable automatic boot. If set to `0`, boots default entry instantly
-  (see `default_entry` option).
+* `timeout` - Specifies the timeout in seconds before the selected *entry* is
+  automatically booted (see `default_entry` option). Decimal values such as
+  `0.25` are accepted, and the timeout is capped at `9999` seconds. If set to
+  `no`, disable automatic boot. If set to `0`, boot the selected entry
+  instantly, without showing the menu. A value that is neither `no` nor a
+  number is treated as `0`.
 * `quiet` - If set to `yes`, enable quiet mode, where all screen output except
   panics and important warnings is suppressed. If `timeout` is not 0, the
   `timeout` still occurs, and pressing any key during the timeout will reveal
   the menu and disable quiet mode.
 * `serial` - If set to `yes`, enable serial I/O for the bootloader.
 * `serial_baudrate` - If `serial` is set to `yes`, this specifies the baudrate
-  to use for serial I/O. Defaults to `115200`. BIOS only, ignored with Limine
-  UEFI.
+  to use for serial I/O. Defaults to `115200`, which is also the maximum; `0`,
+  a larger value, or one that is not a number is treated as `115200`. BIOS
+  only, ignored with Limine UEFI.
 * `global_dtb` - If set, use this DTB instead of the firmware-provided DTB for
   Limine itself, as well as for any booted entry whose protocol supports DTBs
   and the DTB is not locally overridden with `dtb_path`.
@@ -180,17 +193,19 @@ These are ignored if using text mode.
   collection for fonts.
 * `term_font_size` - The size of each glyph of the font in dots, which must
   correspond to the font file, or display will be garbled or loading issues
-  will occur. Since it is assumed that all fonts are of width 8, the first
-  value of the pair (AKA the `8` in `8x16`) is effectively ignored. To set
-  horizontal spacing between glyphs on screen, see `term_font_spacing`.
-  Defaults to `8x16`. Ignored if `term_font` not set or if the font fails to
-  load.
+  will occur. All fonts are assumed to be of width 8, so the first value of
+  the pair (AKA the `8` in `8x16`) must be `8`; any other width is refused and
+  the default font is used in place of `term_font`. To set horizontal spacing
+  between glyphs on screen, see `term_font_spacing`. Defaults to `8x16`.
+  Ignored if `term_font` not set or if the font fails to load.
 * `term_font_scale` - Scaling for the font in the x and y directions. `2x2`
   would display the font in double size, which is useful on high-DPI displays
   at native resolution. `2x1` only makes the font twice as wide, similar to the
   VGA 40 column mode. `4x2` might be good for a narrow font on a high
-  resolution display. Values over 8 are disallowed. Default is no scaling,
-  i.e. `1x1`.
+  resolution display. Each factor must be between 1 and 8; any value that is not
+  such a pair is treated as if the option were unset. If unset, the scaling
+  follows the resolution: `1x1` below 2560x1440, `2x2` from there, and `4x4`
+  from 5120x2880.
 * `term_font_spacing` - Horizontal spacing, in pixels, between glyphs on
   screen. Also applies to the built-in Limine font. Defaults to 1. 0 is
   allowed.
@@ -202,13 +217,16 @@ These are ignored if using text mode.
   dark gray, bright red, bright green, yellow, bright blue, bright magenta,
   bright cyan, and white. Ignored if not using a graphical terminal.
 * `term_background` - Terminal text background colour (TTRRGGBB). TT stands for
-  transparency.
+  transparency. Defaults to `00000000`, or to `80000000` when a `wallpaper` is
+  displayed.
 * `term_foreground` - Terminal text foreground colour (RRGGBB).
 * `term_background_bright` - Terminal text background bright colour (RRGGBB).
 * `term_foreground_bright` - Terminal text foreground bright colour (RRGGBB).
-* `term_margin` - Set the amount of margin around the terminal.
+* `term_margin` - Set the amount of margin, in pixels, around the terminal.
+  Defaults to `0`, or to `64` when a `wallpaper` is displayed.
 * `term_margin_gradient` - Set the thickness in pixel for the gradient around
-  the terminal.
+  the terminal. Clamped to `term_margin`. Defaults to `0`, or to `4` when a
+  `wallpaper` is displayed.
 
 Editor control options:
 
@@ -369,6 +387,13 @@ A resource can be one of the following:
   from the server Limine booted from. This resource is only available when
   booting off PXE.
 
+Paths are matched case sensitively, with two exceptions. On FAT volumes a name
+that fits the 8.3 short form is matched case insensitively, the short name
+being stored uppercase; a name too long for that form is matched case
+sensitively. On ISO9660 volumes a name carrying no Rock Ridge extension is
+matched case insensitively, ISO9660 names being uppercase. The search for the
+config file itself is case insensitive on every filesystem.
+
 For MBR, the four primary partitions take the numbers 1 to 4 by the slot they
 occupy, whether or not that slot is used, and logical partitions are numbered
 from 5 upwards by counting along the extended partition's chain. Every entry
@@ -401,7 +426,7 @@ ${MY_MACRO}=Some text
 Now, whenever `${MY_MACRO}` is used in the config file (except for an
 assignment as above), it will be replaced by the text `Some text`. For example:
 ```
-CMDLINE=something before ${MY_MACRO} something after
+cmdline: something before ${MY_MACRO} something after
 ```
 
 Macros must always be placed inside `${...}` where `...` is the arbitrary macro

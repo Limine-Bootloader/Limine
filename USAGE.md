@@ -27,7 +27,7 @@ in the Limine EFI executable, the following security policies are enforced:
 
 * The config file is verified against the enrolled checksum on every boot.
   Any mismatch will cause a panic.
-* All file paths (kernels, modules, DTBs, fonts, etc.) **must** have a BLAKE2B
+* All file paths (kernels, modules, DTBs, etc.) **must** have a BLAKE2b
   hash appended (e.g. `boot():/kernel#<hash>`). Loading a file without a hash
   will cause a panic. The exception is EFI chainloading, where the firmware's
   own Secure Boot image verification is used instead.
