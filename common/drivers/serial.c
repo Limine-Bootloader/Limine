@@ -136,6 +136,8 @@ static void serial_initialise(void) {
     }
 
     if (!serial_find()) {
+        // serial also picks the menu's row budget, read before this probe, and
+        // its glyphs, read after: so the glyphs are right and the rows are not.
         serial = false;
         serial_initialised = true;
         return;
