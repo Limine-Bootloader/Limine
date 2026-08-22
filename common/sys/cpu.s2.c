@@ -54,6 +54,12 @@ void calibrate_tsc(void) {
         outb(0x42, PIT_CALIBRATION_COUNT & 0xff);
         outb(0x42, (PIT_CALIBRATION_COUNT >> 8) & 0xff);
 
+        // Mode 0 drives OUT low on the control word and raises it only at
+        // terminal count, so a port already high is not a counting timer.
+        if ((inb(0x61) & 0x20) != 0) {
+            continue;
+        }
+
         outb(0x61, (inb(0x61) | 0x01)); // enable gate to start counting
         uint64_t tsc_start = rdtsc();
 
