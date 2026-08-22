@@ -716,8 +716,7 @@ config_no_load_font:;
 
     char *menu_font_scale = config_get_value(config, 0, "TERM_FONT_SCALE");
     if (menu_font_scale != NULL) {
-        parse_resolution(&cfg->font_scale_x, &cfg->font_scale_y, NULL, menu_font_scale);
-        if (cfg->font_scale_x == 0 || cfg->font_scale_y == 0
+        if (!parse_resolution(&cfg->font_scale_x, &cfg->font_scale_y, NULL, menu_font_scale)
          || cfg->font_scale_x > 8 || cfg->font_scale_y > 8) {
             cfg->font_scale_x = 1;
             cfg->font_scale_y = 1;
