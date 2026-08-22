@@ -17,6 +17,8 @@ static bool serial_present = false;
 static bool serial_stalled = false;
 static bool serial_mmio;
 static uintptr_t serial_base;
+// The clock SPCR states, or zero where the table carries none.
+static uint32_t serial_clock;
 uint32_t serial_baudrate = 115200;
 
 struct acpi_gas {
@@ -32,7 +34,33 @@ struct acpi_spcr {
     uint8_t interface_type;
     uint8_t reserved[3];
     struct acpi_gas base_address;
+    uint8_t interrupt_type;
+    uint8_t irq;
+    uint32_t global_system_interrupt;
+    uint8_t configured_baud_rate;
+    uint8_t parity;
+    uint8_t stop_bits;
+    uint8_t flow_control;
+    uint8_t terminal_type;
+    uint8_t language;
+    uint16_t pci_device_id;
+    uint16_t pci_vendor_id;
+    uint8_t pci_bus_number;
+    uint8_t pci_device_number;
+    uint8_t pci_function_number;
+    uint32_t pci_flags;
+    uint8_t pci_segment;
+    uint32_t uart_clock_frequency;
 } __attribute__((packed));
+
+// Derived from what serial_find() reads below it rather than from the
+// structure's size: those fields end at the base address.
+#define SPCR_MIN_LENGTH offsetof(struct acpi_spcr, interrupt_type)
+
+// Pinned to the field rather than to the structure: a later revision's fields
+// would grow sizeof past the length every revision 3 table declares.
+#define SPCR_CLOCK_LENGTH \
+    (offsetof(struct acpi_spcr, uart_clock_frequency) + sizeof(uint32_t))
 
 static uint8_t serial_read(size_t reg) {
     if (serial_mmio) {
@@ -60,7 +88,7 @@ static bool serial_find(void) {
     }
 
     struct acpi_spcr *spcr = acpi_get_table_quiet("SPCR", 0);
-    if (spcr == NULL || spcr->header.length < sizeof(struct acpi_spcr)
+    if (spcr == NULL || spcr->header.length < SPCR_MIN_LENGTH
      || acpi_checksum(spcr, spcr->header.length) != 0) {
         return false;
     }
@@ -93,6 +121,11 @@ static bool serial_find(void) {
     serial_base = base;
     serial_mmio = mmio;
 
+    if (spcr->header.rev >= 3
+     && spcr->header.length >= SPCR_CLOCK_LENGTH) {
+        serial_clock = spcr->uart_clock_frequency;
+    }
+
     return true;
 }
 
@@ -112,7 +145,15 @@ static void serial_initialise(void) {
     serial_write(1, 0x00);
     serial_write(3, 0x80);
 
-    uint16_t divisor = (uint16_t)(115200 / serial_baudrate);
+    // SPCR states the clock from revision 3; 1.8432 MHz is the ISA part's,
+    // which is the only one an older table can be describing.
+    uint32_t uart_clock = serial_clock != 0 ? serial_clock : 1843200;
+    uint32_t divisor = uart_clock / (16 * serial_baudrate);
+    if (divisor == 0) {
+        divisor = 1;
+    } else if (divisor > UINT16_MAX) {
+        divisor = UINT16_MAX;
+    }
     serial_write(0, divisor & 0xff);
     serial_write(1, (divisor >> 8) & 0xff);
 
