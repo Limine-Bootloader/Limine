@@ -1639,6 +1639,39 @@ bios_boot_autodetected:;
             goto cleanup;
         }
 
+        // Every check above bounds this partition against the GPT structures
+        // rather than against its neighbours, and the usable range is where
+        // all of them live. UEFI requires that they not overlap. The count is
+        // the table's own: gpt_entry_count caps enumeration, not the disk.
+        uint32_t declared_entries = ENDSWAP(gpt_header.number_of_partition_entries);
+        for (uint32_t i = 0; i < declared_entries; i++) {
+            struct gpt_entry other;
+            uint64_t other_off;
+
+            if (i == partition_num) {
+                continue;
+            }
+
+            other_off = (uint64_t)i * ENDSWAP(gpt_header.size_of_partition_entry);
+            if (add_u64_overflow(gpt_part_entry_base, other_off, &other_off)) {
+                fprintf(stderr, "error: GPT partition entry offset overflows.\n");
+                goto cleanup;
+            }
+            device_read(&other, other_off, sizeof(struct gpt_entry));
+
+            if (other.partition_type_guid[0] == 0
+             && other.partition_type_guid[1] == 0) {
+                continue;
+            }
+
+            if (starting_lba <= ENDSWAP(other.ending_lba)
+             && ENDSWAP(other.starting_lba) <= ending_lba) {
+                fprintf(stderr, "error: Partition %" PRIu32 " overlaps partition %" PRIu32 ".\n",
+                        partition_num + 1, i + 1);
+                goto cleanup;
+            }
+        }
+
         uint64_t part_size;
         if (mul_u64_overflow(ending_lba - starting_lba + 1, lb_size, &part_size)) {
             fprintf(stderr, "error: Partition %" PRIu32 " size overflows.\n", partition_num + 1);
