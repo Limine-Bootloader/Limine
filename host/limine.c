@@ -846,9 +846,10 @@ static bool gpt_verify_header(const struct gpt_table_header *header,
         return false;
     }
 
-    // Nothing above relates the table to the medium it was found on.
-    if (device_blocks != 0
-     && (last_usable >= device_blocks || array_end > device_blocks)) {
+    // Only the array has to be readable: LastUsableLBA is the table's claim
+    // about the medium, and where a partition really overruns the device it is
+    // refused where it is used.
+    if (device_blocks != 0 && array_end > device_blocks) {
         return false;
     }
 
@@ -1161,6 +1162,16 @@ static int bios_install(int argc, char *argv[]) {
             goto no_mbr_conv;
         }
 
+        // The converted entries describe the medium, and LastUsableLBA is the
+        // table's claim about it rather than a measurement of it.
+        uint64_t conv_last_block;
+        if (!device_last_block(lb_size, &conv_last_block)) {
+            if (!quiet) {
+                fprintf(stderr, "Could not determine the size of the device, will not convert GPT.\n");
+            }
+            goto no_mbr_conv;
+        }
+
         for (int64_t i = 0; i < (int64_t)gpt_entry_count; i++) {
             struct gpt_entry gpt_entry;
             uint64_t entry_offset = (uint64_t)i * ENDSWAP(gpt_header.size_of_partition_entry);
@@ -1200,6 +1211,13 @@ static int bios_install(int argc, char *argv[]) {
              || end_lba > ENDSWAP(gpt_header.last_usable_lba)) {
                 if (!quiet) {
                     fprintf(stderr, "Partition %" PRIi64 " lies outside the GPT usable range, will not convert GPT.\n", i + 1);
+                }
+                goto no_mbr_conv;
+            }
+
+            if (end_lba > conv_last_block) {
+                if (!quiet) {
+                    fprintf(stderr, "Partition %" PRIi64 " ends past the device, will not convert GPT.\n", i + 1);
                 }
                 goto no_mbr_conv;
             }
