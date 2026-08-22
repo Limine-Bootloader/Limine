@@ -79,15 +79,19 @@ static bool serial_find(void) {
         return false;
     }
 
-    serial_base = (uintptr_t)spcr->base_address.address;
+    uintptr_t base = (uintptr_t)spcr->base_address.address;
+    bool mmio;
     if (spcr->base_address.address_space == 0) {
-        serial_mmio = true;
+        mmio = true;
     } else if (spcr->base_address.address_space == 1
-            && serial_base <= UINT16_MAX - 7) {
-        serial_mmio = false;
+            && base <= UINT16_MAX - 7) {
+        mmio = false;
     } else {
         return false;
     }
+
+    serial_base = base;
+    serial_mmio = mmio;
 
     return true;
 }
