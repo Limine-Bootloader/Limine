@@ -77,6 +77,17 @@ static void serial_write(size_t reg, uint8_t value) {
     outb(serial_base + reg, value);
 }
 
+// A port nothing decodes floats to 0xff on every read, which serial_in() takes
+// for a keystroke. The divisor latch is what a real UART has to give back.
+static bool serial_probe(void) {
+    serial_write(3, 0x80);
+    serial_write(0, 0xa5);
+    serial_write(1, 0x5a);
+    bool answered = serial_read(0) == 0xa5 && serial_read(1) == 0x5a;
+    serial_write(3, 0x00);
+    return answered;
+}
+
 // Runs from serial_out(), so nothing reached from here may print: a diagnostic
 // would re-enter serial_out() and recurse. Hence acpi_get_table_quiet() below.
 static bool serial_find(void) {
@@ -84,7 +95,11 @@ static bool serial_find(void) {
     if (bda_port != 0 && bda_port <= UINT16_MAX - 7) {
         serial_base = bda_port;
         serial_mmio = false;
-        return true;
+        // A candidate that does not answer rules out the candidate rather
+        // than the search, so a stale BDA word still reaches the SPCR below.
+        if (serial_probe()) {
+            return true;
+        }
     }
 
     struct acpi_spcr *spcr = acpi_get_table_quiet("SPCR", 0);
@@ -121,6 +136,10 @@ static bool serial_find(void) {
     serial_base = base;
     serial_mmio = mmio;
 
+    if (!serial_probe()) {
+        return false;
+    }
+
     if (spcr->header.rev >= 3
      && spcr->header.length >= SPCR_CLOCK_LENGTH) {
         serial_clock = spcr->uart_clock_frequency;
@@ -136,7 +155,7 @@ static void serial_initialise(void) {
     }
 
     if (!serial_find()) {
-        // serial also picks the menu's row budget, read before this probe, and
+        // serial also picks the menu's row budget, read before this search, and
         // its glyphs, read after: so the glyphs are right and the rows are not.
         serial = false;
         serial_initialised = true;
