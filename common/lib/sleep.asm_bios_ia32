@@ -108,13 +108,9 @@ _pit_sleep_and_quit_on_keypress:
     jmp .done
   .no_aux:
 
-    push ecx
-    push edx
     mov ah, 0x01
     xor al, al
     int 0x16
-    pop edx
-    pop ecx
 
     jz .loop
 
