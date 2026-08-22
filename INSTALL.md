@@ -20,7 +20,8 @@ directly.
 
 If checking out from the repository, run `./bootstrap` first in order to
 download the necessary [dependencies](3RDPARTY.md) and generate the configure
-script (`GNU autoconf` required).
+script (`git`, `patch` and `GNU autoconf` required, plus `GNU automake` for
+autoconf releases that do not install the auxiliary files themselves).
 
 `./configure` takes arguments and environment variables; for more information
 on these, run `./configure --help`.
