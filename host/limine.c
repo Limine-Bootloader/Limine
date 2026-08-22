@@ -1940,14 +1940,23 @@ static void version_usage(void) {
 }
 
 static int version(int argc, char *argv[]) {
-    if (argc >= 2) {
-        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+    bool version_only = false;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             version_usage();
             return EXIT_SUCCESS;
-        } else if (strcmp(argv[1], "--version-only") == 0) {
-            puts(LIMINE_VERSION);
-            return EXIT_SUCCESS;
+        } else if (strcmp(argv[i], "--version-only") == 0) {
+            version_only = true;
+        } else {
+            version_usage();
+            return EXIT_FAILURE;
         }
+    }
+
+    if (version_only) {
+        puts(LIMINE_VERSION);
+        return EXIT_SUCCESS;
     }
 
     puts("Limine " LIMINE_VERSION);
