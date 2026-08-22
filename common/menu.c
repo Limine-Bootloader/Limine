@@ -1535,7 +1535,9 @@ noreturn void _menu(bool first_run) {
 #endif
 
 #if defined (BIOS)
-    if (serial) {
+    {
+        // The driver also transmits for a COM_OUTPUT build, which never sets
+        // serial, so the rate has to be read whatever selected the output.
         char *baudrate_s = config_get_value(NULL, 0, "SERIAL_BAUDRATE");
         if (baudrate_s == NULL) {
             serial_baudrate = 115200;
