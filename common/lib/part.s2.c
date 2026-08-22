@@ -281,8 +281,10 @@ static bool gpt_verify_header(struct volume *volume,
     }
 
     if (volume->sect_count != (uint64_t)-1) {
+        // Only the array has to be readable: LastUsableLBA is the table's claim
+        // about the medium, and partition_range_valid() bounds each entry.
         uint64_t device_blocks = volume->sect_count / (uint64_t)(lb_size / 512);
-        if (header->last_usable_lba >= device_blocks || array_end > device_blocks) {
+        if (array_end > device_blocks) {
             return false;
         }
     }
