@@ -179,6 +179,11 @@ void calibrate_tsc(void) {
     #define PIT_CALIBRATION_COUNT 11932
     #define PIT_CALIBRATION_ROUNDS 3
 
+    // A gate that never asserts leaves OUT low, so the wait never ends. The
+    // count is sized for the fastest port access, which is what decides how
+    // many reads 10ms takes; on a slow one it is what the give-up costs.
+    #define PIT_MAX_POLLS 1000000
+
     uint8_t port61 = inb(0x61);
 
     uint64_t best_delta = 0;
@@ -197,8 +202,18 @@ void calibrate_tsc(void) {
         outb(0x61, (inb(0x61) | 0x01)); // enable gate to start counting
         uint64_t tsc_start = rdtsc();
 
-        while ((inb(0x61) & 0x20) == 0); // wait for output high
+        bool counted = false;
+        for (size_t polls = 0; polls < PIT_MAX_POLLS; polls++) {
+            if ((inb(0x61) & 0x20) != 0) {
+                counted = true;
+                break;
+            }
+        }
         uint64_t tsc_end = rdtsc();
+
+        if (!counted) {
+            continue;
+        }
 
         if (tsc_end > tsc_start) {
             uint64_t delta = tsc_end - tsc_start;
