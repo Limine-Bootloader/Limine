@@ -2,13 +2,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/cpu.h>
+#include <lib/misc.h>
 #if defined(BIOS)
 #include <lib/acpi.h>
 #include <lib/libc.h>
 #endif
 #if defined(UEFI)
 #include <efi.h>
-#include <lib/misc.h>
 #endif
 
 uint64_t tsc_freq = 0;
@@ -214,4 +214,10 @@ void calibrate_tsc(void) {
         tsc_freq = best_delta * 1193182 / PIT_CALIBRATION_COUNT;
     }
 #endif
+
+    // A zero here is not a degraded boot: stall() becomes a no-op, so the SMP
+    // bring-up delays vanish, and rdtsc_deadline() reads as no deadline at all.
+    if (tsc_freq == 0) {
+        panic(false, "Could not calibrate the TSC");
+    }
 }
