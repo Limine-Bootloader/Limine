@@ -1057,6 +1057,10 @@ static int bios_install(int argc, char *argv[]) {
                 fprintf(stderr, "error: Uninstall data file has a zero-length name!\n");
                 return EXIT_FAILURE;
             }
+        } else if (device != NULL && argv[i][0] == '-') {
+            // A device path may begin with a dash where a partition index cannot.
+            bios_install_usage();
+            return EXIT_FAILURE;
         } else {
             if (device != NULL) { // [GPT partition index]
                 part_ndx = argv[i]; // TODO: Make this non-positional?
