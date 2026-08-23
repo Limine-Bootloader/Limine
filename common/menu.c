@@ -1542,10 +1542,12 @@ noreturn void _menu(bool first_run) {
         if (baudrate_s == NULL) {
             serial_baudrate = 115200;
         } else {
-            serial_baudrate = strtoui(baudrate_s, NULL, 10);
-            if (serial_baudrate == 0 || serial_baudrate > 115200) {
-                serial_baudrate = 115200;
+            // strtoui() is 64-bit and the global is not, so clamp before narrowing.
+            uint64_t baudrate = strtoui(baudrate_s, NULL, 10);
+            if (baudrate == 0 || baudrate > 115200) {
+                baudrate = 115200;
             }
+            serial_baudrate = baudrate;
         }
     }
 
