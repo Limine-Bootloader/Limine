@@ -964,8 +964,10 @@ static bool gpt_locate_header(struct gpt_table_header *header,
             // The signature is what identifies the block as a header at all,
             // so only a header that failed its CRC is followed. Without it the
             // field is not an LBA, it is whatever happens to be at offset 32.
+            // Seeking past the device is the cost: set_pos() walks in 1 GiB steps.
             if (strncmp(header->signature, "EFI PART", 8) == 0
-             && ENDSWAP(header->alternate_lba) > 1) {
+             && ENDSWAP(header->alternate_lba) > 1
+             && have_last && ENDSWAP(header->alternate_lba) <= last) {
                 candidates[candidate_count++] = ENDSWAP(header->alternate_lba);
             }
         }
