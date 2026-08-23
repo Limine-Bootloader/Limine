@@ -208,7 +208,8 @@ These are ignored if using text mode.
   from 5120x2880.
 * `term_font_spacing` - Horizontal spacing, in pixels, between glyphs on
   screen. Also applies to the built-in Limine font. Defaults to 1. 0 is
-  allowed.
+  allowed; a value above 8, or one that is not a number, is treated as if the
+  option were unset.
 * `term_palette` - Specifies the colour palette used by the terminal (RRGGBB).
   It is a `;` separated array of 8 colours: black, red, green, brown, blue,
   magenta, cyan, and gray. Ignored if not using a graphical terminal.

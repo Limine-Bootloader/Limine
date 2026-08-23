@@ -707,7 +707,13 @@ config_no_load_font:;
     cfg->font_spacing = 1;
     char *font_spacing_str = config_get_value(config, 0, "TERM_FONT_SPACING");
     if (font_spacing_str != NULL) {
-        cfg->font_spacing = strtoui(font_spacing_str, NULL, 10);
+        // 640 is the narrowest framebuffer the fallback chain picks and menu.c
+        // wants 40 columns, so a glyph has 16 dots and the font is 8 of them.
+        const char *last;
+        uint64_t spacing = strtoui(font_spacing_str, &last, 10);
+        if (font_spacing_str != last && *last == 0 && spacing <= 8) {
+            cfg->font_spacing = spacing;
+        }
     }
 
     cfg->font_scale_x = 1;
