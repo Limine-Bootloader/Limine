@@ -1205,8 +1205,9 @@ static int bios_install(int argc, char *argv[]) {
                 goto no_mbr_conv;
             }
 
-            // The erase stops at FirstUsableLBA and resumes past
-            // LastUsableLBA, so it cannot reach a partition inside the range.
+            // The alternate erase resumes past LastUsableLBA. At the low end
+            // the primary reserve is floored at two blocks, so what keeps a
+            // converted partition clear of it is the 63-sector check below.
             if (start_lba < ENDSWAP(gpt_header.first_usable_lba)
              || end_lba > ENDSWAP(gpt_header.last_usable_lba)) {
                 if (!quiet) {
@@ -1337,10 +1338,14 @@ static int bios_install(int argc, char *argv[]) {
         // ... nuke primary GPT + protective MBR. The reserve is the protective
         // MBR, the header, and the 16384 bytes UEFI reserves for the entry
         // array whatever the block size -- 34 blocks at 512, 10 at 2048, 6 at
-        // 4096. The header's own value bounds it where that is smaller.
+        // 4096. The header's own value bounds it where that is smaller, above
+        // the two blocks a GPT-aware reader consults whatever the header says.
         uint64_t first_usable = ENDSWAP(gpt_header.first_usable_lba);
         uint64_t reserve_max = 2 + (16384 + lb_size - 1) / lb_size;
         uint64_t reserve = first_usable < reserve_max ? first_usable : reserve_max;
+        if (reserve < 2) {
+            reserve = 2;
+        }
 
         for (uint64_t i = 0; i < reserve; i++) {
             device_write(empty_lba, i * lb_size, lb_size);
