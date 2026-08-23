@@ -16,4 +16,4 @@ clean:
 	rm -f limine limine.exe
 
 limine: limine.c
-	$(CC) $(CFLAGS) -std=c99 $(CPPFLAGS) $(LDFLAGS) $< $(LIBS) -o $@
+	$(CC) $(CFLAGS) -std=c99 -D_FILE_OFFSET_BITS=64 $(CPPFLAGS) $(LDFLAGS) $< $(LIBS) -o $@
