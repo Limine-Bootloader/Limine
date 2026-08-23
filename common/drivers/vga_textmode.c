@@ -331,7 +331,7 @@ void vga_textmode_init(bool managed) {
 
     text_double_buffer_flush(term);
 
-    if (managed && serial) {
+    if (managed && SERIAL_CONSOLE) {
         term->cols = 80;
         term->rows = 24;
     } else {

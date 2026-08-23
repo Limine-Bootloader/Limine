@@ -508,12 +508,12 @@ rerender:
         print("\n\n");
     }
 
-    print(serial ? "/" : "┌");
+    print(SERIAL_CONSOLE ? "/" : "┌");
     for (size_t i = 0; i < terms[0]->cols - 2; i++) {
         switch (i) {
             case 1: case 2: case 3:
                 if (window_offset > 0) {
-                    print(serial ? "^" : "↑");
+                    print(SERIAL_CONSOLE ? "^" : "↑");
                     break;
                 }
                 // FALLTHRU
@@ -528,13 +528,13 @@ rerender:
                 }
                 if (i == (terms[0]->cols - display_length - 4) / 2) {
                     if (truncated) {
-                        print(serial ? "|%S...|" : "┤%S...├", title, (size_t)(display_length - 3));
+                        print(SERIAL_CONSOLE ? "|%S...|" : "┤%S...├", title, (size_t)(display_length - 3));
                     } else {
-                        print(serial ? "|%s|" : "┤%s├", title);
+                        print(SERIAL_CONSOLE ? "|%s|" : "┤%s├", title);
                     }
                     i += (display_length + 2) - 1;
                 } else {
-                    print(serial ? "-" : "─");
+                    print(SERIAL_CONSOLE ? "-" : "─");
                 }
             }
         }
@@ -542,9 +542,9 @@ rerender:
     size_t tmpx, tmpy;
 
     terms[0]->get_cursor_pos(terms[0], &tmpx, &tmpy);
-    print(serial ? "\\" : "┐");
+    print(SERIAL_CONSOLE ? "\\" : "┐");
     set_cursor_pos_helper(0, tmpy + 1);
-    print(serial ? "|" : "│");
+    print(SERIAL_CONSOLE ? "|" : "│");
 
     // Where no offset renders the cursor the search gives up, so the cursor
     // starts inside the frame rather than at the screen origin.
@@ -578,14 +578,14 @@ rerender:
             set_cursor_pos_helper(terms[0]->cols - 1, y);
             if (current_line == window_offset + window_size - 1) {
                 terms[0]->get_cursor_pos(terms[0], &tmpx, &tmpy);
-                print(serial ? "|" : "│");
+                print(SERIAL_CONSOLE ? "|" : "│");
                 set_cursor_pos_helper(0, tmpy + 1);
-                print(serial ? "\\" : "└");
+                print(SERIAL_CONSOLE ? "\\" : "└");
             } else {
                 terms[0]->get_cursor_pos(terms[0], &tmpx, &tmpy);
-                print(serial ? "|" : "│");
+                print(SERIAL_CONSOLE ? "|" : "│");
                 set_cursor_pos_helper(0, tmpy + 1);
-                print(serial ? "|" : "│");
+                print(SERIAL_CONSOLE ? "|" : "│");
             }
             line_offset = 0;
             token_type = validate_line(buffer + i + 1);
@@ -617,13 +617,13 @@ tab_part:
                 size_t x, y;
                 terms[0]->get_cursor_pos(terms[0], &x, &y);
                 if (y >= terms[0]->rows - 2) {
-                    print(serial ? ">" : "→");
+                    print(SERIAL_CONSOLE ? ">" : "→");
                     set_cursor_pos_helper(0, y + 1);
-                    print(serial ? "\\" : "└");
+                    print(SERIAL_CONSOLE ? "\\" : "└");
                 } else {
-                    print(serial ? ">" : "→");
+                    print(SERIAL_CONSOLE ? ">" : "→");
                     set_cursor_pos_helper(0, y + 1);
-                    print(serial ? "<" : "←");
+                    print(SERIAL_CONSOLE ? "<" : "←");
                 }
             }
             if (window_size > 0) {
@@ -707,15 +707,15 @@ tab_part:
         for (size_t i = 0; i < (window_size - (current_line - window_offset)) - 1; i++) {
             terms[0]->get_cursor_pos(terms[0], &x, &y);
             set_cursor_pos_helper(terms[0]->cols - 1, y);
-            print(serial ? "|" : "│");
+            print(SERIAL_CONSOLE ? "|" : "│");
             set_cursor_pos_helper(0, y + 1);
-            print(serial ? "|" : "│");
+            print(SERIAL_CONSOLE ? "|" : "│");
         }
         terms[0]->get_cursor_pos(terms[0], &x, &y);
         set_cursor_pos_helper(terms[0]->cols - 1, y);
-        print(serial ? "|" : "│");
+        print(SERIAL_CONSOLE ? "|" : "│");
         set_cursor_pos_helper(0, y + 1);
-        print(serial ? "\\" : "└");
+        print(SERIAL_CONSOLE ? "\\" : "└");
     }
 
     {
@@ -726,25 +726,25 @@ tab_part:
             switch (i) {
                 case 1: case 2: case 3:
                     if (current_line - window_offset >= window_size) {
-                        print(serial ? "v" : "↓");
+                        print(SERIAL_CONSOLE ? "v" : "↓");
                         break;
                     }
                     // FALLTHRU
                 default:
                     if (overflow_msg != NULL
                      && i == (terms[0]->cols - overflow_len - 4) / 2) {
-                        print(serial ? "|" : "┤");
+                        print(SERIAL_CONSOLE ? "|" : "┤");
                         print("\e[31m%s\e[0m", overflow_msg);
-                        print(serial ? "|" : "├");
+                        print(SERIAL_CONSOLE ? "|" : "├");
                         i += (overflow_len + 2) - 1;
                     } else {
-                        print(serial ? "-" : "─");
+                        print(SERIAL_CONSOLE ? "-" : "─");
                     }
             }
         }
     }
     terms[0]->get_cursor_pos(terms[0], &tmpx, &tmpy);
-    print(serial ? "/" : "┘");
+    print(SERIAL_CONSOLE ? "/" : "┘");
 
     // Hack to redraw the cursor
     set_cursor_pos_helper(cursor_x, cursor_y);
@@ -1187,23 +1187,23 @@ static size_t print_tree(size_t offset, size_t window, const char *shift, size_t
                 for (size_t j = 0; j < i; j++)
                     actual_parent = actual_parent->parent;
                 if (actual_parent->next != NULL) {
-                    if (!no_print) print(serial ? " |" : " │");
+                    if (!no_print) print(SERIAL_CONSOLE ? " |" : " │");
                 } else {
                     if (!no_print) print("  ");
                 }
                 cur_len += 2;
             }
             if (current_entry->next == NULL) {
-                if (!no_print) print(serial ? " `" : " └");
+                if (!no_print) print(SERIAL_CONSOLE ? " `" : " └");
             } else {
-                if (!no_print) print(serial ? " |" : " ├");
+                if (!no_print) print(SERIAL_CONSOLE ? " |" : " ├");
             }
             cur_len += 2;
         }
         if (current_entry->sub) {
             if (!no_print) print(current_entry->expanded ? "[-]" : "[+]");
         } else if (level) {
-            if (!no_print) print(serial ? "-->" : "──►");
+            if (!no_print) print(SERIAL_CONSOLE ? "-->" : "──►");
         } else {
             if (!no_print) print("   ");
         }
@@ -1943,12 +1943,12 @@ refresh:
         if (max_entries != 0) {
             if (tree_offset > 0) {
                 set_cursor_pos_helper((terms[0]->cols - 3) / 2, 3 + header_offset);
-                print(serial ? "^^^" : "↑↑↑");
+                print(SERIAL_CONSOLE ? "^^^" : "↑↑↑");
             }
 
             if (tree_offset + (terms[0]->rows - 8 - header_offset) < max_entries) {
                 set_cursor_pos_helper((terms[0]->cols - 3) / 2, terms[0]->rows - 4);
-                print(serial ? "vvv" : "↓↓↓");
+                print(SERIAL_CONSOLE ? "vvv" : "↓↓↓");
             }
         }
 

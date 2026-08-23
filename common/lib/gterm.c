@@ -879,7 +879,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
     for (size_t i = 0; i < terms_i; i++) {
         struct flanterm_context *term = terms[i];
 
-        if (serial) {
+        if (SERIAL_CONSOLE) {
             term->cols = term->cols > 80 ? 80 : term->cols;
             term->rows = term->rows > 24 ? 24 : term->rows;
         }
