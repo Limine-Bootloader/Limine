@@ -44,6 +44,10 @@ void reseed_stack_guard(void);
 
 extern bool quiet, serial, editor_enabled, help_hidden, hash_mismatch_panic, secure_boot_active, measured_boot, firmware_logo;
 
+// What is drawn rather than where it goes: a COM_OUTPUT build sets this on
+// every port and transmits on BIOS alone.
+#define SERIAL_CONSOLE (serial || COM_OUTPUT)
+
 extern uint64_t usec_at_bootloader_entry;
 
 bool parse_resolution(size_t *width, size_t *height, size_t *bpp, const char *buf);
