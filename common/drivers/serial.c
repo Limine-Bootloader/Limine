@@ -7,6 +7,7 @@
 #include <lib/misc.h>
 #include <drivers/serial.h>
 #include <sys/cpu.h>
+#include <mm/pmm.h>
 
 static bool serial_initialised = false;
 // Set once a port has been found. serial is cleared when the search fails and a
@@ -92,7 +93,9 @@ static bool serial_probe(void) {
 // would re-enter serial_out() and recurse. Hence acpi_get_table_quiet() below.
 static bool serial_find(void) {
     uint16_t bda_port = mminw(0x400);
-    if (bda_port != 0 && bda_port <= UINT16_MAX - 7) {
+    // Ports below 0x100 are fixed motherboard registers, and serial_probe()
+    // writes the port before anything has confirmed a UART is there.
+    if (bda_port >= 0x100 && bda_port <= UINT16_MAX - 7) {
         serial_base = bda_port;
         serial_mmio = false;
         // A candidate that does not answer rules out the candidate rather
@@ -124,13 +127,26 @@ static bool serial_find(void) {
 
     uintptr_t base = (uintptr_t)spcr->base_address.address;
     bool mmio;
-    if (spcr->base_address.address_space == 0) {
+    // No UART aperture is in the first megabyte, so a base there is an I/O
+    // port the table put in the wrong space, and programming it writes RAM.
+    if (spcr->base_address.address_space == 0
+     && base >= 0x100000) {
         mmio = true;
     } else if (spcr->base_address.address_space == 1
-            && base <= UINT16_MAX - 7) {
+            && base >= 0x100 && base <= UINT16_MAX - 7) {
         mmio = false;
     } else {
         return false;
+    }
+
+    // A divisor-latch probe cannot tell an aperture from RAM, which gives the
+    // written value straight back, so the memory map is what has to say.
+    if (mmio) {
+        uint64_t base_type = pmm_check_type(base);
+        if (base_type == MEMMAP_USABLE
+         || base_type == MEMMAP_BOOTLOADER_RECLAIMABLE) {
+            return false;
+        }
     }
 
     serial_base = base;
