@@ -415,7 +415,11 @@ static bool gpt_locate_header(struct volume *volume,
         return false;
     }
 
-    bool protective = gpt_protective_mbr(volume);
+    // A disk reformatted to MBR keeps the GPT the new table did not reach, and
+    // LBA 0 is what says whether that GPT is still live.
+    if (!gpt_protective_mbr(volume)) {
+        return false;
+    }
 
     for (size_t i = 0; i < SIZEOF_ARRAY(lb_guesses); i++) {
         int guess = lb_guesses[i];
@@ -452,12 +456,6 @@ static bool gpt_locate_header(struct volume *volume,
                     candidates[1] = claimed;
                 }
             }
-        }
-
-        // A disk reformatted to MBR keeps a backup header the new table did not
-        // reach, and LBA 0 is what says whether that header is still live.
-        if (!protective) {
-            continue;
         }
 
         for (size_t j = 0; j < candidate_count; j++) {
