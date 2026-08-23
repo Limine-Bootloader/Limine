@@ -1827,6 +1827,11 @@ static int enroll_config(int argc, char *argv[]) {
         } else if (strcmp(argv[i], "--reset") == 0) {
             remove_arg(&argc, argv, i--);
             reset = true;
+        } else if (argv[i][0] == '-') {
+            // version() refuses any unrecognised argument; here the positionals
+            // would go with it, so only what cannot be one is refused.
+            enroll_config_usage();
+            return EXIT_FAILURE;
         }
     }
 
