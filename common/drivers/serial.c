@@ -164,15 +164,15 @@ static bool serial_find(void) {
     return true;
 }
 
-static void serial_initialise(void) {
+void serial_initialise(void) {
     // COM_OUTPUT is a build-time output channel and does not depend on the key.
     if (serial_initialised || (!serial && !COM_OUTPUT)) {
         return;
     }
 
     if (!serial_find()) {
-        // serial also picks the menu's row budget, read before this search, and
-        // its glyphs, read after: so the glyphs are right and the rows are not.
+        // Clearing it is the right answer for a machine with no port: ASCII
+        // line drawing exists for a UART's benefit and there is none to serve.
         serial = false;
         serial_initialised = true;
         return;

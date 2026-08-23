@@ -1548,6 +1548,10 @@ noreturn void _menu(bool first_run) {
             }
         }
     }
+
+    // serial also picks the terminal's row budget and the menu's glyphs, so the
+    // port is settled here rather than lazily at whatever prints first.
+    serial_initialise();
 #endif
 
     char *hash_mismatch_panic_str = config_get_value(NULL, 0, "HASH_MISMATCH_PANIC");
