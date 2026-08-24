@@ -137,8 +137,9 @@ Miscellaneous:
 * `mouse` - If set to `no`, disable mouse support in the boot menu. Defaults
   to `yes`, in which case, if a mouse is present, the menu selection follows
   the pointer, left clicking an entry boots it (or expands a directory), and
-  the scroll wheel moves the selection. On BIOS this uses the PS/2 (or
-  emulated PS/2) mouse; on UEFI any pointer device the firmware exposes.
+  the scroll wheel moves the selection. Using the mouse stops the `timeout`
+  countdown, as pressing a key does. On BIOS this uses the PS/2 (or emulated
+  PS/2) mouse; on UEFI any pointer device the firmware exposes.
 
 Limine interface control options:
 

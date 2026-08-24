@@ -15,12 +15,6 @@
 #include <drivers/serial.h>
 #include <sys/cpu.h>
 
-enum {
-    MOUSE_MODE_OFF,
-    MOUSE_MODE_NO_MOVES,
-    MOUSE_MODE_FULL,
-};
-
 static const char qwerty_to_dvorak[128] = {
     ['q']='\'', ['w']=',', ['e']='.', ['r']='p', ['t']='y',
     ['y']='f', ['u']='g', ['i']='c', ['o']='r', ['p']='l',
@@ -264,7 +258,7 @@ again:
     return ret;
 }
 
-static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
+static int sleep_ms_core(uint64_t milliseconds, bool deliver_mouse) {
     uint64_t ticks64 = milliseconds > (UINT64_MAX - 999) / 18
                      ? UINT64_MAX
                      : (milliseconds * 18 + 999) / 1000;
@@ -280,7 +274,7 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
 
     // Hand over mouse state accumulated while nobody was listening (e.g. a
     // pointer position preserved across a menu re-entry) before blocking.
-    if (mouse_mode == MOUSE_MODE_FULL && mouse_state_pending()) {
+    if (deliver_mouse && mouse_state_pending()) {
         return GETCHAR_MOUSE;
     }
 
@@ -302,12 +296,8 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
 
         if (ret == PIT_SLEEP_AUX_BREAK) {
             int ev = mouse_process_pending();
-            if (mouse_mode != MOUSE_MODE_OFF && ev != 0) {
-                if (ev & (MOUSE_EVENT_BUTTON | MOUSE_EVENT_WHEEL)
-                 || mouse_mode == MOUSE_MODE_FULL) {
-                    return GETCHAR_MOUSE;
-                }
-                mouse_render_pointer();
+            if (deliver_mouse && ev != 0) {
+                return GETCHAR_MOUSE;
             }
         } else if (ret != 0) {
             return ret;
@@ -334,12 +324,11 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
 }
 
 int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
-    return sleep_ms_core(milliseconds, MOUSE_MODE_OFF);
+    return sleep_ms_core(milliseconds, false);
 }
 
-int pit_sleep_ms_and_quit_on_input(uint64_t milliseconds, bool deliver_mouse_moves) {
-    return sleep_ms_core(milliseconds,
-                         deliver_mouse_moves ? MOUSE_MODE_FULL : MOUSE_MODE_NO_MOVES);
+int pit_sleep_ms_and_quit_on_input(uint64_t milliseconds) {
+    return sleep_ms_core(milliseconds, true);
 }
 
 int pit_sleep_and_quit_on_keypress(int seconds) {
@@ -404,7 +393,7 @@ static int input_sequence(bool ext,
     return 0;
 }
 
-static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
+static int sleep_ms_core(uint64_t milliseconds, bool deliver_mouse) {
     EFI_KEY_DATA kd;
 
     UINTN which;
@@ -415,7 +404,7 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
 
     // Hand over mouse state accumulated while nobody was listening (e.g. a
     // pointer position preserved across a menu re-entry) before blocking.
-    if (mouse_mode == MOUSE_MODE_FULL && mouse_state_pending()) {
+    if (deliver_mouse && mouse_state_pending()) {
         return GETCHAR_MOUSE;
     }
 
@@ -442,7 +431,7 @@ static int sleep_ms_core(uint64_t milliseconds, int mouse_mode) {
         events[0] = exproto->WaitForKeyEx;
     }
 
-    if (mouse_mode != MOUSE_MODE_OFF) {
+    if (deliver_mouse) {
         pointer_count = mouse_get_efi_events(&events[2], 16);
     }
 
@@ -465,12 +454,8 @@ again:
     if (which >= 2) {
         int ev = mouse_handle_efi_event(which - 2);
         if (ev != 0) {
-            if (ev & (MOUSE_EVENT_BUTTON | MOUSE_EVENT_WHEEL)
-             || mouse_mode == MOUSE_MODE_FULL) {
-                gBS->CloseEvent(events[1]);
-                return GETCHAR_MOUSE;
-            }
-            mouse_render_pointer();
+            gBS->CloseEvent(events[1]);
+            return GETCHAR_MOUSE;
         }
         goto again;
     }
@@ -540,12 +525,11 @@ again:
 }
 
 int pit_sleep_ms_and_quit_on_keypress(uint64_t milliseconds) {
-    return sleep_ms_core(milliseconds, MOUSE_MODE_OFF);
+    return sleep_ms_core(milliseconds, false);
 }
 
-int pit_sleep_ms_and_quit_on_input(uint64_t milliseconds, bool deliver_mouse_moves) {
-    return sleep_ms_core(milliseconds,
-                         deliver_mouse_moves ? MOUSE_MODE_FULL : MOUSE_MODE_NO_MOVES);
+int pit_sleep_ms_and_quit_on_input(uint64_t milliseconds) {
+    return sleep_ms_core(milliseconds, true);
 }
 
 int pit_sleep_and_quit_on_keypress(int seconds) {
