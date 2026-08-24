@@ -91,20 +91,7 @@ static bool serial_probe(void) {
 
 // Runs from serial_out(), so nothing reached from here may print: a diagnostic
 // would re-enter serial_out() and recurse. Hence acpi_get_table_quiet() below.
-static bool serial_find(void) {
-    uint16_t bda_port = mminw(0x400);
-    // Ports below 0x100 are fixed motherboard registers, and serial_probe()
-    // writes the port before anything has confirmed a UART is there.
-    if (bda_port >= 0x100 && bda_port <= UINT16_MAX - 7) {
-        serial_base = bda_port;
-        serial_mmio = false;
-        // A candidate that does not answer rules out the candidate rather
-        // than the search, so a stale BDA word still reaches the SPCR below.
-        if (serial_probe()) {
-            return true;
-        }
-    }
-
+static bool serial_find_spcr(void) {
     struct acpi_spcr *spcr = acpi_get_table_quiet("SPCR", 0);
     if (spcr == NULL || spcr->header.length < SPCR_MIN_LENGTH
      || acpi_checksum(spcr, spcr->header.length) != 0) {
@@ -162,6 +149,26 @@ static bool serial_find(void) {
     }
 
     return true;
+}
+
+static bool serial_find_bda(void) {
+    uint16_t bda_port = mminw(0x400);
+    // Ports below 0x100 are fixed motherboard registers, and serial_probe()
+    // writes the port before anything has confirmed a UART is there.
+    if (bda_port < 0x100 || bda_port > UINT16_MAX - 7) {
+        return false;
+    }
+
+    serial_base = bda_port;
+    serial_mmio = false;
+
+    return serial_probe();
+}
+
+static bool serial_find(void) {
+    // The SPCR is firmware stating its console redirection, where the BDA word
+    // is only what a BIOS reports for COM1, so the table is asked first.
+    return serial_find_spcr() || serial_find_bda();
 }
 
 void serial_initialise(void) {
