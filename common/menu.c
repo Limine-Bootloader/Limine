@@ -1542,9 +1542,10 @@ noreturn void _menu(bool first_run) {
         if (baudrate_s == NULL) {
             serial_baudrate = 115200;
         } else {
-            // strtoui() is 64-bit and the global is not, so clamp before narrowing.
+            // A rate the clock does not divide exactly programs a different
+            // one; 50 is the slowest standard rate and bounds the wait.
             uint64_t baudrate = strtoui(baudrate_s, NULL, 10);
-            if (baudrate == 0 || baudrate > 115200) {
+            if (baudrate < 50 || baudrate > 115200 || 115200 % baudrate != 0) {
                 baudrate = 115200;
             }
             serial_baudrate = baudrate;
