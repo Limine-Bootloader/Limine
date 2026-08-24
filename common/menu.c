@@ -740,7 +740,7 @@ tab_part:
 
     int c;
     for (;;) {
-        c = pit_sleep_ms_and_quit_on_input((uint64_t)65535 * 1000, true);
+        c = pit_sleep_ms_and_quit_on_input((uint64_t)65535 * 1000);
         if (c == GETCHAR_MOUSE) {
             struct mouse_state mouse;
             mouse_get_state(&mouse);
@@ -1990,12 +1990,11 @@ refresh:
                 sleep_ms = 1000;
             }
 
-            // Mouse movement only moves the pointer, it doesn't change selection;
-            // or stop the timeout.
-            if ((c = pit_sleep_ms_and_quit_on_input(sleep_ms, false))) {
+            if ((c = pit_sleep_ms_and_quit_on_input(sleep_ms))) {
                 skip_timeout = true;
                 if (c == GETCHAR_MOUSE) {
-                    // Drop the click.
+                    // Drop the event that stopped the countdown, so that it
+                    // does not also move the selection or boot an entry.
                     mouse_flush();
                 }
                 if (quiet) {
@@ -2029,7 +2028,7 @@ refresh:
     mouse_render_pointer();
 
     for (;;) {
-        c = pit_sleep_ms_and_quit_on_input((uint64_t)65535 * 1000, true);
+        c = pit_sleep_ms_and_quit_on_input((uint64_t)65535 * 1000);
         if (c == 0) {
             continue;
         }
