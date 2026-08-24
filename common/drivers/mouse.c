@@ -495,13 +495,18 @@ static bool aux_command(uint8_t val) {
 }
 
 static void aux_drain(void) {
-    for (size_t i = 0; i < 128; i++) {
-        if ((inb(I8042_STATUS) & I8042_STATUS_OUT_FULL) == 0) {
-            break;
+    size_t idle_us = 0;
+
+    for (size_t i = 0; i < 512 && idle_us < 5000; i++) {
+        if (inb(I8042_STATUS) & I8042_STATUS_OUT_FULL) {
+            inb(I8042_DATA);
+            idle_us = 0;
+            continue;
         }
-        inb(I8042_DATA);
         stall(100);
+        idle_us += 100;
     }
+
     packet_index = 0;
 }
 
