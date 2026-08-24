@@ -224,17 +224,15 @@ void serial_out(uint8_t b) {
         serial_stalled = false;
     }
 
-    // Ten bit times per character, so both bounds have to follow the rate. The
-    // config clamps the key against 0 and 115200 only, so the rate is floored
-    // here at the slowest standard one to keep both bounds finite.
-    uint32_t rate = serial_baudrate < 50 ? 50 : serial_baudrate;
-    uint64_t wait_us = (uint64_t)10000000 * 16 / rate;
+    // Ten bit times per character, so both bounds have to follow the rate.
+    uint64_t wait_us = (uint64_t)10000000 * 16 / serial_baudrate;
     if (wait_us < 100000) {
         wait_us = 100000;
     }
     uint64_t deadline = rdtsc_deadline(wait_us);
     // With no TSC there is no clock to wait against, so bound by poll count.
-    size_t retries = 10000 * (rate < 115200 ? 115200 / rate : 1);
+    size_t retries =
+        10000 * (serial_baudrate < 115200 ? 115200 / serial_baudrate : 1);
 
     while ((serial_read(5) & 0x20) == 0) {
         if (deadline != 0 && !rdtsc_deadline_expired(deadline)) {

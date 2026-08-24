@@ -96,9 +96,10 @@ Miscellaneous:
   the menu and disable quiet mode.
 * `serial` - If set to `yes`, enable serial I/O for the bootloader.
 * `serial_baudrate` - If `serial` is set to `yes`, this specifies the baudrate
-  to use for serial I/O. Defaults to `115200`, which is also the maximum; `0`,
-  a larger value, or one that is not a number is treated as `115200`. BIOS
-  only, ignored with Limine UEFI.
+  to use for serial I/O. Defaults to `115200`, which is also the maximum. The
+  minimum is `50`, and the rate must divide `115200` exactly, which every
+  standard rate in that range does except `110`, `2000` and `56000`; any other
+  value is treated as `115200`. BIOS only, ignored with Limine UEFI.
 * `global_dtb` - If set, use this DTB instead of the firmware-provided DTB for
   Limine itself, as well as for any booted entry whose protocol supports DTBs
   and the DTB is not locally overridden with `dtb_path`.
