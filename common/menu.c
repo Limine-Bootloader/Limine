@@ -2004,11 +2004,6 @@ refresh:
 
             if ((c = pit_sleep_ms_and_quit_on_input(sleep_ms))) {
                 skip_timeout = true;
-                if (c == GETCHAR_MOUSE) {
-                    // Drop the event that stopped the countdown, so that it
-                    // does not also move the selection or boot an entry.
-                    mouse_flush();
-                }
                 if (quiet) {
                     quiet = false;
                     menu_init_term();
