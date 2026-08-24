@@ -440,7 +440,7 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
     size_t cursor_offset  = 0;
     size_t entry_size     = strlen(orig_entry);
     size_t _window_size   = terms[0]->rows - 7 + (menu_branding[0] == '\0' ? 2 : 0);
-    size_t window_offset  = 0;
+    size_t window_row     = 0;
     size_t line_size      = terms[0]->cols - 2;
 
     // Skip leading newlines
@@ -473,12 +473,8 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
 
     size_t cell_map_size = terms[0]->cols * terms[0]->rows * sizeof(size_t);
     size_t *cell_map = ext_mem_alloc(cell_map_size);
-    bool window_moved_up;
 
 refresh:
-    // A keystroke starts a new search; the search itself re-enters below.
-    window_moved_up = false;
-rerender:
     mouse_erase_pointer();
     memset(cell_map, 0xff, cell_map_size);
     print("\e[2J\e[H");
@@ -512,7 +508,7 @@ rerender:
     for (size_t i = 0; i < terms[0]->cols - 2; i++) {
         switch (i) {
             case 1: case 2: case 3:
-                if (window_offset > 0) {
+                if (window_row > 0) {
                     print(SERIAL_CONSOLE ? "^" : "↑");
                     break;
                 }
@@ -546,37 +542,41 @@ rerender:
     set_cursor_pos_helper(0, tmpy + 1);
     print(SERIAL_CONSOLE ? "|" : "│");
 
-    // Where no offset renders the cursor the search gives up, so the cursor
-    // starts inside the frame rather than at the screen origin.
+    // Always overwritten by the walk below; the compiler cannot prove it.
     size_t cursor_x, cursor_y;
     terms[0]->get_cursor_pos(terms[0], &cursor_x, &cursor_y);
-    size_t current_line = 0, line_offset = 0, window_size = _window_size;
+    size_t window_end = window_row + _window_size;
+    size_t screen_row = 0, line_offset = 0, cursor_row = 0;
     bool printed_cursor = false;
     bool printed_early = false;
     int token_type = validate_line(buffer);
     size_t tab_space_count = 0;
     for (size_t i = 0; ; i++) {
+        // The window is placed from this row, so the cursor must be taken
+        // where the character starts rather than part way through a tab.
+        if (i == cursor_offset) {
+            cursor_row = screen_row;
+            if (screen_row >= window_row && screen_row < window_end) {
+                terms[0]->get_cursor_pos(terms[0], &cursor_x, &cursor_y);
+                printed_cursor = true;
+            }
+        }
+
         // tab
-        // Nothing renders above the window, so there is nothing to expand into.
-        if (buffer[i] == '\t' && current_line >= window_offset) {
+        if (buffer[i] == '\t') {
             tab_space_count = 8 - (line_offset % 8);
             goto tab_part;
         }
 
         // newline
         if (buffer[i] == '\n'
-         && current_line <  window_offset + window_size
-         && current_line >= window_offset) {
+         && screen_row >= window_row
+         && screen_row < window_end) {
             editor_map_cell(cell_map, i);
             size_t x, y;
             terms[0]->get_cursor_pos(terms[0], &x, &y);
-            if (i == cursor_offset) {
-                cursor_x = x;
-                cursor_y = y;
-                printed_cursor = true;
-            }
             set_cursor_pos_helper(terms[0]->cols - 1, y);
-            if (current_line == window_offset + window_size - 1) {
+            if (screen_row == window_end - 1) {
                 terms[0]->get_cursor_pos(terms[0], &tmpx, &tmpy);
                 print(SERIAL_CONSOLE ? "|" : "│");
                 set_cursor_pos_helper(0, tmpy + 1);
@@ -589,7 +589,7 @@ rerender:
             }
             line_offset = 0;
             token_type = validate_line(buffer + i + 1);
-            current_line++;
+            screen_row++;
             continue;
         }
 
@@ -597,23 +597,16 @@ rerender:
         if (token_type == TOK_KEY && buffer[i] == ':') token_type = TOK_EQUALS;
 
 tab_part:
-        if (buffer[i] != 0 && line_offset % line_size == line_size - 1) {
-            if (current_line <  window_offset + window_size
-             && current_line >= window_offset) {
-                if (i == cursor_offset && !printed_cursor) {
-                    terms[0]->get_cursor_pos(terms[0], &cursor_x, &cursor_y);
-                    printed_cursor = true;
-                }
+        // The newline branches end the row; a newline must not wrap it as well.
+        if (buffer[i] != 0 && buffer[i] != '\n'
+         && line_offset % line_size == line_size - 1) {
+            if (screen_row >= window_row && screen_row < window_end) {
                 editor_map_cell(cell_map, i);
                 if (syntax_highlighting_enabled) {
                     putchar_tokencol(token_type, tab_space_count ? ' ' : buffer[i]);
                 } else {
                     print("%c", tab_space_count ? ' ' : buffer[i]);
                 }
-                if (tab_space_count != 0) {
-                    tab_space_count--;
-                }
-                printed_early = true;
                 size_t x, y;
                 terms[0]->get_cursor_pos(terms[0], &x, &y);
                 if (y >= terms[0]->rows - 2) {
@@ -625,86 +618,81 @@ tab_part:
                     set_cursor_pos_helper(0, y + 1);
                     print(SERIAL_CONSOLE ? "<" : "←");
                 }
+            } else if (screen_row + 1 == window_row) {
+                // The window can begin partway through a line, so its first row
+                // continues one rather than starting it.
+                size_t x, y;
+                terms[0]->get_cursor_pos(terms[0], &x, &y);
+                set_cursor_pos_helper(0, y);
+                print(SERIAL_CONSOLE ? "<" : "←");
             }
-            if (window_size > 0) {
-                window_size--;
+            if (tab_space_count != 0) {
+                tab_space_count--;
             }
-        }
-
-        if (i == cursor_offset
-         && current_line <  window_offset + window_size
-         && current_line >= window_offset
-         && !printed_cursor) {
-            terms[0]->get_cursor_pos(terms[0], &cursor_x, &cursor_y);
-            printed_cursor = true;
+            printed_early = true;
+            screen_row++;
         }
 
         if (buffer[i] == 0
-         && current_line >= window_offset
-         && current_line < window_offset + window_size) {
+         && screen_row >= window_row
+         && screen_row < window_end) {
             editor_map_cell(cell_map, i);
         }
 
-        if (buffer[i] == 0 || current_line >= window_offset + window_size) {
-            if (!printed_cursor) {
-                // No offset renders a cursor whose own line is taller than the
-                // window, so both directions need a bound.
-                if (i <= cursor_offset && !window_moved_up
-                 && window_offset <= current_line) {
-                    window_offset++;
-                    goto rerender;
-                }
-                // The bound above can stop the descent with the window past
-                // the cursor's line, which the frame arithmetic below subtracts
-                // in size_t, so the ascent takes that case too.
-                if (i > cursor_offset || window_offset > current_line) {
-                    window_moved_up = true;
-                    window_offset--;
-                    goto rerender;
-                }
-            }
+        if (buffer[i] == 0) {
             break;
         }
 
         if (buffer[i] == '\n') {
             line_offset = 0;
             token_type = validate_line(buffer + i + 1);
-            current_line++;
+            screen_row++;
             continue;
         }
 
-        if (current_line >= window_offset) {
-            line_offset++;
-
+        if (!printed_early) {
             // syntax highlighting
-            if (!printed_early) {
+            if (screen_row >= window_row && screen_row < window_end) {
                 editor_map_cell(cell_map, i);
                 if (syntax_highlighting_enabled) {
                     putchar_tokencol(token_type, tab_space_count ? ' ' : buffer[i]);
                 } else {
                     print("%c", tab_space_count ? ' ' : buffer[i]);
                 }
-
-                if (tab_space_count != 0) {
-                    tab_space_count--;
-                }
             }
 
-            printed_early = false;
-
-            // switch to token type 2 after equals sign
-            if (token_type == TOK_EQUALS) token_type = TOK_VALUE;
-
+            if (tab_space_count != 0) {
+                tab_space_count--;
+            }
         }
+
+        printed_early = false;
+        line_offset++;
+
+        // switch to token type 2 after equals sign
+        if (token_type == TOK_EQUALS) token_type = TOK_VALUE;
 
         if (tab_space_count != 0) {
             goto tab_part;
         }
     }
 
-    if (current_line - window_offset < window_size) {
+    // Anchoring the window to a screen row lets it begin partway through a
+    // line; the second pass computes the same anchor, so this cannot repeat.
+    if (!printed_cursor) {
+        size_t anchor = cursor_row;
+        if (cursor_row >= window_end) {
+            anchor = cursor_row - _window_size + 1;
+        }
+        if (anchor != window_row) {
+            window_row = anchor;
+            goto refresh;
+        }
+    }
+
+    if (screen_row - window_row < _window_size) {
         size_t x, y;
-        for (size_t i = 0; i < (window_size - (current_line - window_offset)) - 1; i++) {
+        for (size_t i = 0; i < (_window_size - (screen_row - window_row)) - 1; i++) {
             terms[0]->get_cursor_pos(terms[0], &x, &y);
             set_cursor_pos_helper(terms[0]->cols - 1, y);
             print(SERIAL_CONSOLE ? "|" : "│");
@@ -725,7 +713,7 @@ tab_part:
         for (size_t i = 0; i < terms[0]->cols - 2; i++) {
             switch (i) {
                 case 1: case 2: case 3:
-                    if (current_line - window_offset >= window_size) {
+                    if (screen_row - window_row >= _window_size) {
                         print(SERIAL_CONSOLE ? "v" : "↓");
                         break;
                     }
