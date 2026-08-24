@@ -1,3 +1,70 @@
+2026-08-24  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.6.1 ***
+
+    Noteworthy changes compared to the previous release, 12.6.0:
+
+    Bug fixes:
+        - Stop rejecting a GPT whose LastUsableLBA lies past the block count
+          the firmware reports. This is not one of the checks UEFI requires,
+          and it made 12.6.0 refuse disks that 12.5.2 booted from. Fixes
+          #633.
+        - Detect an unused GPT entry by its partition type GUID rather than
+          its unique GUID, in the loader and in the `limine` host tool, so
+          that Limine and the operating system agree on which entries exist.
+          Fixes #622.
+        - Honour a primary GPT only on a disk whose first block is a
+          protective MBR, as Linux, EDK2 and U-Boot do. A stale GPT left
+          behind on a disk since reformatted to MBR is no longer read in
+          preference to the live table.
+        - UEFI: claim usable memory with an adaptive request cap, retrying a
+          refused chunk a page at a time, for firmware that fails or stalls
+          on a very large AllocatePages().
+        - Fix two boot menu editor hangs, each needing a power cycle: a tab
+          on a line scrolled above the window, and a line taller than the
+          window itself. The window is now anchored to a screen row, so a
+          cursor far into a long line is reachable rather than invisible.
+        - Refuse a PE executable declaring no sections, as the ELF loader
+          already does.
+        - Cap the tries the Multiboot2 relocatable placement search makes.
+        - Treat an out-of-range or unparseable `term_font_scale` or
+          `term_font_spacing` as if the option were unset. A large spacing
+          previously halted the loader before the menu was drawn.
+        - riscv64: return to the menu, rather than halting, on a device tree
+          named by a menu entry that Limine cannot use.
+        - `limine bios-install`: bound the BIOS boot partition by the GPT
+          reserves and by the device, and refuse one that overlaps another,
+          before writing stage 2 into it.
+        - `limine bios-install`: decline the ISOHYBRID GPT-to-MBR conversion
+          for a partition lying outside the GPT's usable range, and apply
+          the reserve floor to every source of an alternate GPT location.
+        - `limine`: reject an unrecognised option in every subcommand rather
+          than ignoring it. A mistyped `--no-gpt-to-mbr-isohybrid-conversion`
+          no longer converts the GPT it was passed to preserve.
+        - `limine bios-install`: open a device larger than 2GiB from a
+          32-bit build.
+        - Build stage 2 with -Os under GNU make older than 3.82, which picks
+          a pattern rule by definition order rather than by shortest stem.
+          macOS ships 3.81; Limine now builds with 3.80 and newer.
+        - Miscellaneous bug fixes.
+
+    Miscellaneous:
+        - Interacting with the mouse/touchscreen now cancels the countdown
+          immediately without discarding the input made.
+        - BIOS: discover the console UART from the ACPI SPCR table, falling
+          back to the BDA word, rather than assuming COM1 at port 0x3f8.
+          Other ports, and memory mapped UARTs, now carry serial output.
+          Every candidate is bounded and probed before it is written to.
+        - BIOS: calibrate the TSC against the ACPI PM timer, falling back to
+          the PIT, and refuse to boot when neither can be read. Both
+          calibration waits are bounded, and a round in which the timer
+          never counted is no longer accepted as one that did.
+        - `serial_baudrate` is accepted only from 50 up and only where it
+          divides 115200 exactly; any other value is treated as 115200, and
+          the transmit timeout scales with the rate.
+        - Match CONFIG.md, USAGE.md and INSTALL.md to what the code does.
+        - Miscellaneous improvements.
+
 2026-08-18  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.6.0 ***
