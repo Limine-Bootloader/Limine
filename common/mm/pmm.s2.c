@@ -226,10 +226,12 @@ del_mm1:
         m[p] = min_e;
     }
 
-    // Merge contiguous bootloader-reclaimable, reserved (mapped), usable entries
+    // Merge contiguous bootloader-reclaimable, reserved (mapped),
+    // kernel/modules, usable entries
     for (size_t i = 0; i + 1 < count; i++) {
         if (m[i].type != MEMMAP_BOOTLOADER_RECLAIMABLE
          && m[i].type != MEMMAP_RESERVED_MAPPED
+         && m[i].type != MEMMAP_KERNEL_AND_MODULES
          && m[i].type != MEMMAP_USABLE)
             continue;
 
