@@ -90,7 +90,8 @@ jobs:
 
       - name: Fetch MinGW
         run: |
-          curl -Lo /tmp/mingw-i486.tar.xz https://github.com/osdev0/mingw-binary-builds/releases/latest/download/mingw-i486.tar.xz
+          curl -Lo /tmp/mingw-i486.tar.xz https://github.com/Mintsuki/mingw-linux-binary-builds/releases/download/20260825T003641Z/mingw-i486.tar.xz
+          b2sum /tmp/mingw-i486.tar.xz | grep -q 913b6b1c2e8e2f312f23776e276b74ff3ba7015a3d113742667c6263a22143597baec22893d3c515d4b4fd51522efd17830a7d8f3e3f6104c297bad406d07d28
           cd /tmp
           tar -xf mingw-i486.tar.xz
 
