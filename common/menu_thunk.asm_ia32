@@ -35,5 +35,3 @@ menu:
 .L4:
     push 0
     jmp _menu
-
-section .note.GNU-stack noalloc noexec nowrite progbits

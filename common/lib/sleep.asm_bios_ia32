@@ -195,5 +195,3 @@ _pit_sleep_and_quit_on_keypress:
   .scan:     dd 0
   .aux_poll: db 0
   .aux_hit:  db 0
-
-section .note.GNU-stack noalloc noexec nowrite progbits

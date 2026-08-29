@@ -20,5 +20,3 @@ menu:
 2:      mv      fp, zero
         mv      ra, zero
         j       _menu
-
-.section .note.GNU-stack,"",%progbits

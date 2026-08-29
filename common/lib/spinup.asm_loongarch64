@@ -112,5 +112,3 @@ loongarch_handle_refill:
         tlbfill
         csrrd   $t0, CSR_TLBRSAVE
         ertn
-
-.section .note.GNU-stack,"",%progbits

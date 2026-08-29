@@ -56,5 +56,3 @@ riscv_spinup:
         mv      ra, zero
 
         jr      t0
-
-.section .note.GNU-stack,"",%progbits
