@@ -76,5 +76,3 @@ smp_trampoline_start:
         move    $s8, $zero
 
         jirl    $zero, $t0, 0
-
-.section .note.GNU-stack,"",%progbits

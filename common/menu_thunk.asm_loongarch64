@@ -21,5 +21,3 @@ menu:
     move $fp, $r0
     move $ra, $r0
     b _menu
-
-.section .note.GNU-stack,"",%progbits

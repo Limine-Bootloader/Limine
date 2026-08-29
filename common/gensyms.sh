@@ -46,6 +46,4 @@ elif [ "$3" = "64" ]; then
     echo ".quad 0xffffffffffffffff" >> "$TMP4"
 fi
 
-echo '.section .note.GNU-stack,"",%progbits' >> "$TMP4"
-
 mv "$TMP4" "$2.map.S"

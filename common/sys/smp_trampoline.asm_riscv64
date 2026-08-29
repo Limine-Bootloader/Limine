@@ -95,5 +95,3 @@ smp_trampoline_start:
         fence.i
 
         jr      t0
-
-.section .note.GNU-stack,"",%progbits

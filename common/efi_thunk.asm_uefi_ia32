@@ -6,5 +6,3 @@ efi_main:
     xor eax, eax
     mov [esp], eax
     jmp uefi_entry
-
-section .note.GNU-stack noalloc noexec nowrite progbits

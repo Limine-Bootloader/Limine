@@ -66,5 +66,3 @@ linux_gdt:
 
 global linux_spinup_end
 linux_spinup_end:
-
-section .note.GNU-stack noalloc noexec nowrite progbits

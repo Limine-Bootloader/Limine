@@ -274,5 +274,3 @@ smp_trampoline_end:
 
 global smp_trampoline_size
 smp_trampoline_size dq smp_trampoline_end - smp_trampoline_start
-
-section .note.GNU-stack noalloc noexec nowrite progbits

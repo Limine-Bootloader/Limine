@@ -58,5 +58,3 @@ linux_spinup64:
     xor ebx, ebx
 
     jmp rax
-
-section .note.GNU-stack noalloc noexec nowrite progbits

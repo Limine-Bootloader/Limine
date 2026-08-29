@@ -27,5 +27,3 @@ _start:
     mov ss, ax
 
     jmp entry
-
-section .note.GNU-stack noalloc noexec nowrite progbits
