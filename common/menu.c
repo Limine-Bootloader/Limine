@@ -1506,6 +1506,9 @@ noreturn void _menu(bool first_run) {
     char *verbose_str = config_get_value(NULL, 0, "VERBOSE");
     verbose = verbose_str != NULL && strcmp(verbose_str, "yes") == 0;
 
+    char *terse_str = config_get_value(NULL, 0, "TERSE");
+    terse = terse_str != NULL && strcmp(terse_str, "yes") == 0;
+
     char *serial_str = config_get_value(NULL, 0, "SERIAL");
     serial =
 #if defined (UEFI)

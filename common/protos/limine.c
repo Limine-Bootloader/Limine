@@ -546,7 +546,9 @@ noreturn void limine_load(char *config, char *cmdline) {
         panic(true, "limine: Executable path not specified");
     }
 
-    print("limine: Loading executable `%#`...\n", kernel_path);
+    if (!terse) {
+        print("limine: Loading executable `%#`...\n", kernel_path);
+    }
 
     struct file_handle *kernel_file;
     if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
@@ -1401,7 +1403,9 @@ FEAT_START
             module_cmdline = module_cmdline ? strdup(module_cmdline) : "";
         }
 
-        print("limine: Loading module `%#`...\n", module_path);
+        if (!terse) {
+            print("limine: Loading module `%#`...\n", module_path);
+        }
 
         struct file_handle *f;
         // On IA-32 under measured boot, refuse >4 GiB allocations: firmware's
