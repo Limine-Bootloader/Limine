@@ -144,8 +144,12 @@ static bool handle_timeout(wchar_t *variable, bool erase, size_t *timeout, bool 
             *skip_timeout = true;
             return true;
         }
-        if ((getvar_size == 24 && memcmp(timeout_buf, L"menu-hidden",24) == 0) || (getvar_size == 28 && memcmp(timeout_buf, L"menu-disabled",28) == 0)) {
-            // TODO: menu-hidden should enable quiet & set timeout >= 1
+        else if ((getvar_size == 24 && memcmp(timeout_buf, L"menu-hidden",24) == 0)) {
+            // menu-hidden should enable quiet
+            quiet = true;
+            return false;
+        }
+        else if (getvar_size == 28 && memcmp(timeout_buf, L"menu-disabled",28) == 0) {
             *timeout = 0;
             return true;
         }
@@ -157,6 +161,11 @@ static bool handle_timeout(wchar_t *variable, bool erase, size_t *timeout, bool 
         if (erase && t == 0) {
             *skip_timeout = true;
             return true;
+        }
+        // For LoaderConfigTimeout, "0" means menu-hidden.
+        if (!erase && t == 0) {
+            quiet = true;
+            return false;
         }
         *timeout = t;
         return true;
