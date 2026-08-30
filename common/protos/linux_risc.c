@@ -132,7 +132,9 @@ static void load_module(struct boot_param *p, char *config) {
     for (size_t i = 0; i < module_count; i++) {
         char *module_path = config_get_value(config, i, "MODULE_PATH");
 
-        print("linux: Loading module `%#`...\n", module_path);
+        if (!terse) {
+            print("linux: Loading module `%#`...\n", module_path);
+        }
 
         struct file_handle *module_file = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false);
         if (!module_file) {
@@ -511,7 +513,9 @@ noreturn void linux_load(char *config, char *cmdline) {
         panic(true, "linux: Kernel path not specified");
     }
 
-    print("linux: Loading kernel `%#`...\n", kernel_path);
+    if (!terse) {
+        print("linux: Loading kernel `%#`...\n", kernel_path);
+    }
 
     if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false)) == NULL) {
         panic(true, "linux: failed to open kernel `%s`. Is the path correct?", kernel_path);

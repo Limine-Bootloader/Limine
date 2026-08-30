@@ -308,7 +308,9 @@ noreturn void linux_load(char *config, char *cmdline) {
         panic(true, "linux: Kernel path not specified");
     }
 
-    print("linux: Loading kernel `%#`...\n", kernel_path);
+    if (!terse) {
+        print("linux: Loading kernel `%#`...\n", kernel_path);
+    }
 
     if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
 #if defined (__i386__)
@@ -514,7 +516,9 @@ noreturn void linux_load(char *config, char *cmdline) {
         if (module_path == NULL)
             break;
 
-        print("linux: Loading module `%#`...\n", module_path);
+        if (!terse) {
+            print("linux: Loading module `%#`...\n", module_path);
+        }
 
         struct file_handle *module;
         if ((module = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
