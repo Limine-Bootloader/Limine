@@ -26,6 +26,7 @@ noreturn void __stack_chk_fail_local(void) {
 
 bool verbose = false;
 bool quiet = false;
+bool terse = false;
 bool serial = false;
 bool hash_mismatch_panic = false;
 bool measured_boot = false;
