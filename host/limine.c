@@ -876,7 +876,13 @@ static bool device_block_present(uint64_t block, uint64_t lb_size) {
         return false;
     }
 
-    return device_read_raw(&probe, loc, 1);
+    // The end of the medium is found by probing past it: a block device refuses
+    // that seek where a regular file accepts it, and neither is an error here.
+    if (set_pos(device, loc) != 0) {
+        return false;
+    }
+
+    return fread(&probe, 1, 1, device) == 1;
 }
 
 static bool device_last_block(uint64_t lb_size, uint64_t *out) {
