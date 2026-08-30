@@ -124,6 +124,8 @@ Miscellaneous:
   image, in RRGGBB format.
 * `verbose` - If set to `yes`, print additional information during boot.
   Defaults to not verbose.
+* `terse` - If set to `yes`, suppress informational loading messages during boot.
+  Any error or panic messages remain unaffected. Defaults to `no`.
 * `randomise_memory` - If set to `yes`, randomise the contents of RAM at bootup
   in order to find bugs related to non zeroed memory or for security reasons.
   This option will slow down boot time significantly. In the case of IA-32,
