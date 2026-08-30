@@ -71,7 +71,9 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         panic(true, "multiboot1: Executable path not specified");
     }
 
-    print("multiboot1: Loading executable `%#`...\n", kernel_path);
+    if (!terse) {
+        print("multiboot1: Loading executable `%#`...\n", kernel_path);
+    }
 
     if ((kernel_file = uri_open(kernel_path, MEMMAP_KERNEL_AND_MODULES, false
 #if defined (__i386__)
@@ -372,7 +374,9 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
             if (module_path == NULL)
                 panic(true, "multiboot1: Module disappeared unexpectedly");
 
-            print("multiboot1: Loading module `%#`...\n", module_path);
+            if (!terse) {
+                print("multiboot1: Loading module `%#`...\n", module_path);
+            }
 
             struct file_handle *f;
             if ((f = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
