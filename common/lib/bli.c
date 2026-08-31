@@ -126,60 +126,79 @@ void bli_on_boot(void) {
     bli_set_loader_time(L"LoaderTimeExecUSec", rdtsc_usec());
 }
 
-static bool handle_timeout(wchar_t *variable, bool erase, size_t *timeout, bool *skip_timeout) {
+// menu-hidden boots the default entry with the menu suppressed, but the
+// interface still wants a key to be able to summon the menu "for a brief
+// moment" before the boot; this window is that moment.
+#define MENU_HIDDEN_TIMEOUT_MS 500
+
+// True whenever the variable held a policy: a consumed value must not fall
+// through to the sources a set one-shot variable is defined to override.
+static bool handle_timeout(wchar_t *variable, bool erase, uint64_t *timeout_ms, bool *skip_timeout) {
     wchar_t timeout_buf[256];
     UINTN getvar_size = sizeof(timeout_buf) - 2;
     uint32_t attrs;
+
     if (gRT->GetVariable(variable,
                              &bli_vendor_guid,
                              &attrs,
                              &getvar_size,
-                             timeout_buf) == 0 && getvar_size > 0) {
-        if (erase) {
-            gRT->SetVariable(variable, &bli_vendor_guid,
-                attrs,
-                0, NULL);
-        }
-        if (getvar_size == 22 && memcmp(timeout_buf, L"menu-force", 22) == 0) {
-            *skip_timeout = true;
-            return true;
-        }
-        else if ((getvar_size == 24 && memcmp(timeout_buf, L"menu-hidden",24) == 0)) {
-            // menu-hidden should enable quiet
-            quiet = true;
-            return false;
-        }
-        else if (getvar_size == 28 && memcmp(timeout_buf, L"menu-disabled",28) == 0) {
-            *timeout = 0;
-            return true;
-        }
-        size_t t;
-        if (!decwstr_to_size(timeout_buf, getvar_size, &t)) {
-            return false;
-        }
-        // For LoaderConfigTimeoutOneShot, "0" means show menu indefinitely.
-        if (erase && t == 0) {
-            *skip_timeout = true;
-            return true;
-        }
-        // For LoaderConfigTimeout, "0" means menu-hidden.
-        if (!erase && t == 0) {
-            quiet = true;
-            return false;
-        }
-        *timeout = t;
+                             timeout_buf) != 0 || getvar_size == 0) {
+        return false;
+    }
+
+    if (erase) {
+        gRT->SetVariable(variable, &bli_vendor_guid,
+            attrs,
+            0, NULL);
+    }
+
+    if (getvar_size == 22 && memcmp(timeout_buf, L"menu-force", 22) == 0) {
+        *skip_timeout = true;
         return true;
     }
-    return false;
 
+    if (getvar_size == 24 && memcmp(timeout_buf, L"menu-hidden", 24) == 0) {
+        quiet = true;
+        *timeout_ms = MENU_HIDDEN_TIMEOUT_MS;
+        return true;
+    }
+
+    if (getvar_size == 28 && memcmp(timeout_buf, L"menu-disabled", 28) == 0) {
+        *timeout_ms = 0;
+        return true;
+    }
+
+    size_t t;
+    if (!decwstr_to_size(timeout_buf, getvar_size, &t)) {
+        return false;
+    }
+
+    if (t == 0) {
+        // Zero turns a one-shot timeout off outright; a persistent zero is
+        // menu-hidden.
+        if (erase) {
+            *skip_timeout = true;
+        } else {
+            quiet = true;
+            *timeout_ms = MENU_HIDDEN_TIMEOUT_MS;
+        }
+        return true;
+    }
+
+    uint64_t seconds = t;
+    if (seconds > UINT64_MAX / 1000) {
+        seconds = UINT64_MAX / 1000;
+    }
+    *timeout_ms = seconds * 1000;
+    return true;
 }
 
-bool bli_update_oneshot_timeout(size_t *timeout, bool *skip_timeout) {
-    return handle_timeout(L"LoaderConfigTimeoutOneShot", true, timeout, skip_timeout);
+bool bli_update_oneshot_timeout(uint64_t *timeout_ms, bool *skip_timeout) {
+    return handle_timeout(L"LoaderConfigTimeoutOneShot", true, timeout_ms, skip_timeout);
 }
 
-bool bli_update_timeout(size_t *timeout, bool *skip_timeout) {
-    return handle_timeout(L"LoaderConfigTimeout", false, timeout, skip_timeout);
+bool bli_update_timeout(uint64_t *timeout_ms, bool *skip_timeout) {
+    return handle_timeout(L"LoaderConfigTimeout", false, timeout_ms, skip_timeout);
 }
 
 static bool handle_entry(wchar_t *variable, bool erase, char *path, size_t buf_size) {

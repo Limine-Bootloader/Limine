@@ -1783,16 +1783,12 @@ noreturn void _menu(bool first_run) {
         selected_entry = 0;
     }
 
-    size_t timeout = 5;
-    uint64_t timeout_ms = timeout * 1000;
+    uint64_t timeout_ms = 5000;
 
     bool has_timeout = false;
 
 #if defined (UEFI)
-    has_timeout = bli_update_oneshot_timeout(&timeout, &skip_timeout);
-    if (has_timeout) {
-        timeout_ms = (uint64_t)timeout * 1000;
-    }
+    has_timeout = bli_update_oneshot_timeout(&timeout_ms, &skip_timeout);
 #endif
 
     if (!has_timeout) {
@@ -1808,8 +1804,7 @@ noreturn void _menu(bool first_run) {
 
 #if defined (UEFI)
     if (!has_timeout) {
-        has_timeout = bli_update_timeout(&timeout, &skip_timeout);
-        timeout_ms = (uint64_t)timeout * 1000;
+        has_timeout = bli_update_timeout(&timeout_ms, &skip_timeout);
     }
 #endif
 
