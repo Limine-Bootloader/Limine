@@ -114,7 +114,11 @@ Miscellaneous:
   `/`, `\`, and `#` characters in entry names must be escaped as `\/`, `\\`,
   and `\#` respectively. If multiple sibling entries share the same name, append
   `#N` to select the Nth duplicate (e.g. `Arch Linux#1` for the second entry
-  named `Arch Linux`). If unspecified, it is `1`.
+  named `Arch Linux`). If unspecified, it is `1`. On UEFI, a Boot Loader
+  Interface `LoaderEntryOneShot` request overrides this option for the boot
+  that consumes it, and `remember_last_entry` and the persistent
+  `LoaderEntryDefault` variable are consulted, in that order, only where this
+  option is not set.
 * `remember_last_entry` - If set to `yes`, remember last booted entry.
   (UEFI only).
 * `graphics` - If set to `no`, force text mode for the boot menu, else use
