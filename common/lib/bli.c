@@ -203,6 +203,41 @@ bool bli_update_timeout(uint64_t *timeout_ms, bool *skip_timeout) {
     return handle_timeout(L"LoaderConfigTimeout", false, timeout_ms, skip_timeout);
 }
 
+// The identifiers menu.c derives, one after the other, each NUL terminated,
+// in menu order, as the interface has LoaderEntries carry them.
+static wchar_t loader_entries[2048];
+static size_t loader_entries_len = 0;
+static bool loader_entries_full = false;
+
+void bli_entries_reset(void) {
+    loader_entries_len = 0;
+    loader_entries_full = false;
+}
+
+void bli_entries_add(const char *id) {
+    size_t len = strlen(id);
+
+    // Dropping whole identifiers keeps the list well formed when it fills.
+    if (loader_entries_full
+     || len + 1 > SIZEOF_ARRAY(loader_entries) - loader_entries_len) {
+        loader_entries_full = true;
+        return;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        loader_entries[loader_entries_len++] = (wchar_t)id[i];
+    }
+    loader_entries[loader_entries_len++] = L'\0';
+}
+
+void bli_entries_publish(void) {
+    gRT->SetVariable(L"LoaderEntries",
+            &bli_vendor_guid,
+            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
+            loader_entries_len * sizeof(wchar_t),
+            loader_entries);
+}
+
 static bool handle_entry(wchar_t *variable, bool erase, char *path, size_t buf_size) {
     wchar_t wide_path[256];
     UINTN getvar_size = sizeof(wide_path) - 2;
