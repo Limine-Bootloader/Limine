@@ -1004,6 +1004,133 @@ static void get_entry_path(struct menu_entry *entry, char *buf, size_t buf_size,
         buf[*pos] = '\0';
     }
 }
+
+// systemd takes a boot loader entry identifier only as a filename within
+// [a-zA-Z0-9+_.@-], so the canonical entry path is mapped onto that set:
+// '/' becomes '.', any other byte outside it '-'. Where two entries map to
+// one identifier, the later in menu order gains a "-N" suffix.
+#define BLI_ID_MAX 256
+
+static bool bli_id_char_ok(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z') || c == '+' || c == '_' || c == '.'
+        || c == '@' || c == '-';
+}
+
+static void bli_entry_base_id(struct menu_entry *entry, char *buf) {
+    char path[MENU_PATH_MAX];
+    size_t pos = 0;
+    get_entry_path(entry, path, sizeof(path), &pos);
+
+    const char *p = path;
+    if (*p == '/') {
+        p++;
+    }
+
+    // Room for the terminator and a duplicate suffix within the filename
+    // length systemd accepts.
+    size_t o = 0;
+    for (; *p != '\0' && o < BLI_ID_MAX - 24; p++) {
+        if (bli_id_char_ok(*p)) {
+            buf[o++] = *p;
+        } else if (*p == '/') {
+            buf[o++] = '.';
+        } else {
+            buf[o++] = '-';
+        }
+    }
+    buf[o] = '\0';
+
+    // A filename may not be empty, `.`, or `..`.
+    if (buf[0] == '\0' || strcmp(buf, ".") == 0 || strcmp(buf, "..") == 0) {
+        buf[o++] = '-';
+        buf[o] = '\0';
+    }
+}
+
+static bool bli_id_dups_before(struct menu_entry *node, struct menu_entry *stop,
+                               const char *base, size_t *dups) {
+    for (; node != NULL; node = node->next) {
+        if (should_skip_entry(node)) {
+            continue;
+        }
+        if (node->sub != NULL) {
+            if (bli_id_dups_before(node->sub, stop, base, dups)) {
+                return true;
+            }
+            continue;
+        }
+        if (node == stop) {
+            return true;
+        }
+        char other[BLI_ID_MAX];
+        bli_entry_base_id(node, other);
+        if (strcmp(other, base) == 0) {
+            (*dups)++;
+        }
+    }
+    return false;
+}
+
+static void bli_entry_id(struct menu_entry *entry, char *buf) {
+    bli_entry_base_id(entry, buf);
+
+    size_t dups = 0;
+    bli_id_dups_before(menu_tree, entry, buf, &dups);
+    if (dups == 0) {
+        return;
+    }
+
+    size_t o = strlen(buf);
+    buf[o++] = '-';
+    char digits[20];
+    size_t ndigits = 0;
+    size_t val = dups + 1;
+    do {
+        digits[ndigits++] = '0' + (val % 10);
+        val /= 10;
+    } while (val > 0);
+    for (size_t i = ndigits; i > 0; i--) {
+        buf[o++] = digits[i - 1];
+    }
+    buf[o] = '\0';
+}
+
+static struct menu_entry *bli_id_to_entry(struct menu_entry *node, const char *id) {
+    for (; node != NULL; node = node->next) {
+        if (should_skip_entry(node)) {
+            continue;
+        }
+        if (node->sub != NULL) {
+            struct menu_entry *found = bli_id_to_entry(node->sub, id);
+            if (found != NULL) {
+                return found;
+            }
+            continue;
+        }
+        char buf[BLI_ID_MAX];
+        bli_entry_id(node, buf);
+        if (strcmp(buf, id) == 0) {
+            return node;
+        }
+    }
+    return NULL;
+}
+
+static void bli_publish_entries_walk(struct menu_entry *node) {
+    for (; node != NULL; node = node->next) {
+        if (should_skip_entry(node)) {
+            continue;
+        }
+        if (node->sub != NULL) {
+            bli_publish_entries_walk(node->sub);
+            continue;
+        }
+        char buf[BLI_ID_MAX];
+        bli_entry_id(node, buf);
+        bli_entries_add(buf);
+    }
+}
 #endif
 
 // Parse one component from an escaped path string.
@@ -1130,6 +1257,26 @@ static bool find_entry_by_path(const char *path, struct menu_entry *current_entr
     pmm_free(comp_name, strlen(comp_name) + 1);
     return ret;
 }
+
+#if defined (UEFI)
+// A LoaderEntries identifier names the entry; a path is also accepted, as
+// an older LoaderEntryDefault in NVRAM can hold one.
+static void find_entry_by_bli_id_or_path(const char *str,
+                                         struct menu_entry **found_entry,
+                                         size_t *found_index) {
+    struct menu_entry *entry = bli_id_to_entry(menu_tree, str);
+    if (entry != NULL) {
+        char path[MENU_PATH_MAX];
+        size_t pos = 0;
+        get_entry_path(entry, path, sizeof(path), &pos);
+        find_entry_by_path(path, menu_tree, 0, found_entry, found_index, true);
+        if (*found_entry != NULL) {
+            return;
+        }
+    }
+    find_entry_by_path(str, menu_tree, 0, found_entry, found_index, true);
+}
+#endif
 
 static size_t print_tree(size_t offset, size_t window, const char *shift, size_t level, size_t base_index, size_t selected_entry,
                       struct menu_entry *current_entry,
@@ -1688,13 +1835,17 @@ noreturn void _menu(bool first_run) {
     bool has_entry = false;
 
 #if defined (UEFI)
+    bli_entries_reset();
+    bli_publish_entries_walk(menu_tree);
+    bli_entries_publish();
+
     {
         char path[MENU_PATH_MAX];
         if (bli_get_oneshot_entry(path, MENU_PATH_MAX)) {
-            // Find the entry with this path, expand directories, and get its index.
+            // Find the entry, expand directories, and get its index.
             struct menu_entry *found_entry = NULL;
             size_t found_index = 0;
-            find_entry_by_path(path, menu_tree, 0, &found_entry, &found_index, true);
+            find_entry_by_bli_id_or_path(path, &found_entry, &found_index);
             if (found_entry != NULL) {
                 selected_entry = found_index;
                 has_entry = true;
@@ -1764,10 +1915,10 @@ noreturn void _menu(bool first_run) {
     if (!has_entry) {
         char path[MENU_PATH_MAX];
         if (bli_get_default_entry(path, MENU_PATH_MAX)) {
-            // Find the entry with this path, expand directories, and get its index.
+            // Find the entry, expand directories, and get its index.
             struct menu_entry *found_entry = NULL;
             size_t found_index = 0;
-            find_entry_by_path(path, menu_tree, 0, &found_entry, &found_index, true);
+            find_entry_by_bli_id_or_path(path, &found_entry, &found_index);
             if (found_entry != NULL) {
                 selected_entry = found_index;
                 has_entry = true;
@@ -2159,7 +2310,10 @@ timeout_aborted:
                                  EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
                                  strlen(entry_path) + 1,
                                  entry_path);
-                bli_set_selected_entry(entry_path);
+
+                char entry_id[BLI_ID_MAX];
+                bli_entry_id(selected_menu_entry, entry_id);
+                bli_set_selected_entry(entry_id);
 #endif
 
                 boot(selected_menu_entry->body);
