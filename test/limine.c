@@ -218,6 +218,14 @@ static volatile struct limine_flanterm_fb_init_params_request fip_request = {
     .revision = 0, .response = NULL,
 };
 
+__attribute__((section(".limine_requests")))
+static volatile struct limine_entropy_request entropy_request = {
+    .id = LIMINE_ENTROPY_REQUEST_ID,
+    .revision = 0, .response = NULL,
+
+    .value_count = 8
+};
+
 __attribute__((used, section(".limine_requests_end_marker")))
 static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
@@ -774,6 +782,20 @@ FEAT_START
     printf("Reset time: %lu usec\n", perf_response->reset_usec);
     printf("Init time: %lu usec\n", perf_response->init_usec);
     printf("Exec time: %lu usec\n", perf_response->exec_usec);
+FEAT_END
+
+FEAT_START
+    printf("\n");
+    if (entropy_request.response == NULL) {
+        printf("Entropy not passed\n");
+        break;
+    }
+    struct limine_entropy_response *entropy_response = entropy_request.response;
+    printf("Entropy feature, revision %lu\n", entropy_response->revision);
+    printf("%lu values:\n", entropy_response->value_count);
+    for (size_t i = 0; i < entropy_response->value_count; i++) {
+        printf("  %#lx\n", entropy_response->values[i]);
+    }
 FEAT_END
 
 #ifdef ENABLE_QEMU_SHUTDOWN
