@@ -267,6 +267,9 @@ Editor control options:
 * `if_arch` - Hide the entry if the current CPU architecture is not in the
   space separated list of permitted architectures
     * see the `ARCH` macro in [Built-in macros](#built-in-macros) for a list of possible architectures
+* `if_loader_arch` - Hide the entry if the Limine binary's own architecture is
+  not in the space separated list of permitted architectures
+    * see the `LOADER_ARCH` macro in [Built-in macros](#built-in-macros) for details
 
 > **NOTE:** `uefi` and `efi_chainload` are aliases of the `efi` protocol
 > option. `bios_chainload` is an alias of the `bios` protocol option.
@@ -456,3 +459,8 @@ Limine automatically defines these macros:
   if the 64-bit extensions are available, else `ia-32`.
 * `FW_TYPE` - This built-in macro expands to `UEFI` if booted using UEFI
   firmware, or `BIOS` if booted using legacy x86 BIOS.
+* `LOADER_ARCH` - This built-in macro expands to the architecture of the Limine
+  binary itself. Possible values are the same as `ARCH`: `x86-64`, `ia-32`,
+  `aarch64`, `riscv64`, `loongarch64`. Unlike `ARCH`, this is determined at
+  compile time and does not probe CPU capabilities; the IA-32 binary always
+  expands to `ia-32` even on a CPU with 64-bit extensions.
