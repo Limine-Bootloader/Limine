@@ -452,6 +452,12 @@ skip_loop:
     fw_type_macro->next = macros;
     macros = fw_type_macro;
 
+    struct macro *loader_arch_macro = ext_mem_alloc(sizeof(struct macro));
+    strcpy(loader_arch_macro->name, "LOADER_ARCH");
+    strcpy(loader_arch_macro->value, loader_arch());
+    loader_arch_macro->next = macros;
+    macros = loader_arch_macro;
+
     for (size_t i = 0; i < config_size;) {
         if ((config_size - i >= 3 && memcmp(config_addr + i, "\n${", 3) == 0)
          || (config_size - i >= 2 && i == 0 && memcmp(config_addr, "${", 2) == 0)) {
