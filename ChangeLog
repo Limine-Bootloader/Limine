@@ -1,3 +1,41 @@
+2026-09-01  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.7.0 ***
+
+    Noteworthy changes compared to the previous release, 12.6.1:
+
+    New features:
+        - Limine boot protocol: Add a new "Entropy" feature, handing the
+          executable, on request, a best effort list of random 64-bit values
+          drawn from the strongest sources available to the bootloader, from
+          RDSEED, RNDR, and the EFI RNG protocol down to a seeded PRNG.
+        - Publish the boot menu entries through the Boot Loader Interface's
+          LoaderEntries variable, naming each with an identifier systemd
+          accepts, and resolve those identifiers back through
+          LoaderEntryOneShot and LoaderEntryDefault, so that tools such as
+          `systemctl reboot --boot-loader-entry=` can name the entry to boot.
+          LoaderEntrySelected reports the same identifiers, and entry paths
+          remain accepted.
+        - Add the `terse` option, suppressing the informational loading
+          messages when booting an entry.
+
+    Bug fixes:
+        - Split a usable memory map entry around a reserved region lying inside
+          it rather than refusing to boot, as some firmware-provided memory
+          maps carry such nested entries.
+        - Boot Loader Interface: a `LoaderConfigTimeout` of `menu-hidden` or
+          `0` now boots the default entry with the menu hidden after a brief
+          window in which any key summons it, and a one-shot timeout overrides
+          the persistent variable, as the interface requires. CONFIG.md
+          documents how the variables rank against the `timeout` and
+          `default_entry` options.
+        - Set the Boot Loader Interface's LoaderDevicePartUUID variable only
+          where the boot volume carries a partition GUID. An MBR, optical, or
+          network boot no longer publishes a null GUID for
+          systemd-gpt-auto-generator to chase.
+        - Always merge contiguous kernel/modules memory map entries.
+        - Miscellaneous bug fixes.
+
 2026-08-24  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.6.1 ***
