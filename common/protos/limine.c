@@ -58,6 +58,9 @@ static enum executable_format detect_kernel_format(uint8_t *kernel, size_t kerne
 
 #define MEMMAP_MAX 1024
 
+// Bounds the entropy allocation; far past any cryptographic use anyway.
+#define ENTROPY_MAX_VALUES 4096
+
 static int paging_mode;
 
 static uint64_t get_hhdm_span_top(int base_revision) {
@@ -1801,6 +1804,40 @@ FEAT_START
     tsc_freq_response->frequency = tsc_freq;
 
     tsc_freq_request->response = reported_addr(tsc_freq_response);
+FEAT_END
+
+    // Entropy
+FEAT_START
+    struct limine_entropy_request *entropy_request = get_request(entropy_request, LIMINE_ENTROPY_REQUEST_ID);
+    if (entropy_request == NULL) {
+        break;
+    }
+
+    uint64_t entropy_count = entropy_request->value_count;
+    if (entropy_count > ENTROPY_MAX_VALUES) {
+        entropy_count = ENTROPY_MAX_VALUES;
+    }
+
+    struct limine_entropy_response *entropy_response =
+        ext_mem_alloc(sizeof(struct limine_entropy_response));
+
+    if (entropy_count > 0) {
+        uint64_t *entropy_values = ext_mem_alloc_counted(entropy_count, sizeof(uint64_t));
+
+        // Raw hardware entropy for as much of the array as it can give.
+        size_t entropy_filled = hw_entropy(entropy_values, entropy_count * sizeof(uint64_t));
+
+        // The seeded PRNG covers the rest, mixed over any partial value.
+        for (uint64_t i = entropy_filled / sizeof(uint64_t); i < entropy_count; i++) {
+            entropy_values[i] ^= rand64();
+        }
+
+        entropy_response->values = reported_addr(entropy_values);
+    }
+
+    entropy_response->value_count = entropy_count;
+
+    entropy_request->response = reported_addr(entropy_response);
 FEAT_END
 
     // Bootloader Performance
