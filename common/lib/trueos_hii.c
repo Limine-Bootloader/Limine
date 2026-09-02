@@ -1,0 +1,299 @@
+#if defined (UEFI)
+
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <efi.h>
+#include <lib/libc.h>
+#include <lib/misc.h>
+#include <lib/trueos_hii.h>
+#include <mm/pmm.h>
+
+#define TRPAY1_VERSION 1
+
+#define SEC_STATUS 1
+#define SEC_HII    2
+#define SEC_CONFIG 3
+
+#define CAPTURE_FLAG_HII_DATABASE    (1u << 0)
+#define CAPTURE_FLAG_HII_PACKAGES    (1u << 1)
+#define CAPTURE_FLAG_CONFIG_ROUTING  (1u << 3)
+#define CAPTURE_FLAG_CONFIG          (1u << 4)
+
+#define MAX_HII_PACKAGE_BYTES (12u * 1024u * 1024u)
+#define MAX_HII_CONFIG_BYTES  (4u * 1024u * 1024u)
+#define MAX_PAYLOAD_BYTES     (16u * 1024u * 1024u)
+
+#define TRUEOS_HII_DATABASE_PROTOCOL_GUID \
+    { 0xef9fc172, 0xa1b2, 0x4693, { 0xb3, 0x27, 0x6d, 0x32, 0xfc, 0x41, 0x60, 0x42 } }
+#define TRUEOS_HII_CONFIG_ROUTING_PROTOCOL_GUID \
+    { 0x587e72d7, 0xcc50, 0x4f79, { 0x82, 0x09, 0xca, 0x29, 0x1f, 0xc1, 0xa1, 0x0f } }
+
+// Only the members this file actually calls; real firmware structs are
+// longer, but C field access only needs an accurate layout up to the member
+// used, matching the equivalent trimmed-down bindings in bios_capture.rs.
+typedef struct {
+    void *NewPackageList;
+    void *RemovePackageList;
+    void *UpdatePackageList;
+    void *ListPackageLists;
+    EFI_STATUS (EFIAPI *ExportPackageLists)(void *This, void *Handle, UINTN *BufferSize, void *Buffer);
+} TRUEOS_HII_DATABASE_PROTOCOL;
+
+typedef struct {
+    void *ExtractConfig;
+    EFI_STATUS (EFIAPI *ExportConfig)(void *This, uint16_t **Results);
+} TRUEOS_HII_CONFIG_ROUTING_PROTOCOL;
+
+#pragma pack(push, 1)
+struct trpay1_header {
+    uint8_t  magic[8];
+    uint16_t version;
+    uint16_t header_bytes;
+    uint16_t section_entry_bytes;
+    uint16_t reserved0;
+    uint32_t section_count;
+    uint32_t total_bytes;
+    uint32_t capture_flags;
+    uint32_t reserved1;
+};
+
+struct trpay1_section {
+    uint32_t kind;
+    uint32_t flags;
+    uint32_t offset;
+    uint32_t length;
+    uint32_t crc32;
+    uint32_t reserved;
+    uint64_t status;
+};
+
+struct trstat1_status {
+    uint8_t  magic[8];
+    uint16_t version;
+    uint16_t bytes;
+    uint32_t flags;
+    uint64_t hii_database_locate_status;
+    uint64_t hii_export_query_status;
+    uint64_t hii_export_status;
+    uint64_t hii_parse_status;
+    uint32_t hii_bytes;
+    uint32_t package_lists;
+    uint32_t form_packages;
+    uint32_t string_packages;
+    uint64_t config_routing_locate_status;
+    uint64_t config_export_status;
+    uint32_t config_bytes;
+    uint32_t reserved;
+};
+#pragma pack(pop)
+
+static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
+    return (value + (alignment - 1)) & ~(alignment - 1);
+}
+
+static uint32_t crc32_of(const void *data, UINTN len) {
+    uint32_t crc = 0;
+    if (len == 0) {
+        return 0;
+    }
+    gBS->CalculateCrc32((void *)data, len, &crc);
+    return crc;
+}
+
+bool trueos_hii_capture(void **out_address, size_t *out_size) {
+    struct trstat1_status status;
+    memset(&status, 0, sizeof(status));
+    memcpy(status.magic, "TRSTAT1\0", 8);
+    status.version = TRPAY1_VERSION;
+    status.bytes = sizeof(status);
+    status.hii_database_locate_status = (uint64_t)EFI_NOT_FOUND;
+    status.hii_export_query_status = (uint64_t)EFI_NOT_STARTED;
+    status.hii_export_status = (uint64_t)EFI_NOT_STARTED;
+    status.hii_parse_status = (uint64_t)EFI_NOT_STARTED;
+    status.config_routing_locate_status = (uint64_t)EFI_NOT_FOUND;
+    status.config_export_status = (uint64_t)EFI_NOT_STARTED;
+
+    // HII package lists.
+    void *hii_buffer = NULL;
+    UINTN hii_len = 0;
+    {
+        EFI_GUID guid = TRUEOS_HII_DATABASE_PROTOCOL_GUID;
+        void *interface = NULL;
+        EFI_STATUS locate = gBS->LocateProtocol(&guid, NULL, &interface);
+        status.hii_database_locate_status = (uint64_t)locate;
+
+        if (!EFI_ERROR(locate) && interface != NULL) {
+            status.flags |= CAPTURE_FLAG_HII_DATABASE;
+            TRUEOS_HII_DATABASE_PROTOCOL *hii_db = (TRUEOS_HII_DATABASE_PROTOCOL *)interface;
+
+            UINTN bytes = 0;
+            EFI_STATUS query = hii_db->ExportPackageLists(interface, NULL, &bytes, NULL);
+            status.hii_export_query_status = (uint64_t)query;
+
+            bool query_ok = !EFI_ERROR(query)
+                || query == EFI_BUFFER_TOO_SMALL
+                || query == EFI_OUT_OF_RESOURCES;
+
+            if (query_ok && bytes != 0 && bytes <= MAX_HII_PACKAGE_BYTES) {
+                void *buffer = NULL;
+                EFI_STATUS alloc = gBS->AllocatePool(EfiLoaderData, bytes, &buffer);
+                if (!EFI_ERROR(alloc) && buffer != NULL) {
+                    UINTN exported_bytes = bytes;
+                    EFI_STATUS export = hii_db->ExportPackageLists(interface, NULL, &exported_bytes, buffer);
+                    status.hii_export_status = (uint64_t)export;
+                    if (!EFI_ERROR(export) && exported_bytes != 0 && exported_bytes <= bytes) {
+                        hii_buffer = buffer;
+                        hii_len = exported_bytes;
+                        status.hii_bytes = (uint32_t)exported_bytes;
+                        status.flags |= CAPTURE_FLAG_HII_PACKAGES;
+                    } else {
+                        gBS->FreePool(buffer);
+                    }
+                } else {
+                    status.hii_export_status = (uint64_t)alloc;
+                }
+            }
+        }
+    }
+
+    // Current HII configuration (redacted content; bounded metadata only
+    // downstream). NUL-terminated UTF-16, per EFI_HII_CONFIG_ROUTING_PROTOCOL.
+    uint16_t *config_buffer = NULL;
+    UINTN config_len = 0;
+    {
+        EFI_GUID guid = TRUEOS_HII_CONFIG_ROUTING_PROTOCOL_GUID;
+        void *interface = NULL;
+        EFI_STATUS locate = gBS->LocateProtocol(&guid, NULL, &interface);
+        status.config_routing_locate_status = (uint64_t)locate;
+
+        if (!EFI_ERROR(locate) && interface != NULL) {
+            status.flags |= CAPTURE_FLAG_CONFIG_ROUTING;
+            TRUEOS_HII_CONFIG_ROUTING_PROTOCOL *routing = (TRUEOS_HII_CONFIG_ROUTING_PROTOCOL *)interface;
+
+            uint16_t *config = NULL;
+            EFI_STATUS export = routing->ExportConfig(interface, &config);
+            status.config_export_status = (uint64_t)export;
+
+            if (!EFI_ERROR(export) && config != NULL) {
+                UINTN max_units = MAX_HII_CONFIG_BYTES / sizeof(uint16_t);
+                UINTN units = 0;
+                bool terminated = false;
+                while (units < max_units) {
+                    if (config[units] == 0) {
+                        units++;
+                        terminated = true;
+                        break;
+                    }
+                    units++;
+                }
+                if (terminated) {
+                    config_buffer = config;
+                    config_len = units * sizeof(uint16_t);
+                    status.config_bytes = (uint32_t)config_len;
+                    status.flags |= CAPTURE_FLAG_CONFIG;
+                } else {
+                    status.config_export_status = (uint64_t)EFI_BAD_BUFFER_SIZE;
+                    gBS->FreePool(config);
+                }
+            }
+        }
+    }
+
+    // Assemble the TRPAY1 payload: header, section directory, then sections.
+    size_t section_count = 1 + (hii_len != 0 ? 1 : 0) + (config_len != 0 ? 1 : 0);
+    uint64_t cursor = sizeof(struct trpay1_header)
+                     + (uint64_t)section_count * sizeof(struct trpay1_section);
+    cursor = align_up_u64(cursor, 8);
+    uint64_t status_offset = cursor;
+    cursor += sizeof(struct trstat1_status);
+
+    uint64_t hii_offset = 0;
+    if (hii_len != 0) {
+        cursor = align_up_u64(cursor, 8);
+        hii_offset = cursor;
+        cursor += hii_len;
+    }
+
+    uint64_t config_offset = 0;
+    if (config_len != 0) {
+        cursor = align_up_u64(cursor, 2);
+        config_offset = cursor;
+        cursor += config_len;
+    }
+
+    uint64_t total_bytes = cursor;
+    bool ok = total_bytes != 0 && total_bytes <= MAX_PAYLOAD_BYTES;
+
+    void *payload = NULL;
+    if (ok) {
+        payload = ext_mem_alloc(total_bytes);
+        ok = payload != NULL;
+    }
+
+    if (ok) {
+        memset(payload, 0, total_bytes);
+
+        struct trpay1_header header;
+        memset(&header, 0, sizeof(header));
+        memcpy(header.magic, "TRPAY1\0\0", 8);
+        header.version = TRPAY1_VERSION;
+        header.header_bytes = sizeof(header);
+        header.section_entry_bytes = sizeof(struct trpay1_section);
+        header.section_count = (uint32_t)section_count;
+        header.total_bytes = (uint32_t)total_bytes;
+        header.capture_flags = status.flags;
+        memcpy(payload, &header, sizeof(header));
+
+        struct trpay1_section entries[3];
+        memset(entries, 0, sizeof(entries));
+        size_t entry_index = 0;
+
+        memcpy((uint8_t *)payload + status_offset, &status, sizeof(status));
+        entries[entry_index].kind = SEC_STATUS;
+        entries[entry_index].flags = 1;
+        entries[entry_index].offset = (uint32_t)status_offset;
+        entries[entry_index].length = sizeof(status);
+        entries[entry_index].crc32 = crc32_of((uint8_t *)payload + status_offset, sizeof(status));
+        entry_index++;
+
+        if (hii_len != 0) {
+            memcpy((uint8_t *)payload + hii_offset, hii_buffer, hii_len);
+            entries[entry_index].kind = SEC_HII;
+            entries[entry_index].flags = 1 | (1u << 1); // captured, raw-hii
+            entries[entry_index].offset = (uint32_t)hii_offset;
+            entries[entry_index].length = (uint32_t)hii_len;
+            entries[entry_index].crc32 = crc32_of((uint8_t *)payload + hii_offset, hii_len);
+            entries[entry_index].status = status.hii_export_status;
+            entry_index++;
+        }
+
+        if (config_len != 0) {
+            memcpy((uint8_t *)payload + config_offset, config_buffer, config_len);
+            entries[entry_index].kind = SEC_CONFIG;
+            entries[entry_index].flags = 1 | (1u << 2) | (1u << 3); // captured, utf16, nul-terminated
+            entries[entry_index].offset = (uint32_t)config_offset;
+            entries[entry_index].length = (uint32_t)config_len;
+            entries[entry_index].crc32 = crc32_of((uint8_t *)payload + config_offset, config_len);
+            entries[entry_index].status = status.config_export_status;
+            entry_index++;
+        }
+
+        memcpy((uint8_t *)payload + sizeof(header), entries,
+               section_count * sizeof(struct trpay1_section));
+
+        *out_address = payload;
+        *out_size = total_bytes;
+    }
+
+    if (hii_buffer != NULL) {
+        gBS->FreePool(hii_buffer);
+    }
+    if (config_buffer != NULL) {
+        gBS->FreePool(config_buffer);
+    }
+
+    return ok;
+}
+
+#endif

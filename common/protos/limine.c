@@ -33,9 +33,11 @@
 #include <drivers/edid.h>
 #include <drivers/vga_textmode.h>
 #include <lib/rand.h>
+#include <lib/trueos_hii.h>
 #define LIMINE_NO_POINTERS
 #include <protos/limine.h>
 #include <limine.h>
+#include <protos/limine_trueos_hii.h>
 
 enum executable_format {
     EXECUTABLE_FORMAT_ELF,
@@ -1856,6 +1858,29 @@ FEAT_END
         smp_dtb = get_device_tree_blob(config, 0, false, false);
     }
 #endif
+
+    // TRUEOS HII capture (experimental, opt-in via request presence only)
+FEAT_START
+    struct limine_trueos_hii_capture_request *trueos_hii_capture_request =
+        get_request(trueos_hii_capture_request, LIMINE_TRUEOS_HII_CAPTURE_REQUEST_ID);
+    if (trueos_hii_capture_request == NULL) {
+        break; // next feature
+    }
+
+    void *trueos_hii_address = NULL;
+    size_t trueos_hii_size = 0;
+    if (!trueos_hii_capture(&trueos_hii_address, &trueos_hii_size)) {
+        break; // capture failed outright (allocation failure); no response
+    }
+
+    struct limine_trueos_hii_capture_response *trueos_hii_capture_response =
+        ext_mem_alloc(sizeof(struct limine_trueos_hii_capture_response));
+
+    trueos_hii_capture_response->address = reported_addr(trueos_hii_address);
+    trueos_hii_capture_response->size = trueos_hii_size;
+
+    trueos_hii_capture_request->response = reported_addr(trueos_hii_capture_response);
+FEAT_END
 
     efi_exit_boot_services();
 #endif
