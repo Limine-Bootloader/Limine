@@ -497,8 +497,21 @@ uint32_t io_apic_gsi_count(size_t io_apic) {
     return ((io_apic_read(io_apic, 1) & 0xff0000) >> 16) + 1;
 }
 
+// Firmware is known to list I/O APICs that are not actually there. Nothing
+// claims their MMIO window, so their ID, VER and ARB registers read back as
+// all ones.
+static bool io_apic_is_absent(size_t io_apic) {
+    return io_apic_read(io_apic, 0) == 0xffffffff
+        && io_apic_read(io_apic, 1) == 0xffffffff
+        && io_apic_read(io_apic, 2) == 0xffffffff;
+}
+
 void io_apic_mask_all(bool mask_nmi_and_extint) {
     for (size_t i = 0; i < max_io_apics; i++) {
+        if (io_apic_is_absent(i)) {
+            continue;
+        }
+
         uint32_t gsi_count = io_apic_gsi_count(i);
         for (uint32_t j = 0; j < gsi_count; j++) {
             uintptr_t ioredtbl = j * 2 + 16;
