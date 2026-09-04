@@ -273,10 +273,11 @@ void lapic_configure_bsp(void) {
                     continue;
                 }
                 struct madt_lapic *lapic = (void *)madt_ptr;
-                if (lapic->lapic_id == bsp_lapic_id) {
+                // As in init_smp(), an x2APIC entry carrying the same ID is
+                // what describes the CPU, so the walk goes on looking for one.
+                if (lapic->lapic_id == bsp_lapic_id && !found) {
                     bsp_acpi_uid = lapic->acpi_processor_uid;
                     found = true;
-                    goto done;
                 }
                 continue;
             }
