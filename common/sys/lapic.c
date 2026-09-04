@@ -43,7 +43,7 @@ static uint32_t lapic_madt_nmi_flags_to_lvt(uint16_t flags) {
     return lvt;
 }
 
-void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid, bool x2apic) {
+void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid) {
     pending_lint0 = UINT32_MAX; // no override
     pending_lint1 = UINT32_MAX; // no override
 
@@ -85,10 +85,9 @@ void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid, bool x2apic) {
                 continue;
             }
             case 0x0a: {
-                // Local x2APIC NMI
-                if (!x2apic) {
-                    continue;
-                }
+                // Local x2APIC NMI. Applied whatever mode the APIC is in: a
+                // UID above 0xfe fits in no Local APIC NMI structure, so this
+                // is the only one that can name such a processor.
                 if (*(madt_ptr + 1) < sizeof(struct madt_x2apic_nmi)) {
                     continue;
                 }
@@ -275,7 +274,7 @@ done:
     // The MADT-derived overrides are optional. The handoff state is not: it
     // needs no ACPI data and the protocol promises it unconditionally.
     // A UID no entry can carry still picks up the all-processor overrides.
-    lapic_prep_lint(madt, found ? bsp_acpi_uid : 0xffffffff, is_x2);
+    lapic_prep_lint(madt, found ? bsp_acpi_uid : 0xffffffff);
     lapic_configure_handoff_state();
 }
 
