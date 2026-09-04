@@ -151,6 +151,7 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
     case 'n': return GETCHAR_CURSOR_DOWN;
     case 'b': return GETCHAR_CURSOR_LEFT;
     case 'f': return GETCHAR_CURSOR_RIGHT;
+    case 'x': return GETCHAR_F10;
     default: break;
     }
 
