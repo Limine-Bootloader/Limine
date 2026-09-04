@@ -22,6 +22,38 @@
 
 static uint32_t pending_lint0 = UINT32_MAX; // no override
 static uint32_t pending_lint1 = UINT32_MAX; // no override
+static bool pending_lint0_is_x2apic = false;
+static bool pending_lint1_is_x2apic = false;
+
+// A processor given both NMI structures is one CPU, and the x2APIC one is what
+// describes it, as for the processor entries themselves.
+static void lapic_set_pending_lint(uint8_t lint, uint32_t lvt, bool is_x2apic) {
+    uint32_t *pending;
+    bool *pending_is_x2apic;
+
+    switch (lint) {
+        case 0: {
+            pending = &pending_lint0;
+            pending_is_x2apic = &pending_lint0_is_x2apic;
+            break;
+        }
+        case 1: {
+            pending = &pending_lint1;
+            pending_is_x2apic = &pending_lint1_is_x2apic;
+            break;
+        }
+        default: {
+            return;
+        }
+    }
+
+    if (*pending_is_x2apic && !is_x2apic) {
+        return;
+    }
+
+    *pending = lvt;
+    *pending_is_x2apic = is_x2apic;
+}
 
 static uint32_t lapic_madt_nmi_flags_to_lvt(uint16_t flags) {
     uint32_t lvt = 0x10400; // masked + NMI delivery mode
@@ -46,6 +78,8 @@ static uint32_t lapic_madt_nmi_flags_to_lvt(uint16_t flags) {
 void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid) {
     pending_lint0 = UINT32_MAX; // no override
     pending_lint1 = UINT32_MAX; // no override
+    pending_lint0_is_x2apic = false;
+    pending_lint1_is_x2apic = false;
 
     // The overrides are per-CPU and these are file statics: a caller with no
     // entry to apply still needs the previous CPU's values cleared.
@@ -76,12 +110,9 @@ void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid) {
                     continue;
                 }
 
-                uint32_t lvt = lapic_madt_nmi_flags_to_lvt(nmi->flags);
-                if (nmi->lint == 0) {
-                    pending_lint0 = lvt;
-                } else if (nmi->lint == 1) {
-                    pending_lint1 = lvt;
-                }
+                lapic_set_pending_lint(nmi->lint,
+                                       lapic_madt_nmi_flags_to_lvt(nmi->flags),
+                                       false);
                 continue;
             }
             case 0x0a: {
@@ -99,12 +130,9 @@ void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid) {
                     continue;
                 }
 
-                uint32_t lvt = lapic_madt_nmi_flags_to_lvt(nmi->flags);
-                if (nmi->lint == 0) {
-                    pending_lint0 = lvt;
-                } else if (nmi->lint == 1) {
-                    pending_lint1 = lvt;
-                }
+                lapic_set_pending_lint(nmi->lint,
+                                       lapic_madt_nmi_flags_to_lvt(nmi->flags),
+                                       true);
                 continue;
             }
         }
