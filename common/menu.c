@@ -500,8 +500,8 @@ refresh:
             print("\n\n");
         }
         terms[0]->get_cursor_pos(terms[0], &x, &y);
-        set_cursor_pos_helper((terms[0]->cols - 32) / 2, y);
-        print("%sESC\e[0m Discard and Exit    %sF10\e[0m Boot", interface_help_colour, interface_help_colour);
+        set_cursor_pos_helper((terms[0]->cols > 39) ? (terms[0]->cols - 39) / 2 : 0, y);
+        print("%sESC\e[0m Discard and Exit    %sF10/CTRL+X\e[0m Boot", interface_help_colour, interface_help_colour);
         print("\n\n");
     }
 
