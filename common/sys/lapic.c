@@ -545,6 +545,10 @@ void io_apic_mask_all(bool mask_nmi_and_extint) {
             }
 
             io_apic_write(i, ioredtbl, io_apic_read(i, ioredtbl) | (1 << 16));
+
+            // A posted write leaves the pin live for as long as it is in
+            // flight, and the kernel is entered shortly after this.
+            io_apic_read(i, ioredtbl);
         }
     }
 }
