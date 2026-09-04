@@ -32,6 +32,12 @@ void init_e820(void) {
             return;
         }
 
+        // A BIOS that stops echoing the signature mid-map leaves no way to
+        // tell a partial map from a complete one.
+        if (r.eax != 0x534d4150) {
+            panic(false, "E820 signature mismatch, memory map is unreliable");
+        }
+
         e820_map[i] = entry;
 
         if (!r.ebx) {
