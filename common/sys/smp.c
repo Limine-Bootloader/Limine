@@ -119,6 +119,42 @@ static bool smp_start_ap(uint32_t lapic_id, struct gdtr *gdtr,
     return false;
 }
 
+// A processor described by both structures is one CPU, and the x2APIC one is
+// what describes it: its ACPI UID field is 32 bits wide rather than 8.
+static bool madt_has_x2apic_entry(struct madt *madt, uint32_t apic_id) {
+    for (uint8_t *madt_ptr = (uint8_t *)madt->madt_entries_begin;
+      (uintptr_t)madt_ptr + 1 < (uintptr_t)madt + madt->header.length;
+      madt_ptr += *(madt_ptr + 1)) {
+        if (*(madt_ptr + 1) == 0
+         || (uintptr_t)madt_ptr + *(madt_ptr + 1) > (uintptr_t)madt + madt->header.length) {
+            break;
+        }
+        if (*madt_ptr != 9 || *(madt_ptr + 1) < sizeof(struct madt_x2apic)) {
+            continue;
+        }
+
+        struct madt_x2apic *x2lapic = (void *)madt_ptr;
+
+        if (x2lapic->x2apic_id == apic_id
+         && (x2lapic->flags & MADT_LAPIC_ENABLED)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool mp_info_has_lapic_id(struct limine_mp_info *mp_info, size_t count,
+                                 uint32_t lapic_id) {
+    for (size_t i = 0; i < count; i++) {
+        if (mp_info[i].lapic_id == lapic_id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 struct limine_mp_info *init_smp(size_t   *cpu_count,
                                  uint32_t *_bsp_lapic_id,
                                  int       paging_mode,
@@ -162,29 +198,6 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
     *_bsp_lapic_id = bsp_lapic_id;
 
     *cpu_count = 0;
-
-    // A Local APIC structure may follow the x2APIC structures it overrides, so
-    // whether the MADT has any has to be settled before the walks below.
-    bool madt_has_lapics = false;
-
-    for (uint8_t *madt_ptr = (uint8_t *)madt->madt_entries_begin;
-      (uintptr_t)madt_ptr + 1 < (uintptr_t)madt + madt->header.length;
-      madt_ptr += *(madt_ptr + 1)) {
-        if (*(madt_ptr + 1) == 0
-         || (uintptr_t)madt_ptr + *(madt_ptr + 1) > (uintptr_t)madt + madt->header.length) {
-            break;
-        }
-        if (*madt_ptr != 0 || *(madt_ptr + 1) < sizeof(struct madt_lapic)) {
-            continue;
-        }
-
-        struct madt_lapic *lapic = (void *)madt_ptr;
-
-        if (lapic->lapic_id != 0xff && (lapic->flags & MADT_LAPIC_ENABLED)) {
-            madt_has_lapics = true;
-            break;
-        }
-    }
 
     // Count the MAX of startable APs and allocate accordingly
     size_t max_cpus = 0;
@@ -267,6 +280,11 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                 if (!(lapic->flags & MADT_LAPIC_ENABLED))
                     continue;
 
+                if (madt_has_x2apic_entry(madt, lapic->lapic_id)
+                 || mp_info_has_lapic_id(ret, *cpu_count, lapic->lapic_id)) {
+                    continue;
+                }
+
                 struct limine_mp_info *info_struct = &ret[*cpu_count];
 
                 info_struct->processor_id = lapic->acpi_processor_uid;
@@ -317,16 +335,13 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                     continue;
                 }
 
-                // ACPI requires a processor whose APIC ID fits in 8 bits to be
-                // described by a Local APIC structure, so where those exist
-                // this is a duplicate of one rather than a further CPU.
-                if (madt_has_lapics && x2lapic->x2apic_id < 0xff) {
-                    continue;
-                }
-
                 // Check if we can actually try to start the AP
                 if (!(x2lapic->flags & MADT_LAPIC_ENABLED))
                     continue;
+
+                if (mp_info_has_lapic_id(ret, *cpu_count, x2lapic->x2apic_id)) {
+                    continue;
+                }
 
                 struct limine_mp_info *info_struct = &ret[*cpu_count];
 
