@@ -422,6 +422,12 @@ uint64_t x2apic_read(uint32_t reg) {
 }
 
 void x2apic_write(uint32_t reg, uint64_t data) {
+    // WRMSR to an x2APIC register is not serializing and may complete before
+    // preceding stores are globally visible. MFENCE does not order the WRMSR
+    // itself, hence the LFENCE.
+    // Intel SDM 325462-092, 13.12.3; AMD APM 40332 rev 4.10, 16.11.2.
+    asm volatile ("mfence; lfence" ::: "memory");
+
     wrmsr(0x800 + (reg >> 4), data);
 }
 
