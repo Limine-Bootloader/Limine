@@ -24,18 +24,31 @@ static pt_entry_t *get_next_level(pagemap_t pagemap, pt_entry_t *current_level,
                                   uint64_t virt, enum page_size desired_sz,
                                   size_t level_idx, size_t entry);
 
+#if defined (__x86_64__) || defined (__i386__)
+// Being naturally aligned, only a large page based at 0 can span the fixed
+// MTRRs, which give the first MiB of physical memory several memory types.
+// Such a page has an undefined type on AMD and costs a split back to 4KiB TLB
+// entries on Intel. Intel SDM 325462-092, 14.11.9;
+// AMD APM 40332 rev 4.10, Large Page Sizes.
+#define LARGE_PAGE_PHYS_OK(phys) ((phys) != 0)
+#else
+#define LARGE_PAGE_PHYS_OK(phys) (true)
+#endif
+
 void map_pages(pagemap_t pagemap, uint64_t virt, uint64_t phys, uint64_t flags, uint64_t count) {
     if (virt % 0x1000 != 0 || phys % 0x1000 != 0 || count % 0x1000 != 0) {
         panic(true, "vmm: Misaligned call to map_pages()");
     }
 
     for (uint64_t i = 0; i < count; ) {
-        if (((phys + i) & (0x40000000 - 1)) == 0 && ((virt + i) & (0x40000000 - 1)) == 0 && count - i >= 0x40000000) {
+        if (LARGE_PAGE_PHYS_OK(phys + i)
+         && ((phys + i) & (0x40000000 - 1)) == 0 && ((virt + i) & (0x40000000 - 1)) == 0 && count - i >= 0x40000000) {
             map_page(pagemap, virt + i, phys + i, flags, Size1GiB);
             i += 0x40000000;
             continue;
         }
-        if (((phys + i) & (0x200000 - 1)) == 0 && ((virt + i) & (0x200000 - 1)) == 0 && count - i >= 0x200000) {
+        if (LARGE_PAGE_PHYS_OK(phys + i)
+         && ((phys + i) & (0x200000 - 1)) == 0 && ((virt + i) & (0x200000 - 1)) == 0 && count - i >= 0x200000) {
             map_page(pagemap, virt + i, phys + i, flags, Size2MiB);
             i += 0x200000;
             continue;
