@@ -345,6 +345,7 @@ static const char *VALID_KEYS[] = {
     "ENTRY",
     "IF_FW_TYPE",
     "IF_ARCH",
+    "IF_LOADER_ARCH",
     NULL
 };
 
@@ -898,6 +899,37 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
             memcpy(buf, cur_arch, cur_arch_end - cur_arch);
             buf[cur_arch_end - cur_arch] = '\0';
             if (strcasecmp(buf, arch) == 0) {
+                skip = false;
+                break;
+            }
+            cur_arch = cur_arch_end;
+        }
+        if (skip) {
+            return true;
+        }
+    }
+    char *cur_entry_if_loader_arch = config_get_value(entry->body, 0, "IF_LOADER_ARCH");
+    if (cur_entry_if_loader_arch) {
+        const char *larch = loader_arch();
+        char *cur_arch = cur_entry_if_loader_arch;
+        bool skip = true;
+        while (*cur_arch) {
+            char *cur_arch_end = cur_arch;
+            while (*cur_arch_end && !isspace(*cur_arch_end)) {
+                ++cur_arch_end;
+            }
+            if (cur_arch == cur_arch_end) {
+                ++cur_arch;
+                continue;
+            }
+            char buf[16];
+            if (cur_arch_end - cur_arch >= 16) {
+                cur_arch = cur_arch_end;
+                continue;
+            }
+            memcpy(buf, cur_arch, cur_arch_end - cur_arch);
+            buf[cur_arch_end - cur_arch] = '\0';
+            if (strcasecmp(buf, larch) == 0) {
                 skip = false;
                 break;
             }
