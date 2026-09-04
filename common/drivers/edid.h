@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 struct edid_info_struct {
-    uint8_t padding[8];
+    uint8_t header[8];
     uint16_t manufacturer_id_be;
     uint16_t edid_id_code;
     uint32_t serial_num;

@@ -1,11 +1,35 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include <drivers/gop.h>
 #include <drivers/edid.h>
 #include <mm/pmm.h>
 #include <lib/misc.h>
 #include <lib/libc.h>
 #include <lib/print.h>
+
+// VESA E-EDID A2: the first eight bytes are a fixed pattern (3.3), and the
+// reader is required to check that the whole 128-byte block sums to zero
+// (3.11, note 3).
+static bool edid_is_valid(const struct edid_info_struct *edid) {
+    _Static_assert(sizeof(struct edid_info_struct) == 128,
+                   "EDID base block is 128 bytes");
+
+    static const uint8_t magic[8] = {
+        0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00
+    };
+
+    if (memcmp(edid->header, magic, sizeof(magic)) != 0) {
+        return false;
+    }
+
+    uint8_t sum = 0;
+    for (size_t i = 0; i < sizeof(struct edid_info_struct); i++) {
+        sum += ((const uint8_t *)edid)[i];
+    }
+
+    return sum == 0;
+}
 
 #if defined (BIOS)
 
@@ -31,12 +55,11 @@ struct edid_info_struct *get_edid_info(void) {
     if ((r.eax & 0xff00) != 0)
         goto fail;
 
-    for (size_t i = 0; i < sizeof(struct edid_info_struct); i++)
-        if (((uint8_t *)buf)[i] != 0)
-            goto success;
+    if (edid_is_valid(buf))
+        goto success;
 
 fail:
-    printv("edid: Could not fetch EDID data.\n");
+    printv("edid: No valid EDID data.\n");
     return NULL;
 
 success:
@@ -68,13 +91,12 @@ struct edid_info_struct *get_edid_info(EFI_HANDLE gop_handle) {
 
     memcpy(buf, edid->Edid, sizeof(struct edid_info_struct));
 
-    for (size_t i = 0; i < sizeof(struct edid_info_struct); i++)
-        if (((uint8_t *)buf)[i] != 0)
-            goto success;
+    if (edid_is_valid(buf))
+        goto success;
 
 fail:
     pmm_free(buf, sizeof(struct edid_info_struct));
-    printv("edid: Could not fetch EDID data.\n");
+    printv("edid: No valid EDID data.\n");
     return NULL;
 
 success:
