@@ -853,6 +853,37 @@ tab_part:
     goto refresh;
 }
 
+// Matches one architecture name against a space separated list of them.
+static bool arch_in_list(const char *list, const char *arch) {
+    while (*list) {
+        const char *end = list;
+        while (*end && !isspace(*end)) {
+            ++end;
+        }
+        if (list == end) {
+            ++list;
+            continue;
+        }
+
+        char buf[16];
+        size_t len = end - list;
+
+        // A name longer than the buffer matches no architecture, so it is
+        // passed over rather than truncated into one that could.
+        if (len < sizeof(buf)) {
+            memcpy(buf, list, len);
+            buf[len] = '\0';
+            if (strcasecmp(buf, arch) == 0) {
+                return true;
+            }
+        }
+
+        list = end;
+    }
+
+    return false;
+}
+
 static inline bool should_skip_entry(struct menu_entry *entry) {
     if (entry->sub != NULL) {
         return false;
@@ -878,66 +909,12 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
         }
     }
     char *cur_entry_if_arch = config_get_value(entry->body, 0, "IF_ARCH");
-    if (cur_entry_if_arch) {
-        const char *arch = current_arch();
-        char *cur_arch = cur_entry_if_arch;
-        bool skip = true;
-        while (*cur_arch) {
-            char *cur_arch_end = cur_arch;
-            while (*cur_arch_end && !isspace(*cur_arch_end)) {
-                ++cur_arch_end;
-            }
-            if (cur_arch == cur_arch_end) {
-                ++cur_arch;
-                continue;
-            }
-            char buf[16];
-            if (cur_arch_end - cur_arch >= 16) {
-                cur_arch = cur_arch_end;
-                continue;
-            }
-            memcpy(buf, cur_arch, cur_arch_end - cur_arch);
-            buf[cur_arch_end - cur_arch] = '\0';
-            if (strcasecmp(buf, arch) == 0) {
-                skip = false;
-                break;
-            }
-            cur_arch = cur_arch_end;
-        }
-        if (skip) {
-            return true;
-        }
+    if (cur_entry_if_arch && !arch_in_list(cur_entry_if_arch, current_arch())) {
+        return true;
     }
     char *cur_entry_if_loader_arch = config_get_value(entry->body, 0, "IF_LOADER_ARCH");
-    if (cur_entry_if_loader_arch) {
-        const char *larch = loader_arch();
-        char *cur_arch = cur_entry_if_loader_arch;
-        bool skip = true;
-        while (*cur_arch) {
-            char *cur_arch_end = cur_arch;
-            while (*cur_arch_end && !isspace(*cur_arch_end)) {
-                ++cur_arch_end;
-            }
-            if (cur_arch == cur_arch_end) {
-                ++cur_arch;
-                continue;
-            }
-            char buf[16];
-            if (cur_arch_end - cur_arch >= 16) {
-                cur_arch = cur_arch_end;
-                continue;
-            }
-            memcpy(buf, cur_arch, cur_arch_end - cur_arch);
-            buf[cur_arch_end - cur_arch] = '\0';
-            if (strcasecmp(buf, larch) == 0) {
-                skip = false;
-                break;
-            }
-            cur_arch = cur_arch_end;
-        }
-        if (skip) {
-            return true;
-        }
+    if (cur_entry_if_loader_arch && !arch_in_list(cur_entry_if_loader_arch, loader_arch())) {
+        return true;
     }
     return false;
 }
