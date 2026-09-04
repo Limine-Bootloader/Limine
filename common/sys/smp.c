@@ -213,13 +213,14 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
             }
             case 9: {
                 // Processor local x2APIC
-                if (!x2apic)
-                    continue;
-
                 if (*(madt_ptr + 1) < sizeof(struct madt_x2apic))
                     continue;
 
                 struct madt_x2apic *x2lapic = (void *)madt_ptr;
+
+                if (!x2apic && x2lapic->x2apic_id >= 0xff) {
+                    continue;
+                }
 
                 // Check if we can actually try to start the AP
                 if (x2lapic->flags & MADT_LAPIC_ENABLED)
@@ -299,9 +300,6 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
             }
             case 9: {
                 // Processor local x2APIC
-                if (!x2apic)
-                    continue;
-
                 if (*(madt_ptr + 1) < sizeof(struct madt_x2apic))
                     continue;
 
@@ -309,6 +307,13 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
 
                 // The x2APIC broadcast ID, as above
                 if (x2lapic->x2apic_id == 0xffffffff) {
+                    continue;
+                }
+
+                // 0xff is the broadcast destination of an ICR that only
+                // carries 8 bits of one, and firmware parks the processors
+                // above it. Intel SDM 325462-092, 13.12.8.1.
+                if (!x2apic && x2lapic->x2apic_id >= 0xff) {
                     continue;
                 }
 
@@ -338,13 +343,13 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
 
                 // Set up per-AP LINT values before starting
                 if (smp_configure_apic) {
-                    lapic_prep_lint(madt, x2lapic->acpi_processor_uid, true);
+                    lapic_prep_lint(madt, x2lapic->acpi_processor_uid, x2apic);
                 }
 
                 // Try to start the AP
                 if (!smp_start_ap(x2lapic->x2apic_id, &gdtr, info_struct,
                                   paging_mode, (uintptr_t)pagemap.top_level,
-                                  true, nx, hhdm, wp)) {
+                                  x2apic, nx, hhdm, wp)) {
                     print("smp: FAILED to bring-up AP\n");
                     continue;
                 }
