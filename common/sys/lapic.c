@@ -521,6 +521,26 @@ static bool io_apic_is_absent(size_t io_apic) {
         && io_apic_read(io_apic, 2) == 0xffffffff;
 }
 
+// Remote IRR latches when the I/O APIC accepts a level interrupt on a pin and
+// clears on the matching EOI. One left set by an interrupt the firmware never
+// acknowledged blocks its pin: nothing more is delivered from it.
+static void io_apic_clear_remote_irr(size_t io_apic, uintptr_t ioredtbl,
+                                     uint32_t entry) {
+    // An EOI only releases the latch while the entry reads as level triggered.
+    io_apic_write(io_apic, ioredtbl, entry | (1 << 15));
+
+    if ((io_apic_read(io_apic, 1) & 0xff) >= 0x20) {
+        // The EOI register of a version 0x20 or later I/O APIC has a fixed
+        // offset of its own rather than sitting behind the index/data pair.
+        mmoutd((uintptr_t)io_apics[io_apic]->address + 0x40, entry & 0xff);
+    } else {
+        // Without one, dropping the entry to edge is what releases the latch.
+        io_apic_write(io_apic, ioredtbl, entry & ~(1 << 15));
+    }
+
+    io_apic_write(io_apic, ioredtbl, entry);
+}
+
 void io_apic_mask_all(bool mask_nmi_and_extint) {
     for (size_t i = 0; i < max_io_apics; i++) {
         if (io_apic_is_absent(i)) {
@@ -548,7 +568,11 @@ void io_apic_mask_all(bool mask_nmi_and_extint) {
 
             // A posted write leaves the pin live for as long as it is in
             // flight, and the kernel is entered shortly after this.
-            io_apic_read(i, ioredtbl);
+            uint32_t entry = io_apic_read(i, ioredtbl);
+
+            if (entry & (1 << 14)) {
+                io_apic_clear_remote_irr(i, ioredtbl, entry);
+            }
         }
     }
 }
