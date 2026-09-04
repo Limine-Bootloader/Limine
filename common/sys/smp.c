@@ -233,6 +233,12 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
 
                 struct madt_lapic *lapic = (void *)madt_ptr;
 
+                // An entry carrying the broadcast ID describes no CPU, and
+                // INIT-SIPI to it would reset every CPU, this one included.
+                if (lapic->lapic_id == 0xff) {
+                    continue;
+                }
+
                 // Check if we can actually try to start the AP
                 if (!(lapic->flags & MADT_LAPIC_ENABLED))
                     continue;
@@ -277,6 +283,11 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                     continue;
 
                 struct madt_x2apic *x2lapic = (void *)madt_ptr;
+
+                // The x2APIC broadcast ID, as above
+                if (x2lapic->x2apic_id == 0xffffffff) {
+                    continue;
+                }
 
                 // Check if we can actually try to start the AP
                 if (!(x2lapic->flags & MADT_LAPIC_ENABLED))
