@@ -26,7 +26,7 @@ uint64_t x2apic_read(uint32_t reg);
 void x2apic_write(uint32_t reg, uint64_t data);
 
 void lapic_configure_bsp(void);
-void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid, bool x2apic);
+void lapic_prep_lint(struct madt *madt, uint32_t acpi_uid);
 void lapic_configure_handoff_state(void);
 
 void init_io_apics(void);
