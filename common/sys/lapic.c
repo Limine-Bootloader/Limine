@@ -477,7 +477,16 @@ void init_io_apics(void) {
             case 1: {
                 if (*(madt_ptr + 1) < sizeof(struct madt_io_apic))
                     continue;
-                io_apics[max_io_apics++] = (void *)madt_ptr;
+
+                struct madt_io_apic *io_apic = (void *)madt_ptr;
+
+                // A zeroed address is an unfilled MADT field, not an I/O APIC:
+                // probing it would put the register window at physical zero.
+                if (io_apic->address == 0) {
+                    continue;
+                }
+
+                io_apics[max_io_apics++] = io_apic;
                 continue;
             }
         }
