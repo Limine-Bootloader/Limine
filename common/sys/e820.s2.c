@@ -16,9 +16,11 @@ size_t e820_entries = 0;
 void init_e820(void) {
     struct rm_regs r = {0};
 
-    for (size_t i = 0; i < MAX_E820_ENTRIES; i++) {
-        struct memmap_entry entry;
+    // A BIOS is known to assume the buffer carries over between calls and to
+    // update only the fields it changes, so it is zeroed once, not per call.
+    struct memmap_entry entry = {0};
 
+    for (size_t i = 0; i < MAX_E820_ENTRIES; i++) {
         r.eax = 0xe820;
         r.ecx = 24;
         r.edx = 0x534d4150;
