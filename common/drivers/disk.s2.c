@@ -502,6 +502,41 @@ static EFI_DEVICE_PATH_PROTOCOL *get_device_path(EFI_HANDLE efi_handle) {
     return dp;
 }
 
+// UEFI 2.11, 13.9: LogicalPartition also reads TRUE for media that hold a
+// single partition, so it cannot tell a partition handle from the device it
+// sits on. The trailing media node can, since that node is the partition.
+static bool is_efi_handle_partition(EFI_HANDLE efi_handle) {
+    EFI_DEVICE_PATH_PROTOCOL *dp = get_device_path(efi_handle);
+    EFI_DEVICE_PATH_PROTOCOL *last = NULL;
+
+    while (dp != NULL && !IsDevicePathEnd(dp)) {
+        uint16_t len = DevicePathNodeLength(dp);
+
+        if (len < sizeof(EFI_DEVICE_PATH_PROTOCOL)) {
+            break;
+        }
+
+        last = dp;
+        dp = (void *)dp + len;
+    }
+
+    if (last != NULL) {
+        return last->Type == MEDIA_DEVICE_PATH
+            && (last->SubType == MEDIA_HARDDRIVE_DP
+             || last->SubType == MEDIA_CDROM_DP);
+    }
+
+    // No path to judge by leaves only the flag.
+    EFI_GUID block_io_guid = BLOCK_IO_PROTOCOL;
+    EFI_BLOCK_IO *block_io = NULL;
+
+    if (gBS->HandleProtocol(efi_handle, &block_io_guid, (void **)&block_io)) {
+        return false;
+    }
+
+    return block_io->Media->LogicalPartition;
+}
+
 // Compare device paths up to (but not including) partition nodes
 static bool device_paths_match_disk(EFI_DEVICE_PATH_PROTOCOL *dp1,
                                     EFI_DEVICE_PATH_PROTOCOL *dp2) {
@@ -642,10 +677,12 @@ struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle) {
 
             ret = volume_by_unique_sector(b2b);
             if (ret != NULL) {
+                bool is_partition = is_efi_handle_partition(efi_handle);
+
                 // Verify size, block size, and partition status match
                 if (block_io->Media->BlockSize == (uint32_t)ret->sector_size
                  && bdev_size == ret->sect_count * 512
-                 && block_io->Media->LogicalPartition == (ret->partition != 0)) {
+                 && is_partition == (ret->partition != 0)) {
                     return ret;
                 }
             }
@@ -845,7 +882,7 @@ fail:
         if (status != 0 || drive == NULL || drive->Media->LastBlock == 0)
             continue;
 
-        if (drive->Media->LogicalPartition)
+        if (is_efi_handle_partition(handles[i]))
             continue;
 
         if (drive->Media->BlockSize == 0
