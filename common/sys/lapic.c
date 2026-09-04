@@ -254,9 +254,9 @@ void lapic_configure_bsp(void) {
                 continue;
             }
             case 9: {
-                if (!is_x2) {
-                    continue;
-                }
+                // The BSP's ID reads back 8 bits wide in xAPIC mode, and an
+                // x2APIC entry can still be the only one carrying it: the two
+                // agree below 0xff. Intel SDM 325462-092, 13.12.8.1.
                 if (*(madt_ptr + 1) < sizeof(struct madt_x2apic)) {
                     continue;
                 }
