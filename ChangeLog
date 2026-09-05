@@ -1,3 +1,42 @@
+2026-09-05  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.8.0 ***
+
+    Noteworthy changes compared to the previous release, 12.7.0:
+
+    New features:
+        - Add a `if_loader_arch` configuration boot entry option that compares
+          against the architecture of Limine rather than the underlying
+          architecture of the machine, unlike `if_arch`. For example, this will
+          return `ia-32` on IA-32 UEFI or BIOS even if the machine is 64-bit
+          capable.
+        - Add a `LOADER_ARCH` macro that expands in much the same way.
+        - Support booting from the editor using the CTRL+X key combination
+          alongside the pre-existing F10 key method.
+
+    Bug fixes:
+        - Limine protocol/x86-64: Skip masking absent I/O APICs with detection
+          heuristic.
+        - Limine protocol/x86-64: Add proper fencing before x2APIC MSR writes.
+        - Limine protocol/x86-64: Ignore MADT I/O APIC entries with a null
+          address.
+        - Limine protocol/x86-64: Skip MADT entries carrying a broadcast APIC
+          ID.
+        - Limine protocol/x86-64: Prefer MADT x2APIC entries and avoid tracking
+          duplicate entries.
+        - Limine protocol/x86-64: Flush the I/O APIC masking writes.
+        - Limine protocol/x86-64: Clear a Remote IRR left set on a pin being
+          masked.
+        - Keep x86 large pages clear of the fixed MTRRs. This is because using
+          page sizes larger than 4KiB for mapping physical memory covered by
+          fixed range MTRRs is UB on AMD CPUs and a performance penalty on
+          Intel ones.
+        - Validate the EDID header and checksum before use.
+        - BIOS E820: Zero the entry buffer and reuse it across calls.
+        - BIOS E820: Verify the SMAP signature on every entry and panic if not
+          returned instead of accepting a potentially broken/corrupted memory
+          map.
+
 2026-09-01  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.7.0 ***
