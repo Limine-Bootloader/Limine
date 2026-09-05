@@ -11,9 +11,10 @@
 
 #define TRPAY1_VERSION 1
 
-#define SEC_STATUS 1
-#define SEC_HII    2
-#define SEC_CONFIG 3
+#define SEC_STATUS        1
+#define SEC_HII           2
+#define SEC_CONFIG        3
+#define SEC_BOOT_SERVICES 4
 
 #define CAPTURE_FLAG_HII_DATABASE           (1u << 0)
 #define CAPTURE_FLAG_HII_PACKAGES           (1u << 1)
@@ -24,6 +25,9 @@
 #define MAX_HII_PACKAGE_BYTES (12u * 1024u * 1024u)
 #define MAX_HII_CONFIG_BYTES  (4u * 1024u * 1024u)
 #define MAX_PAYLOAD_BYTES     (16u * 1024u * 1024u)
+#define MAX_RETAINED_BOOT_SERVICES_RANGES 512u
+
+#define BOOT_SERVICES_RANGE_EXECUTABLE (1u << 0)
 
 #define TRUEOS_HII_DATABASE_PROTOCOL_GUID \
     { 0xef9fc172, 0xa1b2, 0x4693, { 0xb3, 0x27, 0x6d, 0x32, 0xfc, 0x41, 0x60, 0x42 } }
@@ -87,12 +91,31 @@ struct trstat1_status {
     uint32_t config_bytes;
     uint32_t reserved;
 };
+
+struct trbsr1_header {
+    uint8_t  magic[8];
+    uint16_t version;
+    uint16_t header_bytes;
+    uint16_t entry_bytes;
+    uint16_t reserved0;
+    uint32_t count;
+    uint32_t flags;
+};
+
+struct trbsr1_entry {
+    uint64_t physical_start;
+    uint64_t length;
+    uint32_t memory_type;
+    uint32_t flags;
+};
 #pragma pack(pop)
 
 typedef EFI_STATUS (EFIAPI *TRUEOS_EXIT_BOOT_SERVICES)(EFI_HANDLE ImageHandle, UINTN MapKey);
 
 static TRUEOS_EXIT_BOOT_SERVICES trueos_original_exit_boot_services = NULL;
 static uint32_t *trueos_capture_flags = NULL;
+static struct trbsr1_header *trueos_retained_ranges = NULL;
+static struct trpay1_section *trueos_retained_section = NULL;
 
 static bool trueos_refresh_boot_services_crc(void) {
     if (gBS == NULL || gBS->CalculateCrc32 == NULL || gBS->Hdr.HeaderSize < sizeof(gBS->Hdr)) {
@@ -110,23 +133,74 @@ static bool trueos_refresh_boot_services_crc(void) {
 }
 
 static bool trueos_protect_boot_services_in_limine_map(void) {
-    if (efi_mmap == NULL || efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR) || efi_desc_size == 0) {
+    if (efi_mmap == NULL || efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR) || efi_desc_size == 0
+     || trueos_retained_ranges == NULL || trueos_retained_section == NULL) {
         return false;
     }
 
-    bool found = false;
     UINTN count = efi_mmap_size / efi_desc_size;
+    UINTN retained_count = 0;
+
+    // First validate that the complete set fits. Do not partially rewrite the
+    // map: the bit-31 proof means TRUEOS received every retained BS range.
     for (UINTN i = 0; i < count; i++) {
         EFI_MEMORY_DESCRIPTOR *entry = (void *)((uint8_t *)efi_mmap + i * efi_desc_size);
-        if (entry->Type == EfiBootServicesCode || entry->Type == EfiBootServicesData) {
-            // This edits Limine's final memory-map copy only. Firmware still
-            // owns the original descriptors because ExitBootServices is not
-            // called; TRUEOS must therefore never reclaim these pages.
-            entry->Type = EfiReservedMemoryType;
-            found = true;
+        if ((entry->Type != EfiBootServicesCode && entry->Type != EfiBootServicesData)
+         || entry->NumberOfPages == 0) {
+            continue;
         }
+        if (entry->NumberOfPages > UINT64_MAX / 4096
+         || retained_count == MAX_RETAINED_BOOT_SERVICES_RANGES) {
+            return false;
+        }
+        retained_count++;
     }
-    return found;
+    if (retained_count == 0) {
+        return false;
+    }
+
+    struct trbsr1_entry *ranges = (void *)((uint8_t *)trueos_retained_ranges
+        + sizeof(struct trbsr1_header));
+    memset(ranges, 0,
+           MAX_RETAINED_BOOT_SERVICES_RANGES * sizeof(struct trbsr1_entry));
+
+    UINTN out = 0;
+    for (UINTN i = 0; i < count; i++) {
+        EFI_MEMORY_DESCRIPTOR *entry = (void *)((uint8_t *)efi_mmap + i * efi_desc_size);
+        if ((entry->Type != EfiBootServicesCode && entry->Type != EfiBootServicesData)
+         || entry->NumberOfPages == 0) {
+            continue;
+        }
+
+        ranges[out].physical_start = entry->PhysicalStart;
+        ranges[out].length = (uint64_t)entry->NumberOfPages * 4096;
+        ranges[out].memory_type = entry->Type;
+        ranges[out].flags = entry->Type == EfiBootServicesCode
+            ? BOOT_SERVICES_RANGE_EXECUTABLE : 0;
+        out++;
+
+        // This edits Limine's final memory-map copy only. Firmware still owns
+        // these descriptors because ExitBootServices is not actually called;
+        // TRUEOS must therefore never reclaim them.
+        entry->Type = EfiReservedMemoryType;
+    }
+
+    trueos_retained_ranges->count = (uint32_t)out;
+    trueos_retained_ranges->flags = 1; // complete final handoff range set
+    trueos_retained_section->flags = 1; // captured
+    trueos_retained_section->status = (uint64_t)EFI_SUCCESS;
+
+    UINT32 crc = 0;
+    EFI_STATUS crc_status = gBS->CalculateCrc32(
+        trueos_retained_ranges,
+        trueos_retained_section->length,
+        &crc
+    );
+    if (EFI_ERROR(crc_status)) {
+        return false;
+    }
+    trueos_retained_section->crc32 = crc;
+    return true;
 }
 
 static EFI_STATUS EFIAPI trueos_retain_exit_boot_services(EFI_HANDLE image_handle, UINTN map_key) {
@@ -191,6 +265,10 @@ static uint32_t crc32_of(const void *data, UINTN len) {
 }
 
 bool trueos_hii_capture(void **out_address, size_t *out_size) {
+    trueos_capture_flags = NULL;
+    trueos_retained_ranges = NULL;
+    trueos_retained_section = NULL;
+
     struct trstat1_status status;
     memset(&status, 0, sizeof(status));
     memcpy(status.magic, "TRSTAT1\0", 8);
@@ -290,12 +368,21 @@ bool trueos_hii_capture(void **out_address, size_t *out_size) {
     }
 
     // Assemble the TRPAY1 payload: header, section directory, then sections.
-    size_t section_count = 1 + (hii_len != 0 ? 1 : 0) + (config_len != 0 ? 1 : 0);
+    // SEC_BOOT_SERVICES is always reserved in this experimental payload. Its
+    // fixed-capacity body is filled by the final ExitBootServices interception,
+    // when Limine has the actual final EFI memory map in hand.
+    size_t section_count = 2 + (hii_len != 0 ? 1 : 0) + (config_len != 0 ? 1 : 0);
     uint64_t cursor = sizeof(struct trpay1_header)
                      + (uint64_t)section_count * sizeof(struct trpay1_section);
     cursor = align_up_u64(cursor, 8);
     uint64_t status_offset = cursor;
     cursor += sizeof(struct trstat1_status);
+
+    cursor = align_up_u64(cursor, 8);
+    uint64_t retained_offset = cursor;
+    uint64_t retained_bytes = sizeof(struct trbsr1_header)
+        + (uint64_t)MAX_RETAINED_BOOT_SERVICES_RANGES * sizeof(struct trbsr1_entry);
+    cursor += retained_bytes;
 
     uint64_t hii_offset = 0;
     if (hii_len != 0) {
@@ -334,7 +421,7 @@ bool trueos_hii_capture(void **out_address, size_t *out_size) {
         header.capture_flags = status.flags;
         memcpy(payload, &header, sizeof(header));
 
-        struct trpay1_section entries[3];
+        struct trpay1_section entries[4];
         memset(entries, 0, sizeof(entries));
         size_t entry_index = 0;
 
@@ -344,6 +431,25 @@ bool trueos_hii_capture(void **out_address, size_t *out_size) {
         entries[entry_index].offset = (uint32_t)status_offset;
         entries[entry_index].length = sizeof(status);
         entries[entry_index].crc32 = crc32_of((uint8_t *)payload + status_offset, sizeof(status));
+        entry_index++;
+
+        struct trbsr1_header retained;
+        memset(&retained, 0, sizeof(retained));
+        memcpy(retained.magic, "TRBSR1\0\0", 8);
+        retained.version = 1;
+        retained.header_bytes = sizeof(retained);
+        retained.entry_bytes = sizeof(struct trbsr1_entry);
+        memcpy((uint8_t *)payload + retained_offset, &retained, sizeof(retained));
+
+        size_t retained_entry_index = entry_index;
+        entries[entry_index].kind = SEC_BOOT_SERVICES;
+        entries[entry_index].offset = (uint32_t)retained_offset;
+        entries[entry_index].length = (uint32_t)retained_bytes;
+        entries[entry_index].status = (uint64_t)EFI_NOT_READY;
+        entries[entry_index].crc32 = crc32_of(
+            (uint8_t *)payload + retained_offset,
+            (UINTN)retained_bytes
+        );
         entry_index++;
 
         if (hii_len != 0) {
@@ -371,6 +477,12 @@ bool trueos_hii_capture(void **out_address, size_t *out_size) {
         memcpy((uint8_t *)payload + sizeof(header), entries,
                section_count * sizeof(struct trpay1_section));
 
+        trueos_retained_ranges = (struct trbsr1_header *)((uint8_t *)payload + retained_offset);
+        trueos_retained_section = (struct trpay1_section *)(
+            (uint8_t *)payload + sizeof(header)
+            + retained_entry_index * sizeof(struct trpay1_section)
+        );
+
         *out_address = payload;
         *out_size = total_bytes;
     }
@@ -385,10 +497,13 @@ bool trueos_hii_capture(void **out_address, size_t *out_size) {
     if (ok) {
         // Arm only after the complete payload exists. The ExitBootServices
         // hook sets bit 31 in this exact header only after it successfully
-        // preserves the Boot Services descriptors and intercepts handoff.
+        // snapshots and protects every Boot Services range and intercepts
+        // handoff.
         trueos_capture_flags = &((struct trpay1_header *)payload)->capture_flags;
         if (!trueos_arm_boot_services_retention()) {
             trueos_capture_flags = NULL;
+            trueos_retained_ranges = NULL;
+            trueos_retained_section = NULL;
         }
     }
 
