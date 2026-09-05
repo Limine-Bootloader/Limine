@@ -1,8 +1,6 @@
 #ifndef LIB__TRUEOS_FIRMWARE_BRIDGE_H__
 #define LIB__TRUEOS_FIRMWARE_BRIDGE_H__
 
-#include <stdint.h>
-
 #define TRUEOS_FW_BRIDGE_OFF_FIRMWARE_CR3       0
 #define TRUEOS_FW_BRIDGE_OFF_FIRMWARE_STACK_TOP 8
 #define TRUEOS_FW_BRIDGE_OFF_TARGET             16
@@ -22,6 +20,8 @@
 #define TRUEOS_FW_BRIDGE_CONTROL_BYTES          168
 
 #ifndef __ASSEMBLER__
+
+#include <stdint.h>
 
 struct trueos_firmware_bridge_control {
     uint64_t firmware_cr3;
