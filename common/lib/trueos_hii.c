@@ -15,10 +15,11 @@
 #define SEC_HII    2
 #define SEC_CONFIG 3
 
-#define CAPTURE_FLAG_HII_DATABASE    (1u << 0)
-#define CAPTURE_FLAG_HII_PACKAGES    (1u << 1)
-#define CAPTURE_FLAG_CONFIG_ROUTING  (1u << 3)
-#define CAPTURE_FLAG_CONFIG          (1u << 4)
+#define CAPTURE_FLAG_HII_DATABASE           (1u << 0)
+#define CAPTURE_FLAG_HII_PACKAGES           (1u << 1)
+#define CAPTURE_FLAG_CONFIG_ROUTING         (1u << 3)
+#define CAPTURE_FLAG_CONFIG                 (1u << 4)
+#define CAPTURE_FLAG_BOOT_SERVICES_RETAINED (1u << 31)
 
 #define MAX_HII_PACKAGE_BYTES (12u * 1024u * 1024u)
 #define MAX_HII_CONFIG_BYTES  (4u * 1024u * 1024u)
@@ -87,6 +88,94 @@ struct trstat1_status {
     uint32_t reserved;
 };
 #pragma pack(pop)
+
+typedef EFI_STATUS (EFIAPI *TRUEOS_EXIT_BOOT_SERVICES)(EFI_HANDLE ImageHandle, UINTN MapKey);
+
+static TRUEOS_EXIT_BOOT_SERVICES trueos_original_exit_boot_services = NULL;
+static uint32_t *trueos_capture_flags = NULL;
+
+static bool trueos_refresh_boot_services_crc(void) {
+    if (gBS == NULL || gBS->CalculateCrc32 == NULL || gBS->Hdr.HeaderSize < sizeof(gBS->Hdr)) {
+        return false;
+    }
+
+    UINT32 crc = 0;
+    gBS->Hdr.CRC32 = 0;
+    EFI_STATUS status = gBS->CalculateCrc32(gBS, gBS->Hdr.HeaderSize, &crc);
+    if (EFI_ERROR(status)) {
+        return false;
+    }
+    gBS->Hdr.CRC32 = crc;
+    return true;
+}
+
+static bool trueos_protect_boot_services_in_limine_map(void) {
+    if (efi_mmap == NULL || efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR) || efi_desc_size == 0) {
+        return false;
+    }
+
+    bool found = false;
+    UINTN count = efi_mmap_size / efi_desc_size;
+    for (UINTN i = 0; i < count; i++) {
+        EFI_MEMORY_DESCRIPTOR *entry = (void *)((uint8_t *)efi_mmap + i * efi_desc_size);
+        if (entry->Type == EfiBootServicesCode || entry->Type == EfiBootServicesData) {
+            // This edits Limine's final memory-map copy only. Firmware still
+            // owns the original descriptors because ExitBootServices is not
+            // called; TRUEOS must therefore never reclaim these pages.
+            entry->Type = EfiReservedMemoryType;
+            found = true;
+        }
+    }
+    return found;
+}
+
+static EFI_STATUS EFIAPI trueos_retain_exit_boot_services(EFI_HANDLE image_handle, UINTN map_key) {
+    TRUEOS_EXIT_BOOT_SERVICES original = trueos_original_exit_boot_services;
+    bool protected = trueos_protect_boot_services_in_limine_map();
+
+    // Leave the table in its firmware-provided shape for TRUEOS. The hook is
+    // only for Limine's one handoff call; TRUEOS gets the original entry back.
+    if (original != NULL) {
+        gBS->ExitBootServices = original;
+    }
+    bool table_crc_ok = trueos_refresh_boot_services_crc();
+
+    // Retention is opt-in and self-proving. If the final map could not be made
+    // non-reclaimable, the capture payload is unavailable, or the table could
+    // not be restored consistently, fall back to the real firmware handoff.
+    if (!protected || !table_crc_ok || trueos_capture_flags == NULL || original == NULL) {
+        if (original != NULL) {
+            return original(image_handle, map_key);
+        }
+        return EFI_ABORTED;
+    }
+
+    // The kernel only trusts this bit. It is written after Limine actually
+    // attempted its handoff and we deliberately intercepted it, so an older
+    // patched Limine cannot accidentally make TRUEOS call dead Boot Services.
+    *trueos_capture_flags |= CAPTURE_FLAG_BOOT_SERVICES_RETAINED;
+    return EFI_SUCCESS;
+}
+
+static bool trueos_arm_boot_services_retention(void) {
+    if (trueos_original_exit_boot_services != NULL) {
+        return true;
+    }
+    if (gBS == NULL || gBS->ExitBootServices == NULL) {
+        return false;
+    }
+
+    trueos_original_exit_boot_services = gBS->ExitBootServices;
+    gBS->ExitBootServices = trueos_retain_exit_boot_services;
+    if (trueos_refresh_boot_services_crc()) {
+        return true;
+    }
+
+    gBS->ExitBootServices = trueos_original_exit_boot_services;
+    (void)trueos_refresh_boot_services_crc();
+    trueos_original_exit_boot_services = NULL;
+    return false;
+}
 
 static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
     return (value + (alignment - 1)) & ~(alignment - 1);
@@ -291,6 +380,16 @@ bool trueos_hii_capture(void **out_address, size_t *out_size) {
     }
     if (config_buffer != NULL) {
         gBS->FreePool(config_buffer);
+    }
+
+    if (ok) {
+        // Arm only after the complete payload exists. The ExitBootServices
+        // hook sets bit 31 in this exact header only after it successfully
+        // preserves the Boot Services descriptors and intercepts handoff.
+        trueos_capture_flags = &((struct trpay1_header *)payload)->capture_flags;
+        if (!trueos_arm_boot_services_retention()) {
+            trueos_capture_flags = NULL;
+        }
     }
 
     return ok;
