@@ -28,11 +28,19 @@
 #define MAX_RETAINED_BOOT_SERVICES_RANGES 512u
 
 #define BOOT_SERVICES_RANGE_EXECUTABLE (1u << 0)
+#define BOOT_SERVICES_RANGE_ENTRYPOINT  (1u << 1)
+#define BOOT_SERVICES_RANGE_TABLE       (1u << 2)
+
+#define BOOT_SERVICES_SET_COMPLETE          (1u << 0)
+#define BOOT_SERVICES_SET_WATCHDOG_DISABLED (1u << 1)
+#define BOOT_SERVICES_SET_EXIT_GROUP_SENT   (1u << 2)
 
 #define TRUEOS_HII_DATABASE_PROTOCOL_GUID \
     { 0xef9fc172, 0xa1b2, 0x4693, { 0xb3, 0x27, 0x6d, 0x32, 0xfc, 0x41, 0x60, 0x42 } }
 #define TRUEOS_HII_CONFIG_ROUTING_PROTOCOL_GUID \
     { 0x587e72d7, 0xcc50, 0x4f79, { 0x82, 0x09, 0xca, 0x29, 0x1f, 0xc1, 0xa1, 0x0f } }
+#define TRUEOS_EXIT_BOOT_SERVICES_EVENT_GROUP_GUID \
+    { 0x27abf055, 0xb1b8, 0x4c26, { 0x80, 0x48, 0x74, 0x8f, 0x37, 0xba, 0xa2, 0xdf } }
 
 // Only the members this file actually calls; real firmware structs are
 // longer, but C field access only needs an accurate layout up to the member
@@ -116,6 +124,9 @@ static TRUEOS_EXIT_BOOT_SERVICES trueos_original_exit_boot_services = NULL;
 static uint32_t *trueos_capture_flags = NULL;
 static struct trbsr1_header *trueos_retained_ranges = NULL;
 static struct trpay1_section *trueos_retained_section = NULL;
+static bool trueos_quiesce_completed = false;
+static bool trueos_watchdog_disabled = false;
+static bool trueos_exit_group_signalled = false;
 
 static bool trueos_refresh_boot_services_crc(void) {
     if (gBS == NULL || gBS->CalculateCrc32 == NULL || gBS->Hdr.HeaderSize < sizeof(gBS->Hdr)) {
@@ -132,30 +143,127 @@ static bool trueos_refresh_boot_services_crc(void) {
     return true;
 }
 
+static bool trueos_descriptor_bounds(EFI_MEMORY_DESCRIPTOR *entry, uint64_t *base, uint64_t *top) {
+    if (entry == NULL || entry->NumberOfPages == 0 || entry->NumberOfPages > UINT64_MAX / 4096) {
+        return false;
+    }
+    uint64_t bytes = (uint64_t)entry->NumberOfPages * 4096;
+    if (entry->PhysicalStart > UINT64_MAX - bytes) {
+        return false;
+    }
+    *base = entry->PhysicalStart;
+    *top = entry->PhysicalStart + bytes;
+    return true;
+}
+
+static bool trueos_descriptor_contains(EFI_MEMORY_DESCRIPTOR *entry, uintptr_t address) {
+    uint64_t base, top;
+    if (!trueos_descriptor_bounds(entry, &base, &top)) {
+        return false;
+    }
+    return (uint64_t)address >= base && (uint64_t)address < top;
+}
+
+static bool trueos_descriptor_contains_boot_service_entrypoint(EFI_MEMORY_DESCRIPTOR *entry) {
+    if (gBS == NULL || gBS->Hdr.HeaderSize < sizeof(gBS->Hdr)) {
+        return false;
+    }
+
+    size_t header_size = gBS->Hdr.HeaderSize;
+    if (header_size > sizeof(*gBS)) {
+        header_size = sizeof(*gBS);
+    }
+
+    const uint8_t *bytes = (const uint8_t *)gBS;
+    for (size_t offset = sizeof(gBS->Hdr);
+         offset + sizeof(uintptr_t) <= header_size;
+         offset += sizeof(uintptr_t)) {
+        uintptr_t target = 0;
+        memcpy(&target, bytes + offset, sizeof(target));
+        if (target != 0 && trueos_descriptor_contains(entry, target)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool trueos_signal_exit_boot_services_group(void) {
+    if (gBS == NULL || gBS->CreateEventEx == NULL || gBS->SignalEvent == NULL || gBS->CloseEvent == NULL) {
+        return false;
+    }
+
+    EFI_GUID group = TRUEOS_EXIT_BOOT_SERVICES_EVENT_GROUP_GUID;
+    EFI_EVENT event = NULL;
+    EFI_STATUS create = gBS->CreateEventEx(0, 0, NULL, NULL, &group, &event);
+    if (EFI_ERROR(create) || event == NULL) {
+        return false;
+    }
+
+    EFI_STATUS signal = gBS->SignalEvent(event);
+    EFI_STATUS close = gBS->CloseEvent(event);
+    return !EFI_ERROR(signal) && !EFI_ERROR(close);
+}
+
+static bool trueos_prepare_firmware_quiesce(void) {
+    if (trueos_quiesce_completed) {
+        return true;
+    }
+
+    trueos_watchdog_disabled = false;
+    if (gBS != NULL && gBS->SetWatchdogTimer != NULL) {
+        EFI_STATUS watchdog = gBS->SetWatchdogTimer(0, 0, 0, NULL);
+        trueos_watchdog_disabled = !EFI_ERROR(watchdog);
+    }
+
+    trueos_exit_group_signalled = trueos_signal_exit_boot_services_group();
+    if (!trueos_exit_group_signalled) {
+        return false;
+    }
+
+    trueos_quiesce_completed = true;
+    return true;
+}
+
 static bool trueos_protect_boot_services_in_limine_map(void) {
     if (efi_mmap == NULL || efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR) || efi_desc_size == 0
-     || trueos_retained_ranges == NULL || trueos_retained_section == NULL) {
+     || trueos_retained_ranges == NULL || trueos_retained_section == NULL
+     || gBS == NULL || gBS->CalculateCrc32 == NULL) {
         return false;
     }
 
     UINTN count = efi_mmap_size / efi_desc_size;
     UINTN retained_count = 0;
+    bool table_found = false;
+    bool crc_entrypoint_found = false;
+    uintptr_t crc_target = (uintptr_t)gBS->CalculateCrc32;
 
-    // First validate that the complete set fits. Do not partially rewrite the
-    // map: the bit-31 proof means TRUEOS received every retained BS range.
+    // Retain the normal BootServicesCode/Data set plus any descriptor that
+    // contains the Boot Services table or a direct function entrypoint. Some
+    // real firmware places DXE core entrypoints in a non-BootServicesCode EFI
+    // memory type; the first bare-metal TRUEOS probe observed exactly that for
+    // CalculateCrc32().
     for (UINTN i = 0; i < count; i++) {
         EFI_MEMORY_DESCRIPTOR *entry = (void *)((uint8_t *)efi_mmap + i * efi_desc_size);
-        if ((entry->Type != EfiBootServicesCode && entry->Type != EfiBootServicesData)
-         || entry->NumberOfPages == 0) {
+        if (entry->NumberOfPages == 0) {
             continue;
         }
+
+        bool table = trueos_descriptor_contains(entry, (uintptr_t)gBS);
+        bool entrypoint = trueos_descriptor_contains_boot_service_entrypoint(entry);
+        bool standard = entry->Type == EfiBootServicesCode || entry->Type == EfiBootServicesData;
+        if (!standard && !table && !entrypoint) {
+            continue;
+        }
+
         if (entry->NumberOfPages > UINT64_MAX / 4096
          || retained_count == MAX_RETAINED_BOOT_SERVICES_RANGES) {
             return false;
         }
         retained_count++;
+        table_found |= table;
+        crc_entrypoint_found |= trueos_descriptor_contains(entry, crc_target);
     }
-    if (retained_count == 0) {
+    if (retained_count == 0 || !table_found || !crc_entrypoint_found) {
         return false;
     }
 
@@ -167,16 +275,30 @@ static bool trueos_protect_boot_services_in_limine_map(void) {
     UINTN out = 0;
     for (UINTN i = 0; i < count; i++) {
         EFI_MEMORY_DESCRIPTOR *entry = (void *)((uint8_t *)efi_mmap + i * efi_desc_size);
-        if ((entry->Type != EfiBootServicesCode && entry->Type != EfiBootServicesData)
-         || entry->NumberOfPages == 0) {
+        if (entry->NumberOfPages == 0) {
+            continue;
+        }
+
+        bool table = trueos_descriptor_contains(entry, (uintptr_t)gBS);
+        bool entrypoint = trueos_descriptor_contains_boot_service_entrypoint(entry);
+        bool standard = entry->Type == EfiBootServicesCode || entry->Type == EfiBootServicesData;
+        if (!standard && !table && !entrypoint) {
             continue;
         }
 
         ranges[out].physical_start = entry->PhysicalStart;
         ranges[out].length = (uint64_t)entry->NumberOfPages * 4096;
         ranges[out].memory_type = entry->Type;
-        ranges[out].flags = entry->Type == EfiBootServicesCode
-            ? BOOT_SERVICES_RANGE_EXECUTABLE : 0;
+        ranges[out].flags = 0;
+        if (entry->Type == EfiBootServicesCode || entrypoint) {
+            ranges[out].flags |= BOOT_SERVICES_RANGE_EXECUTABLE;
+        }
+        if (entrypoint) {
+            ranges[out].flags |= BOOT_SERVICES_RANGE_ENTRYPOINT;
+        }
+        if (table) {
+            ranges[out].flags |= BOOT_SERVICES_RANGE_TABLE;
+        }
         out++;
 
         // This edits Limine's final memory-map copy only. Firmware still owns
@@ -186,7 +308,13 @@ static bool trueos_protect_boot_services_in_limine_map(void) {
     }
 
     trueos_retained_ranges->count = (uint32_t)out;
-    trueos_retained_ranges->flags = 1; // complete final handoff range set
+    trueos_retained_ranges->flags = BOOT_SERVICES_SET_COMPLETE;
+    if (trueos_watchdog_disabled) {
+        trueos_retained_ranges->flags |= BOOT_SERVICES_SET_WATCHDOG_DISABLED;
+    }
+    if (trueos_exit_group_signalled) {
+        trueos_retained_ranges->flags |= BOOT_SERVICES_SET_EXIT_GROUP_SENT;
+    }
     trueos_retained_section->flags = 1; // captured
     trueos_retained_section->status = (uint64_t)EFI_SUCCESS;
 
@@ -205,10 +333,28 @@ static bool trueos_protect_boot_services_in_limine_map(void) {
 
 static EFI_STATUS EFIAPI trueos_retain_exit_boot_services(EFI_HANDLE image_handle, UINTN map_key) {
     TRUEOS_EXIT_BOOT_SERVICES original = trueos_original_exit_boot_services;
+
+    // First pass: perform the firmware driver's normal ExitBootServices event
+    // notification without actually ending Boot Services. Signalling an event
+    // group is explicitly supported by UEFI; returning an error then makes
+    // Limine reacquire a fresh memory map after any callbacks have quiesced
+    // device-facing DXE state.
+    if (!trueos_quiesce_completed) {
+        if (!trueos_prepare_firmware_quiesce()) {
+            if (original != NULL) {
+                gBS->ExitBootServices = original;
+                (void)trueos_refresh_boot_services_crc();
+                return original(image_handle, map_key);
+            }
+            return EFI_ABORTED;
+        }
+        return EFI_INVALID_PARAMETER;
+    }
+
     bool protected = trueos_protect_boot_services_in_limine_map();
 
     // Leave the table in its firmware-provided shape for TRUEOS. The hook is
-    // only for Limine's one handoff call; TRUEOS gets the original entry back.
+    // only for Limine's handoff calls; TRUEOS gets the original entry back.
     if (original != NULL) {
         gBS->ExitBootServices = original;
     }
@@ -268,6 +414,9 @@ bool trueos_hii_capture(void **out_address, size_t *out_size) {
     trueos_capture_flags = NULL;
     trueos_retained_ranges = NULL;
     trueos_retained_section = NULL;
+    trueos_quiesce_completed = false;
+    trueos_watchdog_disabled = false;
+    trueos_exit_group_signalled = false;
 
     struct trstat1_status status;
     memset(&status, 0, sizeof(status));
