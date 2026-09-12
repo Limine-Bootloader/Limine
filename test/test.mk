@@ -7,35 +7,24 @@ override LD := $(LD_FOR_TARGET)
 
 override CC_IS_CLANG := $(shell ! $(CC) --version 2>/dev/null | $(GREP) -q '^Target: '; echo $$?)
 
-ifeq ($(ARCH),x86)
 ifeq ($(CC_IS_CLANG),1)
 override CC += \
-    -target x86_64-unknown-none-elf
+    -target $(patsubst x86,x86_64,$(ARCH))-unknown-none-elf
 endif
+
+ifeq ($(ARCH),x86)
 override LDFLAGS += \
     -m elf_x86_64
 endif
 ifeq ($(ARCH),aarch64)
-ifeq ($(CC_IS_CLANG),1)
-override CC += \
-    -target aarch64-unknown-none-elf
-endif
 override LDFLAGS += \
     -m aarch64elf
 endif
 ifeq ($(ARCH),riscv64)
-ifeq ($(CC_IS_CLANG),1)
-override CC += \
-    -target riscv64-unknown-none-elf
-endif
 override LDFLAGS += \
     -m elf64lriscv
 endif
 ifeq ($(ARCH),loongarch64)
-ifeq ($(CC_IS_CLANG),1)
-override CC += \
-    -target loongarch64-unknown-none-elf
-endif
 override LDFLAGS += \
     -m elf64loongarch
 endif
