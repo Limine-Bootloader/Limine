@@ -53,7 +53,7 @@ loongarch_spinup:
         li.d    $t0, MAKE_PWCH(0, 0, PT_SHIFT, PT_BASE(3))
         csrwr   $t0, CSR_PWCH
 
-        la      $t0, loongarch_handle_refill
+        la.local $t0, loongarch_handle_refill
         csrwr   $t0, CSR_TLBRENTRY
 
 #define CSR_EUEN        0x02

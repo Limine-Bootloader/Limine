@@ -10,7 +10,7 @@ stack_at_first_entry:
 .extern _menu
 
 menu:
-    la $t0, stack_at_first_entry
+    la.local $t0, stack_at_first_entry
     ld.d $t1, $t0, 0
     beqz $t1, 1f
     move $sp, $t1
