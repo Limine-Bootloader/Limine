@@ -10,18 +10,18 @@ BUILDDIR="$(pwd -P)"
 
 # '&' otherwise yields an empty GNUmakefile with configure still exiting 0, and
 # '=' makes make recurse without bound.
-for limine_bad in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
+for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
     case "$SRCDIR" in
-        *"$limine_bad"*)
-            AC_MSG_ERROR([the source directory path contains '$limine_bad', which make or autoconf cannot represent; move the source tree])
+        *"$bad_char"*)
+            AC_MSG_ERROR([the source directory path contains '$bad_char'; move the source tree])
             ;;
     esac
 done
 
-for limine_bad in "'" '%' ':' '#' '$' '&' ';' '|' '='; do
+for bad_char in "'" '%' ':' '#' '$' '&' ';' '|' '='; do
     case "$BUILDDIR" in
-        *"$limine_bad"*)
-            AC_MSG_ERROR([the build directory path contains '$limine_bad', which make or autoconf cannot represent; use a different build directory])
+        *"$bad_char"*)
+            AC_MSG_ERROR([the build directory path contains '$bad_char'; use a different build directory])
             ;;
     esac
 done
