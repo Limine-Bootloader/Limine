@@ -9,7 +9,8 @@ SRCDIR="$(cd "$srcdir" && pwd -P)"
 BUILDDIR="$(pwd -P)"
 
 # '&' otherwise yields an empty GNUmakefile with configure still exiting 0, and
-# '=' makes make recurse without bound.
+# '=' makes make recurse without bound. '*' and '?' work from make 3.82
+# onwards, but macOS still ships 3.81.
 for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
     case "$SRCDIR" in
         *"$bad_char"*)
@@ -18,7 +19,7 @@ for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
     esac
 done
 
-for bad_char in "'" '%' ':' '#' '$' '&' ';' '|' '='; do
+for bad_char in "'" '%' ':' '#' '$' '&' ';' '|' '=' '*' '?'; do
     case "$BUILDDIR" in
         *"$bad_char"*)
             AC_MSG_ERROR([the build directory path contains '$bad_char'; use a different build directory])
