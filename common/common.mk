@@ -205,6 +205,15 @@ ifeq ($(TARGET),uefi-loongarch64)
         -mno-relax \
         -mfpu=none \
         -msimd=none
+    # Both compilers go through the GOT for external symbols by default, which
+    # only dynamic linking needs.
+    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
+        override CFLAGS_FOR_TARGET += \
+            -fdirect-access-external-data
+    else
+        override CFLAGS_FOR_TARGET += \
+            -mdirect-extern-access
+    endif
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
         $(CPPFLAGS_FOR_TARGET) \
