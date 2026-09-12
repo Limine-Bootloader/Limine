@@ -16,14 +16,14 @@ edk2-ovmf: edk2-ovmf.tar.gz
 .PHONY: test.hdd
 test.hdd:
 	rm -f test.hdd
-	dd if=/dev/zero bs=1M count=0 seek=64 of=test.hdd
+	dd if=/dev/zero bs=1024k count=0 seek=64 of=test.hdd
 	PATH=$$PATH:/usr/sbin:/sbin parted -s test.hdd mklabel msdos
 	PATH=$$PATH:/usr/sbin:/sbin parted -s test.hdd mkpart primary 2048s 100%
 
 .PHONY: mbrtest.hdd
 mbrtest.hdd:
 	rm -f mbrtest.hdd
-	dd if=/dev/zero bs=1M count=0 seek=64 of=mbrtest.hdd
+	dd if=/dev/zero bs=1024k count=0 seek=64 of=mbrtest.hdd
 	printf "o\nn\np\n1\n2048\n\nt\n6\na\nw\n\n" | fdisk mbrtest.hdd -H 16 -S 63
 
 .PHONY: fat12-test
