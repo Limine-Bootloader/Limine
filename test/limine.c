@@ -359,49 +359,54 @@ static void limine_main(void) {
 
     printf("\n");
 
-    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+    struct limine_framebuffer *fb = NULL;
+    if (framebuffer_request.response != NULL && framebuffer_request.response->framebuffer_count > 0) {
+        fb = framebuffer_request.response->framebuffers[0];
+    }
 
     struct limine_flanterm_fb_init_params *fip = NULL;
     if (fip_request.response != NULL && fip_request.response->entry_count > 0) {
         fip = fip_request.response->entries[0];
     }
 
-    if (fip != NULL) {
-        ft_ctx = flanterm_fb_init(
-            simple_malloc,
-            simple_free,
-            fb->address, fb->width, fb->height, fb->pitch,
-            fb->red_mask_size, fb->red_mask_shift,
-            fb->green_mask_size, fb->green_mask_shift,
-            fb->blue_mask_size, fb->blue_mask_shift,
-            fip->canvas,
-            fip->ansi_colours, fip->ansi_bright_colours,
-            &fip->default_bg, &fip->default_fg,
-            &fip->default_bg_bright, &fip->default_fg_bright,
-            fip->font, fip->font_width, fip->font_height, fip->font_spacing,
-            fip->font_scale_x, fip->font_scale_y,
-            fip->margin,
-            fip->rotation,
-            true
-        );
-    } else {
-        ft_ctx = flanterm_fb_init(
-            NULL,
-            NULL,
-            fb->address, fb->width, fb->height, fb->pitch,
-            fb->red_mask_size, fb->red_mask_shift,
-            fb->green_mask_size, fb->green_mask_shift,
-            fb->blue_mask_size, fb->blue_mask_shift,
-            NULL,
-            NULL, NULL,
-            NULL, NULL,
-            NULL, NULL,
-            NULL, 0, 0, 1,
-            0, 0,
-            0,
-            FLANTERM_FB_ROTATE_0,
-            true
-        );
+    if (fb != NULL && fb->memory_model == LIMINE_FRAMEBUFFER_RGB && fb->bpp == 32) {
+        if (fip != NULL) {
+            ft_ctx = flanterm_fb_init(
+                simple_malloc,
+                simple_free,
+                fb->address, fb->width, fb->height, fb->pitch,
+                fb->red_mask_size, fb->red_mask_shift,
+                fb->green_mask_size, fb->green_mask_shift,
+                fb->blue_mask_size, fb->blue_mask_shift,
+                fip->canvas,
+                fip->ansi_colours, fip->ansi_bright_colours,
+                &fip->default_bg, &fip->default_fg,
+                &fip->default_bg_bright, &fip->default_fg_bright,
+                fip->font, fip->font_width, fip->font_height, fip->font_spacing,
+                fip->font_scale_x, fip->font_scale_y,
+                fip->margin,
+                fip->rotation,
+                true
+            );
+        } else {
+            ft_ctx = flanterm_fb_init(
+                NULL,
+                NULL,
+                fb->address, fb->width, fb->height, fb->pitch,
+                fb->red_mask_size, fb->red_mask_shift,
+                fb->green_mask_size, fb->green_mask_shift,
+                fb->blue_mask_size, fb->blue_mask_shift,
+                NULL,
+                NULL, NULL,
+                NULL, NULL,
+                NULL, NULL,
+                NULL, 0, 0, 1,
+                0, 0,
+                0,
+                FLANTERM_FB_ROTATE_0,
+                true
+            );
+        }
     }
 
     uint64_t executable_slide = (uint64_t)executable_start - 0xffffffff80000000;
