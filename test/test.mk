@@ -98,6 +98,15 @@ override CFLAGS += \
     -mno-relax \
     -mfpu=none \
     -msimd=none
+# Both compilers go through the GOT for external symbols by default, which only
+# dynamic linking needs.
+ifeq ($(CC_IS_CLANG),1)
+override CFLAGS += \
+    -fdirect-access-external-data
+else
+override CFLAGS += \
+    -mdirect-extern-access
+endif
 override LDFLAGS += \
     --no-relax
 endif
