@@ -84,7 +84,7 @@ endif
 
 ifeq ($(ARCH),riscv64)
 override CFLAGS += \
-    -march=rv64imac \
+    -march=rv64imac_zicsr_zifencei \
     -mabi=lp64 \
     -mno-relax
 override LDFLAGS += \
