@@ -3,10 +3,15 @@
 .PHONY: test-clean
 test-clean:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk clean
-	rm -rf test_image test.hdd test.iso
+	rm -rf test_image test.hdd test.iso edk2-ovmf.tar.gz
 
-edk2-ovmf:
-	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | gunzip | tar -xf -
+.INTERMEDIATE: edk2-ovmf.tar.gz
+edk2-ovmf.tar.gz:
+	curl -fL -o $@ https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz
+
+edk2-ovmf: edk2-ovmf.tar.gz
+	rm -rf edk2-ovmf
+	gunzip < edk2-ovmf.tar.gz | tar -xf -
 
 .PHONY: test.hdd
 test.hdd:
