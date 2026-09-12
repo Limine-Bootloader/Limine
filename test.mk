@@ -3,7 +3,7 @@
 .PHONY: test-clean
 test-clean:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk clean
-	rm -rf test_image test.hdd test.iso edk2-ovmf.tar.gz
+	rm -rf test_image test.hdd mbrtest.hdd test.iso loopback_dev edk2-ovmf.tar.gz
 
 .INTERMEDIATE: edk2-ovmf.tar.gz
 edk2-ovmf.tar.gz:
