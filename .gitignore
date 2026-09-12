@@ -39,6 +39,7 @@
 /bochsout.txt
 /bx_enh_dbg.ini
 /test_image
+/loopback_dev
 /configure
 /configure.ac.save
 /timestamps
