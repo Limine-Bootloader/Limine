@@ -7,8 +7,8 @@
 
 In order to build Limine, the following programs have to be installed:
 common UNIX tools (also known as `coreutils`),
-`GNU make`, `grep`, `sed`, `find`, `awk`, `nasm`, `mtools`
-(optional, necessary to build `limine-uefi-cd.bin`).
+`GNU make`, `grep`, `sed`, `find`, `awk`, `nasm` (necessary to build the x86
+ports), `mtools` (optional, necessary to build `limine-uefi-cd.bin`).
 Furthermore, `gcc` or `llvm/clang` must also be installed, alongside
 the respective binutils.
 
