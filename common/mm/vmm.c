@@ -200,6 +200,7 @@ void vmm_assert_4k_pages(void) {
 #define PT_FLAG_READONLY ((uint64_t)1 << 7)
 #define PT_FLAG_INNER_SH ((uint64_t)3 << 8)
 #define PT_FLAG_ACCESS   ((uint64_t)1 << 10)
+#define PT_FLAG_NG       ((uint64_t)1 << 11)
 #define PT_FLAG_PXN      ((uint64_t)1 << 53)
 #define PT_FLAG_UXN      ((uint64_t)1 << 54)
 #define PT_FLAG_WB       ((uint64_t)0 << 2)
@@ -293,7 +294,7 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 
     bool is_higher_half = virt_addr & ((uint64_t)1 << 63);
 
-    uint64_t real_flags = PT_FLAG_VALID | PT_FLAG_ACCESS | PT_FLAG_WB;
+    uint64_t real_flags = PT_FLAG_VALID | PT_FLAG_ACCESS | PT_FLAG_NG | PT_FLAG_WB;
     if (!ds_encoding) {
         // Under DS these bits are OA[51:50]; shareability comes from TCR_EL1
         // instead, which LIMINE_TCR already sets to inner shareable.
@@ -469,10 +470,8 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 #define PT_FLAG_DIRTY   ((uint64_t)1 << 1)
 #define PT_FLAG_MAT_CC  ((uint64_t)1 << 4)
 #define PT_FLAG_MAT_WUC ((uint64_t)1 << 5)
-#define PT_FLAG_GLOBAL  ((uint64_t)1 << 6)
 #define PT_FLAG_HUGE    ((uint64_t)1 << 6)
 #define PT_FLAG_WRITE   ((uint64_t)1 << 8)
-#define PT_FLAG_HGLOBAL ((uint64_t)1 << 12)
 #define PT_FLAG_NX      ((uint64_t)1 << 62)
 #define PT_PADDR_MASK   ((uint64_t)0x0000FFFFFFFFF000)
 
@@ -481,7 +480,7 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 
 #define PT_TABLE_FLAGS      0
 #define PT_IS_TABLE(x)      ((level_idx > 0) && (((x) & PT_FLAG_VALID) == 0) && ((x) != INVALID_PAGE))
-#define PT_IS_LARGE(x)      (((x) & (PT_FLAG_HGLOBAL | PT_FLAG_HUGE)) == (PT_FLAG_HGLOBAL | PT_FLAG_HUGE))
+#define PT_IS_LARGE(x)      (((x) & (PT_FLAG_VALID | PT_FLAG_HUGE)) == (PT_FLAG_VALID | PT_FLAG_HUGE))
 #define PT_TO_VMM_FLAGS(x)  (pt_to_vmm_flags_internal(x))
 
 #define pte_new(addr, flags)    (pt_entry_t)((addr) | (flags))
@@ -539,7 +538,7 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 
     bool is_higher_half = virt_addr & ((uint64_t)1 << 63);
 
-    uint64_t real_flags = PT_FLAG_VALID | PT_FLAG_GLOBAL;
+    uint64_t real_flags = PT_FLAG_VALID;
     if (flags & VMM_FLAG_WRITE)
         real_flags |= PT_FLAG_DIRTY | PT_FLAG_WRITE;
     if (flags & VMM_FLAG_NOEXEC)
@@ -554,14 +553,14 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
     pml3 = get_next_level(pagemap, pml4, virt_addr, pg_size, 3, pml4_entry);
 
     if (pg_size == Size1GiB) {
-        pml3[pml3_entry] = pte_new(phys_addr, real_flags | PT_FLAG_HGLOBAL | PT_FLAG_HUGE);
+        pml3[pml3_entry] = pte_new(phys_addr, real_flags | PT_FLAG_HUGE);
         return;
     }
 
     pml2 = get_next_level(pagemap, pml3, virt_addr, pg_size, 2, pml3_entry);
 
     if (pg_size == Size2MiB) {
-        pml2[pml2_entry] = pte_new(phys_addr, real_flags | PT_FLAG_HGLOBAL | PT_FLAG_HUGE);
+        pml2[pml2_entry] = pte_new(phys_addr, real_flags | PT_FLAG_HUGE);
         return;
     }
 
