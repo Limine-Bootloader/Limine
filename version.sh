@@ -13,7 +13,7 @@ if test -f version; then
     exit 0
 fi
 
-if ! test -d .git || ! git log -n1 --pretty='%h' >/dev/null 2>&1; then
+if ! test -e .git || ! git log -n1 --pretty='%h' >/dev/null 2>&1; then
     printf 'UNVERSIONED'
     exit 0
 fi
