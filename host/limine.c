@@ -1070,6 +1070,10 @@ static int bios_install(int argc, char *argv[]) {
             return EXIT_FAILURE;
         } else {
             if (device != NULL) { // [GPT partition index]
+                if (part_ndx != NULL) {
+                    bios_install_usage();
+                    goto uninstall_mode_cleanup;
+                }
                 part_ndx = argv[i]; // TODO: Make this non-positional?
             } else if ((device = fopen(argv[i], "r+b")) == NULL) { // <device>
                 perror_wrap("error: `%s`", argv[i]);
