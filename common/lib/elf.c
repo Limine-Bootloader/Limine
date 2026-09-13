@@ -702,7 +702,11 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                 struct elf64_sym *s = (void *)elf + symtab_offset + sym_offset;
                 if (s->st_shndx == SHN_UNDEF) {
                     if ((s->st_info >> 4) == STB_WEAK) {
+#if defined (__aarch64__)
+                        reloc_store(ptr, relocation->r_addend);
+#else
                         reloc_store(ptr, 0);
+#endif
                         break;
                     }
                     if (strtab_size == 0) {
