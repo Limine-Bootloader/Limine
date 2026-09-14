@@ -524,15 +524,17 @@ out:
     already_inited = true;
 }
 
+// The index register can be a single byte, as on ICH10. Intel 319973-003,
+// 13.5.2.
 uint32_t io_apic_read(size_t io_apic, uint32_t reg) {
     uintptr_t base = (uintptr_t)io_apics[io_apic]->address;
-    mmoutd(base, reg);
+    mmoutb(base, (uint8_t)reg);
     return mmind(base + 16);
 }
 
 void io_apic_write(size_t io_apic, uint32_t reg, uint32_t value) {
     uintptr_t base = (uintptr_t)io_apics[io_apic]->address;
-    mmoutd(base, reg);
+    mmoutb(base, (uint8_t)reg);
     mmoutd(base + 16, value);
 }
 
