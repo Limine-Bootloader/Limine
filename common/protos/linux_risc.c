@@ -484,10 +484,10 @@ noreturn static void jump_to_kernel(struct boot_param *p) {
     sync_icache_range((uintptr_t)p->kernel_base, (uintptr_t)p->kernel_base + p->kernel_size);
 
     asm volatile ("csrxchg $r0, %0, 0x0" :: "r" (0x4) : "memory");
-    asm volatile ("csrwr   %0,  0x180"   :: "r" (CSR_DMW0_INIT) : "memory");
-    asm volatile ("csrwr   %0,  0x181"   :: "r" (CSR_DMW1_INIT) : "memory");
-    asm volatile ("csrwr   %0,  0x182"   :: "r" (CSR_DMW2_INIT) : "memory");
-    asm volatile ("csrwr   %0,  0x183"   :: "r" (CSR_DMW3_INIT) : "memory");
+    csr_write64(CSR_DMW0_INIT, 0x180);
+    csr_write64(CSR_DMW1_INIT, 0x181);
+    csr_write64(CSR_DMW2_INIT, 0x182);
+    csr_write64(CSR_DMW3_INIT, 0x183);
     kernel_entry(1, (uint64_t)p->cmdline, (uint64_t)gST);
 #endif
     __builtin_unreachable();
