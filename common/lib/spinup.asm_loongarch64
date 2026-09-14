@@ -43,6 +43,8 @@ loongarch_spinup:
         invtlb  0, $zero, $zero
         li.d    $t0, PAGE_SHIFT
         csrwr   $t0, CSR_STLBPS
+        // csrwr left the old STLBPS in t0.
+        li.d    $t0, PAGE_SHIFT
         csrwr   $t0, CSR_TLBREHI
 
         csrwr   $a2, CSR_PGDL
