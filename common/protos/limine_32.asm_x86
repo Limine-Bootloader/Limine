@@ -55,10 +55,14 @@ limine_spinup_32:
   .no_nx:
     wrmsr
 
-    ; Enable CR0.PG
+    ; Enable CR0.PG. AMD requires the next instruction to be a branch and
+    ; Intel recommends one. AMD64 APM 24593 Rev. 3.45, 14.6.1; Intel SDM
+    ; 325462-092, 25.30.3.
     mov eax, cr0
     bts eax, 31
     mov cr0, eax
+    jmp .paging_on
+  .paging_on:
 
     ; Go 64
     push 0x28

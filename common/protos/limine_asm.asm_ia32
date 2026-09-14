@@ -122,10 +122,14 @@ limine_memcpy_64_asm:
     bts eax, 8
     wrmsr
 
-    ; Enable CR0.PG
+    ; Enable CR0.PG. AMD requires the next instruction to be a branch and
+    ; Intel recommends one. AMD64 APM 24593 Rev. 3.45, 14.6.1; Intel SDM
+    ; 325462-092, 25.30.3.
     mov eax, cr0
     bts eax, 31
     mov cr0, eax
+    jmp .paging_on
+  .paging_on:
 
     ; Save old segments
 %ifdef UEFI
@@ -263,9 +267,13 @@ bits 32
 
     cmp dword [ebx + paging_state wrt ..gotoff], 0
     je .no_paging
+    ; Leaving long mode, Intel and AMD both require a branch right after
+    ; re-enabling paging. Intel SDM 325462-092, 12.8.5.4; AMD64 APM 24593
+    ; Rev. 3.45, 14.7.
     mov eax, cr0
     bts eax, 31
     mov cr0, eax
+    jmp .no_paging
   .no_paging:
 %endif
 
