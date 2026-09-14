@@ -99,6 +99,14 @@ smp_trampoline_start:
     mov eax, dword [ebx + (passed_info.pagemap - smp_trampoline_start)]
     mov cr3, eax
 
+    ; Intel faults IA-32e activation with a 16-bit TSS in TR, which AMD
+    ; documents as the INIT state, so load the 32-bit one first. Intel SDM
+    ; 325462-092, 12.8.5; AMD64 APM 24593 Rev. 3.45, Table 14-2.
+    mov ecx, dword [ebx + (passed_info.gdtr - smp_trampoline_start) + 2]
+    mov byte [ecx + 0x3d], 0x89
+    mov ax, 0x38
+    ltr ax
+
     ; Enable CR0.PG (and WP if requested)
     mov eax, cr0
     test dword [ebx + (passed_info.target_mode - smp_trampoline_start)], (1 << 4)
