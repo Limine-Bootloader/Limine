@@ -107,6 +107,11 @@ smp_trampoline_start:
   .no_wp:
     bts eax, 31
     mov cr0, eax
+    ; AMD requires a branch right after enabling paging and Intel
+    ; recommends one. AMD64 APM 24593 Rev. 3.45, 14.6.1; Intel SDM
+    ; 325462-092, 25.30.3.
+    jmp .paging_on
+  .paging_on:
 
 %ifdef IA32_TARGET
     ; Synchronise MTRRs with BSP
