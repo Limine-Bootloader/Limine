@@ -434,11 +434,11 @@ static inline void sync_icache_range(uintptr_t start, uintptr_t end) {
 })
 
 #define csr_write64(val, reg) do { \
-    __auto_type csr_write64__val = (val); \
+    uint64_t csr_write64__val = (uint64_t)(val); \
     asm volatile ( \
         "csrwr %0, %1" \
-        : \
-        : "r"(csr_write64__val), "i"(reg) \
+        : "+r"(csr_write64__val) \
+        : "i"(reg) \
         : "memory" \
     ); \
 } while (0)
