@@ -1851,6 +1851,11 @@ FEAT_END
     if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 20))) {
         nx_available = false;
     }
+#elif defined (__loongarch64)
+    // The NX bit is only defined with execution protection (CPUCFG1.EP).
+    if (!(loongarch_cpucfg(1) & (1 << 22))) {
+        nx_available = false;
+    }
 #endif
 
     // TSC Frequency
