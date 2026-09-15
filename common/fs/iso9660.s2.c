@@ -500,6 +500,14 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
                 }
             }
 
+            if (e->flags & ISO9660_FLAG_MULTI_EXTENT) {
+                if (!first) {
+                    pmm_free(current, current_size);
+                }
+                pmm_free(ret, sizeof(struct iso9660_file_handle));
+                return NULL;
+            }
+
             // Allocate extent array
             ret->extents = ext_mem_alloc_counted(extent_count, sizeof(struct iso9660_extent));
             ret->extent_count = extent_count;
