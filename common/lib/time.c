@@ -17,17 +17,20 @@ static int get_jdn(int days, int months, int years) {
 }
 
 static uint64_t get_unix_epoch(uint8_t seconds, uint8_t minutes, uint8_t  hours,
-                               uint8_t days,    uint8_t months,  uint16_t years) {
-    uint64_t jdn_current = get_jdn(days, months, years);
-    uint64_t jdn_1970    = get_jdn(1, 1, 1970);
+                               uint8_t days,    uint8_t months,  uint16_t years,
+                               int16_t timezone) {
+    int64_t jdn_current = get_jdn(days, months, years);
+    int64_t jdn_1970    = get_jdn(1, 1, 1970);
 
-    if (jdn_current < jdn_1970) {
+    int64_t jdn_diff = jdn_current - jdn_1970;
+    // UEFI defines local time = UTC - TimeZone (in minutes).
+    int64_t epoch = jdn_diff * (60 * 60 * 24) + hours * 3600
+                  + minutes * 60 + seconds + timezone * 60;
+    if (epoch < 0) {
         return 0;
     }
 
-    uint64_t jdn_diff = jdn_current - jdn_1970;
-
-    return (jdn_diff * (60 * 60 * 24)) + hours * 3600 + minutes * 60 + seconds;
+    return epoch;
 }
 
 #if defined (BIOS)
@@ -69,7 +72,7 @@ again:
         goto again;
     }
 
-    return get_unix_epoch(second, minute, hour, day, month, year);
+    return get_unix_epoch(second, minute, hour, day, month, year, 0);
 }
 #endif
 
@@ -83,6 +86,7 @@ uint64_t time(void) {
     }
 
     return get_unix_epoch(time.Second, time.Minute, time.Hour,
-                          time.Day, time.Month, time.Year);
+                          time.Day, time.Month, time.Year,
+                          time.TimeZone == EFI_UNSPECIFIED_TIMEZONE ? 0 : time.TimeZone);
 }
 #endif
