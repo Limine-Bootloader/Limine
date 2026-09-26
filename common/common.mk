@@ -10,34 +10,13 @@ override MKESCAPE = $(subst $(TAB),\$(TAB),$(subst $(SPACE),\ ,$(1)))
 override SHESCAPE = $(subst ','\'',$(1))
 override OBJESCAPE = $(subst .a ,.a' ',$(subst .o ,.o' ',$(call SHESCAPE,$(1))))
 
-override CC_FOR_TARGET_IS_CLANG := $(shell ! $(CC_FOR_TARGET) --version 2>/dev/null | $(GREP) -q '^Target: '; echo $$?)
-
 COM_OUTPUT := false
 E9_OUTPUT := false
 
 override S2CFLAGS := -Os
 
-override BASE_CFLAGS := $(CFLAGS_FOR_TARGET)
-
-override CFLAGS_FOR_TARGET += \
-    -g \
-    -Wall \
-    -Wextra \
-    -Wshadow \
-    -Wvla \
-    $(WERROR_FLAG) \
-    -std=gnu11 \
-    -nostdinc \
-    -ffreestanding \
-    -ffunction-sections \
-    -fdata-sections \
-    -fstack-protector-strong \
-    -fno-stack-check \
-    -fno-omit-frame-pointer \
-    -fno-strict-aliasing \
-    -fno-lto
-
 override CPPFLAGS_FOR_TARGET := \
+    -nostdinc \
     -I . \
     -I libc-compat \
     -I ../limine-protocol/include \
@@ -68,23 +47,12 @@ override NASMFLAGS_FOR_TARGET += \
 override NASMFLAGS_FOR_TARGET := \
     $(patsubst -g,-g -F dwarf,$(NASMFLAGS_FOR_TARGET))
 
+override TARGET_CFLAGS :=
+override TARGET_LDFLAGS :=
+
 ifeq ($(TARGET),bios)
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
-        override CC_FOR_TARGET += \
-            -target i686-unknown-none-elf
-    else
-        # GCC puts the x86 canary in the TLS block by default, and there is no
-        # TLS here. Clang already uses the global on the bare metal targets.
-        override CFLAGS_FOR_TARGET += \
-            -mstack-protector-guard=global
-    endif
-    override CFLAGS_FOR_TARGET += \
-        -fno-PIC \
-        -m32 \
-        -march=i686 \
-        -mabi=sysv \
-        -mno-80387 \
-        -mno-mmx
+    override TARGET_CFLAGS := $(BIOS_CFLAGS)
+    override TARGET_LDFLAGS := $(BIOS_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
         $(CPPFLAGS_FOR_TARGET) \
         -DBIOS
@@ -96,26 +64,8 @@ ifeq ($(TARGET),bios)
 endif
 
 ifeq ($(TARGET),uefi-x86-64)
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
-        override CC_FOR_TARGET += \
-            -target x86_64-unknown-none-elf
-    else
-        # GCC puts the x86 canary in the TLS block by default, and there is no
-        # TLS here. Clang already uses the global on the bare metal targets.
-        override CFLAGS_FOR_TARGET += \
-            -mstack-protector-guard=global
-    endif
-    override CFLAGS_FOR_TARGET += \
-        -fPIE \
-        -fshort-wchar \
-        -m64 \
-        -march=x86-64 \
-        -mabi=sysv \
-        -mno-80387 \
-        -mno-mmx \
-        -mno-sse \
-        -mno-sse2 \
-        -mno-red-zone
+    override TARGET_CFLAGS := $(UEFI_X86_64_CFLAGS)
+    override TARGET_LDFLAGS := $(UEFI_X86_64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
         $(CPPFLAGS_FOR_TARGET) \
@@ -128,24 +78,8 @@ ifeq ($(TARGET),uefi-x86-64)
 endif
 
 ifeq ($(TARGET),uefi-ia32)
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
-        override CC_FOR_TARGET += \
-            -target i686-unknown-none-elf
-    else
-        # GCC puts the x86 canary in the TLS block by default, and there is no
-        # TLS here. Clang already uses the global on the bare metal targets.
-        override CFLAGS_FOR_TARGET += \
-            -mstack-protector-guard=global
-    endif
-    override CFLAGS_FOR_TARGET += \
-        -fPIE \
-        -fshort-wchar \
-        -m32 \
-        -march=i686 \
-        -malign-double \
-        -mabi=sysv \
-        -mno-80387 \
-        -mno-mmx
+    override TARGET_CFLAGS := $(UEFI_IA32_CFLAGS)
+    override TARGET_LDFLAGS := $(UEFI_IA32_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
         $(CPPFLAGS_FOR_TARGET) \
@@ -158,17 +92,8 @@ ifeq ($(TARGET),uefi-ia32)
 endif
 
 ifeq ($(TARGET),uefi-aarch64)
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
-        override CC_FOR_TARGET += \
-            -target aarch64-unknown-none-elf
-    endif
-    override CFLAGS_FOR_TARGET += \
-        -fPIE \
-        -fshort-wchar \
-        -mcpu=generic \
-        -march=armv8-a+nofp+nosimd \
-        -mno-outline-atomics \
-        -mgeneral-regs-only
+    override TARGET_CFLAGS := $(UEFI_AARCH64_CFLAGS)
+    override TARGET_LDFLAGS := $(UEFI_AARCH64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
         $(CPPFLAGS_FOR_TARGET) \
@@ -176,16 +101,8 @@ ifeq ($(TARGET),uefi-aarch64)
 endif
 
 ifeq ($(TARGET),uefi-riscv64)
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
-        override CC_FOR_TARGET += \
-            -target riscv64-unknown-none-elf
-    endif
-    override CFLAGS_FOR_TARGET += \
-        -fPIE \
-        -fshort-wchar \
-        -march=rv64imac_zicsr_zifencei \
-        -mabi=lp64 \
-        -mno-relax
+    override TARGET_CFLAGS := $(UEFI_RISCV64_CFLAGS)
+    override TARGET_LDFLAGS := $(UEFI_RISCV64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
         $(CPPFLAGS_FOR_TARGET) \
@@ -193,88 +110,22 @@ ifeq ($(TARGET),uefi-riscv64)
 endif
 
 ifeq ($(TARGET),uefi-loongarch64)
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
-        override CC_FOR_TARGET += \
-            -target loongarch64-unknown-none-elf
-    endif
-    override CFLAGS_FOR_TARGET += \
-        -fPIE \
-        -fshort-wchar \
-        -march=loongarch64 \
-        -mabi=lp64s \
-        -mno-relax \
-        -mfpu=none \
-        -msimd=none
-    # Both compilers go through the GOT for external symbols by default, which
-    # only dynamic linking needs.
-    ifeq ($(CC_FOR_TARGET_IS_CLANG),1)
-        override CFLAGS_FOR_TARGET += \
-            -fdirect-access-external-data
-    else
-        override CFLAGS_FOR_TARGET += \
-            -mdirect-extern-access
-    endif
+    override TARGET_CFLAGS := $(UEFI_LOONGARCH64_CFLAGS)
+    override TARGET_LDFLAGS := $(UEFI_LOONGARCH64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
         -I ../picoefi/inc \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
 endif
 
-override LDFLAGS_FOR_TARGET += \
-    -nostdlib \
-    -z max-page-size=0x1000 \
-    -z noexecstack \
-    --gc-sections
-
-ifeq ($(TARGET),bios)
-    override LDFLAGS_FOR_TARGET += \
-        -m elf_i386 \
-        -static \
-        --build-id=sha1
-
-    override LD_FOR_TARGET_HAS_NO_PIE := $(shell ! $(LD_FOR_TARGET) --help 2>/dev/null | $(GREP) -qE '(^|[[:space:]])--?no-pie([[:space:]]|$$)'; echo $$?)
-
-    ifeq ($(LD_FOR_TARGET_HAS_NO_PIE),1)
-        override LDFLAGS_FOR_TARGET += -no-pie
-    endif
+ifeq ($(TARGET_CFLAGS),)
+    $(error Configure with --enable-$(TARGET) to build this port)
 endif
 
-ifeq ($(TARGET),uefi-x86-64)
-    override LDFLAGS_FOR_TARGET += \
-        -m elf_x86_64 \
-        -pie \
-        -z text
-endif
-
-ifeq ($(TARGET),uefi-ia32)
-    override LDFLAGS_FOR_TARGET += \
-        -m elf_i386 \
-        -pie \
-        -z text
-endif
-
-ifeq ($(TARGET),uefi-aarch64)
-    override LDFLAGS_FOR_TARGET += \
-        -m aarch64elf \
-        -pie \
-        -z text
-endif
-
-ifeq ($(TARGET),uefi-riscv64)
-    override LDFLAGS_FOR_TARGET += \
-        -m elf64lriscv \
-        --no-relax \
-        -pie \
-        -z text
-endif
-
-ifeq ($(TARGET),uefi-loongarch64)
-    override LDFLAGS_FOR_TARGET += \
-        -m elf64loongarch \
-        --no-relax \
-        -pie \
-        -z text
-endif
+# The flags from configure already take in CFLAGS_FOR_TARGET and
+# LDFLAGS_FOR_TARGET, after the Clang target.
+override CFLAGS_FOR_TARGET := $(TARGET_CFLAGS)
+override LDFLAGS_FOR_TARGET := $(TARGET_LDFLAGS)
 
 ifeq ($(TARGET),bios)
     override C_FILES := $(shell cd .. && find common flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)

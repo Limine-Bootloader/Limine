@@ -87,7 +87,46 @@ export LDFLAGS_FOR_TARGET
 NASMFLAGS_FOR_TARGET := @NASMFLAGS_FOR_TARGET@
 export NASMFLAGS_FOR_TARGET
 
-override STAGE1_FILES := $(shell find '$(call SHESCAPE,$(SRCDIR))/stage1' -type f -name '*.asm' | LC_ALL=C sort | sed 's/[[:blank:]]/\\&/g')
+# The port flags below were derived from checks bound to these, so changing
+# one takes a reconfigure rather than an override here.
+override CONFIGURED_CC_FOR_TARGET := @CC_FOR_TARGET@
+override CONFIGURED_LD_FOR_TARGET := @LD_FOR_TARGET@
+override CONFIGURED_CFLAGS_FOR_TARGET := @CFLAGS_FOR_TARGET@
+override CONFIGURED_LDFLAGS_FOR_TARGET := @LDFLAGS_FOR_TARGET@
+
+override define CHECK_CONFIGURED
+ifneq ($$($(1)),$$(CONFIGURED_$(1)))
+    $$(error $(1) differs from its configured value, re-run configure with the new value instead)
+endif
+endef
+$(foreach v,$(patsubst CONFIGURED_%,%,$(filter CONFIGURED_%,$(.VARIABLES))),$(eval $(call CHECK_CONFIGURED,$(v))))
+
+override BIOS_CFLAGS := @BIOS_CFLAGS@
+export BIOS_CFLAGS
+override BIOS_LDFLAGS := @BIOS_LDFLAGS@
+export BIOS_LDFLAGS
+override UEFI_IA32_CFLAGS := @UEFI_IA32_CFLAGS@
+export UEFI_IA32_CFLAGS
+override UEFI_IA32_LDFLAGS := @UEFI_IA32_LDFLAGS@
+export UEFI_IA32_LDFLAGS
+override UEFI_X86_64_CFLAGS := @UEFI_X86_64_CFLAGS@
+export UEFI_X86_64_CFLAGS
+override UEFI_X86_64_LDFLAGS := @UEFI_X86_64_LDFLAGS@
+export UEFI_X86_64_LDFLAGS
+override UEFI_AARCH64_CFLAGS := @UEFI_AARCH64_CFLAGS@
+export UEFI_AARCH64_CFLAGS
+override UEFI_AARCH64_LDFLAGS := @UEFI_AARCH64_LDFLAGS@
+export UEFI_AARCH64_LDFLAGS
+override UEFI_RISCV64_CFLAGS := @UEFI_RISCV64_CFLAGS@
+export UEFI_RISCV64_CFLAGS
+override UEFI_RISCV64_LDFLAGS := @UEFI_RISCV64_LDFLAGS@
+export UEFI_RISCV64_LDFLAGS
+override UEFI_LOONGARCH64_CFLAGS := @UEFI_LOONGARCH64_CFLAGS@
+export UEFI_LOONGARCH64_CFLAGS
+override UEFI_LOONGARCH64_LDFLAGS := @UEFI_LOONGARCH64_LDFLAGS@
+export UEFI_LOONGARCH64_LDFLAGS
+
+override STAGE1_FILES := $(shell find '$(call SHESCAPE,$(SRCDIR))/stage1' -type f -name '*.asm' | $(SED) 's/[[:blank:]]/\\&/g')
 
 .PHONY: all
 all: $(call MKESCAPE,$(BINDIR))/Makefile
@@ -117,7 +156,7 @@ $(call MKESCAPE,$(BINDIR))/limine: $(call MKESCAPE,$(BUILDDIR))/GNUmakefile $(ca
 		LIBS="$(LIBS)"
 
 $(call MKESCAPE,$(BINDIR))/Makefile: $(call MKESCAPE,$(SRCDIR))/host/host.mk
-	mkdir -p '$(call SHESCAPE,$(BINDIR))'
+	$(MKDIR_P) '$(call SHESCAPE,$(BINDIR))'
 	cp '$(call SHESCAPE,$(SRCDIR))/host/host.mk' '$(call SHESCAPE,$(BINDIR))/Makefile'
 
 .PHONY: limine
@@ -212,7 +251,7 @@ ifneq ($(BUILD_UEFI_CD),no)
 	rm -f '$(call SHESCAPE,$(BINDIR))/limine-uefi-cd.bin'
 	TZ=UTC0; export TZ; \
 	LIMINE_UEFI_CD_TMP="$$(mktemp -d)"; \
-		mkdir -p "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT; \
+		$(MKDIR_P) "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT; \
 		cp '$(call SHESCAPE,$(BUILDDIR))/common-uefi-aarch64/BOOTAA64.EFI' "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT/ 2>/dev/null; \
 		cp '$(call SHESCAPE,$(BUILDDIR))/common-uefi-riscv64/BOOTRISCV64.EFI' "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT/ 2>/dev/null; \
 		cp '$(call SHESCAPE,$(BUILDDIR))/common-uefi-loongarch64/BOOTLOONGARCH64.EFI' "$$LIMINE_UEFI_CD_TMP"/EFI/BOOT/ 2>/dev/null; \

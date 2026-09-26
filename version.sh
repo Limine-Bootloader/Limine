@@ -1,8 +1,5 @@
 #! /bin/sh
 
-LC_ALL=C
-export LC_ALL
-
 srcdir="$(dirname "$0")"
 test -z "$srcdir" && srcdir=.
 
