@@ -1857,6 +1857,12 @@ static int enroll_config(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // The usage names a hash even for --reset, which ignores it.
+    if (argc > 3) {
+        enroll_config_usage();
+        return EXIT_FAILURE;
+    }
+
     if (!reset) {
         if (strlen(argv[2]) != 128) {
             fprintf(stderr, "error: BLAKE2B specified is not 128 characters long.\n");
