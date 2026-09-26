@@ -96,9 +96,10 @@ Miscellaneous:
   example from `bootctl set-timeout`) is honoured only where this option is
   not set.
 * `quiet` - If set to `yes`, enable quiet mode, where all screen output except
-  panics and important warnings is suppressed. If `timeout` is not 0, the
-  `timeout` still occurs, and pressing any key during the timeout will reveal
-  the menu and disable quiet mode.
+  panics and important warnings is suppressed. If `timeout` is neither `0` nor
+  `no`, the `timeout` still occurs, and pressing any key during the timeout
+  will reveal the menu and disable quiet mode. Where automatic boot is
+  disabled, the menu is shown regardless.
 * `serial` - If set to `yes`, enable serial I/O for the bootloader.
 * `serial_baudrate` - If `serial` is set to `yes`, this specifies the baudrate
   to use for serial I/O. Defaults to `115200`, which is also the maximum. The
