@@ -1,3 +1,74 @@
+2026-09-27  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.9.1 ***
+
+    Noteworthy changes compared to the previous release, 12.9.0:
+
+    Bug fixes:
+        - Reveal the menu on any key pressed during a `quiet` countdown, as
+          CONFIG.md describes, without acting on the key. A key the menu does
+          not handle previously left a blank screen with autoboot cancelled.
+        - Show the menu in `quiet` mode wherever automatic boot is disabled,
+          whether by `timeout: no` or by a Boot Loader Interface `menu-force`
+          or one-shot timeout of 0. It was previously never drawn, leaving the
+          firmware's screen up.
+        - ISO 9660: Refuse a multi-extent file whose continuation record is
+          missing or belongs to another file, rather than returning it
+          truncated. Fixes #665.
+        - Stretch wallpapers without losing horizontal precision. The rightmost
+          columns of an image could be cut off, and one narrower than 1/64 of
+          the screen showed only its first column. Fixes #669.
+        - Keep the addend of a 64-bit absolute relocation against an undefined
+          weak symbol, and on aarch64 that of a GLOB_DAT or JUMP_SLOT one too,
+          which AAELF64 defines as S + A. Fixes #655.
+        - aarch64, loongarch64: Stop marking the mappings handed to the
+          executable global, as x86 never has. Global TLB entries match under
+          every ASID, so they could outlive an ASID switch.
+        - loongarch64: Declare that csrwr overwrites its register operand,
+          which the compiler otherwise assumed still held the value written.
+        - loongarch64: Set the TLB refill page size to 4KiB at handoff, rather
+          than to the page size the firmware left in STLBPS.
+        - Limine protocol/loongarch64: Only set the NX bit on CPUs implementing
+          execution protection, without which the bit is undefined and `PF_X`
+          cannot be honoured.
+        - x86: Branch right after enabling paging on every switch into or out
+          of long mode, as the Intel and AMD manuals call for.
+        - x86: Load a 32-bit TSS on each AP before it activates long mode. AMD
+          documents a 16-bit TSS as the INIT state, and Intel faults the
+          activation with one loaded.
+        - x86: Write the I/O APIC index register as a single byte, its width on
+          chipsets such as Intel's ICH10.
+        - Host tool: Reject excess positional arguments to `bios-install`,
+          which installed to the last partition index given, and to
+          `enroll-config`, which ignored them. Fixes #659.
+        - Host tool: Undo a `bios-install` and fail if its uninstall data
+          cannot be saved. The install was kept and reported as a success, and
+          a rerun would have recorded the installed sectors as the originals.
+        - Miscellaneous bug fixes.
+
+    Miscellaneous:
+        - `configure` checks the target toolchain against each enabled port and
+          passes only the optional flags it accepts, so that a wider range of
+          GCC, Clang and binutils versions build Limine, and one that cannot is
+          reported at configure time.
+        - `configure` checks for GNU make 3.81 or later, `./bootstrap` works
+          with older git and with shells lacking `pipefail`, and the build is
+          no longer misled by CDPATH, git hook environments or
+          `log.showSignature`.
+        - Lower the Autoconf version `./bootstrap` needs to 2.64.
+        - `configure` rejects `*` and `?` in the build directory path, which
+          make before 3.82 cannot match.
+        - Report the real version, rather than UNVERSIONED, when building from
+          a git submodule or worktree.
+        - Format limine-uefi-cd.bin with an explicit geometry rather than one
+          mformat infers.
+        - loongarch64: Access symbols directly rather than through the GOT,
+          which only dynamic linking needs.
+        - Discard the `.ARM.attributes` and `.riscv.attributes` sections from
+          the aarch64 and riscv64 UEFI images.
+        - Match CONFIG.md and INSTALL.md to what the code does.
+        - Miscellaneous improvements.
+
 2026-09-11  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.9.0 ***
