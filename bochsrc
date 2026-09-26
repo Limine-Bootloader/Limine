@@ -1,7 +1,0 @@
-cpu: count=2, reset_on_triple_fault=0
-memory: guest=1024, host=1024
-ata0-master: type=disk, path="test.hdd", mode=flat
-boot: c
-clock: sync=realtime, rtc_sync=1, time0=utc
-port_e9_hack: enabled=1
-magic_break: enabled=1
