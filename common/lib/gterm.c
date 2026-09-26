@@ -408,29 +408,24 @@ __attribute__((always_inline)) static inline void genloop(struct fb_info *fb, si
         }
         break;
     case IMAGE_STRETCHED: {
-        // Carry the remainder to avoid division for every pixel.
-        size_t x_step = img_width / fb->framebuffer_width;
-        size_t x_remainder = img_width % fb->framebuffer_width;
-        uint64_t x_start = (uint64_t)xstart * img_width;
-        size_t initial_x = x_start / fb->framebuffer_width;
-        size_t initial_remainder = x_start % fb->framebuffer_width;
+        // 32.32 fixed point spares a division per pixel. Bumping the floored
+        // step makes every sample exact for widths up to 65536. A step below
+        // the width skips the bump, which could then overrun the image.
+        uint64_t x_step = ((uint64_t)img_width << 32) / fb->framebuffer_width;
+        if (x_step >= fb->framebuffer_width) {
+            x_step++;
+        }
         for (size_t y = ystart; y < yend; y++) {
             size_t img_y = (y * img_height) / fb->framebuffer_height; // calculate Y with full precision
             size_t off = img_pitch * img_y;
             size_t canvas_off = fb->framebuffer_width * y;
 
-            size_t img_x = initial_x;
-            size_t remainder = initial_remainder;
+            uint64_t img_x = x_step * xstart;
             for (size_t x = xstart; x < xend; x++) {
-                uint32_t img_pixel = *(uint32_t*)(img + img_x * colsize + off);
+                uint32_t img_pixel = *(uint32_t*)(img + (size_t)(img_x >> 32) * colsize + off);
                 uint32_t i = blend(fb, x, y, img_pixel);
                 bg_canvas[canvas_off + x] = i;
                 img_x += x_step;
-                remainder += x_remainder;
-                if (remainder >= fb->framebuffer_width) {
-                    remainder -= fb->framebuffer_width;
-                    img_x++;
-                }
             }
         }
         break;
