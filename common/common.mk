@@ -232,7 +232,7 @@ $(call MKESCAPE,$(BUILDDIR))/full.map.o: $(call MKESCAPE,$(BUILDDIR))/limine_nos
 
 $(call MKESCAPE,$(BUILDDIR))/limine-bios.sys: $(call MKESCAPE,$(BUILDDIR))/limine_stage2only.elf $(call MKESCAPE,$(BUILDDIR))/limine.elf
 	$(OBJCOPY_FOR_TARGET) -O binary '$(call SHESCAPE,$(BUILDDIR))/limine.elf' '$(call SHESCAPE,$@)'
-	chmod -x '$(call SHESCAPE,$@)'
+	chmod a-x '$(call SHESCAPE,$@)'
 
 $(call MKESCAPE,$(BUILDDIR))/linker_stage2only.ld: linker_bios.ld.in
 	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'
@@ -301,8 +301,8 @@ $(call MKESCAPE,$(BUILDDIR))/full.map.o: $(call MKESCAPE,$(BUILDDIR))/limine_nom
 
 $(call MKESCAPE,$(BUILDDIR))/BOOTX64.EFI: $(call MKESCAPE,$(BUILDDIR))/limine.elf
 	$(OBJCOPY_FOR_TARGET) -O binary '$(call SHESCAPE,$<)' '$(call SHESCAPE,$@)'
-	chmod -x '$(call SHESCAPE,$@)'
-	dd if=/dev/zero of='$(call SHESCAPE,$@)' bs=4096 count=0 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
+	chmod a-x '$(call SHESCAPE,$@)'
+	dd if=/dev/null of='$(call SHESCAPE,$@)' bs=4096 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
 
 $(call MKESCAPE,$(BUILDDIR))/linker_nomap.ld: linker_uefi_x86_64.ld.in
 	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'
@@ -336,8 +336,8 @@ $(call MKESCAPE,$(BUILDDIR))/full.map.o: $(call MKESCAPE,$(BUILDDIR))/limine_nom
 
 $(call MKESCAPE,$(BUILDDIR))/BOOTAA64.EFI: $(call MKESCAPE,$(BUILDDIR))/limine.elf
 	$(OBJCOPY_FOR_TARGET) -O binary '$(call SHESCAPE,$<)' '$(call SHESCAPE,$@)'
-	chmod -x '$(call SHESCAPE,$@)'
-	dd if=/dev/zero of='$(call SHESCAPE,$@)' bs=4096 count=0 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
+	chmod a-x '$(call SHESCAPE,$@)'
+	dd if=/dev/null of='$(call SHESCAPE,$@)' bs=4096 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
 
 $(call MKESCAPE,$(BUILDDIR))/linker_nomap.ld: linker_uefi_aarch64.ld.in
 	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'
@@ -370,8 +370,8 @@ $(call MKESCAPE,$(BUILDDIR))/full.map.o: $(call MKESCAPE,$(BUILDDIR))/limine_nom
 
 $(call MKESCAPE,$(BUILDDIR))/BOOTRISCV64.EFI: $(call MKESCAPE,$(BUILDDIR))/limine.elf
 	$(OBJCOPY_FOR_TARGET) -O binary '$(call SHESCAPE,$<)' '$(call SHESCAPE,$@)'
-	chmod -x '$(call SHESCAPE,$@)'
-	dd if=/dev/zero of='$(call SHESCAPE,$@)' bs=4096 count=0 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
+	chmod a-x '$(call SHESCAPE,$@)'
+	dd if=/dev/null of='$(call SHESCAPE,$@)' bs=4096 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
 
 $(call MKESCAPE,$(BUILDDIR))/linker_nomap.ld: linker_uefi_riscv64.ld.in
 	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'
@@ -404,8 +404,8 @@ $(call MKESCAPE,$(BUILDDIR))/full.map.o: $(call MKESCAPE,$(BUILDDIR))/limine_nom
 
 $(call MKESCAPE,$(BUILDDIR))/BOOTLOONGARCH64.EFI: $(call MKESCAPE,$(BUILDDIR))/limine.elf
 	$(OBJCOPY_FOR_TARGET) -O binary '$(call SHESCAPE,$<)' '$(call SHESCAPE,$@)'
-	chmod -x '$(call SHESCAPE,$@)'
-	dd if=/dev/zero of='$(call SHESCAPE,$@)' bs=4096 count=0 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
+	chmod a-x '$(call SHESCAPE,$@)'
+	dd if=/dev/null of='$(call SHESCAPE,$@)' bs=4096 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
 
 $(call MKESCAPE,$(BUILDDIR))/linker_nomap.ld: linker_uefi_loongarch64.ld.in
 	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'
@@ -438,8 +438,8 @@ $(call MKESCAPE,$(BUILDDIR))/full.map.o: $(call MKESCAPE,$(BUILDDIR))/limine_nom
 
 $(call MKESCAPE,$(BUILDDIR))/BOOTIA32.EFI: $(call MKESCAPE,$(BUILDDIR))/limine.elf
 	$(OBJCOPY_FOR_TARGET) -O binary '$(call SHESCAPE,$<)' '$(call SHESCAPE,$@)'
-	chmod -x '$(call SHESCAPE,$@)'
-	dd if=/dev/zero of='$(call SHESCAPE,$@)' bs=4096 count=0 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
+	chmod a-x '$(call SHESCAPE,$@)'
+	dd if=/dev/null of='$(call SHESCAPE,$@)' bs=4096 seek=$$(( ($$(wc -c < '$(call SHESCAPE,$@)') + 4095) / 4096 )) 2>/dev/null
 
 $(call MKESCAPE,$(BUILDDIR))/linker_nomap.ld: linker_uefi_ia32.ld.in
 	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'

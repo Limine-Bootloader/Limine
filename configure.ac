@@ -96,6 +96,8 @@ AC_PROG_SED
 SED="$(rel2abs "$SED")"
 AC_PROG_GREP
 GREP="$(rel2abs "$GREP")"
+AC_PROG_EGREP
+EGREP="$(rel2abs "$EGREP")"
 AC_PROG_AWK
 AWK="$(rel2abs "$AWK")"
 
@@ -103,12 +105,23 @@ AC_CHECK_PROG([FIND_FOUND], [find], [yes])
 AS_IF([test "x$FIND_FOUND" != "xyes"],
     [AC_MSG_ERROR([find not found, please install find before configuring])])
 
+# The macro only sets the version when it runs the check, not when the result
+# comes from a cache file.
+AS_UNSET([_cv_gnu_make_command])
+AX_CHECK_GNU_MAKE([],
+    [AC_MSG_ERROR([GNU make not found, please install GNU make 3.81 or later before configuring])])
+AC_MSG_CHECKING([whether $_cv_gnu_make_command is 3.81 or later])
+AX_COMPARE_VERSION([$ax_check_gnu_make_version], [ge], [3.81],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
+     AC_MSG_ERROR([$_cv_gnu_make_command is GNU make $ax_check_gnu_make_version, but 3.81 or later is required; set MAKE to a newer one])])
+
 # GET_PROG(UPPERCASEVAR, [default command], ['tool' if toolchain], ['no-err' to warn instead of fail])
 # Resolves VAR to an absolute program path, honouring a user-supplied value if
 # there is one, and errors out when nothing usable is found.
 AC_DEFUN([GET_PROG], [
     if test "x${$1+set}" = "xset"; then
-        first_elem="$(rel2abs $(echo "$$1" | cut -f 1 -d " "))"
+        first_elem="$(rel2abs $(printf '%s\n' "$$1" | cut -f 1 -d " "))"
         case "$first_elem" in
             "")
                 first_elem="$$1"
@@ -137,7 +150,7 @@ AC_DEFUN([GET_PROG], [
                     $1_FOUND=yes
                 fi
             else
-                first_elem="$(rel2abs $(echo "$2" | cut -f 1 -d " "))"
+                first_elem="$(rel2abs $(printf '%s\n' "$2" | cut -f 1 -d " "))"
                 if test -z "$first_elem"; then
                     first_elem="$2"
                     $1_FOUND=no
@@ -312,7 +325,7 @@ AC_MSG_RESULT([$CC_FOR_TARGET_IS_CLANG])
 # Help lines name a flag with one dash or two, and may follow it with a comma,
 # an "=" or a "[" for its value.
 limine_ld_lists_flag() {
-    LC_ALL=C $LD_FOR_TARGET --help 2>/dev/null | $GREP -qE '(^|[[[:space:]]])-?'"$1"'([[[:space:],=@<:@]]|$)'
+    LC_ALL=C $LD_FOR_TARGET --help 2>/dev/null | $EGREP -q '(^|[[[:space:]]])-?'"$1"'([[[:space:],=@<:@]]|$)'
 }
 
 # Run CC_FOR_TARGET with the Clang target of the port being checked and
@@ -341,7 +354,7 @@ limine_flag_is_named() {
     if test -n "$2"; then
         limine_names="$limine_names|$(limine_flag_name "$2")"
     fi
-    printf '%s\n' "$limine_diagnostics" | $GREP -qE '(error|warning|note):.*[[^[:alnum:]]]('"$limine_names"')([[^-[:alnum:]]]|$)'
+    printf '%s\n' "$limine_diagnostics" | $EGREP -q '(error|warning|note):.*[[^[:alnum:]]]('"$limine_names"')([[^-[:alnum:]]]|$)'
 }
 
 # LIMINE_PORT_FLAGS(VAR, port, Clang triple architecture, C flags, linker flags,
@@ -365,7 +378,7 @@ AC_DEFUN([LIMINE_PORT_FLAGS], [
         AS_IF([limine_cc_run $$1_CFLAGS -c -x c /dev/null -o /dev/null],
             [AC_MSG_RESULT([yes])],
             [AC_MSG_RESULT([no])
-             limine_error="$(printf '%s\n' "$limine_diagnostics" | $GREP -iE 'error|sorry' | head -n 1)"
+             limine_error="$(printf '%s\n' "$limine_diagnostics" | $EGREP -i 'error|sorry' | head -n 1)"
              AC_MSG_ERROR([$CC_FOR_TARGET does not work for $2: $limine_error])])
         # Go by the macro for ELF targets, as GNU as cannot write an object to
         # standard output. Clang is given an ELF target, and before version 17
