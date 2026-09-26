@@ -16,14 +16,14 @@ edk2-ovmf: edk2-ovmf.tar.gz
 .PHONY: test.hdd
 test.hdd:
 	rm -f test.hdd
-	dd if=/dev/zero bs=1024k count=0 seek=64 of=test.hdd
+	dd if=/dev/null bs=1024k seek=64 of=test.hdd
 	PATH=$$PATH:/usr/sbin:/sbin parted -s test.hdd mklabel msdos
 	PATH=$$PATH:/usr/sbin:/sbin parted -s test.hdd mkpart primary 2048s 100%
 
 .PHONY: mbrtest.hdd
 mbrtest.hdd:
 	rm -f mbrtest.hdd
-	dd if=/dev/zero bs=1024k count=0 seek=64 of=mbrtest.hdd
+	dd if=/dev/null bs=1024k seek=64 of=mbrtest.hdd
 	printf "o\nn\np\n1\n2048\n\nt\n6\na\nw\n\n" | fdisk mbrtest.hdd -H 16 -S 63
 
 .PHONY: fat12-test
@@ -40,8 +40,8 @@ fat12-test:
 	sudo mkfs.fat -F 12 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sync
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
@@ -63,8 +63,8 @@ fat16-test:
 	sudo mkfs.fat -F 16 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sync
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
@@ -87,8 +87,8 @@ legacy-fat16-test:
 	sudo mkfs.fat -F 16 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sync
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
@@ -110,8 +110,8 @@ fat32-test:
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sync
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
@@ -127,8 +127,8 @@ iso9660-test:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk ARCH=x86
 	rm -rf test_image/
 	$(MKDIR_P) test_image/boot
-	cp -rv $(BINDIR)/* test_image/boot/
-	cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	cp -R $(BINDIR)/* test_image/boot/
+	cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	xorriso -as mkisofs -b boot/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table test_image/ -o test.iso
 	qemu-system-x86_64 -net none -smp 4   -cdrom test.iso -debugcon stdio
 
@@ -140,10 +140,10 @@ full-hybrid-test:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk ARCH=x86
 	rm -rf test_image/
 	$(MKDIR_P) test_image/boot
-	cp -rv $(BINDIR)/* test_image/boot/
-	cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	cp -R $(BINDIR)/* test_image/boot/
+	cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	$(MKDIR_P) test_image/EFI/BOOT
-	cp -v $(BINDIR)/BOOT*.EFI test_image/EFI/BOOT/
+	cp $(BINDIR)/BOOT*.EFI test_image/EFI/BOOT/
 	xorriso -as mkisofs -R -r -J -b boot/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot boot/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label test_image/ -o test.iso
 	$(BINDIR)/limine bios-install test.iso
 	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-x86_64.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -cdrom test.iso -debugcon stdio
@@ -160,8 +160,8 @@ pxe-test:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk ARCH=x86
 	rm -rf test_image/
 	$(MKDIR_P) test_image/boot
-	cp -rv $(BINDIR)/* test_image/boot/
-	cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	cp -R $(BINDIR)/* test_image/boot/
+	cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	qemu-system-x86_64  -smp 4  -netdev user,id=n0,tftp=./test_image,bootfile=boot/limine-bios-pxe.bin -device rtl8139,netdev=n0,mac=00:00:00:11:11:11 -debugcon stdio
 
 # OVMF's PXE stack needs an entropy source to come up: without the virtio RNG
@@ -174,8 +174,8 @@ uefi-x86-64-pxe-test:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk ARCH=x86
 	rm -rf test_image/
 	$(MKDIR_P) test_image/boot
-	cp -rv $(BINDIR)/* test_image/boot/
-	cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	cp -R $(BINDIR)/* test_image/boot/
+	cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-x86_64.fd,readonly=on -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci -netdev user,id=n0,tftp=./test_image,bootfile=boot/BOOTX64.EFI -device virtio-net-pci,netdev=n0,mac=00:00:00:11:11:11 -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 -boot n -debugcon stdio
 
 .PHONY: uefi-x86-64-test
@@ -192,8 +192,8 @@ uefi-x86-64-test:
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sudo $(MKDIR_P) test_image/EFI/BOOT
 	sudo cp $(BINDIR)/BOOTX64.EFI test_image/EFI/BOOT/
 	sync
@@ -216,8 +216,8 @@ uefi-aa64-test:
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sudo $(MKDIR_P) test_image/EFI/BOOT
 	sudo cp $(BINDIR)/BOOTAA64.EFI test_image/EFI/BOOT/
 	sync
@@ -240,8 +240,8 @@ uefi-rv64-test:
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sudo $(MKDIR_P) test_image/EFI/BOOT
 	sudo cp $(BINDIR)/BOOTRISCV64.EFI test_image/EFI/BOOT/
 	sync
@@ -264,8 +264,8 @@ uefi-loongarch64-test:
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sudo $(MKDIR_P) test_image/EFI/BOOT
 	sudo cp $(BINDIR)/BOOTLOONGARCH64.EFI test_image/EFI/BOOT/
 	sync
@@ -288,8 +288,8 @@ uefi-ia32-test:
 	sudo mkfs.fat -F 32 `cat loopback_dev`p1
 	sudo mount `cat loopback_dev`p1 test_image
 	sudo mkdir test_image/boot
-	sudo cp -rv $(BINDIR)/* test_image/boot/
-	sudo cp -rv '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
+	sudo cp -R $(BINDIR)/* test_image/boot/
+	sudo cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
 	sudo $(MKDIR_P) test_image/EFI/BOOT
 	sudo cp $(BINDIR)/BOOTIA32.EFI test_image/EFI/BOOT/
 	sync
