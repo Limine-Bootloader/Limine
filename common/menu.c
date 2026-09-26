@@ -1987,7 +1987,6 @@ noreturn void _menu(bool first_run) {
 #endif
 
     if (!first_run) {
-        quiet = false;
         skip_timeout = true;
     }
 
@@ -1999,11 +1998,15 @@ noreturn void _menu(bool first_run) {
             skip_timeout = true;
         } else if (selected_menu_entry->sub != NULL) {
             // Selecting a directory is not an error; it just cannot be booted.
-            quiet = false;
             skip_timeout = true;
         } else if (!timeout_ms) {
             goto autoboot;
         }
+    }
+
+    // Without autoboot, a hidden menu would pass for a hang.
+    if (skip_timeout) {
+        quiet = false;
     }
 
     menu_init_term();
@@ -2060,10 +2063,6 @@ refresh:
     }
 
     if (max_entries == 0) {
-        if (quiet) {
-            quiet = false;
-            menu_init_term();
-        }
         const char *msg;
         if (config_ready) {
             msg = "[config file contains no valid entries]";
