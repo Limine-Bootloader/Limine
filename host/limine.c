@@ -1862,6 +1862,12 @@ static int enroll_config(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // The usage names a hash even for --reset, which ignores it.
+    if (argc > 3) {
+        enroll_config_usage();
+        return EXIT_FAILURE;
+    }
+
     size_t hash_len = 0;
     if (!reset) {
         hash_len = strlen(argv[2]);
