@@ -343,7 +343,6 @@ dist:
 	cp -R '$(call SHESCAPE,$(SRCDIR))'/.git '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)"/
 	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && git checkout .
 	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && ./bootstrap
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/contrib"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.git"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.gitignore"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.github"
