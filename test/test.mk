@@ -12,13 +12,21 @@ override CC += \
     -target $(patsubst x86,x86_64,$(ARCH))-unknown-none-elf
 endif
 
+override LDFLAGS += \
+    -nostdlib \
+    -zmax-page-size=0x1000 \
+    -pie \
+    -ztext \
+    -Tlinker.ld
+
 ifeq ($(ARCH),x86)
 override LDFLAGS += \
     -m elf_x86_64
 endif
 ifeq ($(ARCH),aarch64)
 override LDFLAGS += \
-    -m aarch64elf
+    -m aarch64elf \
+    --fix-cortex-a53-843419
 endif
 ifeq ($(ARCH),riscv64)
 override LDFLAGS += \
@@ -29,31 +37,25 @@ override LDFLAGS += \
     -m elf64loongarch
 endif
 
-override LDFLAGS += \
-    -Tlinker.ld \
-    -nostdlib \
-    -zmax-page-size=0x1000 \
-    -pie \
-    -ztext
-
 override LDFLAGS_MB2 := \
     -m elf_i386 \
-    -Tmultiboot2.ld \
     -nostdlib \
     -zmax-page-size=0x1000 \
-    -static
+    -static \
+    -Tmultiboot2.ld
 
 override LDFLAGS_MB1 := \
     -m elf_i386 \
-    -Tmultiboot.ld \
     -nostdlib \
     -zmax-page-size=0x1000 \
-    -static
+    -static \
+    -Tmultiboot.ld
 
 override CFLAGS += \
     -std=c11 \
     -nostdinc \
     -ffreestanding \
+    -fno-common \
     -fno-stack-protector \
     -fno-stack-check \
     -fno-lto \
@@ -69,7 +71,6 @@ ifeq ($(ARCH),x86)
 override CFLAGS += \
     -m64 \
     -march=x86-64 \
-    -mabi=sysv \
     -mgeneral-regs-only \
     -mno-red-zone
 endif
@@ -78,26 +79,20 @@ ifeq ($(ARCH),aarch64)
 override CFLAGS += \
     -mcpu=generic \
     -march=armv8-a+nofp+nosimd \
-    -mno-outline-atomics \
-    -mgeneral-regs-only
+    -mcmodel=small \
+    -mno-outline-atomics
 endif
 
 ifeq ($(ARCH),riscv64)
 override CFLAGS += \
-    -march=rv64imac_zicsr_zifencei \
     -mabi=lp64 \
+    -march=rv64imac_zicsr_zifencei \
     -mno-relax
 override LDFLAGS += \
     --no-relax
 endif
 
 ifeq ($(ARCH),loongarch64)
-override CFLAGS += \
-    -march=loongarch64 \
-    -mabi=lp64s \
-    -mno-relax \
-    -mfpu=none \
-    -msimd=none
 # Both compilers go through the GOT for external symbols by default, which only
 # dynamic linking needs.
 ifeq ($(CC_IS_CLANG),1)
@@ -107,6 +102,11 @@ else
 override CFLAGS += \
     -mdirect-extern-access
 endif
+override CFLAGS += \
+    -mabi=lp64s \
+    -march=loongarch64 \
+    -msoft-float \
+    -mno-relax
 override LDFLAGS += \
     --no-relax
 endif
@@ -117,13 +117,13 @@ override CFLAGS_MB := \
     -std=c11 \
     -nostdinc \
     -ffreestanding \
+    -fno-common \
     -fno-stack-protector \
     -fno-stack-check \
     -fno-lto \
     -fno-PIC \
     -m32 \
     -march=i686 \
-    -mabi=sysv \
     -mgeneral-regs-only \
     -I. \
     -I../common/protos \

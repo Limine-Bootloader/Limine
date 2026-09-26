@@ -2,9 +2,6 @@
 
 set -e
 
-LC_ALL=C
-export LC_ALL
-
 cat <<EOF
 const uint8_t binary_limine_hdd_bin_data[] = {
 EOF

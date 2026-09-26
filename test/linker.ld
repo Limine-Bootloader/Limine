@@ -1,10 +1,10 @@
 PHDRS
 {
-    headers PT_PHDR PHDRS;
-    text    PT_LOAD FILEHDR PHDRS;
-    rodata  PT_LOAD;
-    data    PT_LOAD;
-    dynamic PT_DYNAMIC;
+    headers PT_PHDR PHDRS FLAGS(0x04);
+    text    PT_LOAD FILEHDR PHDRS FLAGS(0x05);
+    rodata  PT_LOAD FLAGS(0x04);
+    data    PT_LOAD FLAGS(0x06);
+    dynamic PT_DYNAMIC FLAGS(0x06);
 }
 
 SECTIONS
@@ -49,5 +49,7 @@ SECTIONS
         *(.eh_frame*)
         *(.note .note.*)
         *(.interp)
+        *(.ARM.attributes)
+        *(.riscv.attributes)
     }
 }
