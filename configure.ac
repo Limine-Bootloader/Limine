@@ -516,10 +516,10 @@ LIMINE_PORT_FLAGS([UEFI_LOONGARCH64], [the loongarch64 UEFI port], [loongarch64]
     LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-fno-stack-clash-protection])
     # Clang 16 takes the soft float flags but still records the double float
     # ABI, which no linker mixes with soft float objects, so read the ABI out
-    # of the ELF header it writes.
+    # of the ELF header it writes. BSD od pads its output line with spaces.
     AS_IF([test "x$CC_FOR_TARGET_IS_CLANG" = "xyes"], [
         AC_MSG_CHECKING([whether $CC_FOR_TARGET records the soft float ABI for $limine_port])
-        limine_float_abi="$($CC_FOR_TARGET $limine_target $CFLAGS_FOR_TARGET $UEFI_LOONGARCH64_CFLAGS -c -x c /dev/null -o - 2>/dev/null | od -A n -t x1 -j 48 -N 1)"
+        limine_float_abi="$($CC_FOR_TARGET $limine_target $CFLAGS_FOR_TARGET $UEFI_LOONGARCH64_CFLAGS -c -x c /dev/null -o - 2>/dev/null | od -A n -t x1 -j 48 -N 1 | tr -d ' ')"
         AS_CASE([$limine_float_abi],
             [*1], [AC_MSG_RESULT([yes])],
             [AC_MSG_RESULT([no])
