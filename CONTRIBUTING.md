@@ -4,19 +4,6 @@ Thanks for wanting to contribute to the project. This document covers some requi
 and overall style and conventions that should be followed. Please read it carefully before
 submitting contributions.
 
-## Sign-off (DCO)
-
-Every commit must be signed off by at least one (1) human contributor:
-
-```
-git commit -s
-```
-
-This adds a `Signed-off-by: Your Name <your@email>` trailer certifying that you wrote the
-change (or otherwise **have reviewed** the commit and have the right to submit it) and agree
-to contribute it under the project's license, per the Developer Certificate of Origin (the
-[`DCO`](DCO) file in this repository - also at https://developercertificate.org).
-
 ## AI-assisted contributions
 
 AI-assisted contributions are allowed, subject to the following:
@@ -38,9 +25,6 @@ AI-assisted contributions are allowed, subject to the following:
   use `claude-opus-4-8`, not `claude-opus`).
 - Do not add `Co-authored-by:` trailers for the AI assistant. The `Assisted-by:` trailer
   already serves that purpose.
-- The human contributor still signs off (see above). `Signed-off-by:` is the human's
-  certification of, and responsibility for, the change. `Assisted-by:` only records which
-  tool helped. It does not replace the sign-off or the human review.
 
 Unreviewed, bulk, or fully-automated submissions are not accepted.
 
