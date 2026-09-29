@@ -351,13 +351,15 @@ noreturn void chainload(char *config, char *cmdline) {
             !fb_flush_reliable(), false);
 
     size_t cmdline_len = strlen(cmdline);
-    CHAR16 *new_cmdline;
-    status = gBS->AllocatePool(EfiLoaderData, CHECKED_MUL(cmdline_len + 1, sizeof(CHAR16), panic(true, "efi: Allocation size overflow")), (void **)&new_cmdline);
-    if (status) {
-        panic(true, "efi: Allocation failure");
-    }
-    for (size_t i = 0; i < cmdline_len + 1; i++) {
-        new_cmdline[i] = cmdline[i];
+    CHAR16 *new_cmdline = NULL;
+    if (cmdline_len > 0) {
+        status = gBS->AllocatePool(EfiLoaderData, CHECKED_MUL(cmdline_len + 1, sizeof(CHAR16), panic(true, "efi: Allocation size overflow")), (void **)&new_cmdline);
+        if (status) {
+            panic(true, "efi: Allocation failure");
+        }
+        for (size_t i = 0; i < cmdline_len + 1; i++) {
+            new_cmdline[i] = cmdline[i];
+        }
     }
 
     pmm_release_uefi_mem();
@@ -402,8 +404,13 @@ noreturn void chainload(char *config, char *cmdline) {
 
     new_handle_loaded_image->FilePath = efi_file_path;
 
-    new_handle_loaded_image->LoadOptionsSize = (cmdline_len + 1) * sizeof(CHAR16);
-    new_handle_loaded_image->LoadOptions = new_cmdline;
+    if (cmdline_len > 0) {
+        new_handle_loaded_image->LoadOptionsSize = (cmdline_len + 1) * sizeof(CHAR16);
+        new_handle_loaded_image->LoadOptions = new_cmdline;
+    } else {
+        new_handle_loaded_image->LoadOptionsSize = 0;
+        new_handle_loaded_image->LoadOptions = NULL;
+    }
 
     bli_on_boot();
 
