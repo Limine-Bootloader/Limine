@@ -141,7 +141,10 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             tcg2, 0,
             (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (UINT64)data_size,
             event);
-        if (status != EFI_SUCCESS) {
+        if (status == EFI_VOLUME_FULL) {
+            printv("tpm: PCR %u extended, but the firmware event log is full; "
+                   "event not logged\n", pcr);
+        } else if (status != EFI_SUCCESS) {
             quiet = false;
             print("WARNING: tpm: HashLogExtendEvent for PCR %u failed: %X\n"
                   "         This component has not been measured.\n",
@@ -184,7 +187,10 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             cc, 0,
             (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (UINT64)data_size,
             event);
-        if (status != EFI_SUCCESS) {
+        if (status == EFI_VOLUME_FULL) {
+            printv("tpm: MR %u extended, but the firmware event log is full; "
+                   "event not logged\n", (uint32_t)mr_index);
+        } else if (status != EFI_SUCCESS) {
             quiet = false;
             print("WARNING: tpm: CC HashLogExtendEvent for PCR %u (MR %u) failed: %X\n"
                   "         This component has not been measured.\n",
