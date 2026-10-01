@@ -116,26 +116,19 @@ done
 
 $AUTORECONF -fvi -Wall
 
-# Older versions of autoreconf have a bug where they do not
-# install auxiliary files, sometimes... Check if that is the
-# case and work around...
+# Take the auxiliary files from automake, whose copies tend to be more up to
+# date than the ones autoreconf installs.
+AUTOMAKE_LIBDIR="$($AUTOMAKE --print-libdir 2>/dev/null)" || true
+if test -z "$AUTOMAKE_LIBDIR"; then
+    set +x
+    echo "error: Missing or broken automake." 1>&2
+    echo "       Please make sure automake is installed and working." 1>&2
+    exit 1
+fi
+mkdir -p build-aux
 for auxfile in $AUXFILES; do
-    if ! test -f build-aux/$auxfile; then
-        if ! $AUTOMAKE --print-libdir >/dev/null 2>&1; then
-            set +x
-            echo "error: Broken autoreconf detected, but missing or broken automake." 1>&2
-            echo "       Please make sure automake is installed and working." 1>&2
-            exit 1
-        fi
-        AUTOMAKE_LIBDIR="$($AUTOMAKE --print-libdir)"
-        if test -z "$AUTOMAKE_LIBDIR"; then
-            # Assume `true` was passed as $AUTOMAKE
-            continue
-        fi
-        mkdir -p build-aux
-        cp "$AUTOMAKE_LIBDIR/$auxfile" build-aux/
-        chmod +x build-aux/$auxfile
-    fi
+    cp "$AUTOMAKE_LIBDIR/$auxfile" build-aux/
+    chmod +x build-aux/$auxfile
 done
 
 set +x
