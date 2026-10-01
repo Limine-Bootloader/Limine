@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <limits.h>
 #include <lib/getchar.h>
 #include <lib/libc.h>
 #include <lib/misc.h>
@@ -66,6 +67,14 @@ static const unsigned char qwerty_to_azerty[128] = {
     ['^']='6', ['&']='7', ['*']='8', ['(']='9', [')']='0',
     ['_']='\xB0', ['+']='+',
 };
+
+static void append_input_sequence_digit(int *value, int digit) {
+    if (*value >= 0 && *value <= (INT_MAX - digit) / 10) {
+        *value = *value * 10 + digit;
+    } else {
+        *value = -1;
+    }
+}
 
 int getchar(void) {
     for (;;) {
@@ -213,8 +222,7 @@ static int input_sequence(void) {
             break;
         }
 
-        val *= 10;
-        val += ret - '0';
+        append_input_sequence_digit(&val, ret - '0');
     }
 
     switch (val) {
@@ -376,8 +384,7 @@ static int input_sequence(bool ext,
             break;
         }
 
-        val *= 10;
-        val += kd.Key.UnicodeChar - '0';
+        append_input_sequence_digit(&val, kd.Key.UnicodeChar - '0');
     }
 
     switch (val) {
