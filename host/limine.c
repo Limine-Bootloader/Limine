@@ -1012,6 +1012,27 @@ static bool gpt_locate_header(struct gpt_table_header *header,
     return false;
 }
 
+static bool iso9660_has_pvd(void) {
+    // Keep the descriptor scan bound in step with the filesystem recogniser.
+    for (uint64_t lba = 16; lba < 16 + 256; lba++) {
+        uint8_t desc[2048];
+        if (!device_read_raw(desc, lba * sizeof(desc), sizeof(desc))) {
+            return false;
+        }
+        if (memcmp(desc + 1, "CD001", 5) != 0) {
+            return false;
+        }
+        if (desc[0] == 1) {
+            return desc[6] == 1;
+        }
+        if (desc[0] == 255) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
 static int bios_install(int argc, char *argv[]) {
     int ok = EXIT_FAILURE;
     bool force = false;
@@ -1139,10 +1160,7 @@ static int bios_install(int argc, char *argv[]) {
     // does not like booting off of GPT in BIOS or CSM mode, and other
     // broken hardware.
     if (gpt && gpt2mbr_allowed == true) {
-        char iso_signature[5];
-        device_read(iso_signature, 32769, 5);
-
-        if (strncmp(iso_signature, "CD001", 5) != 0) {
+        if (!iso9660_has_pvd()) {
             goto no_mbr_conv;
         }
 
