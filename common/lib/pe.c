@@ -423,14 +423,11 @@ again:
         }
     }
 
-    if (nt_hdrs->OptionalHeader.NumberOfRvaAndSizes < IMAGE_DIRECTORY_ENTRY_BASERELOC + 1) {
-        panic(true, "pe: NumberOfRvaAndSizes too small for import/reloc directories");
-    }
-
     IMAGE_DATA_DIRECTORY *import_dir = &nt_hdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
     IMAGE_DATA_DIRECTORY *reloc_dir = &nt_hdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
 
-    if (import_dir->Size != 0) {
+    if (nt_hdrs->OptionalHeader.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT
+     && import_dir->Size != 0) {
         if (import_dir->VirtualAddress >= image_size ||
             sizeof(IMAGE_IMPORT_DESCRIPTOR) > image_size - import_dir->VirtualAddress) {
             panic(true, "pe: Import directory VirtualAddress out of bounds");
@@ -447,7 +444,8 @@ again:
         }
     }
 
-    if (reloc_dir->VirtualAddress != 0) {
+    if (nt_hdrs->OptionalHeader.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_BASERELOC
+     && reloc_dir->VirtualAddress != 0) {
         if (reloc_dir->VirtualAddress >= image_size ||
             reloc_dir->Size > image_size - reloc_dir->VirtualAddress) {
             panic(true, "pe: Relocation directory VirtualAddress out of bounds");
