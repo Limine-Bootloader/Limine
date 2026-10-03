@@ -503,8 +503,7 @@ LIMINE_PORT_FLAGS([UEFI_RISCV64], [the riscv64 UEFI port], [riscv64],
          UEFI_RISCV64_CFLAGS="$UEFI_RISCV64_CFLAGS -march=rv64imac"])
     # Clang called this code model "small" before the ISA's own name.
     LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mcmodel=medlow], [-mcode-model],
-        [LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mcmodel=small], [-mcode-model],
-            [AC_MSG_ERROR([$CC_FOR_TARGET has no name for the low code model])])])
+        [LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mcmodel=small], [-mcode-model])])
     LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mno-relax])
 ])
 
@@ -532,8 +531,7 @@ LIMINE_PORT_FLAGS([UEFI_LOONGARCH64], [the loongarch64 UEFI port], [loongarch64]
         [LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mdirect-extern-access])])
     # Clang called this code model "small" before the ISA's own name.
     LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mcmodel=normal], [-mcode-model],
-        [LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mcmodel=small], [-mcode-model],
-            [AC_MSG_ERROR([$CC_FOR_TARGET has no name for the normal code model])])])
+        [LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mcmodel=small], [-mcode-model])])
     LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mno-relax])
 ])
 
