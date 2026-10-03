@@ -530,7 +530,8 @@ LIMINE_PORT_FLAGS([UEFI_LOONGARCH64], [the loongarch64 UEFI port], [loongarch64]
     # Clang had its flag before the architecture existed.
     AS_IF([test "x$CC_FOR_TARGET_IS_CLANG" = "xyes"],
         [UEFI_LOONGARCH64_CFLAGS="$UEFI_LOONGARCH64_CFLAGS -fdirect-access-external-data"],
-        [LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mdirect-extern-access])])
+        [LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mdirect-extern-access], [],
+            [AC_MSG_ERROR([$CC_FOR_TARGET cannot keep external data out of the GOT])])])
     # Clang called this code model "small" before the ISA's own name.
     LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mcmodel=normal], [-mcode-model],
         [LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mcmodel=small], [-mcode-model])])
