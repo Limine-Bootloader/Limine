@@ -47,6 +47,30 @@ SECTIONS
 #endif
     } :rodata
 
+    /* The dynamic tables and relocations of the PIE, which are only read. */
+    .gnu.hash : {
+        *(.gnu.hash)
+    } :rodata
+
+    .dynsym : {
+        *(.dynsym)
+    } :rodata
+
+    .dynstr : {
+        *(.dynstr)
+    } :rodata
+
+    /* Apart from .rela.dyn, and ahead of the pattern that would take it: GNU
+       ld 2.27 and older subtract the size of its output section from
+       DT_RELASZ. */
+    .rela.plt : {
+        *(.rela.plt)
+    } :rodata
+
+    .rela.dyn : {
+        *(.rela.*)
+    } :rodata
+
     .no_unwind : {
         *(.no_unwind)
     } :data
@@ -54,6 +78,15 @@ SECTIONS
     .dynamic : {
         *(.dynamic)
     } :data :dynamic
+
+    /* Ahead of .bss, which entry.S zeroes before relocating. */
+    .got : {
+        *(.got)
+    } :data
+
+    .got.plt : {
+        *(.got.plt)
+    } :data
 
     .data : {
    data_begin = .;
