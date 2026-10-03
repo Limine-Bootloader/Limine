@@ -11,9 +11,11 @@ BUILDDIR="$(pwd -P)"
 # '&' otherwise yields an empty GNUmakefile with configure still exiting 0, and
 # '=' makes make recurse without bound. '*' and '?' work from make 3.82
 # onwards, but macOS still ships 3.81.
+AC_MSG_CHECKING([whether the source and build directory paths are usable])
 for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
     case "$SRCDIR" in
         *"$bad_char"*)
+            AC_MSG_RESULT([no])
             AC_MSG_ERROR([the source directory path contains '$bad_char'; move the source tree])
             ;;
     esac
@@ -22,14 +24,17 @@ done
 for bad_char in "'" '%' ':' '#' '$' '&' ';' '|' '=' '*' '?'; do
     case "$BUILDDIR" in
         *"$bad_char"*)
+            AC_MSG_RESULT([no])
             AC_MSG_ERROR([the build directory path contains '$bad_char'; use a different build directory])
             ;;
     esac
 done
 
 if test "$(printf '%s' "$SRCDIR$BUILDDIR" | wc -l)" -gt 0; then
+    AC_MSG_RESULT([no])
     AC_MSG_ERROR([the source or build directory path contains a newline; move the tree])
 fi
+AC_MSG_RESULT([yes])
 
 AC_SUBST([SRCDIR])
 AC_SUBST([BUILDDIR])
@@ -278,8 +283,13 @@ AS_IF([test "x$BUILD_ANY_UEFI" = "xno"], [UEFI_CD_DEFAULT="no"])
 
 LIMINE_ENABLE([uefi-cd], [UEFI_CD], [enable building limine-uefi-cd.bin],
     ["$UEFI_CD_DEFAULT"])
-AS_IF([test "x$BUILD_UEFI_CD" = "xyes" && test "x$BUILD_ANY_UEFI" = "xno"],
-    [AC_MSG_ERROR([limine-uefi-cd.bin needs at least one UEFI port enabled])])
+AS_IF([test "x$BUILD_UEFI_CD" = "xyes"], [
+    AC_MSG_CHECKING([whether a UEFI port is enabled for limine-uefi-cd.bin])
+    AS_IF([test "x$BUILD_ANY_UEFI" = "xyes"],
+        [AC_MSG_RESULT([yes])],
+        [AC_MSG_RESULT([no])
+         AC_MSG_ERROR([limine-uefi-cd.bin needs at least one UEFI port enabled])])
+])
 AS_IF([test "x$BUILD_UEFI_CD" != "xno"], [
     AC_CHECK_PROG([MTOOLS_FOUND], [mcopy], [yes])
     AS_IF([test "x$MTOOLS_FOUND" != "xyes"], [
