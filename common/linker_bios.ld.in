@@ -112,8 +112,10 @@ SECTIONS
         bss_end = .;
     } :data_s3
 
+    /* Discard the GOT, which Limine never needs but some linkers create. */
     /DISCARD/ : {
         *(.eh_frame*)
         *(.note .note.*)
+        *(.got .got.*)
     }
 }
