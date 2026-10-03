@@ -395,6 +395,16 @@ static struct iso9660_directory_entry *iso9660_find(void *buffer, uint32_t size,
             return NULL;  // Corrupted directory entry
         }
 
+        // ECMA-119 8.6.2 reserves these for a directory's own and parent
+        // records, which no path component names, whatever an NM claims.
+        if (entry->filename_size == 1
+         && entry->length > sizeof(struct iso9660_directory_entry)
+         && (uint8_t)entry->name[0] <= 1) {
+            size -= entry->length;
+            buffer += entry->length;
+            continue;
+        }
+
         char entry_filename[256];
         bool rr = load_name(entry_filename, 256, entry, susp_skip);
 
