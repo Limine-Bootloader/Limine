@@ -110,16 +110,17 @@ AC_CHECK_PROG([FIND_FOUND], [find], [yes])
 AS_IF([test "x$FIND_FOUND" != "xyes"],
     [AC_MSG_ERROR([find not found, please install find before configuring])])
 
-# The macro only sets the version when it runs the check, not when the result
-# comes from a cache file.
-AS_UNSET([_cv_gnu_make_command])
 AX_CHECK_GNU_MAKE([],
     [AC_MSG_ERROR([GNU make not found, please install GNU make 3.81 or later before configuring])])
+
+# GNU make before 3.80 printed "GNU Make version X, by ..." rather than
+# "GNU Make X", so take the version from either form.
+gnu_make_version="$("$_cv_gnu_make_command" --version 2>/dev/null | $SED -n -e 's/^GNU Make version /GNU Make /' -e 's/^GNU Make \([[0-9]][[0-9.]]*\).*/\1/p' | $SED 1q)"
 AC_MSG_CHECKING([whether $_cv_gnu_make_command is 3.81 or later])
-AX_COMPARE_VERSION([$ax_check_gnu_make_version], [ge], [3.81],
+AX_COMPARE_VERSION([$gnu_make_version], [ge], [3.81],
     [AC_MSG_RESULT([yes])],
     [AC_MSG_RESULT([no])
-     AC_MSG_ERROR([$_cv_gnu_make_command is GNU make $ax_check_gnu_make_version, but 3.81 or later is required; set MAKE to a newer one])])
+     AC_MSG_ERROR([$_cv_gnu_make_command is GNU make $gnu_make_version, but 3.81 or later is required; set MAKE to a newer one])])
 
 # GET_PROG(UPPERCASEVAR, [default command], ['tool' if toolchain], ['no-err' to warn instead of fail])
 # Resolves VAR to an absolute program path, honouring a user-supplied value if
