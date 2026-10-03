@@ -489,7 +489,7 @@ LIMINE_PORT_FLAGS([UEFI_AARCH64], [the aarch64 UEFI port], [aarch64],
 # The ABI is given first, as the instruction set is checked against it.
 LIMINE_PORT_FLAGS([UEFI_RISCV64], [the riscv64 UEFI port], [riscv64],
     [$limine_cflags -fPIE -fshort-wchar -mabi=lp64],
-    [$limine_ldflags -m elf64lriscv --no-relax -pie -z text --hash-style=gnu], [
+    [$limine_ldflags -m elf64lriscv -pie -z text --hash-style=gnu], [
     LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-fno-stack-clash-protection])
     LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-fcf-protection=none])
     # Name Zicsr and Zifencei only if the compiler knows them, as older ones
@@ -504,14 +504,16 @@ LIMINE_PORT_FLAGS([UEFI_RISCV64], [the riscv64 UEFI port], [riscv64],
     # Clang called this code model "small" before the ISA's own name.
     LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mcmodel=medlow], [-mcode-model],
         [LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mcmodel=small], [-mcode-model])])
-    LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mno-relax])
+    # Keep linker relaxation away from gp, which nothing sets up. Linkers
+    # without the flag only use gp if the script defines __global_pointer$.
+    LIMINE_CHECK_LDFLAG([UEFI_RISCV64], [--no-relax-gp])
 ])
 
 # -msoft-float, unlike -mfpu=none, also overrides a -mdouble-float or
 # -msingle-float in CFLAGS_FOR_TARGET, which take effect wherever they appear.
 LIMINE_PORT_FLAGS([UEFI_LOONGARCH64], [the loongarch64 UEFI port], [loongarch64],
     [$limine_cflags -fPIE -fshort-wchar -mabi=lp64s -march=loongarch64 -msoft-float],
-    [$limine_ldflags -m elf64loongarch --no-relax -pie -z text --hash-style=gnu], [
+    [$limine_ldflags -m elf64loongarch -pie -z text --hash-style=gnu], [
     LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-fno-stack-clash-protection])
     # Clang 16 takes the soft float flags but still records the double float
     # ABI, which no linker mixes with soft float objects, so read the ABI out
@@ -532,7 +534,6 @@ LIMINE_PORT_FLAGS([UEFI_LOONGARCH64], [the loongarch64 UEFI port], [loongarch64]
     # Clang called this code model "small" before the ISA's own name.
     LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mcmodel=normal], [-mcode-model],
         [LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mcmodel=small], [-mcode-model])])
-    LIMINE_CHECK_CFLAG([UEFI_LOONGARCH64], [-mno-relax])
 ])
 
 LIMINE_COPYRIGHT=$($GREP Copyright "$SRCDIR/COPYING")
