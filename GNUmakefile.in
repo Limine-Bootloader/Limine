@@ -1,6 +1,9 @@
 .SUFFIXES:
 .DELETE_ON_ERROR:
 
+# Keep cd from picking a same-named directory out of CDPATH.
+unexport CDPATH
+
 # Keep git from being pointed at another repository, as happens in hooks.
 unexport GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
 
