@@ -1160,7 +1160,14 @@ static int bios_install(int argc, char *argv[]) {
     // does not like booting off of GPT in BIOS or CSM mode, and other
     // broken hardware.
     if (gpt && gpt2mbr_allowed == true) {
+        // Earlier probes tolerate failed reads, so the error indicator is
+        // reset: running off the end of a short medium means no ISO, while a
+        // read error leaves that unknown.
+        clearerr(device);
         if (!iso9660_has_pvd()) {
+            if (ferror(device)) {
+                goto cleanup;
+            }
             goto no_mbr_conv;
         }
 
