@@ -243,9 +243,11 @@ static uint8_t *iso9660_susp_next(struct iso9660_susp_iter *iter) {
     }
 }
 
+// RRIP is recorded through SUSP, so names need both the SP entry opening the
+// root's own record and an ER entry naming RRIP among that record's entries.
 // The cached root spans at least a sector, and a sector holds any record.
-static int iso9660_susp_skip(void *root) {
-    struct iso9660_directory_entry *entry = root;
+static int iso9660_susp_skip(struct iso9660_context *context) {
+    struct iso9660_directory_entry *entry = context->root;
     size_t offset = sizeof(*entry) + 1;
 
     if (entry->length < offset + 7 || entry->filename_size != 1
@@ -260,7 +262,30 @@ static int iso9660_susp_skip(void *root) {
         return -1;
     }
 
-    return system_use[6];
+    int skip = -1;
+    struct iso9660_susp_iter iter = {
+        .vol = context->vol,
+        .area = system_use,
+        .size = entry->length - offset,
+    };
+    uint8_t *susp;
+    while ((susp = iso9660_susp_next(&iter)) != NULL) {
+        if (susp[0] != 'E' || susp[1] != 'R' || susp[2] < 8
+         || susp[2] != 8 + susp[4] + susp[5] + susp[6]) {
+            continue;
+        }
+        // RRIP 4.3 gives RRIP_1991A, and writers of RRIP 1.12 use
+        // IEEE_P1282 or IEEE_1282.
+        if ((susp[4] == 10 && memcmp(susp + 8, "RRIP_1991A", 10) == 0)
+         || (susp[4] == 10 && memcmp(susp + 8, "IEEE_P1282", 10) == 0)
+         || (susp[4] == 9 && memcmp(susp + 8, "IEEE_1282", 9) == 0)) {
+            skip = system_use[6];
+            break;
+        }
+    }
+    pmm_free(iter.continuation, ISO9660_SECTOR_SIZE);
+
+    return skip;
 }
 
 static struct iso9660_context *iso9660_get_context(struct volume *vol) {
@@ -278,7 +303,7 @@ static struct iso9660_context *iso9660_get_context(struct volume *vol) {
         pmm_free(node, sizeof(struct iso9660_contexts_node));
         return NULL;
     }
-    node->context.susp_skip = iso9660_susp_skip(node->context.root);
+    node->context.susp_skip = iso9660_susp_skip(&node->context);
 
     node->next = contexts;
     contexts = node;
