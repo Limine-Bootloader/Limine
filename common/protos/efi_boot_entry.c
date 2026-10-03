@@ -37,13 +37,26 @@ static void format_boot_var(CHAR16 *out, UINT16 num) {
 
 static bool find_boot_entry(CHAR16 *entry, uint16_t *out) {
     EFI_STATUS status;
-    uint16_t boot_order[128];
-    UINTN size = sizeof(boot_order);
+    uint16_t *boot_order = NULL;
+    UINTN size = 0;
+    UINTN boot_order_alloc = 0;
     EFI_GUID global_variable = EFI_GLOBAL_VARIABLE;
 
-    status = gRT->GetVariable(L"BootOrder", &global_variable, NULL, &size, boot_order);
+    /* Allow one retry if BootOrder grows after the size query. */
+    for (size_t attempt = 0; attempt < 3; attempt++) {
+        status = gRT->GetVariable(L"BootOrder", &global_variable, NULL, &size, boot_order);
+
+        if (status != EFI_BUFFER_TOO_SMALL || attempt == 2) {
+            break;
+        }
+
+        pmm_free(boot_order, boot_order_alloc);
+        boot_order_alloc = size;
+        boot_order = ext_mem_alloc(boot_order_alloc);
+    }
 
     if (EFI_ERROR(status)) {
+        pmm_free(boot_order, boot_order_alloc);
         panic(true, "efi_boot_entry: Failed to get BootOrder variable (%X)",
             (uint64_t)status);
     }
@@ -80,11 +93,13 @@ static bool find_boot_entry(CHAR16 *entry, uint16_t *out) {
         if (uefi_string_matches(desc, desc_max_chars, entry)) {
             *out = boot_order[i];
             pmm_free(buf, buf_alloc);
+            pmm_free(boot_order, boot_order_alloc);
             return true;
         }
         pmm_free(buf, buf_alloc);
     }
 
+    pmm_free(boot_order, boot_order_alloc);
     return false;
 }
 
