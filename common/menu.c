@@ -2248,12 +2248,16 @@ timeout_aborted:
                 selected_entry = max_entries - 1;
                 goto refresh;
             case GETCHAR_CURSOR_UP:
+            case 'k':
+            case 'K':
                 if (selected_entry == 0)
                     selected_entry = max_entries - 1;
                 else
                     selected_entry--;
                 goto refresh;
             case GETCHAR_CURSOR_DOWN:
+            case 'j':
+            case 'J':
                 if (++selected_entry == max_entries)
                     selected_entry = 0;
                 goto refresh;
@@ -2299,6 +2303,8 @@ timeout_aborted:
                 break;
             }
             case GETCHAR_CURSOR_RIGHT:
+            case 'l':
+            case 'L':
             case '\n':
             case ' ':
             autoboot:
