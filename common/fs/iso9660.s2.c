@@ -11,6 +11,7 @@ struct iso9660_context {
     struct volume *vol;
     void *root;
     uint32_t root_size;
+    int susp_skip;
 };
 
 struct iso9660_extent {
@@ -190,6 +191,26 @@ static bool iso9660_cache_root(struct volume *vol,
     return true;
 }
 
+static int iso9660_susp_skip(void *root, uint32_t root_size) {
+    struct iso9660_directory_entry *entry = root;
+    size_t offset = sizeof(*entry) + 1;
+
+    if (root_size < offset || entry->length > root_size
+     || entry->length < offset + 7 || entry->filename_size != 1
+     || entry->name[0] != 0) {
+        return -1;
+    }
+
+    uint8_t *system_use = (uint8_t *)entry + offset;
+    if (system_use[0] != 'S' || system_use[1] != 'P'
+     || system_use[2] != 7 || system_use[3] != 1
+     || system_use[4] != 0xbe || system_use[5] != 0xef) {
+        return -1;
+    }
+
+    return system_use[6];
+}
+
 static struct iso9660_context *iso9660_get_context(struct volume *vol) {
     struct iso9660_contexts_node *current = contexts;
     while (current) {
@@ -205,13 +226,20 @@ static struct iso9660_context *iso9660_get_context(struct volume *vol) {
         pmm_free(node, sizeof(struct iso9660_contexts_node));
         return NULL;
     }
+    node->context.susp_skip = iso9660_susp_skip(node->context.root,
+                                                node->context.root_size);
 
     node->next = contexts;
     contexts = node;
     return &node->context;
 }
 
-static bool load_name(char *buf, size_t limit, struct iso9660_directory_entry *entry) {
+static bool load_name(char *buf, size_t limit, struct iso9660_directory_entry *entry,
+                      int susp_skip) {
+    if (susp_skip < 0) {
+        goto use_iso_name;
+    }
+
     // Validate entry->length is large enough
     if (entry->length < sizeof(struct iso9660_directory_entry) + entry->filename_size) {
         goto use_iso_name;
@@ -226,6 +254,11 @@ static bool load_name(char *buf, size_t limit, struct iso9660_directory_entry *e
         sysarea++;
         sysarea_len--;
     }
+    if ((size_t)susp_skip > sysarea_len) {
+        goto use_iso_name;
+    }
+    sysarea += susp_skip;
+    sysarea_len -= susp_skip;
 
     // Accumulate Rock Ridge name from possibly multiple NM entries
     size_t name_len = 0;
@@ -330,7 +363,8 @@ static struct iso9660_directory_entry *iso9660_next_entry(void *current, void *b
     return entry;
 }
 
-static struct iso9660_directory_entry *iso9660_find(void *buffer, uint32_t size, const char *filename) {
+static struct iso9660_directory_entry *iso9660_find(void *buffer, uint32_t size,
+                                                    const char *filename, int susp_skip) {
     while (size) {
         struct iso9660_directory_entry *entry = buffer;
 
@@ -362,7 +396,7 @@ static struct iso9660_directory_entry *iso9660_find(void *buffer, uint32_t size,
         }
 
         char entry_filename[256];
-        bool rr = load_name(entry_filename, 256, entry);
+        bool rr = load_name(entry_filename, 256, entry, susp_skip);
 
         if (rr && !case_insensitive_fopen) {
             if (strcmp(filename, entry_filename) == 0) {
@@ -443,7 +477,9 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
         }
         *aux = '\0';
 
-        struct iso9660_directory_entry *entry = iso9660_find(current, current_size, filename);
+        struct iso9660_directory_entry *entry = iso9660_find(current, current_size,
+                                                             filename,
+                                                             ret->context->susp_skip);
         if (!entry) {
             if (!first) {
                 pmm_free(current, current_size);
@@ -476,7 +512,7 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
             // still populates the buffer; treat an empty buffer as the only
             // "no usable name" case.
             char base_name[256];
-            load_name(base_name, sizeof(base_name), entry);
+            load_name(base_name, sizeof(base_name), entry, ret->context->susp_skip);
 
             while (e->flags & ISO9660_FLAG_MULTI_EXTENT) {
                 struct iso9660_directory_entry *next = iso9660_next_entry(e, buffer_end);
@@ -486,7 +522,7 @@ struct file_handle *iso9660_open(struct volume *vol, const char *path) {
                 // the file identifier of the first record. Refuse to splice
                 // in unrelated entries.
                 char next_name[256];
-                load_name(next_name, sizeof(next_name), next);
+                load_name(next_name, sizeof(next_name), next, ret->context->susp_skip);
                 if (base_name[0] == '\0' || strcmp(base_name, next_name) != 0) {
                     break;
                 }
