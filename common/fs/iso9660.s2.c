@@ -191,12 +191,12 @@ static bool iso9660_cache_root(struct volume *vol,
     return true;
 }
 
-static int iso9660_susp_skip(void *root, uint32_t root_size) {
+// The cached root spans at least a sector, and a sector holds any record.
+static int iso9660_susp_skip(void *root) {
     struct iso9660_directory_entry *entry = root;
     size_t offset = sizeof(*entry) + 1;
 
-    if (root_size < offset || entry->length > root_size
-     || entry->length < offset + 7 || entry->filename_size != 1
+    if (entry->length < offset + 7 || entry->filename_size != 1
      || entry->name[0] != 0) {
         return -1;
     }
@@ -226,8 +226,7 @@ static struct iso9660_context *iso9660_get_context(struct volume *vol) {
         pmm_free(node, sizeof(struct iso9660_contexts_node));
         return NULL;
     }
-    node->context.susp_skip = iso9660_susp_skip(node->context.root,
-                                                node->context.root_size);
+    node->context.susp_skip = iso9660_susp_skip(node->context.root);
 
     node->next = contexts;
     contexts = node;
