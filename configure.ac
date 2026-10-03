@@ -117,10 +117,11 @@ AX_CHECK_GNU_MAKE([],
 # "GNU Make X", so take the version from either form.
 gnu_make_version="$("$_cv_gnu_make_command" --version 2>/dev/null | $SED -n -e 's/^GNU Make version /GNU Make /' -e 's/^GNU Make \([[0-9]][[0-9.]]*\).*/\1/p' | $SED 1q)"
 AC_MSG_CHECKING([whether $_cv_gnu_make_command is 3.81 or later])
-AX_COMPARE_VERSION([$gnu_make_version], [ge], [3.81],
-    [AC_MSG_RESULT([yes])],
+AS_VERSION_COMPARE([$gnu_make_version], [3.81],
     [AC_MSG_RESULT([no])
-     AC_MSG_ERROR([$_cv_gnu_make_command is GNU make $gnu_make_version, but 3.81 or later is required; set MAKE to a newer one])])
+     AC_MSG_ERROR([$_cv_gnu_make_command is GNU make $gnu_make_version, but 3.81 or later is required; set MAKE to a newer one])],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([yes])])
 
 # GET_PROG(UPPERCASEVAR, [default command], ['tool' if toolchain], ['no-err' to warn instead of fail])
 # Resolves VAR to an absolute program path, honouring a user-supplied value if
