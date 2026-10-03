@@ -86,10 +86,10 @@ endif
 ifeq ($(ARCH),riscv64)
 override CFLAGS += \
     -mabi=lp64 \
-    -march=rv64imac_zicsr_zifencei \
-    -mno-relax
+    -march=rv64imac_zicsr_zifencei
+# Keep linker relaxation away from gp, which nothing sets up.
 override LDFLAGS += \
-    --no-relax
+    --no-relax-gp
 endif
 
 ifeq ($(ARCH),loongarch64)
@@ -105,10 +105,7 @@ endif
 override CFLAGS += \
     -mabi=lp64s \
     -march=loongarch64 \
-    -msoft-float \
-    -mno-relax
-override LDFLAGS += \
-    --no-relax
+    -msoft-float
 endif
 
 override CFLAGS_MB := \
