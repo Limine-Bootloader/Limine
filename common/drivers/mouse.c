@@ -167,29 +167,28 @@ void mouse_get_state(struct mouse_state *state) {
     click_pending = false;
 }
 
-// Exported from the Enlightenment E16 BlueSteel theme cursor.
 #define POINTER_W 16
 #define POINTER_H 16
-#define POINTER_HOT_X 1
-#define POINTER_HOT_Y 1
+#define POINTER_HOT_X 0
+#define POINTER_HOT_Y 0
 
 static const char *pointer_shape[POINTER_H] = {
-    "###             ",
-    "#..##           ",
-    "#....##         ",
-    " #.....##       ",
-    " #.......##     ",
-    "  #........##   ",
-    "  #..........#  ",
-    "   #.......##   ",
-    "   #......#     ",
-    "    #......#    ",
-    "    #...#...#   ",
-    "     #.# #...#  ",
-    "     #.#  #.#   ",
-    "      #    #    ",
-    "                ",
-    "                ",
+    "#               ",
+    "##              ",
+    "#.#             ",
+    "#..#            ",
+    "#...#           ",
+    "#....#          ",
+    "#.....#         ",
+    "#......#        ",
+    "#.......#       ",
+    "#........#      ",
+    "#......##       ",
+    "#...#..#        ",
+    "#.## #..#       ",
+    "##   #..#       ",
+    "      #..#      ",
+    "      ####      ",
 };
 
 struct pointer_backing {
