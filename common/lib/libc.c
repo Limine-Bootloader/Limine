@@ -7,79 +7,71 @@
 #include <lib/misc.h>
 #include <mm/pmm.h>
 
-// Adapted from FreeBSD's strtoul(), and covered by the terms it carries there
-// rather than by COPYING.
-// https://github.com/freebsd/freebsd-src/blob/de1aa3dab23c06fec962a14da3e7b4755c5880cf/lib/libc/stdlib/strtoul.c
-// SPDX-License-Identifier: BSD-3-Clause
-// Copyright (c) 1990, 1993 The Regents of the University of California.
-// Copyright (c) 2011 The FreeBSD Foundation; portions were developed by David
-// Chisnall under sponsorship from the FreeBSD Foundation.
-unsigned long strtoul(const char *nptr, char **endptr, int base) {
-    const char *s;
-    unsigned long acc;
-    char c;
-    unsigned long cutoff;
-    int neg, any, cutlim;
-
-    s = nptr;
-    do {
-        c = *s++;
-    } while (isspace((unsigned char)c));
-    if (c == '-') {
-        neg = 1;
-        c = *s++;
-    } else {
-        neg = 0;
-        if (c == '+')
-            c = *s++;
+// No base admits UINT_MAX, which stands for anything but a digit or letter.
+static unsigned int digit_value(int c) {
+    if (isdigit(c)) {
+        return c - '0';
     }
-    if ((base == 0 || base == 16) &&
-        c == '0' && (*s == 'x' || *s == 'X') &&
-        ((s[1] >= '0' && s[1] <= '9') ||
-        (s[1] >= 'A' && s[1] <= 'F') ||
-        (s[1] >= 'a' && s[1] <= 'f'))) {
-        c = s[1];
-        s += 2;
-        base = 16;
+    if (isalpha(c)) {
+        return tolower(c) - 'a' + 10;
     }
-    if (base == 0)
-        base = c == '0' ? 8 : 10;
-    acc = any = 0;
-    if (base < 2 || base > 36)
-        goto noconv;
+    return UINT_MAX;
+}
 
-    cutoff = ULONG_MAX / base;
-    cutlim = ULONG_MAX % base;
-    for ( ; ; c = *s++) {
-        if (c >= '0' && c <= '9')
-            c -= '0';
-        else if (c >= 'A' && c <= 'Z')
-            c -= 'A' - 10;
-        else if (c >= 'a' && c <= 'z')
-            c -= 'a' - 10;
-        else
-            break;
-        if (c >= base)
-            break;
-        if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
-            any = -1;
-        else {
-            any = 1;
-            acc *= base;
-            acc += c;
+unsigned long strtoul(const char *str, char **end, int base) {
+    if (base != 0 && (base < 2 || base > 36)) {
+        if (end != NULL) {
+            *end = (char *)str;
         }
+        return 0;
     }
-    if (any < 0) {
-        acc = ULONG_MAX;
-        //errno = ERANGE;
-    } else if (!any) {
-noconv:
-        ;//errno = EINVAL;
-    } else if (neg)
-        acc = -acc;
-    if (endptr != NULL)
-        *endptr = (char *)(any ? s - 1 : nptr);
-    return (acc);
+
+    const char *p = str;
+    bool negative = false;
+
+    while (isspace((unsigned char)*p)) {
+        p++;
+    }
+
+    if (*p == '+' || *p == '-') {
+        negative = *p == '-';
+        p++;
+    }
+
+    // Without a hexadecimal digit after it, 0x is no prefix and the subject
+    // sequence ends at the 0 (C11 7.22.1.4, 6.4.4.1).
+    if ((base == 0 || base == 16) && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')
+     && digit_value((unsigned char)p[2]) < 16) {
+        p += 2;
+        base = 16;
+    } else if (base == 0) {
+        base = p[0] == '0' ? 8 : 10;
+    }
+
+    const char *digits = p;
+    unsigned long radix = base;
+    unsigned long value = 0;
+    bool overflow = false;
+    unsigned int digit;
+
+    while ((digit = digit_value((unsigned char)*p)) < radix) {
+        if (__builtin_mul_overflow(value, radix, &value)
+         || __builtin_add_overflow(value, digit, &value)) {
+            overflow = true;
+        }
+        p++;
+    }
+
+    if (end != NULL) {
+        // Without digits nothing is converted, not even white space or a sign.
+        *end = (char *)(p == digits ? str : p);
+    }
+
+    if (overflow) {
+        return ULONG_MAX;
+    }
+
+    return negative ? -value : value;
 }
 
 size_t strnlen(const char *str, size_t maxlen) {
