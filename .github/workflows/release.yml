@@ -102,6 +102,12 @@ jobs:
           mkdir build/bin/limine-tool-windows-x86
           mv build/bin/limine.exe build/bin/limine-tool-windows-x86/
 
+      # The notices of the mingw-w64 release the toolchain above was built from.
+      - name: Fetch the MinGW-w64 runtime notices for limine.exe
+        run: |
+          curl -Lo build/bin/limine-tool-windows-x86/COPYING.MinGW-w64-runtime.txt https://raw.githubusercontent.com/mingw-w64/mingw-w64/v14.0.0/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt
+          b2sum build/bin/limine-tool-windows-x86/COPYING.MinGW-w64-runtime.txt | grep -q 0a5b47144e2d5147d4ba1a6f073dfeead75626f3425c411fea58de4580e63f50ebd407ac40d6c2d88be0ee802084afc1b78331633e6f729198bb529bfaa01e1d
+
       - name: Copy LICENSE to bin
         run: cp COPYING build/bin/LICENSE
 
