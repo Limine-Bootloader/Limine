@@ -15,33 +15,27 @@ struct volume *pxe_bind_volume(void);
 void pxe_init(void);
 int pxe_call(uint16_t opcode, uint16_t buf_seg, uint16_t buf_off);
 
-#define MAC_ADDR_LEN 16
-typedef uint8_t MAC_ADDR_t[MAC_ADDR_LEN];
-
+// PXE 2.1, 3.4.1 (BOOTPLAYER). The specification never gives BOOTP_DHCPVEND a
+// value, so the vendor area is left open-ended.
 struct bootph {
     uint8_t opcode;
-    uint8_t Hardware;
-    uint8_t Hardlen;
-    uint8_t Gatehops;
+    uint8_t hardware;
+    uint8_t hardlen;
+    uint8_t gatehops;
     uint32_t ident;
     uint16_t seconds;
-    uint16_t Flags;
+    uint16_t flags;
     uint32_t cip;
     uint32_t yip;
     uint32_t sip;
     uint32_t gip;
-    MAC_ADDR_t CAddr;
-    uint8_t Sname[64];
+    uint8_t caddr[16];
+    uint8_t sname[64];
     uint8_t bootfile[128];
-    union bootph_vendor {
-        uint8_t d[1024];
-        struct bootph_vendor_v {
-            uint8_t magic[4];
-            uint32_t flags;
-            uint8_t pad[52];
-        } v;
-    } vendor;
-};
+    uint8_t vendor[];
+} __attribute__((packed));
+
+_Static_assert(sizeof(struct bootph) == 236, "BOOTP vendor area is at offset 236");
 
  struct PXENV_UNDI_GET_INFORMATION {
     uint16_t Status;
@@ -57,13 +51,25 @@ struct bootph {
     uint16_t TxBufCt;
  };
 
-#define PXE_SIGNATURE "PXENV+"
+// PXE 2.1, Table 1-1.
+struct segoff16 {
+    uint16_t offset;
+    uint16_t segment;
+} __attribute__((packed));
+
+struct segdesc {
+    uint16_t segment_address;
+    uint32_t physical_address;
+    uint16_t seg_size;
+} __attribute__((packed));
+
+// PXE 2.1, Table 3-1.
 struct pxenv {
     uint8_t signature[6];
     uint16_t version;
     uint8_t length;
     uint8_t checksum;
-    uint32_t rm_entry;
+    struct segoff16 rm_entry;
     uint32_t pm_offset;
     uint16_t pm_selector;
     uint16_t stack_seg;
@@ -76,29 +82,47 @@ struct pxenv {
     uint16_t undi_data_size;
     uint16_t undi_code_seg;
     uint16_t undi_code_size;
-    uint32_t pxe_ptr;
+    struct segoff16 pxe_ptr;
 } __attribute__((packed));
 
-#define PXE_BANGPXE_SIGNATURE "!PXE"
-struct bangpxe {
+_Static_assert(sizeof(struct pxenv) == 0x2c, "PXENV+ layout");
+
+// PXE 2.1, Table 3-2.
+struct pxe {
     uint8_t signature[4];
-    uint8_t length;
-    uint8_t chksum;
-    uint8_t rev;
-    uint8_t reserved;
-    uint32_t undiromid;
-    uint32_t baseromid;
-    uint32_t rm_entry;
-    uint32_t pm_entry;
+    uint8_t struct_length;
+    uint8_t struct_cksum;
+    uint8_t struct_rev;
+    uint8_t reserved1;
+    struct segoff16 undi_rom_id;
+    struct segoff16 base_rom_id;
+    struct segoff16 entry_point_sp;
+    struct segoff16 entry_point_esp;
+    struct segoff16 status_callout;
+    uint8_t reserved2;
+    uint8_t seg_desc_cnt;
+    uint16_t first_selector;
+    struct segdesc stack;
+    struct segdesc undi_data;
+    struct segdesc undi_code;
+    struct segdesc undi_code_write;
+    struct segdesc bc_data;
+    struct segdesc bc_code;
+    struct segdesc bc_code_write;
 } __attribute__((packed));
 
+_Static_assert(sizeof(struct pxe) == 0x58, "!PXE layout");
+
+// PXE 2.1, 3.4.1.
 #define PXENV_GET_CACHED_INFO 0x0071
+#define PXENV_PACKET_TYPE_DHCP_DISCOVER 1
+#define PXENV_PACKET_TYPE_DHCP_ACK 2
 #define PXENV_PACKET_TYPE_CACHED_REPLY 3
 struct pxenv_get_cached_info {
     uint16_t status;
     uint16_t packet_type;
     uint16_t buffer_size;
-    uint32_t buffer;
+    struct segoff16 buffer;
     uint16_t buffer_limit;
 } __attribute__((packed));
 
