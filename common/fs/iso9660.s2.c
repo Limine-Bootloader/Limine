@@ -191,7 +191,7 @@ static bool iso9660_cache_root(struct volume *vol,
     return true;
 }
 
-// A looping chain would never end otherwise. Linux stops at the same depth.
+// A looping chain would never end otherwise.
 #define ISO9660_MAX_CONTINUATIONS 32
 
 struct iso9660_susp_iter {
