@@ -53,8 +53,10 @@ with no extensions must be used.
 - Stick to ASCII: avoid em-dashes and other non-ASCII characters in code, comments, commit
   messages, and documentation, unless the non-ASCII character is essential to the work.
 - Do not add per-file license headers.
-- Do not edit vendored/fetched/generated files (i.e. anything in `3RDPARTY.md`, or not in
-  `git ls-files`).
+- Do not edit fetched, generated, or vendored files: anything not in `git ls-files`, which
+  includes everything `./bootstrap` pulls in, and files checked in unchanged from another
+  project, such as the autoconf-archive macros in `m4/`. Code adapted from other projects
+  within the tree may be edited like any other, but keep its license notices intact.
 - As a catch-all, match the surrounding code: indentation, braces, naming, idiom. Mirror the
   conventions used by the file you edit.
 
