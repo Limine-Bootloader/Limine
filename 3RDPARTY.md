@@ -35,19 +35,8 @@ below) provides headers and build-time support for UEFI.
     - BSD-2-Clause
     - BSD-2-Clause-Patent
     - BSD-3-Clause
-    - LicenseRef-scancode-bsd-no-disclaimer-unmodified
+    - BSD-Source-Code-no-disclaimer
     - MIT
-
-    For more information about the
-    LicenseRef-scancode-bsd-no-disclaimer-unmodified license used by parts of
-    PicoEFI, see
-    https://scancode-licensedb.aboutcode.org/bsd-no-disclaimer-unmodified.html
-    and the LicenseRef file
-    [here](LICENSES/LicenseRef-scancode-bsd-no-disclaimer-unmodified.txt),
-    in case of viewing this file from inside the source tree, alternatively at
-    `${DOCDIR}/LICENSES/LicenseRef-scancode-bsd-no-disclaimer-unmodified.txt`
-    in case of installed copies, assuming the file has not been otherwise
-    removed by the packager.
 
 - [Flanterm](https://github.com/Mintsuki/Flanterm) (BSD-2-Clause) is used for
 text related screen drawing.
