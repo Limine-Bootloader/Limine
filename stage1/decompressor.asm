@@ -1,9 +1,14 @@
 ; limlz: Copyright (C) 2026 Kamila Szewczyk <k@iczelia.net>
 ; limine: Copyright (C) 2019-2026 Mintsuki and contributors.
 ;
+; SPDX-License-Identifier: BSD-2-Clause AND CC-BY-3.0
+;
 ; The algorithm is based on LZMA, augmented with a x86 filter and a
-; Storer-Szymanski backwards optimal parse.  Based on Ilya Kurdyukov's
-; LZMA decoder (CC-BY 3.0)
+; Storer-Szymanski backwards optimal parse.
+;
+; The decoder is a modified version of the Micro LZMA decoder for x86 (static)
+; by Ilya Kurdyukov, https://github.com/ilyakurdyukov/micro-lzmadec. The
+; modifications are under the terms below; its original notice follows them.
 ;
 ; Redistribution and use in source and binary forms, with or without
 ; modification, are permitted provided that the following conditions are met:
@@ -25,6 +30,23 @@
 ; CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 ; OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ; OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+;
+; Copyright (c) 2022, Ilya Kurdyukov
+; All rights reserved.
+;
+; Micro LZMA decoder for x86 (static)
+;
+; This software is distributed under the terms of the
+; Creative Commons Attribution 3.0 License (CC-BY 3.0)
+; http://creativecommons.org/licenses/by/3.0/
+;
+; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+; OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+; AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+; THE SOFTWARE.
 
 %define LOAD_ADDRESS 0x70000
 
