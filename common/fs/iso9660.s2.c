@@ -207,13 +207,13 @@ struct iso9660_susp_iter {
 
 static uint8_t *iso9660_susp_next(struct iso9660_susp_iter *iter) {
     for (;;) {
-        // An entry holds at least its signature, length and version.
-        if (iter->size >= 4 && iter->area[2] >= 4 && iter->area[2] <= iter->size
-         && iter->area[3] == 1) {
+        // An entry holds at least its signature, length and version, the
+        // latter defined by its extension and so checked by whatever reads it.
+        if (iter->size >= 4 && iter->area[2] >= 4 && iter->area[2] <= iter->size) {
             uint8_t *entry = iter->area;
             iter->area += entry[2];
             iter->size -= entry[2];
-            if (entry[0] == 'C' && entry[1] == 'E' && entry[2] == 28) {
+            if (entry[0] == 'C' && entry[1] == 'E' && entry[2] == 28 && entry[3] == 1) {
                 struct BE32_t *ce = (struct BE32_t *)(entry + 4);
                 iter->ce_lba = ce[0].little;
                 iter->ce_offset = ce[1].little;
@@ -270,7 +270,7 @@ static int iso9660_susp_skip(struct iso9660_context *context) {
     };
     uint8_t *susp;
     while ((susp = iso9660_susp_next(&iter)) != NULL) {
-        if (susp[0] != 'E' || susp[1] != 'R' || susp[2] < 8
+        if (susp[0] != 'E' || susp[1] != 'R' || susp[3] != 1 || susp[2] < 8
          || susp[2] != 8 + susp[4] + susp[5] + susp[6]) {
             continue;
         }
@@ -347,7 +347,7 @@ static bool load_name(char *buf, size_t limit, struct iso9660_directory_entry *e
     };
     uint8_t *susp;
     while ((susp = iso9660_susp_next(&iter)) != NULL) {
-        if (susp[0] == 'N' && susp[1] == 'M' && susp[2] >= 5) {
+        if (susp[0] == 'N' && susp[1] == 'M' && susp[2] >= 5 && susp[3] == 1) {
             size_t frag_len = susp[2] - 5;
             // Continuation Areas let a name outgrow any path component.
             if (name_len + frag_len >= limit) {
