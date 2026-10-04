@@ -983,19 +983,6 @@ struct limine_mp_info *init_smp(size_t *cpu_count, pagemap_t pagemap, uint64_t h
 enum {
     LOONGARCH_CSR_CPUID = 0x20,
 
-    LOONGARCH_IOCSR_IPI_SEND = 0x1040,
-    LOONGARCH_IOCSR_MBUF_SEND = 0x1048,
-
-    IOCSR_IPI_SEND_BLOCKING_BIT = 31,
-    IOCSR_IPI_SEND_CPU_SHIFT    = 16,
-    IOCSR_IPI_SEND_IP_SHIFT     = 0,
-
-    IOCSR_MBUF_SEND_BLOCKING_BIT = 31,
-    IOCSR_MBUF_SEND_CPU_SHIFT    = 16,
-    IOCSR_MBUF_SEND_BOX_SHIFT    = 2,
-
-    SMP_BOOT_CPU = 0x1,
-
     MADT_ENTRY_CORE_PIC = 17
 };
 
@@ -1023,30 +1010,46 @@ static inline bool core_pic_startable(struct madt_core_pic *core_pic) {
     return core_pic->flags & MADT_CORE_PIC_ENABLED;
 }
 
-static void csr_mail_send(uint64_t data, int cpu, int mailbox) {
-    uint64_t val;
+// Loongson 3A5000/3B5000 processor user manual v1.03, 10.2, table 10-7.
+#define IOCSR_IPI_SEND 0x1040
+#define IOCSR_MAIL_SEND 0x1048
 
-    // High 32bit
-    val = ((uint64_t)1 << IOCSR_MBUF_SEND_BLOCKING_BIT);
-    val |= (((mailbox << 1) + 1) << IOCSR_MBUF_SEND_BOX_SHIFT);
-    val |= (cpu << IOCSR_MBUF_SEND_CPU_SHIFT);
-    val |= (data & 0xFFFFFFFF00000000);
-    iocsr_write64(val, LOONGARCH_IOCSR_MBUF_SEND);
+#define IOCSR_SEND_WAIT ((uint32_t)1 << 31)
+#define IOCSR_SEND_CORE_SHIFT 16
+#define IOCSR_SEND_CORE_MAX 0x3ff
+#define MAIL_SEND_BOX_SHIFT 2
+#define MAIL_SEND_DATA_SHIFT 32
 
-    // Low 32bit
-    val = ((uint64_t)1 << IOCSR_MBUF_SEND_BLOCKING_BIT);
-    val |= ((mailbox << 1) << IOCSR_MBUF_SEND_BOX_SHIFT);
-    val |= (cpu << IOCSR_MBUF_SEND_CPU_SHIFT);
-    val |= (data << 32);
-    iocsr_write64(val, LOONGARCH_IOCSR_MBUF_SEND);
-};
+// The MailBox field counts 32-bit words: 2n and 2n + 1 are the low and high
+// words of mailbox n.
+static void mail_send(uint32_t core, uint32_t word, uint32_t data) {
+    iocsr_write64(((uint64_t)data << MAIL_SEND_DATA_SHIFT)
+                  | IOCSR_SEND_WAIT
+                  | ((uint64_t)core << IOCSR_SEND_CORE_SHIFT)
+                  | ((uint64_t)word << MAIL_SEND_BOX_SHIFT),
+                  IOCSR_MAIL_SEND);
+}
 
-static void smp_send_ipi(uint32_t phys_id, uint32_t action) {
-    uint32_t val = ((uint32_t)1 << IOCSR_IPI_SEND_BLOCKING_BIT)
-                 | (phys_id << IOCSR_IPI_SEND_CPU_SHIFT)
-                 | (action << IOCSR_IPI_SEND_IP_SHIFT);
+static void ipi_send(uint32_t core, uint32_t vector) {
+    iocsr_write32(IOCSR_SEND_WAIT | (core << IOCSR_SEND_CORE_SHIFT) | vector, IOCSR_IPI_SEND);
+}
 
-    iocsr_write32(val, LOONGARCH_IOCSR_IPI_SEND);
+// Under UEFI a parked AP sleeps until it takes an IPI, of any vector, and then
+// jumps to the address in its mailbox 0.
+static bool release_parked_ap(uint32_t phys_id, uint64_t entry) {
+    if (phys_id > IOCSR_SEND_CORE_MAX) {
+        printv("smp: Core ID %u does not fit the IPI core field\n", phys_id);
+        return false;
+    }
+
+    // Each Mail_Send write moves 32 bits; the wait flag holds it until it has
+    // landed, and IOCSR accesses are sequentially consistent (LoongArch Vol. 1
+    // 4.2.2.1), so the IPI cannot overtake either half.
+    mail_send(phys_id, 1, (uint32_t)(entry >> 32));
+    mail_send(phys_id, 0, (uint32_t)entry);
+    ipi_send(phys_id, 0);
+
+    return true;
 }
 
 static bool smp_start_ap(uint32_t phys_id, struct limine_mp_info *info_struct,
@@ -1064,13 +1067,15 @@ static bool smp_start_ap(uint32_t phys_id, struct limine_mp_info *info_struct,
     loongarch_smp_passed_info.smp_tpl_hhdm_offset = hhdm_offset;
     loongarch_smp_passed_info.smp_tpl_temp_stack  = (uint64_t)(uintptr_t)temp_stack + 8192;
 
+    // IOCSR writes count as stores (LoongArch Vol. 1 7.4.4), so DBAR 0 keeps
+    // the release below behind these stores becoming visible (2.2.8.1).
     asm volatile ("dbar 0" ::: "memory");
 
     uint64_t trampoline_entry = (uint64_t)(uintptr_t)smp_trampoline_start;
 
-    // Mailbox 0 and 1 carry the low and high 32 bits of the AP entry point.
-    csr_mail_send(trampoline_entry, phys_id, 0);
-    smp_send_ipi(phys_id, SMP_BOOT_CPU);
+    if (!release_parked_ap(phys_id, trampoline_entry)) {
+        return false;
+    }
 
     for (int i = 0; i < AP_START_TIMEOUT_US / AP_START_STALL_US; i++) {
         if (locked_read(&loongarch_smp_passed_info.smp_tpl_booted_flag) == 1)
