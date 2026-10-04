@@ -42,13 +42,10 @@ bool tpm_get_event_log(uint32_t *format, void **address, size_t *size);
 // return false.
 void tpm_release_event_log(void);
 
-#define TPM_EVENT_LOG_MAX 0x400000
-
-// Compute the in-memory size of one TCG 2.0 crypto-agile event entry.
-// `header` must point to the spec-ID event at the start of the log; it
-// carries the per-algorithm digest sizes needed to walk variable-length
-// digest lists. `end` bounds the walk. Returns 0 on malformed input.
-uint32_t tpm_calc_event_size(const void *event, const void *header, const void *end);
+// Size in bytes of the events the firmware's final events table already held
+// when the event log was captured, which the captured log holds as well. 0 if
+// that is unknown, or if no log has been captured.
+size_t tpm_get_final_events_preboot_size(void);
 
 // Locate the firmware's final-events table for the active measurement
 // protocol (EFI_TCG2_FINAL_EVENTS_TABLE_GUID for TCG2, or

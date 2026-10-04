@@ -14,85 +14,66 @@
 #define LINUX_EFI_TPM_EVENT_LOG_GUID \
     { 0xb7799cb0, 0xeca2, 0x4943, { 0x96, 0x67, 0x1f, 0xae, 0x07, 0xb7, 0x47, 0xfa } }
 
-struct linux_efi_tpm_eventlog {
+struct linux_efi_tpm_event_log {
     uint32_t size;
     uint32_t final_events_preboot_size;
-    uint8_t  version;
-    uint8_t  log[];
+    uint8_t version;
+    uint8_t log[];
 } __attribute__((packed));
 
-// Wrap the captured TCG event log in Linux's linux_efi_tpm_eventlog framing
-// and publish it as the LINUX_EFI_TPM_EVENT_LOG configuration table for the
-// kernel's TPM driver. Limine bypasses the EFI stub that would normally do
-// this, and the ACPI TPM2 fallback path the kernel uses otherwise is
-// unreliable on common firmware.
 void linux_install_efi_tpm_event_log(void) {
+    if (!tpm_present()) {
+        return;
+    }
+
     uint32_t format;
-    void *log_addr;
+    void *log_data;
     size_t log_size;
-    if (!tpm_get_event_log(&format, &log_addr, &log_size)) {
+    if (!tpm_get_event_log(&format, &log_data, &log_size)) {
+        printv("linux: No TPM event log to pass on\n");
         return;
     }
 
-    // Walk the firmware's final-events table so the kernel can deduplicate
-    // any pre-boot events firmware migrated there. The table is selected
-    // by the active measurement protocol (TCG2 vs CC).
-    uint32_t final_events_preboot_size = 0;
-    if (format > EFI_TCG2_EVENT_LOG_FORMAT_TCG_1_2) {
-        EFI_TCG2_FINAL_EVENTS_TABLE *final_events = tpm_get_final_events_table();
-        if (final_events != NULL && final_events->NumberOfEvents > 0) {
-            const uint8_t *base = final_events->Events;
-            uint64_t remaining = final_events->NumberOfEvents;
-            while (remaining > 0) {
-                const void *header = base + final_events_preboot_size;
-                uint32_t ev_size = tpm_calc_event_size(header, log_addr, base + TPM_EVENT_LOG_MAX);
-                if (ev_size == 0) {
-                    // Malformed entry: a partial sum would skip an arbitrary
-                    // prefix and leave the rest looking post-boot, which is
-                    // worse than disabling dedup. Hand the kernel 0 so it
-                    // processes every final-events entry; the worst case is
-                    // duplicate events in its log, not silent loss.
-                    printv("linux: malformed entry in TCG final events table; "
-                           "disabling preboot dedup\n");
-                    final_events_preboot_size = 0;
-                    break;
-                }
-                final_events_preboot_size += ev_size;
-                remaining--;
-            }
-        }
+    size_t preboot_size = tpm_get_final_events_preboot_size();
+    struct linux_efi_tpm_event_log *table = NULL;
+    EFI_GUID guid = LINUX_EFI_TPM_EVENT_LOG_GUID;
+    EFI_STATUS status;
+
+    if (log_size == 0) {
+        printv("linux: TPM event log is empty, not passing it on\n");
+        goto out;
+    }
+    // The pre-boot events are part of the log, so both sizes fit the fields.
+    if (log_size > UINT32_MAX - sizeof(*table) || preboot_size > log_size) {
+        printv("linux: TPM event log is too large to pass on\n");
+        goto out;
     }
 
-    UINTN total_size = sizeof(struct linux_efi_tpm_eventlog) + log_size;
-    struct linux_efi_tpm_eventlog *log_tbl = NULL;
-    EFI_STATUS status = gBS->AllocatePool(EfiACPIReclaimMemory, total_size,
-                                          (void **)&log_tbl);
+    // The kernel reads the table after ExitBootServices(), and memory of this
+    // type is preserved until ACPI is enabled (UEFI 2.11 section 7.2).
+    status = gBS->AllocatePool(EfiACPIReclaimMemory, sizeof(*table) + log_size,
+                               (void **)&table);
     if (status != EFI_SUCCESS) {
-        printv("linux: failed to allocate event log table: %X\n", (uint64_t)status);
-        return;
+        printv("linux: Failed to allocate the TPM event log table: %X\n", (uint64_t)status);
+        goto out;
     }
 
-    memset(log_tbl, 0, total_size);
-    log_tbl->size = (uint32_t)log_size;
-    log_tbl->final_events_preboot_size = final_events_preboot_size;
-    log_tbl->version = (uint8_t)format;
-    if (log_size > 0) {
-        memcpy(log_tbl->log, log_addr, log_size);
-    }
+    table->size = log_size;
+    table->final_events_preboot_size = preboot_size;
+    table->version = format;
+    memcpy(table->log, log_data, log_size);
 
-    EFI_GUID linux_log_guid = LINUX_EFI_TPM_EVENT_LOG_GUID;
-    status = gBS->InstallConfigurationTable(&linux_log_guid, log_tbl);
+    status = gBS->InstallConfigurationTable(&guid, table);
     if (status != EFI_SUCCESS) {
-        printv("linux: failed to install event log table: %X\n", (uint64_t)status);
-        gBS->FreePool(log_tbl);
-        return;
+        printv("linux: Failed to install the TPM event log table: %X\n", (uint64_t)status);
+        gBS->FreePool(table);
+        goto out;
     }
 
+    printv("linux: Installed TPM event log table at %p\n", table);
+
+out:
     tpm_release_event_log();
-
-    printv("linux: installed event log (%u bytes, format TCG_%s) as configuration table\n",
-           log_tbl->size,
-           format == EFI_TCG2_EVENT_LOG_FORMAT_TCG_2 ? "2" : "1.2");
 }
 
 #endif
