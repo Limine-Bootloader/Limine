@@ -7,7 +7,26 @@
 #include <lib/rand.h>
 #include <sys/cpu.h>
 
-// PCG32 (PCG-XSH-RR 64/32, single-stream variant) of M. E. O'Neill 2014.
+// PCG32 (PCG-XSH-RR 64/32): pcg_next() and the seeding in srand() and
+// init_rand() are adapted from the PCG reference implementation, changed to
+// keep one global state with a fixed increment, and are covered by the terms
+// it carries there rather than by COPYING.
+// https://github.com/imneme/pcg-c-basic/blob/bc39cd76ac3d541e618606bcc6e1e5ba5e5e6aa3/pcg_basic.c
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2014 Melissa O'Neill <oneill@pcg-random.org>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // For security-sensitive randomness use safe_rand32()/safe_rand64() instead.
 
 #define PCG_MULTIPLIER ((uint64_t)6364136223846793005)
