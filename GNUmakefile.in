@@ -369,8 +369,8 @@ dist:
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/logo.png"
 	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/screenshot.png"
 	echo "$(PACKAGE_VERSION)" > '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/version"
-	cd '$(call SHESCAPE,$(BUILDDIR))' && find "$(DIST_OUTPUT)" ! -type d -perm -100 -exec chmod 755 '{}' +
-	cd '$(call SHESCAPE,$(BUILDDIR))' && find "$(DIST_OUTPUT)" ! -type d ! -perm -100 -exec chmod 644 '{}' +
+	cd '$(call SHESCAPE,$(BUILDDIR))' && find "$(DIST_OUTPUT)" -type f -perm -100 -exec chmod 755 '{}' +
+	cd '$(call SHESCAPE,$(BUILDDIR))' && find "$(DIST_OUTPUT)" -type f ! -perm -100 -exec chmod 644 '{}' +
 	cd '$(call SHESCAPE,$(BUILDDIR))' && TZ=UTC0 find "$(DIST_OUTPUT)" -exec touch -t $(SOURCE_DATE_EPOCH_TOUCH) '{}' +
 	cd '$(call SHESCAPE,$(BUILDDIR))' && tar -cf "$(DIST_OUTPUT).tar" $$(find "$(DIST_OUTPUT)" ! -type d | LC_ALL=C sort)
 	cd '$(call SHESCAPE,$(BUILDDIR))' && gzip -n < "$(DIST_OUTPUT).tar" > "$(DIST_OUTPUT).tar.gz"
