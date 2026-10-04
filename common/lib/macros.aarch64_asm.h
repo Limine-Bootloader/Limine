@@ -51,68 +51,117 @@
     mov x30, xzr
 .endm
 
-// Configure EL2 to neither trap nor perturb EL1 before dropping there. Every
-// field written is architecturally UNKNOWN out of reset. Armv8.0 only: later
-// extensions add controls this misses, and CPTR_EL2 bits 12 and 8 stop being
-// RES1 under FEAT_SME and FEAT_SVE.
+// Set EL2 up so that EL1, once entered by ERET, runs as it would on a PE
+// without EL2, for the Armv8.0 PEs that can_drop_to_el1() accepts
+// Uses \tmp1 and \tmp2
 .macro INIT_EL2_FOR_EL1 tmp1, tmp2
-    // Let EL1 and EL0 reach the counters and the physical timer.
+    // Most fields below reset to UNKNOWN values and firmware may have changed
+    // the rest, so every register is written whole: a stray trap or routing
+    // bit would survive a read-modify-write. Sections are those of the
+    // Arm ARM, DDI 0487M.c, unless stated otherwise.
+
+    // HCR_EL2 (D24.2.61) starts as RW alone: EL1 is AArch64, nothing traps
+    // or routes to EL2, no virtual interrupt is pending, and there is no
+    // stage 2.
+    mov \tmp2, #(1 << 31)
+
+    // HVC is UNDEFINED without EL2 (C6.2.175). HCD can only make it so where
+    // EL3 is absent, being RES0 otherwise.
+    mrs \tmp1, id_aa64pfr0_el1
+    ubfx \tmp1, \tmp1, #12, #4 // EL3
+    cbnz \tmp1, .L_el2_hcd_done\@
+    orr \tmp2, \tmp2, #(1 << 29)
+.L_el2_hcd_done\@:
+
+    // FEAT_CSV2_2 and FEAT_CSV2_1p2 are permitted in Armv8.0 (A2.2.1) and
+    // give EL1 the SCXTNUM registers, which EnSCXT traps while clear. It is
+    // RES0 without them.
+    mrs \tmp1, id_aa64pfr0_el1
+    ubfx \tmp1, \tmp1, #57, #3 // CSV2 >= 0b0010
+    cbnz \tmp1, .L_el2_scxt\@
+    mrs \tmp1, id_aa64pfr1_el1
+    ubfx \tmp1, \tmp1, #33, #3 // CSV2_frac >= 0b0010
+    cbz \tmp1, .L_el2_scxt_done\@
+.L_el2_scxt\@:
+    orr \tmp2, \tmp2, #(1 << 53)
+.L_el2_scxt_done\@:
+    msr hcr_el2, \tmp2
+
+    // CPTR_EL2 (D24.2.37): the RES1 bits alone, TZ and TSM among them as SVE
+    // and SME are absent, so FP, trace, and CPACR_EL1 accesses do not trap.
+    mov \tmp1, #0x33ff
+    msr cptr_el2, \tmp1
+
+    // HSTR_EL2 (D24.2.76) holds nothing but traps of AArch32 CP15 accesses.
+    msr hstr_el2, xzr
+
+    // MDCR_EL2 (D24.3.17): HPMN set to the PMCR_EL0.N that EL2 reads (D24.5.8)
+    // gives every event counter to EL1 and EL0, and the rest clear routes
+    // debug exceptions to EL1 and traps nothing. Without PMUv3, which PMUVer
+    // 0b0000 and 0b1111 both indicate (D24.2.79), PMCR_EL0 is UNDEFINED and
+    // HPMN RES0.
+    mov \tmp2, xzr
+    mrs \tmp1, id_aa64dfr0_el1
+    ubfx \tmp1, \tmp1, #8, #4 // PMUVer
+    cbz \tmp1, .L_el2_pmu_done\@
+    eor \tmp1, \tmp1, #0xf
+    cbz \tmp1, .L_el2_pmu_done\@
+    mrs \tmp2, pmcr_el0
+    ubfx \tmp2, \tmp2, #11, #5
+.L_el2_pmu_done\@:
+    msr mdcr_el2, \tmp2
+
+    // CNTHCTL_EL2 (D24.10.2): EL1PCTEN and EL1PCEN set, which is how they
+    // behave without EL2, and EL2's event stream, which acts at every
+    // Exception level, off. A zero offset makes the virtual counter the
+    // physical one (D12.2.2).
     mov \tmp1, #3
     msr cnthctl_el2, \tmp1
     msr cntvoff_el2, xzr
 
-    // EL1 reads of MIDR_EL1 and MPIDR_EL1 are served by these instead.
+    // EL2's own timer has no counterpart without EL2, and as its ENABLE
+    // resets UNKNOWN, its interrupt could otherwise reach EL1 (D24.10.6).
+    msr cnthp_ctl_el2, xzr
+
+    // EL1&0 TLB entries carry the VMID even with stage 2 off (D8.16.3.1), and
+    // VTTBR_EL2 has no reset value. Zero is VMID 0 at either width that
+    // VTCR_EL2.VS allows.
+    msr vttbr_el2, xzr
+
+    // EL1 reads of MIDR_EL1 and MPIDR_EL1 return these, while EL2 reads the
+    // PE's own values (D24.2.136, D24.2.137).
     mrs \tmp1, midr_el1
     msr vpidr_el2, \tmp1
     mrs \tmp1, mpidr_el1
     msr vmpidr_el2, \tmp1
 
-    // Stage 2 stays off, but EL1&0 TLB entries are tagged with the VMID here.
-    msr vttbr_el2, xzr
+    // HACR_EL2 and ACTLR_EL2 are IMPLEMENTATION DEFINED throughout (D24.2.59,
+    // D24.2.3), so the architecture gives no value to write to them.
 
-    // Don't trap FP/SIMD, the trace registers, or CPACR_EL1 itself.
-    mov \tmp1, #0x33ff
-    msr cptr_el2, \tmp1
-
-    // Don't trap AArch32 CP15 accesses.
-    msr hstr_el2, xzr
-
-    // Clear the debug and PMU traps, and give EL1 every counter through HPMN.
-    // PMCR_EL0 only exists under FEAT_PMUv3, and PMUVer 0xf reports no count.
-    mov \tmp2, xzr
-    mrs \tmp1, id_aa64dfr0_el1
-    ubfx \tmp1, \tmp1, #8, #4
-    cbz \tmp1, .Lno_pmu_\@
-    cmp \tmp1, #0xf
-    b.eq .Lno_pmu_\@
-    mrs \tmp2, pmcr_el0
-    ubfx \tmp2, \tmp2, #11, #5
-.Lno_pmu_\@:
-    msr mdcr_el2, \tmp2
-
-    // RW for AArch64 at EL1, SWIO, and EnSCXT, whose 0 traps SCXTNUM_EL0 and
-    // SCXTNUM_EL1 under FEAT_CSV2_2 or FEAT_CSV2_1p2, both optional from
-    // Armv8.0. Everything else, TGE included, stays 0.
-    mov \tmp1, xzr
-    orr \tmp1, \tmp1, #(1 << 53)
-    orr \tmp1, \tmp1, #(1 << 31)
-    orr \tmp1, \tmp1, #(1 << 1)
-    msr hcr_el2, \tmp1
-
-    // EL1 accesses to the GICv3 CPU interface trap unless SRE and Enable are
-    // set, and the write only sticks where EL3 enabled the interface in turn.
+    // The GICv3 System register interface, per GIC IHI 0069H.b. In
+    // ICC_SRE_EL2, Enable and SRE let EL1 reach and enable its own interface
+    // (12.2.23, 12.2.24), and DIB and DFB disable bypass, which must be off
+    // before EL1 enables an interrupt group but which EL1 cannot change with
+    // EL2 present (3.2, 12.2.23).
     mrs \tmp1, id_aa64pfr0_el1
-    ubfx \tmp1, \tmp1, #24, #4
-    cbz \tmp1, .Lno_gicv3_\@
-    mrs \tmp1, icc_sre_el2
-    orr \tmp1, \tmp1, #(1 << 3)
-    orr \tmp1, \tmp1, #(1 << 0)
+    ubfx \tmp1, \tmp1, #24, #4 // GIC
+    cbz \tmp1, .L_el2_gic_done\@
+    mov \tmp1, #0xf
     msr icc_sre_el2, \tmp1
+
+    // ICH_HCR_EL2 traps unless the SRE just written is in effect (12.4.5,
+    // D24.1.2.2), and SRE is RAZ/WI where EL3 withholds the interface
+    // (12.2.24).
     isb
     mrs \tmp1, icc_sre_el2
-    tbz \tmp1, #0, .Lno_gicv3_\@
-    msr ich_hcr_el2, xzr
-.Lno_gicv3_\@:
+    tbz \tmp1, #0, .L_el2_gic_done\@
 
+    // ICH_HCR_EL2 (12.4.5): the virtual CPU interface off, and no trap of
+    // EL1's ICC_* accesses.
+    msr ich_hcr_el2, xzr
+.L_el2_gic_done\@:
+
+    // The caller's TLB maintenance reads the VMID, and its ERET reads
+    // HCR_EL2.{TGE, RW} before synchronising (D24.1.2.2, D1.4.4.2).
     isb
 .endm
