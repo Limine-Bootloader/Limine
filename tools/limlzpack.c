@@ -2,8 +2,7 @@
  * limine: Copyright (C) 2019-2026 Mintsuki and contributors.
  *
  * The algorithm is based on LZMA, augmented with a x86 filter and a
- * Storer-Szymanski backwards optimal parse.  Based on Ilya Kurdyukov's
- * LZMA decoder (CC-BY 3.0)
+ * Storer-Szymanski backwards optimal parse.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
