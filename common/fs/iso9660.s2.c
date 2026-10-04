@@ -213,6 +213,12 @@ static uint8_t *iso9660_susp_next(struct iso9660_susp_iter *iter) {
             uint8_t *entry = iter->area;
             iter->area += entry[2];
             iter->size -= entry[2];
+            // ST ends this area, but a CE recorded before it still continues
+            // the chain.
+            if (entry[0] == 'S' && entry[1] == 'T' && entry[3] == 1) {
+                iter->size = 0;
+                continue;
+            }
             if (entry[0] == 'C' && entry[1] == 'E' && entry[2] == 28 && entry[3] == 1) {
                 struct BE32_t *ce = (struct BE32_t *)(entry + 4);
                 iter->ce_lba = ce[0].little;
