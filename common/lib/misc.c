@@ -177,28 +177,30 @@ bool parse_resolution(size_t *width, size_t *height, size_t *bpp, const char *bu
     return true;
 }
 
-// This integer sqrt implementation has been adapted from:
-// https://stackoverflow.com/questions/1100090/looking-for-an-efficient-integer-square-root-algorithm-for-arm-thumb2
-uint64_t sqrt(uint64_t a_nInput) {
-    uint64_t op  = a_nInput;
-    uint64_t res = 0;
-    uint64_t one = (uint64_t)1 << 62;
+uint64_t sqrt(uint64_t value) {
+    uint64_t rem = value;
+    uint64_t root = 0;
+    uint64_t place = (uint64_t)1 << 62;
 
-    // "one" starts at the highest power of four <= than the argument.
-    while (one > op) {
-        one >>= 2;
+    while (place > value) {
+        place >>= 2;
     }
 
-    while (one != 0) {
-        if (op >= res + one) {
-            op = op - (res + one);
-            res = res +  2 * one;
+    // Binary long-hand method, settling one root bit per pass from the top.
+    // On the pass for bit k, place is 4^k, root is the root so far times
+    // 2^(k + 1), and rem is value less the square of the root so far, so
+    // setting bit k grows that square by root + place, which must fit in rem.
+    while (place != 0) {
+        uint64_t trial = root + place;
+        root >>= 1;
+        if (rem >= trial) {
+            rem -= trial;
+            root += place;
         }
-        res >>= 1;
-        one >>= 2;
+        place >>= 2;
     }
 
-    return res;
+    return root;
 }
 
 size_t get_trailing_zeros(uint64_t val) {

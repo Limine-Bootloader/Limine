@@ -54,7 +54,7 @@ bool parse_resolution(size_t *width, size_t *height, size_t *bpp, const char *bu
 
 bool get_absolute_path(char *path_ptr, const char *path, const char *pwd, size_t size);
 
-uint64_t sqrt(uint64_t a_nInput);
+uint64_t sqrt(uint64_t value);
 size_t get_trailing_zeros(uint64_t val);
 
 int digit_to_int(char c);
