@@ -55,9 +55,8 @@ start:
     mov esp, 0x7c00
     sti
 
-    ; Limine isn't made for floppy disks, these are dead anyways.
-    ; So if the value the BIOS passed is <0x80, just assume it has passed
-    ; an incorrect value.
+    ; Limine does not boot from floppies, so a floppy drive number means we
+    ; were not booted properly.
     cmp dl, 0x80
     jb err.0
     ; Values above 0x8f are dubious so we assume we weren't booted properly
