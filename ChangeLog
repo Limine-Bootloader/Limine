@@ -1,3 +1,69 @@
+2026-10-04  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.9.2 ***
+
+    Noteworthy changes compared to the previous release, 12.9.1:
+
+    Bug fixes:
+        - ISO 9660: Follow SUSP continuation areas when reading Rock Ridge
+          names, so that a file whose name continues into one is found by it.
+        - ISO 9660: Only use Rock Ridge names on images whose root directory
+          carries both the SUSP SP entry and an ER entry naming RRIP, honour
+          SUSP's skip length and ST terminator, and step over entries of other
+          versions. Images without these entries are read by their ISO 9660
+          names. Fixes #684.
+        - ISO 9660: Never match a path component against a directory's self or
+          parent record, whatever name a Rock Ridge NM entry gives it.
+        - EFI chainload: Pass no load options when the command line is empty,
+          rather than an empty string.
+        - `efi_boot_entry`: Read a `BootOrder` variable of any length. One
+          listing more than 128 entries caused a panic. Fixes #680.
+        - Reject an input escape sequence whose numeric parameter overflows,
+          rather than overflowing a signed integer. Fixes #678.
+        - Host tool: Only apply the ISOHYBRID GPT-to-MBR conversion of
+          `bios-install` to an image holding an ISO 9660 primary volume
+          descriptor, rather than to any with the `CD001` signature, and fail
+          on read errors while checking. Fixes #676.
+        - Miscellaneous bug fixes.
+
+    Miscellaneous:
+        - Rewrite, clean room from public specifications and documentation, the
+          code that was derived from GPL-licensed Linux and GRUB sources and so
+          could not be distributed under Limine's BSD-2-Clause license: the
+          Linux boot protocol structures and LoongArch kernel entry, the random
+          seed table, TPM event log capture, the LoongArch AP start-up, the
+          BIOS PXE interface, and the aarch64 EL2 set-up for entering kernels
+          at EL1.
+        - Likewise rewrite the integer square root, which came from a CC BY-SA
+          answer on Stack Overflow, and `strtoul()`, which came from FreeBSD
+          without the notices its license requires. Replace the mouse pointer,
+          which came from an Enlightenment theme, with an original one.
+        - Carry the notices that the licenses of code adapted from the Micro
+          LZMA decoder (CC BY 3.0), the QOI reference decoder (MIT), and the
+          PCG reference implementation (Apache-2.0) require. `3RDPARTY.md` now
+          also holds the notices that binary copies must carry, and the binary
+          release ships it, as well as the MinGW-w64 runtime notices next to
+          `limine.exe`. The cc-runtime source in release tarballs now carries
+          its license text.
+        - Refer to PicoEFI's source-only BSD license by its SPDX identifier,
+          `BSD-Source-Code-no-disclaimer`. `make install` no longer installs a
+          `LICENSES` directory.
+        - BIOS PXE: Verify the checksums of the PXENV+ and !PXE structures, and
+          the length of the latter.
+        - riscv64, loongarch64: Let the linker relax code sequences, keeping
+          relaxation clear of gp on riscv64.
+        - Place the dynamic sections and GOT of the UEFI images explicitly in
+          the linker scripts, and discard any GOT from the BIOS port.
+        - `configure` rejects a GCC without `-mdirect-extern-access` for the
+          loongarch64 port, prints a result for every check it makes, and also
+          reads the GNU make version from the banner of releases before 3.80.
+        - `./bootstrap` always takes the auxiliary files from automake, of
+          which it needs 1.13 or later, as INSTALL.md now states.
+        - Build fixes for BSD and illumos `od`, and for building the host tool
+          with Clang and `-Werror` without BIOS support.
+        - Contributions no longer need a DCO sign-off.
+        - Miscellaneous improvements.
+
 2026-09-27  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.9.1 ***
