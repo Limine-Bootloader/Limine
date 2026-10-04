@@ -177,8 +177,6 @@ clean: tools-clean limine-bios-clean limine-uefi-ia32-clean limine-uefi-x86-64-c
 install: all
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(docdir))'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/COPYING' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
-	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES'
-	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/LICENSES/LicenseRef-scancode-bsd-no-disclaimer-unmodified.txt' '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/3RDPARTY.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/CONFIG.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/FAQ.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
@@ -224,7 +222,6 @@ install-strip: install
 .PHONY: uninstall
 uninstall:
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(docdir))/COPYING'
-	rm -rf '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(docdir))/3RDPARTY.md'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(docdir))/CONFIG.md'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(docdir))/FAQ.md'
