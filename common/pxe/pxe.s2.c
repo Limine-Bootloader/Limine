@@ -21,40 +21,55 @@ struct volume *pxe_bind_volume(void) {
     return volume;
 }
 
+// PXE 2.1, Tables 3-1 and 3-2: the bytes of each structure, over the length it
+// declares, sum to zero.
+static bool checksum_ok(const void *ptr, size_t len) {
+    const uint8_t *bytes = ptr;
+    uint8_t sum = 0;
+
+    for (size_t i = 0; i < len; i++) {
+        sum += bytes[i];
+    }
+
+    return sum == 0;
+}
+
 void pxe_init(void) {
-    //pxe installation check
-    struct rm_regs r = { 0 };
-    r.ebx = 0;
-    r.ecx = 0;
+    // Stage 1 does not preserve the structure pointers the boot ROM hands to
+    // the NBP (PXE 2.1, 4.4.5), so ask the installation check (3.1.1) instead.
+    struct rm_regs r = {0};
     r.eax = 0x5650;
-    r.es = 0;
-
     rm_int(0x1a, &r, &r);
-    if ((r.eax & 0xffff) != 0x564e) {
-        panic(false, "PXE installation check failed");
+
+    if ((r.eax & 0xffff) != 0x564e || (r.eflags & EFLAGS_CF)) {
+        panic(false, "pxe: PXE installation check failed");
     }
 
-    struct pxenv *pxenv = NULL;
+    struct pxenv *pxenv = (struct pxenv *)rm_desegment(r.es, r.ebx & 0xffff);
 
-    pxenv = (struct pxenv *)((r.es << 4) + (r.ebx & 0xffff));
-    if (memcmp(pxenv->signature, PXE_SIGNATURE, sizeof(pxenv->signature)) != 0) {
-        panic(false, "PXENV structure signature corrupted");
+    if (memcmp(pxenv->signature, "PXENV+", sizeof(pxenv->signature)) != 0
+     || !checksum_ok(pxenv, pxenv->length)) {
+        panic(false, "pxe: Invalid PXENV+ structure");
     }
 
-    if (pxenv->version < 0x201) {
-        //we won't support pxe < 2.1, grub does this too and it seems to work fine
-        panic(false, "pxe version too old");
+    // Below 2.1 there is no !PXE structure (PXE 2.1, Table 3-1), only the
+    // PXENV+ entry point, which takes its arguments in registers (3.2,
+    // Example-3) rather than on the stack as pxe_call() passes them.
+    if (pxenv->version < 0x0201) {
+        panic(false, "pxe: PXE API version %u.%u is unsupported, 2.1 or newer is required",
+              pxenv->version >> 8, pxenv->version & 0xff);
     }
 
-    struct bangpxe *bangpxe = (struct bangpxe *)((((pxenv->pxe_ptr & 0xffff0000) >> 16) << 4) + (pxenv->pxe_ptr & 0xffff));
+    struct pxe *pxe = (struct pxe *)rm_desegment(pxenv->pxe_ptr.segment, pxenv->pxe_ptr.offset);
 
-    if (memcmp(bangpxe->signature, PXE_BANGPXE_SIGNATURE,
-            sizeof(bangpxe->signature))
-        != 0) {
-        panic(false, "!pxe signature corrupted");
+    if (memcmp(pxe->signature, "!PXE", sizeof(pxe->signature)) != 0
+     || pxe->struct_length < sizeof(struct pxe)
+     || !checksum_ok(pxe, pxe->struct_length)) {
+        panic(false, "pxe: Invalid !PXE structure");
     }
-    set_pxe_fp(bangpxe->rm_entry);
-    printv("pxe: Successfully initialized\n");
+
+    // pxe_call() runs in real mode, hence on a 16-bit stack (PXE 2.1, Table 3-2).
+    set_pxe_fp(((uint32_t)pxe->entry_point_sp.segment << 16) | pxe->entry_point_sp.offset);
 }
 
 #elif defined (UEFI)

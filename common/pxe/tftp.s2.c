@@ -17,20 +17,31 @@ bool cached_dhcp_ack_valid = false;
 #if defined (BIOS)
 
 static uint32_t get_boot_server_info(void) {
-    struct pxenv_get_cached_info cachedinfo = { 0 };
-    cachedinfo.packet_type = PXENV_PACKET_TYPE_CACHED_REPLY;
-    int ret = pxe_call(PXENV_GET_CACHED_INFO, ((uint16_t)rm_seg(&cachedinfo)), (uint16_t)rm_off(&cachedinfo));
-    if (ret || cachedinfo.buffer == 0) {
-        panic(false, "tftp: Failed to get DHCP cached info");
+    // Leaving Buffer and BufferSize zero makes PXE report where its own copy of
+    // the packet lives (PXE 2.1, 3.4.1), so no buffer has to be sized for a
+    // packet of unknown length.
+    struct pxenv_get_cached_info cached_info = {
+        .status = 0,
+        .packet_type = PXENV_PACKET_TYPE_CACHED_REPLY,
+    };
+
+    int ret = pxe_call(PXENV_GET_CACHED_INFO, ((uint16_t)rm_seg(&cached_info)), (uint16_t)rm_off(&cached_info));
+    if (ret) {
+        panic(false, "tftp: Failed to get cached DHCP reply (status %x)", cached_info.status);
     }
-    struct bootph *ph = (struct bootph*)(void *) (((((uint32_t)cachedinfo.buffer) >> 16) << 4) + (((uint32_t)cachedinfo.buffer) & 0xFFFF));
+
+    if (cached_info.buffer_size < sizeof(struct bootph)) {
+        panic(false, "tftp: Cached DHCP reply too short (%u bytes)", cached_info.buffer_size);
+    }
+
+    struct bootph *reply = (struct bootph *)rm_desegment(cached_info.buffer.segment, cached_info.buffer.offset);
+
     if (!cached_dhcp_ack_valid) {
-        size_t copy_len = cachedinfo.buffer_size < DHCP_ACK_PACKET_LEN
-                        ? cachedinfo.buffer_size : DHCP_ACK_PACKET_LEN;
-        memcpy(cached_dhcp_packet, ph, copy_len);
+        memcpy(cached_dhcp_packet, reply, MIN(cached_info.buffer_size, DHCP_ACK_PACKET_LEN));
         cached_dhcp_ack_valid = true;
     }
-    return ph->sip;
+
+    return reply->sip;
 }
 
 static uint32_t parse_ip_addr(const char *server_addr) {
