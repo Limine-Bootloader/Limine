@@ -11,10 +11,11 @@ These additional projects are NOT covered by the License as contained inside
 the `COPYING` file as present at the root of the source tree, or, for installed
 copies, present at `${DOCDIR}/COPYING` (assuming the file has not been
 otherwise removed by the packager). These are instead licensed as described by
-each individual project's documentation present in each project's dedicated
-subdirectory or license header(s) in the source tree. For readers without access
-to the source code, one can read the following for a quick overview of licenses
-that Limine is distributed under:
+each individual project's documentation present in its dedicated subdirectory,
+or by the license notices in its files. Release tarballs only carry the files
+Limine copies out of cc-runtime, stb_image, and pdgzip, which keep their
+notices. For readers without access to the source code, one can read the
+following for a quick overview of licenses that Limine is distributed under:
 
 A non-binding, informal summary of all projects Limine depends on, and the
 licenses used by said projects, in SPDX format, is as follows:
@@ -31,7 +32,8 @@ routines.
 Protocol.
 
 - [PicoEFI](https://github.com/PicoEFI/PicoEFI) (multiple licenses, see list
-below) provides headers and build-time support for UEFI.
+below) provides the UEFI headers and linker scripts, as well as the relocation
+and entry code built into Limine's UEFI binaries.
     - BSD-2-Clause
     - BSD-2-Clause-Patent
     - BSD-3-Clause
