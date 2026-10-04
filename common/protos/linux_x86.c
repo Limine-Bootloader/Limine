@@ -29,91 +29,68 @@ noreturn void linux_spinup(void *entry, void *boot_params);
     noreturn void linux_spinup64(void *entry, void *boot_params);
 #endif
 
-// The following definitions and struct were copied and adapted from Linux
-// kernel headers released under GPL-2.0 WITH Linux-syscall-note
-// allowing their inclusion in non GPL compliant code.
+// Fields Limine leaves alone are reserved bytes, named after where they sit in
+// the zero page.
 
-#define EDD_MBR_SIG_MAX 16
-#define E820_MAX_ENTRIES_ZEROPAGE 128
-#define SETUP_E820_EXT 1
-#define EDDMAXNR 6
-
+// Linux Documentation/arch/x86/boot.rst, "The Real-Mode Kernel Header".
 struct setup_header {
-    uint8_t    setup_sects;
-    uint16_t    root_flags;
-    uint32_t    syssize;
-    uint16_t    ram_size;
-    uint16_t    vid_mode;
-    uint16_t    root_dev;
-    uint16_t    boot_flag;
-    uint16_t    jump;
-    uint32_t    header;
-    uint16_t    version;
-    uint32_t    realmode_swtch;
-    uint16_t    start_sys_seg;
-    uint16_t    kernel_version;
-    uint8_t    type_of_loader;
-    uint8_t    loadflags;
-    uint16_t    setup_move_size;
-    uint32_t    code32_start;
-    uint32_t    ramdisk_image;
-    uint32_t    ramdisk_size;
-    uint32_t    bootsect_kludge;
-    uint16_t    heap_end_ptr;
-    uint8_t    ext_loader_ver;
-    uint8_t    ext_loader_type;
-    uint32_t    cmd_line_ptr;
-    uint32_t    initrd_addr_max;
-    uint32_t    kernel_alignment;
-    uint8_t    relocatable_kernel;
-    uint8_t    min_alignment;
-    uint16_t    xloadflags;
-    uint32_t    cmdline_size;
-    uint32_t    hardware_subarch;
-    uint64_t    hardware_subarch_data;
-    uint32_t    payload_offset;
-    uint32_t    payload_length;
-    uint64_t    setup_data;
-    uint64_t    pref_address;
-    uint32_t    init_size;
-    uint32_t    handover_offset;
-    uint32_t    kernel_info_offset;
+    uint8_t reserved_1f1[1];
+    uint8_t reserved_1f2[2];
+    uint8_t reserved_1f4[4];
+    uint8_t reserved_1f8[2];
+    uint16_t vid_mode;
+    uint8_t reserved_1fc[2];
+    uint8_t reserved_1fe[2];
+    uint8_t reserved_200[2];
+    uint8_t reserved_202[4];
+    uint16_t version;
+    uint8_t reserved_208[4];
+    uint8_t reserved_20c[2];
+    uint16_t kernel_version;
+    uint8_t type_of_loader;
+    uint8_t loadflags;
+    uint8_t reserved_212[2];
+    uint8_t reserved_214[4];
+    uint32_t ramdisk_image;
+    uint32_t ramdisk_size;
+    uint8_t reserved_220[4];
+    uint8_t reserved_224[2];
+    uint8_t reserved_226[1];
+    uint8_t reserved_227[1];
+    uint32_t cmd_line_ptr;
+    uint32_t initrd_addr_max;
+    uint32_t kernel_alignment;
+    uint8_t relocatable_kernel;
+    uint8_t reserved_235[1];
+    uint16_t xloadflags;
+    uint8_t reserved_238[4];
+    uint8_t reserved_23c[4];
+    uint8_t reserved_240[8];
+    uint8_t reserved_248[4];
+    uint8_t reserved_24c[4];
+    uint64_t setup_data;
+    uint64_t pref_address;
+    uint32_t init_size;
+    uint8_t reserved_264[4];
+    uint8_t reserved_268[4];
 } __attribute__((packed));
 
-struct apm_bios_info {
-    uint16_t    version;
-    uint16_t    cseg;
-    uint32_t    offset;
-    uint16_t    cseg_16;
-    uint16_t    dseg;
-    uint16_t    flags;
-    uint16_t    cseg_len;
-    uint16_t    cseg_16_len;
-    uint16_t    dseg_len;
-};
+_Static_assert(sizeof(struct setup_header) == 0x26c - 0x1f1, "setup_header layout");
 
-struct ist_info {
-    uint32_t signature;
-    uint32_t command;
-    uint32_t event;
-    uint32_t perf_level;
-};
-
-struct sys_desc_table {
-    uint16_t length;
-    uint8_t  table[14];
-};
-
-struct olpc_ofw_header {
-    uint32_t ofw_magic;    /* OFW signature */
-    uint32_t ofw_version;
-    uint32_t cif_handler;    /* callback into OFW */
-    uint32_t irq_desc_table;
+// The INT 15h E820h address range descriptor without its extended attributes
+// (ACPI 6.6, section 15.1, table 15.4).
+struct boot_e820_entry {
+    uint64_t addr;
+    uint64_t size;
+    uint32_t type;
 } __attribute__((packed));
 
-struct edid_info {
-    unsigned char dummy[128];
-};
+_Static_assert(offsetof(struct boot_e820_entry, addr) == 0, "boot_e820_entry layout");
+_Static_assert(offsetof(struct boot_e820_entry, size) == 8, "boot_e820_entry layout");
+_Static_assert(offsetof(struct boot_e820_entry, type) == 16, "boot_e820_entry layout");
+_Static_assert(sizeof(struct boot_e820_entry) == 20, "boot_e820_entry layout");
+
+#define E820_MAX_ENTRIES_ZEROPAGE 128
 
 struct efi_info {
     uint32_t efi_loader_signature;
@@ -126,179 +103,104 @@ struct efi_info {
     uint32_t efi_memmap_hi;
 };
 
-struct boot_e820_entry {
-    uint64_t addr;
-    uint64_t size;
-    uint32_t type;
-} __attribute__((packed));
+_Static_assert(offsetof(struct efi_info, efi_loader_signature) == 0x00, "efi_info layout");
+_Static_assert(offsetof(struct efi_info, efi_systab) == 0x04, "efi_info layout");
+_Static_assert(offsetof(struct efi_info, efi_memdesc_size) == 0x08, "efi_info layout");
+_Static_assert(offsetof(struct efi_info, efi_memdesc_version) == 0x0c, "efi_info layout");
+_Static_assert(offsetof(struct efi_info, efi_memmap) == 0x10, "efi_info layout");
+_Static_assert(offsetof(struct efi_info, efi_memmap_size) == 0x14, "efi_info layout");
+_Static_assert(offsetof(struct efi_info, efi_systab_hi) == 0x18, "efi_info layout");
+_Static_assert(offsetof(struct efi_info, efi_memmap_hi) == 0x1c, "efi_info layout");
+_Static_assert(sizeof(struct efi_info) == 0x20, "efi_info layout");
 
+// boot.rst, "setup_data".
 struct setup_data {
     uint64_t next;
     uint32_t type;
     uint32_t len;
     uint8_t data[];
-} __attribute__((packed));
+};
 
-struct edd_device_params {
-    uint16_t length;
-    uint16_t info_flags;
-    uint32_t num_default_cylinders;
-    uint32_t num_default_heads;
-    uint32_t sectors_per_track;
-    uint64_t number_of_sectors;
-    uint16_t bytes_per_sector;
-    uint32_t dpte_ptr;        /* 0xFFFFFFFF for our purposes */
-    uint16_t key;        /* = 0xBEDD */
-    uint8_t device_path_info_length;    /* = 44 */
-    uint8_t reserved2;
-    uint16_t reserved3;
-    uint8_t host_bus_type[4];
-    uint8_t interface_type[8];
-    union {
-        struct {
-            uint16_t base_address;
-            uint16_t reserved1;
-            uint32_t reserved2;
-        } __attribute__ ((packed)) isa;
-        struct {
-            uint8_t bus;
-            uint8_t slot;
-            uint8_t function;
-            uint8_t channel;
-            uint32_t reserved;
-        } __attribute__ ((packed)) pci;
-        /* pcix is same as pci */
-        struct {
-            uint64_t reserved;
-        } __attribute__ ((packed)) ibnd;
-        struct {
-            uint64_t reserved;
-        } __attribute__ ((packed)) xprs;
-        struct {
-            uint64_t reserved;
-        } __attribute__ ((packed)) htpt;
-        struct {
-            uint64_t reserved;
-        } __attribute__ ((packed)) unknown;
-    } interface_path;
-    union {
-        struct {
-            uint8_t device;
-            uint8_t reserved1;
-            uint16_t reserved2;
-            uint32_t reserved3;
-            uint64_t reserved4;
-        } __attribute__ ((packed)) ata;
-        struct {
-            uint8_t device;
-            uint8_t lun;
-            uint8_t reserved1;
-            uint8_t reserved2;
-            uint32_t reserved3;
-            uint64_t reserved4;
-        } __attribute__ ((packed)) atapi;
-        struct {
-            uint16_t id;
-            uint64_t lun;
-            uint16_t reserved1;
-            uint32_t reserved2;
-        } __attribute__ ((packed)) scsi;
-        struct {
-            uint64_t serial_number;
-            uint64_t reserved;
-        } __attribute__ ((packed)) usb;
-        struct {
-            uint64_t eui;
-            uint64_t reserved;
-        } __attribute__ ((packed)) i1394;
-        struct {
-            uint64_t wwid;
-            uint64_t lun;
-        } __attribute__ ((packed)) fibre;
-        struct {
-            uint64_t identity_tag;
-            uint64_t reserved;
-        } __attribute__ ((packed)) i2o;
-        struct {
-            uint32_t array_number;
-            uint32_t reserved1;
-            uint64_t reserved2;
-        } __attribute__ ((packed)) raid;
-        struct {
-            uint8_t device;
-            uint8_t reserved1;
-            uint16_t reserved2;
-            uint32_t reserved3;
-            uint64_t reserved4;
-        } __attribute__ ((packed)) sata;
-        struct {
-            uint64_t reserved1;
-            uint64_t reserved2;
-        } __attribute__ ((packed)) unknown;
-    } device_path;
-    uint8_t reserved4;
-    uint8_t checksum;
-} __attribute__ ((packed));
+_Static_assert(offsetof(struct setup_data, next) == 0, "setup_data layout");
+_Static_assert(offsetof(struct setup_data, type) == 8, "setup_data layout");
+_Static_assert(offsetof(struct setup_data, len) == 12, "setup_data layout");
+_Static_assert(offsetof(struct setup_data, data) == 16, "setup_data layout");
+_Static_assert(sizeof(struct setup_data) == 16, "setup_data layout");
 
-struct edd_info {
-    uint8_t device;
-    uint8_t version;
-    uint16_t interface_support;
-    uint16_t legacy_max_cylinder;
-    uint8_t legacy_max_head;
-    uint8_t legacy_sectors_per_track;
-    struct edd_device_params params;
-} __attribute__ ((packed));
+// The setup_data type that carries the memory map entries the zero page has no
+// room for.
+#define SETUP_E820_EXT 1
 
+// Linux Documentation/arch/x86/zero-page.rst. That table leaves out the setup
+// header, which boot.rst, "32-bit Boot Protocol", places at 0x1f1.
 struct boot_params {
-    struct screen_info screen_info;            /* 0x000 */
-    struct apm_bios_info apm_bios_info;        /* 0x040 */
-    uint8_t  _pad2[4];                    /* 0x054 */
-    uint64_t  tboot_addr;                /* 0x058 */
-    struct ist_info ist_info;            /* 0x060 */
-    uint64_t acpi_rsdp_addr;                /* 0x070 */
-    uint8_t  _pad3[8];                    /* 0x078 */
-    uint8_t  hd0_info[16];    /* obsolete! */        /* 0x080 */
-    uint8_t  hd1_info[16];    /* obsolete! */        /* 0x090 */
-    struct sys_desc_table sys_desc_table; /* obsolete! */    /* 0x0a0 */
-    struct olpc_ofw_header olpc_ofw_header;        /* 0x0b0 */
-    uint32_t ext_ramdisk_image;            /* 0x0c0 */
-    uint32_t ext_ramdisk_size;                /* 0x0c4 */
-    uint32_t ext_cmd_line_ptr;                /* 0x0c8 */
-    uint8_t  _pad4[116];                /* 0x0cc */
-    struct edid_info edid_info;            /* 0x140 */
-    struct efi_info efi_info;            /* 0x1c0 */
-    uint32_t alt_mem_k;                /* 0x1e0 */
-    uint32_t scratch;        /* Scratch field! */    /* 0x1e4 */
-    uint8_t  e820_entries;                /* 0x1e8 */
-    uint8_t  eddbuf_entries;                /* 0x1e9 */
-    uint8_t  edd_mbr_sig_buf_entries;            /* 0x1ea */
-    uint8_t  kbd_status;                /* 0x1eb */
-    uint8_t  secure_boot;                /* 0x1ec */
-    uint8_t  _pad5[2];                    /* 0x1ed */
-    /*
-     * The sentinel is set to a nonzero value (0xff) in header.S.
-     *
-     * A bootloader is supposed to only take setup_header and put
-     * it into a clean boot_params buffer. If it turns out that
-     * it is clumsy or too generous with the buffer, it most
-     * probably will pick up the sentinel variable too. The fact
-     * that this variable then is still 0xff will let kernel
-     * know that some variables in boot_params are invalid and
-     * kernel should zero out certain portions of boot_params.
-     */
-    uint8_t  sentinel;                    /* 0x1ef */
-    uint8_t  _pad6[1];                    /* 0x1f0 */
-    struct setup_header hdr;    /* setup header */    /* 0x1f1 */
-    uint8_t  _pad7[0x290-0x1f1-sizeof(struct setup_header)];
-    uint32_t edd_mbr_sig_buffer[EDD_MBR_SIG_MAX];    /* 0x290 */
-    struct boot_e820_entry e820_table[E820_MAX_ENTRIES_ZEROPAGE]; /* 0x2d0 */
-    uint8_t  _pad8[48];                /* 0xcd0 */
-    struct edd_info eddbuf[EDDMAXNR];        /* 0xd00 */
-    uint8_t  _pad9[276];                /* 0xeec */
+    struct screen_info screen_info;
+    uint8_t reserved_040[0x14];
+    uint8_t reserved_054[4];
+    uint8_t reserved_058[8];
+    uint8_t reserved_060[0x10];
+    uint64_t acpi_rsdp_addr;
+    uint8_t reserved_078[8];
+    uint8_t reserved_080[0x10];
+    uint8_t reserved_090[0x10];
+    uint8_t reserved_0a0[0x10];
+    uint8_t reserved_0b0[0x10];
+    uint32_t ext_ramdisk_image;
+    uint32_t ext_ramdisk_size;
+    uint8_t reserved_0c8[4];
+    uint8_t reserved_0cc[0x70];
+    uint8_t reserved_13c[4];
+    struct edid_info_struct edid_info;
+    struct efi_info efi_info;
+    uint8_t reserved_1e0[4];
+    uint8_t reserved_1e4[4];
+    uint8_t e820_entries;
+    uint8_t reserved_1e9[1];
+    uint8_t reserved_1ea[1];
+    uint8_t reserved_1eb[1];
+    uint8_t secure_boot;
+    uint8_t reserved_1ed[2];
+    uint8_t reserved_1ef[1];
+    uint8_t reserved_1f0[1];
+    struct setup_header hdr;
+    uint8_t reserved_26c[0x24];
+    uint8_t edd_mbr_sig_buffer[0x40];
+    struct boot_e820_entry e820_table[E820_MAX_ENTRIES_ZEROPAGE];
+    uint8_t reserved_cd0[0x30];
+    uint8_t reserved_d00[0x1ec];
+    uint8_t reserved_eec[0x114];
 } __attribute__((packed));
 
-// End of Linux code
+_Static_assert(offsetof(struct boot_params, screen_info) == 0x000, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, acpi_rsdp_addr) == 0x070, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, ext_ramdisk_image) == 0x0c0, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, ext_ramdisk_size) == 0x0c4, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, edid_info) == 0x140, "boot_params layout");
+_Static_assert(sizeof(((struct boot_params *)0)->edid_info) == 0x80, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, efi_info) == 0x1c0, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, e820_entries) == 0x1e8, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, secure_boot) == 0x1ec, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, hdr) == 0x1f1, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, edd_mbr_sig_buffer) == 0x290, "boot_params layout");
+_Static_assert(offsetof(struct boot_params, e820_table) == 0x2d0, "boot_params layout");
+_Static_assert(sizeof(((struct boot_params *)0)->e820_table) == 0xa00, "boot_params layout");
+_Static_assert(sizeof(struct boot_params) == 0x1000, "boot_params layout");
+
+_Static_assert(offsetof(struct boot_params, hdr.vid_mode) == 0x1fa, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.version) == 0x206, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.kernel_version) == 0x20e, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.type_of_loader) == 0x210, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.loadflags) == 0x211, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.ramdisk_image) == 0x218, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.ramdisk_size) == 0x21c, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.cmd_line_ptr) == 0x228, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.initrd_addr_max) == 0x22c, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.kernel_alignment) == 0x230, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.relocatable_kernel) == 0x234, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.xloadflags) == 0x236, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.setup_data) == 0x250, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.pref_address) == 0x258, "setup_header layout");
+_Static_assert(offsetof(struct boot_params, hdr.init_size) == 0x260, "setup_header layout");
 
 #define LINUX_VER(maj, min) (((uint32_t)(maj) << 16) | (uint32_t)(min))
 

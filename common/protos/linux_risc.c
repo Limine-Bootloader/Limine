@@ -19,11 +19,8 @@
 #include <lib/fdt.h>
 #include <libfdt.h>
 
-// The following definitions and struct were copied and adapted from Linux
-// kernel headers released under GPL-2.0 WITH Linux-syscall-note
-// allowing their inclusion in non GPL compliant code.
-
-#if defined(__riscv) || defined(__aarch64__)
+#if defined(__riscv)
+// Linux Documentation/arch/riscv/boot-image-header.rst.
 struct linux_header {
     uint32_t code0;
     uint32_t code1;
@@ -33,13 +30,38 @@ struct linux_header {
     uint32_t version;
     uint32_t res1;
     uint64_t res2;
-    uint64_t res3;          // originally 'magic' field, deprecated
+    uint64_t magic;
     uint32_t magic2;
-    uint32_t res4;
-} __attribute__((packed));
-#elif defined(__loongarch__)
+    uint32_t res3;
+};
+
+_Static_assert(offsetof(struct linux_header, text_offset) == 0x08, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, image_size) == 0x10, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, version) == 0x20, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, magic2) == 0x38, "linux_header layout");
+#elif defined(__aarch64__)
+// Linux Documentation/arch/arm64/booting.rst, "Call the kernel image".
 struct linux_header {
-    uint32_t mz;
+    uint32_t code0;
+    uint32_t code1;
+    uint64_t text_offset;
+    uint64_t image_size;
+    uint64_t flags;
+    uint64_t res2;
+    uint64_t res3;
+    uint64_t res4;
+    // The document's magic, named as on riscv so that verify_kernel() is shared.
+    uint32_t magic2;
+    uint32_t res5;
+};
+
+_Static_assert(offsetof(struct linux_header, text_offset) == 0x08, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, image_size) == 0x10, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, magic2) == 0x38, "linux_header layout");
+#elif defined(__loongarch__)
+// Linux Documentation/arch/loongarch/booting.rst.
+struct linux_header {
+    uint32_t mz_magic;
     uint32_t res0;
     uint64_t kernel_entry;
     uint64_t image_size;
@@ -47,34 +69,68 @@ struct linux_header {
     uint64_t res1;
     uint64_t res2;
     uint64_t res3;
-    uint32_t magic2;       // LINUX_PE_MAGIC
-    uint32_t pe_offset;
-} __attribute__((packed));
-#else
-#error "Unknown architecture"
+    // The document's LINUX_PE_MAGIC, named as on riscv so that verify_kernel()
+    // is shared.
+    uint32_t magic2;
+    uint32_t pe_header_offset;
+};
+
+_Static_assert(offsetof(struct linux_header, kernel_entry) == 0x08, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, image_size) == 0x10, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, load_offset) == 0x18, "linux_header layout");
+_Static_assert(offsetof(struct linux_header, magic2) == 0x38, "linux_header layout");
 #endif
 
-struct linux_efi_memreserve {
-    int size;
-    int count;
-    uint64_t next;
-};
+_Static_assert(sizeof(struct linux_header) == 0x40, "linux_header layout");
 
-struct linux_efi_boot_memmap {
-    UINTN    map_size;
-    UINTN    desc_size;
-    uint32_t desc_ver;
-    UINTN    map_key;
-    UINTN    buff_size;
-    EFI_MEMORY_DESCRIPTOR descs[];
-};
+// The EFI configuration tables below are only built for 64-bit ports, so a
+// UINTN is 8 bytes (UEFI 2.11, section 2.3.1).
 
 struct linux_efi_initrd {
     UINTN base;
     UINTN size;
 };
 
-// End of Linux code
+_Static_assert(offsetof(struct linux_efi_initrd, base) == 0, "linux_efi_initrd layout");
+_Static_assert(offsetof(struct linux_efi_initrd, size) == 8, "linux_efi_initrd layout");
+_Static_assert(sizeof(struct linux_efi_initrd) == 16, "linux_efi_initrd layout");
+
+struct linux_efi_boot_memmap {
+    UINTN map_size;
+    UINTN desc_size;
+    UINT32 desc_ver;
+    UINTN map_key;
+    UINTN buff_size;
+    EFI_MEMORY_DESCRIPTOR descs[];
+};
+
+_Static_assert(offsetof(struct linux_efi_boot_memmap, map_size) == 0, "linux_efi_boot_memmap layout");
+_Static_assert(offsetof(struct linux_efi_boot_memmap, desc_size) == 8, "linux_efi_boot_memmap layout");
+_Static_assert(offsetof(struct linux_efi_boot_memmap, desc_ver) == 16, "linux_efi_boot_memmap layout");
+_Static_assert(offsetof(struct linux_efi_boot_memmap, map_key) == 24, "linux_efi_boot_memmap layout");
+_Static_assert(offsetof(struct linux_efi_boot_memmap, buff_size) == 32, "linux_efi_boot_memmap layout");
+_Static_assert(offsetof(struct linux_efi_boot_memmap, descs) == 40, "linux_efi_boot_memmap layout");
+_Static_assert(sizeof(struct linux_efi_boot_memmap) == 40, "linux_efi_boot_memmap layout");
+
+struct linux_efi_memreserve_entry {
+    UINT64 base;
+    UINT64 size;
+};
+
+// One link of a chain of reservation tables, which the kernel may extend.
+struct linux_efi_memreserve {
+    INT32 capacity;
+    INT32 count;
+    UINT64 next;
+    struct linux_efi_memreserve_entry entries[];
+};
+
+_Static_assert(sizeof(struct linux_efi_memreserve_entry) == 16, "linux_efi_memreserve layout");
+_Static_assert(offsetof(struct linux_efi_memreserve, capacity) == 0, "linux_efi_memreserve layout");
+_Static_assert(offsetof(struct linux_efi_memreserve, count) == 4, "linux_efi_memreserve layout");
+_Static_assert(offsetof(struct linux_efi_memreserve, next) == 8, "linux_efi_memreserve layout");
+_Static_assert(offsetof(struct linux_efi_memreserve, entries) == 16, "linux_efi_memreserve layout");
+_Static_assert(sizeof(struct linux_efi_memreserve) == 16, "linux_efi_memreserve layout");
 
 struct boot_param {
     void *kernel_base;
@@ -294,25 +350,23 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
         }
     }
 
-
     {
-        struct linux_efi_memreserve *rsv;
+        struct linux_efi_memreserve *memreserve_table;
 
-        ret = gBS->AllocatePool(EfiLoaderData, sizeof(*rsv), (void **)&rsv);
+        ret = gBS->AllocatePool(EfiLoaderData, sizeof(*memreserve_table), (void **)&memreserve_table);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to allocate memory reservation table");
         }
-        memset(rsv, 0, sizeof(*rsv));
 
-        rsv->size = 0;
-        rsv->count = 0;
-        rsv->next = 0;
+        // No room for entries: the kernel chains on tables of its own.
+        memreserve_table->capacity = 0;
+        memreserve_table->count = 0;
+        memreserve_table->next = 0;
 
-        EFI_GUID memreserve_table_guid = {0x888eb0c6, 0x8ede, 0x4ff5, {0xa8, 0xf0, 0x9a, 0xee, 0x5c, 0xb9, 0x77, 0xc2}};
-        ret = gBS->InstallConfigurationTable(&memreserve_table_guid, rsv);
-
+        EFI_GUID memreserve_table_guid = { 0x888eb0c6, 0x8ede, 0x4ff5, { 0xa8, 0xf0, 0x9a, 0xee, 0x5c, 0xb9, 0x77, 0xc2}};
+        ret = gBS->InstallConfigurationTable(&memreserve_table_guid, memreserve_table);
         if (ret != EFI_SUCCESS) {
-            panic(true, "linux: failed to install memory reservation configuration table: '%X'", (uint64_t)ret);
+            panic(true, "linux: failed to install memory reservation table: '%X'", (uint64_t)ret);
         }
     }
 
@@ -460,35 +514,47 @@ noreturn static void jump_to_kernel(struct boot_param *p) {
                       : "x0", "x1", "x2", "x3", "memory");
     }
 #elif defined(__loongarch__)
-// LoongArch kernel used to store virtual address in header.kernel_entry
-// clearing the high 16bits ensures compatibility
-#define TO_PHYS(addr) ((addr) & ((1ULL << 48) - 1))
-#define CSR_DMW_PLV0  1ULL
-#define CSR_DMW0_VSEG 0x8000ULL
-#define CSR_DMW0_BASE (CSR_DMW0_VSEG << 48)
-#define CSR_DMW0_INIT (CSR_DMW0_BASE | CSR_DMW_PLV0)
-#define CSR_DMW1_MAT  (1 << 4)
-#define CSR_DMW1_VSEG 0x9000ULL
-#define CSR_DMW1_BASE (CSR_DMW1_VSEG << 48)
-#define CSR_DMW1_INIT (CSR_DMW1_BASE | CSR_DMW1_MAT | CSR_DMW_PLV0)
-#define CSR_DMW2_VSEG 0xa000ULL
-#define CSR_DMW2_MAT  (2 << 4)
-#define CSR_DMW2_BASE (CSR_DMW2_VSEG << 48)
-#define CSR_DMW2_INIT (CSR_DMW2_BASE | CSR_DMW2_MAT | CSR_DMW_PLV0)
-#define CSR_DMW3_INIT 0
-
     struct linux_header *header = p->kernel_base;
-    void (*kernel_entry)(uint64_t efi_boot, uint64_t cmdline, uint64_t st);
-    kernel_entry = p->kernel_base + (TO_PHYS(header->kernel_entry) - header->load_offset);
+
+    // Older kernels give the entry point as a virtual address in the cached
+    // direct-mapped window. Bits 47:0 are its physical address in either case.
+    uint64_t entry_phys = header->kernel_entry & (((uint64_t)1 << 48) - 1);
+    uint64_t entry_offset = entry_phys - header->load_offset;
+    if (entry_offset >= p->kernel_size) {
+        panic(false, "linux: kernel entry point lies outside the image");
+    }
+    void *entry = p->kernel_base + entry_offset;
+
+    printv("linux: kernel entry point at %p\n", entry);
 
     sync_icache_range((uintptr_t)p->kernel_base, (uintptr_t)p->kernel_base + p->kernel_size);
 
-    asm volatile ("csrxchg $r0, %0, 0x0" :: "r" (0x4) : "memory");
-    csr_write64(CSR_DMW0_INIT, 0x180);
-    csr_write64(CSR_DMW1_INIT, 0x181);
-    csr_write64(CSR_DMW2_INIT, 0x182);
-    csr_write64(CSR_DMW3_INIT, 0x183);
-    kernel_entry(1, (uint64_t)p->cmdline, (uint64_t)gST);
+    // The direct mapping windows the kernel expects to find. LoongArch
+    // Reference Manual, Volume 1, 7.5.18: VSEG is bits 63:60, MAT bits 5:4 and
+    // PLV0 bit 0. 2.1.7: MAT 0 is strongly-ordered uncached, 1 coherent cached
+    // and 2 weakly-ordered uncached.
+    uint64_t dmw0 = ((uint64_t)0x8 << 60) | (0 << 4) | 1;
+    uint64_t dmw1 = ((uint64_t)0x9 << 60) | (1 << 4) | 1;
+    uint64_t dmw2 = ((uint64_t)0xa << 60) | (2 << 4) | 1;
+
+    // CSR.CRMD is CSR 0, with IE at bit 2 (7.4.1), and CSR.DMW0 to CSR.DMW3
+    // are CSRs 0x180 to 0x183 (7.1). The mask register of csrxchg cannot be r0
+    // or r1, which encode csrrd and csrwr (appendix B), hence t0.
+    asm volatile (
+        "li.d $t0, 0x4\n\t"
+        "csrxchg $zero, $t0, 0x0\n\t"
+        "csrwr %[dmw0], 0x180\n\t"
+        "csrwr %[dmw1], 0x181\n\t"
+        "csrwr %[dmw2], 0x182\n\t"
+        "csrwr $zero, 0x183\n\t"
+        "li.d $a0, 1\n\t"
+        "move $a1, %[cmdline]\n\t"
+        "move $a2, %[systab]\n\t"
+        "jirl $zero, %[entry], 0"
+        : [dmw0] "+r"(dmw0), [dmw1] "+r"(dmw1), [dmw2] "+r"(dmw2)
+        : [cmdline] "r"(p->cmdline), [systab] "r"(gST), [entry] "r"(entry)
+        : "$t0", "$a0", "$a1", "$a2", "memory"
+    );
 #endif
     __builtin_unreachable();
 }

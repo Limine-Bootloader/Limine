@@ -1,72 +1,74 @@
 #ifndef PROTOS__LINUX_H__
 #define PROTOS__LINUX_H__
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdnoreturn.h>
 
+// The first member of the x86 zero page; non-x86 kernels get a copy through an
+// EFI configuration table. Fields Limine does not fill must stay zero.
 struct screen_info {
-    uint8_t  orig_x;        /* 0x00 */
-    uint8_t  orig_y;        /* 0x01 */
-    uint16_t ext_mem_k;    /* 0x02 */
-    uint16_t orig_video_page;    /* 0x04 */
-    uint8_t  orig_video_mode;    /* 0x06 */
-    uint8_t  orig_video_cols;    /* 0x07 */
-    uint8_t  flags;        /* 0x08 */
-    uint8_t  unused2;        /* 0x09 */
-    uint16_t orig_video_ega_bx;/* 0x0a */
-    uint16_t unused3;        /* 0x0c */
-    uint8_t  orig_video_lines;    /* 0x0e */
-    uint8_t  orig_video_isVGA;    /* 0x0f */
-    uint16_t orig_video_points;/* 0x10 */
-
-    /* VESA graphic mode -- linear frame buffer */
-    uint16_t lfb_width;    /* 0x12 */
-    uint16_t lfb_height;    /* 0x14 */
-    uint16_t lfb_depth;    /* 0x16 */
-    uint32_t lfb_base;        /* 0x18 */
-    uint32_t lfb_size;        /* 0x1c */
-    uint16_t cl_magic, cl_offset; /* 0x20 */
-    uint16_t lfb_linelength;    /* 0x24 */
-    uint8_t  red_size;        /* 0x26 */
-    uint8_t  red_pos;        /* 0x27 */
-    uint8_t  green_size;    /* 0x28 */
-    uint8_t  green_pos;    /* 0x29 */
-    uint8_t  blue_size;    /* 0x2a */
-    uint8_t  blue_pos;        /* 0x2b */
-    uint8_t  rsvd_size;    /* 0x2c */
-    uint8_t  rsvd_pos;        /* 0x2d */
-    uint16_t vesapm_seg;    /* 0x2e */
-    uint16_t vesapm_off;    /* 0x30 */
-    uint16_t pages;        /* 0x32 */
-    uint16_t vesa_attributes;    /* 0x34 */
-    uint32_t capabilities;     /* 0x36 */
-    uint32_t ext_lfb_base;    /* 0x3a */
-    uint8_t  _reserved[2];    /* 0x3e */
+    uint8_t reserved_00[6];
+    uint8_t orig_video_mode;
+    uint8_t orig_video_cols;
+    uint8_t flags;
+    uint8_t reserved_09[1];
+    uint16_t orig_video_ega_bx;
+    uint8_t reserved_0c[2];
+    uint8_t orig_video_lines;
+    uint8_t orig_video_isVGA;
+    uint16_t orig_video_points;
+    uint16_t lfb_width;
+    uint16_t lfb_height;
+    uint16_t lfb_depth;
+    uint32_t lfb_base;
+    uint32_t lfb_size;
+    uint8_t reserved_20[4];
+    uint16_t lfb_linelength;
+    uint8_t red_size;
+    uint8_t red_pos;
+    uint8_t green_size;
+    uint8_t green_pos;
+    uint8_t blue_size;
+    uint8_t blue_pos;
+    uint8_t reserved_2c[10];
+    uint32_t capabilities;
+    uint32_t ext_lfb_base;
+    uint8_t reserved_3e[2];
 } __attribute__((packed));
 
-#define VIDEO_TYPE_MDA        0x10    /* Monochrome Text Display    */
-#define VIDEO_TYPE_CGA        0x11    /* CGA Display             */
-#define VIDEO_TYPE_EGAM        0x20    /* EGA/VGA in Monochrome Mode    */
-#define VIDEO_TYPE_EGAC        0x21    /* EGA in Color Mode        */
-#define VIDEO_TYPE_VGAC        0x22    /* VGA+ in Color Mode        */
-#define VIDEO_TYPE_VLFB        0x23    /* VESA VGA in graphic mode    */
+_Static_assert(offsetof(struct screen_info, orig_video_mode) == 0x06, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, orig_video_cols) == 0x07, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, flags) == 0x08, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, orig_video_ega_bx) == 0x0a, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, orig_video_lines) == 0x0e, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, orig_video_isVGA) == 0x0f, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, orig_video_points) == 0x10, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, lfb_width) == 0x12, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, lfb_height) == 0x14, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, lfb_depth) == 0x16, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, lfb_base) == 0x18, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, lfb_size) == 0x1c, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, lfb_linelength) == 0x24, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, red_size) == 0x26, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, red_pos) == 0x27, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, green_size) == 0x28, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, green_pos) == 0x29, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, blue_size) == 0x2a, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, blue_pos) == 0x2b, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, capabilities) == 0x36, "screen_info layout");
+_Static_assert(offsetof(struct screen_info, ext_lfb_base) == 0x3a, "screen_info layout");
+_Static_assert(sizeof(struct screen_info) == 0x40, "screen_info layout");
 
-#define VIDEO_TYPE_PICA_S3    0x30    /* ACER PICA-61 local S3 video    */
-#define VIDEO_TYPE_MIPS_G364    0x31    /* MIPS Magnum 4000 G364 video  */
-#define VIDEO_TYPE_SGI          0x33    /* Various SGI graphics hardware */
+// Values of orig_video_isVGA.
+#define VIDEO_TYPE_VGAC 0x22
+#define VIDEO_TYPE_VLFB 0x23
+#define VIDEO_TYPE_EFI 0x70
 
-#define VIDEO_TYPE_TGAC        0x40    /* DEC TGA */
+#define VIDEO_FLAGS_NOCURSOR (1 << 0)
 
-#define VIDEO_TYPE_SUN          0x50    /* Sun frame buffer. */
-#define VIDEO_TYPE_SUNPCI       0x51    /* Sun PCI based frame buffer. */
-
-#define VIDEO_TYPE_PMAC        0x60    /* PowerMacintosh frame buffer. */
-
-#define VIDEO_TYPE_EFI        0x70    /* EFI graphic mode        */
-
-#define VIDEO_FLAGS_NOCURSOR    (1 << 0) /* The video mode has no cursor set */
-
-#define VIDEO_CAPABILITY_SKIP_QUIRKS    (1 << 0)
-#define VIDEO_CAPABILITY_64BIT_BASE    (1 << 1)    /* Frame buffer base is 64-bit */
+// Set when ext_lfb_base holds the upper half of the framebuffer address.
+#define VIDEO_CAPABILITY_64BIT_BASE (1 << 1)
 
 noreturn void linux_load(char *config, char *cmdline);
 
