@@ -109,9 +109,11 @@ static pagemap_t build_identity_map(void) {
 
     map_pages(pagemap, 0, 0, VMM_FLAG_WRITE, 0x100000000);
 
-    size_t _memmap_entries = memmap_entries;
+    // The allocation can split an entry and appends one of its own:
+    // allocate headroom, and read the count afterwards.
     struct memmap_entry *_memmap =
-        ext_mem_alloc_counted(_memmap_entries, sizeof(struct memmap_entry));
+        ext_mem_alloc_counted(memmap_entries + 2, sizeof(struct memmap_entry));
+    size_t _memmap_entries = memmap_entries;
     for (size_t i = 0; i < _memmap_entries; i++) {
         _memmap[i] = memmap[i];
     }
@@ -210,9 +212,11 @@ static pagemap_t build_pagemap(int base_revision,
         map_pages(pagemap, direct_map_offset, 0, VMM_FLAG_WRITE, 0x100000000);
     }
 
-    size_t _memmap_entries = memmap_entries;
+    // The allocation can split an entry and appends one of its own:
+    // allocate headroom, and read the count afterwards.
     struct memmap_entry *_memmap =
-        ext_mem_alloc_counted(_memmap_entries, sizeof(struct memmap_entry));
+        ext_mem_alloc_counted(memmap_entries + 2, sizeof(struct memmap_entry));
+    size_t _memmap_entries = memmap_entries;
     for (size_t i = 0; i < _memmap_entries; i++)
         _memmap[i] = memmap[i];
 
