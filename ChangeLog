@@ -1,3 +1,25 @@
+2026-10-06  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.9.3 ***
+
+    Noteworthy changes compared to the previous release, 12.9.2:
+
+    Bug fixes:
+        - Limine boot protocol: Stop leaving the highest memory map entry out
+          of the page tables. The copy of the memory map they are built from
+          missed its last entry whenever allocating that copy added one to
+          the map, which left the framebuffer, or memory above 4GiB,
+          unmapped on some machines. Fixes #687.
+
+    Miscellaneous:
+        - `3RDPARTY.md` now covers all third-party code built into Limine's
+          binaries, whether fetched by `./bootstrap` or kept in Limine's own
+          source tree, and holds the copyright notices and full license text
+          of each.
+        - Note which code taken from the OSDev Wiki predates the wiki's 2011
+          relicensing to CC0, and whether its author is known to have opted it
+          in.
+
 2026-10-04  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.9.2 ***
