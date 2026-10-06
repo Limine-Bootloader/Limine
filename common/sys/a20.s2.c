@@ -42,6 +42,9 @@ out:
 
 // Keyboard controller method code below taken from:
 // https://wiki.osdev.org/A20_Line
+// It predates the wiki's 2011 relicensing to CC0, but its author, Jhawthorn,
+// opted all their contributions into CC0:
+// https://web.archive.org/web/20150810185946/http://forum.osdev.org/viewtopic.php?f=8&t=23838&start=75#p196942
 
 bool a20_enable(void) {
     if (a20_check())
