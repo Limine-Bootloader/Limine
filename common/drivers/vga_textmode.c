@@ -308,6 +308,12 @@ void vga_textmode_init(bool managed) {
     text_clear(term, false);
 
     // VGA cursor code taken from: https://wiki.osdev.org/Text_Mode_Cursor
+    // Its cursor position writes, to registers 0x0e and 0x0f, come from Dark
+    // Fiber's update_cursor(), which predates the wiki's 2011 relicensing to
+    // CC0, and was never confirmed to have been opted into it. If you wrote it
+    // and want it removed, or are fine with it being CC0, please open an
+    // issue at:
+    // https://github.com/Limine-Bootloader/Limine/issues
 
     if (!managed) {
         term->cursor_enabled = false;
