@@ -21,6 +21,7 @@ static bool mouse_active = false;
 // position and visibility survive the menu data rewind so that the pointer does not
 // jump.
 static no_unwind int64_t pos_x, pos_y;
+static no_unwind int64_t initial_x, initial_y;
 static no_unwind bool pointer_pos_valid = false;
 
 // The pointer stays hidden until the mouse is first used; a plugged
@@ -76,6 +77,8 @@ static void place_pointer(void) {
     pointer_pos_valid = true;
     pos_x = (int64_t)(terms[0]->cols / 2) * 256;
     pos_y = (int64_t)(terms[0]->rows / 2) * 256;
+    initial_x = pos_x;
+    initial_y = pos_y;
 }
 
 static int move_by(int64_t dx, int64_t dy) {
@@ -88,6 +91,13 @@ static int move_by(int64_t dx, int64_t dy) {
     pos_x += dx;
     pos_y += dy;
     clamp_pointer();
+
+    // Allow initial jitter within one cell before activating the pointer.
+    if (!pointer_shown
+     && pos_x - initial_x > -256 && pos_x - initial_x < 256
+     && pos_y - initial_y > -256 && pos_y - initial_y < 256) {
+        return 0;
+    }
 
     if (pos_x != old_x || pos_y != old_y) {
         moved_pending = true;
