@@ -1592,6 +1592,40 @@ static void print_entry_comment(const struct menu_entry *entry, size_t row) {
     FOR_TERM(TERM->scroll_enabled = true);
 }
 
+#define BOOT_KEYBIND_MAX 64
+#define BOOT_KEYBIND_SCAN_LIMIT 256
+
+// Mirrors the case labels in the switch below (digits, e, s, u, b) so a
+// BOOT_KEYBIND can never shadow a built-in action.
+static inline bool is_reserved_firmware_key(int k) {
+    return (k >= '1' && k <= '9') || k == 'e' || k == 's' || k == 'u' || k == 'b';
+}
+
+// Deliberately distinct from digit-key select / DEFAULT_ENTRY's numeric
+// mode, which both go through print_tree() and are relative to what's
+// currently expanded on screen. A BOOT_KEYBIND is meant for fast, unattended
+// booting into a specific entry - its whole point breaks if the target
+// silently shifts depending on menu UI state the user isn't even looking
+// at. This walks the full tree unconditionally, ignoring ->expanded.
+static struct menu_entry *find_entry_by_absolute_index(struct menu_entry *node, size_t *pos) {
+    for (; node != NULL; node = node->next) {
+        if (should_skip_entry(node)) {
+            continue;
+        }
+        if (*pos == 1) {
+            return node;
+        }
+        (*pos)--;
+        if (node->sub != NULL) {
+            struct menu_entry *found = find_entry_by_absolute_index(node->sub, pos);
+            if (found != NULL) {
+                return found;
+            }
+        }
+    }
+    return NULL;
+}
+
 noreturn void _menu(bool first_run) {
     size_t data_size = (uintptr_t)data_end - (uintptr_t)data_begin;
 #if defined (BIOS)
@@ -1833,6 +1867,64 @@ noreturn void _menu(bool first_run) {
                 format_fg_rgb_escape(menu_branding_colour, rgb);
             }
         }
+    }
+
+    struct {
+        int key;
+        size_t config_idx; // which BOOT_KEYBIND directive (by config_get_value
+                            // index), so the target is re-parsed fresh on a
+                            // match instead of every binding pre-resolving
+                            // and storing a path up front.
+    } boot_keybinds[BOOT_KEYBIND_MAX];
+    size_t boot_keybind_count = 0;
+
+    for (size_t ki = 0; ki < BOOT_KEYBIND_SCAN_LIMIT && boot_keybind_count < BOOT_KEYBIND_MAX; ki++) {
+        char *val = config_get_value(NULL, ki, "boot_keybind");
+        if (val == NULL) {
+            break;
+        }
+
+        char val_copy[64];
+        size_t vlen = strlen(val);
+        if (vlen >= sizeof(val_copy)) {
+            continue;
+        }
+        memcpy(val_copy, val, vlen + 1);
+
+        char *p = val_copy;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '\0') continue;
+        char *q = p + strlen(p) - 1;
+        while (q > p && isspace((unsigned char)*q)) *q-- = '\0';
+
+        // Format: "<key> <1-based index or path>", e.g. "h 4" or "h /Linux".
+        // The target itself isn't parsed here; see the match site below.
+        char *space = strchr(p, ' ');
+        if (space == NULL) continue;
+        *space = '\0';
+        char *target = space + 1;
+        while (*target && isspace((unsigned char)*target)) target++;
+        if (*target == '\0') continue;
+
+        if (strlen(p) != 1) continue;
+        int norm_key = tolower((unsigned char)p[0]);
+        if (is_reserved_firmware_key(norm_key)) {
+            continue;
+        }
+
+        // First BOOT_KEYBIND for a key wins; later duplicates are ignored.
+        bool dup = false;
+        for (size_t j = 0; j < boot_keybind_count; j++) {
+            if (boot_keybinds[j].key == norm_key) {
+                dup = true;
+                break;
+            }
+        }
+        if (dup) continue;
+
+        boot_keybinds[boot_keybind_count].key = norm_key;
+        boot_keybinds[boot_keybind_count].config_idx = ki;
+        boot_keybind_count++;
     }
 
     bool skip_timeout = false;
@@ -2228,6 +2320,81 @@ timeout_aborted:
                     continue;
 
             }
+        }
+
+        for (size_t ki = 0; ki < boot_keybind_count; ki++) {
+            if (tolower((unsigned char)c) != boot_keybinds[ki].key) {
+                continue;
+            }
+
+            // Re-fetch and re-parse only the matched binding's target,
+            // instead of every binding pre-resolving and storing a target
+            // up front. A keypress is a human-timescale event, so the
+            // extra parse work here costs nothing.
+            char *val = config_get_value(NULL, boot_keybinds[ki].config_idx, "boot_keybind");
+            if (val == NULL) {
+                continue;
+            }
+            char val_copy[64];
+            size_t vlen = strlen(val);
+            if (vlen >= sizeof(val_copy)) {
+                continue;
+            }
+            memcpy(val_copy, val, vlen + 1);
+            char *p = val_copy;
+            while (*p && isspace((unsigned char)*p)) p++;
+            char *q = p + strlen(p) - 1;
+            while (q > p && isspace((unsigned char)*q)) *q-- = '\0';
+            char *space = strchr(p, ' ');
+            if (space == NULL) continue;
+            *space = '\0';
+            char *bkey_target = space + 1;
+            while (*bkey_target && isspace((unsigned char)*bkey_target)) bkey_target++;
+            if (*bkey_target == '\0') continue;
+
+            // Same is-it-all-digits test DEFAULT_ENTRY uses to tell an
+            // index apart from a path.
+            bool is_index = true;
+            for (const char *t = bkey_target; *t != '\0'; t++) {
+                if (*t < '0' || *t > '9') {
+                    is_index = false;
+                    break;
+                }
+            }
+
+            struct menu_entry *target = NULL;
+
+            if (is_index) {
+                // strtoui saturates to UINT64_MAX on overflow; no errno here.
+                const char *endptr = NULL;
+                uint64_t parsed = strtoui(bkey_target, &endptr, 10);
+                if (endptr == bkey_target || *endptr != '\0' || parsed == 0
+                 || parsed == UINT64_MAX || parsed > SIZE_MAX) {
+                    continue;
+                }
+                // Unlike digit-key select and DEFAULT_ENTRY's numeric mode,
+                // this counts every entry in the whole config regardless of
+                // what's currently expanded on screen - see
+                // find_entry_by_absolute_index's comment for why.
+                size_t pos = (size_t)parsed;
+                struct menu_entry *found = find_entry_by_absolute_index(menu_tree, &pos);
+                if (found != NULL) {
+                    target = found;
+                }
+            } else {
+                // Unlike an index, a path is resolved with expand_dirs so it
+                // finds its target regardless of current expansion state -
+                // it doesn't drift if the menu's expanded/collapsed state
+                // changes, the way a plain index does.
+                size_t found_index = 0;
+                find_entry_by_path(bkey_target, menu_tree, 0, &target, &found_index, true);
+            }
+
+            if (target == NULL || target->sub != NULL) {
+                continue; // try other bindings instead of aborting
+            }
+            selected_menu_entry = target;
+            goto autoboot;
         }
         switch (c) {
             case '1': case '2': case '3': case '4': case '5':

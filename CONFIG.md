@@ -173,6 +173,22 @@ Miscellaneous:
   the scroll wheel moves the selection. Using the mouse stops the `timeout`
   countdown, as pressing a key does. On BIOS this uses the PS/2 (or emulated
   PS/2) mouse; on UEFI any pointer device the firmware exposes.
+* `boot_keybind` - Binds a single key to immediately boot a given menu entry,
+  in the form `<key> <target>`, where `target` is either a 1-based index or
+  an entry path, using the same syntax and escaping rules as `default_entry`.
+  Unlike the number keys and `default_entry`'s own numeric mode, an index
+  here counts every entry in the config unconditionally, regardless of
+  whether any sub-menu is currently expanded on screen - a `boot_keybind` is
+  meant for booting straight to something without looking at the menu, so
+  its target must not depend on menu UI state. A path is resolved by
+  expanding whatever directories it needs to, so it is unaffected by
+  expansion state either way, the same as an index. A directory itself
+  cannot be targeted by either form. There can be multiple of this option,
+  one per binding. If `keyboard_layout` remaps keystrokes, the key here must
+  be given in the remapped layout, not physical QWERTY. Keys already bound
+  to a built-in action (`1`-`9`, `e`, `s`, `u`, `b`) are reserved and cannot
+  be overridden. If the same key is bound more than once, the first binding
+  wins and later ones are ignored.
 
 Limine interface control options:
 
