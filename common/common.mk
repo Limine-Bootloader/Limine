@@ -28,7 +28,7 @@ override CPPFLAGS_FOR_TARGET := \
     -DCOM_OUTPUT=$(COM_OUTPUT) \
     -DE9_OUTPUT=$(E9_OUTPUT) \
     -DFLANTERM_IN_FLANTERM \
-    -MMD \
+    -MD \
     -MP
 
 $(call MKESCAPE,$(BUILDDIR))/libfdt/src/fdt_overlay.o: override CFLAGS_FOR_TARGET += \
