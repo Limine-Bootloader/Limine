@@ -48,7 +48,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/osdev0/freestanding-c-hdrs.git \
         freestanding-c-hdrs \
-        5b4a649b38e1d27f2b7470f593d58e907438aca5
+        5e951873194cf131d00abe4978426e5aaaf6e379
 
     clone_repo_commit \
         https://github.com/osdev0/freestanding-lgrt.git \
