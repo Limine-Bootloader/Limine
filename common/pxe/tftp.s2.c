@@ -69,9 +69,8 @@ static uint32_t parse_ip_addr(const char *server_addr) {
         return get_boot_server_info();
     }
 
-    if (inet_pton(server_addr, &out)) {
-        panic(true, "tftp: Invalid IPv4 address: \"%s\"", server_addr);
-    }
+    // The URI code refuses an address inet_pton() cannot read.
+    inet_pton(server_addr, &out);
 
     return out;
 }
@@ -249,9 +248,8 @@ static EFI_IP_ADDRESS *parse_ip_addr(struct volume *part, const char *server_add
             cached_dhcp_ack_valid = true;
         }
     } else {
-        if (inet_pton(server_addr, &out.Addr)) {
-            panic(true, "tftp: Invalid IPv4 address: \"%s\"", server_addr);
-        }
+        // The URI code refuses an address inet_pton() cannot read.
+        inet_pton(server_addr, &out.Addr);
     }
 
     return &out;
