@@ -1661,14 +1661,14 @@ static void print_entry_comment(const struct menu_entry *entry, size_t row) {
         return;
     }
 
-    size_t comment_len = strlen(comment);
-    size_t max_len = terms[0]->cols - 2;
+    size_t max_width = terms[0]->cols - 2;
+    size_t keep;
+    size_t width = display_width(comment, max_width > 3 ? max_width - 3 : 0, &keep);
     FOR_TERM(TERM->scroll_enabled = false);
-    if (comment_len <= max_len) {
-        set_cursor_pos_helper((terms[0]->cols - comment_len) / 2, row);
+    if (width <= max_width) {
+        set_cursor_pos_helper((terms[0]->cols - width) / 2, row);
         print("\e[36m%s\e[0m", comment);
     } else {
-        size_t keep = max_len > 3 ? max_len - 3 : 0;
         set_cursor_pos_helper(1, row);
         print("\e[36m%S...\e[0m", comment, keep);
     }

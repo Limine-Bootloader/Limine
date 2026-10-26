@@ -270,6 +270,33 @@ def menu_branding_measure(t):
 
 
 @test(ports=ALL_PORTS, tags=['menu', 'hostile'])
+def menu_comment_measure(t):
+    """[user] An entry's comment is measured by what it shows, as the
+    branding is: an escape sequence takes no room, and a character one cell
+    however many bytes UTF-8 gives it. A comment that fits is centred whole;
+    one that does not is cut to the screen's width less two, "..." included,
+    between characters."""
+    m = boot_menu(t, 'timeout: no\n' + menu_entry(1, 'Only', 'only'))
+    cols = wait_menu(t, m).cols
+    m.stop()
+
+    # Black, 30, would hide its character on the screen's black.
+    def coloured(text):
+        return ''.join(f'\x1b[3{1 + i % 7}m{ch}' for i, ch in enumerate(text)) + '\x1b[0m'
+
+    cases = (('short', coloured('Café Comment'), 'Café Comment', (cols - 12) // 2),
+             ('exact', coloured('é' * (cols - 2)), 'é' * (cols - 2), 1),
+             ('long', coloured('é' * (cols + 3)), 'é' * (cols - 5) + '...', 1))
+    for what, comment, shown, x in cases:
+        m = boot_menu(t, 'timeout: no\n' + menu_entry(1, 'Only', 'only', comment))
+        scr = t.wait_text(m, shown)
+        hits = [(hx, hy) for hx, hy in scr.find(shown) if scr.row_text(hy).strip() == shown]
+        t.check(len(hits) == 1 and hits[0][0] == x,
+                f'{what}: {shown!r} alone on its row from column {x}: {hits}\n{scr.text()}')
+        m.stop()
+
+
+@test(ports=ALL_PORTS, tags=['menu', 'hostile'])
 def menu_long_names(t):
     """Names wider than the screen are cut short with "...": the branding, an
     entry's title in the editor's frame, and the title the editor keeps for
