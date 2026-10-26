@@ -1638,11 +1638,13 @@ FEAT_END
                 continue;
             }
 
-            // There is a page-level overlap. Only USABLE and RESERVED regions
-            // can be trimmed; everything else describes firmware- or
-            // kernel-asserted content that we must not silently shrink.
+            // There is a page-level overlap. Only USABLE, RESERVED, and
+            // EFI_RECLAIMABLE regions can be trimmed; everything else
+            // describes firmware- or kernel-asserted content that we must
+            // not silently shrink.
             if (memmap[j].type != MEMMAP_USABLE
-             && memmap[j].type != MEMMAP_RESERVED) {
+             && memmap[j].type != MEMMAP_RESERVED
+             && memmap[j].type != MEMMAP_EFI_RECLAIMABLE) {
                 panic(false, "limine: Framebuffer page-level overlap with non-trimmable memory type %x", memmap[j].type);
             }
 

@@ -82,3 +82,14 @@ def gop_not_started_or_refusing(t):
     fb = r.get('framebuffer.0', '')
     t.check(r.int('framebuffer.count') == 1 and fb and not fb.startswith('800x600'),
             f'the EDID mode refused, another taken: {fb}')
+
+
+@test(ports=UEFI_PORTS, tags=['limine-protocol', 'gop', 'hostile'])
+def gop_framebuffer_in_boot_services_data(t):
+    """[user] A framebuffer in boot services data, here half a page into its
+    pages, which the memory map hands the OS once boot services exit, is
+    passed on as framebuffer memory with the free memory around it cut back
+    to whole pages, instead of stopping the boot."""
+    r = boot_fake_gop_only(t, 4)
+    t.expect_eq(r.int('framebuffer.count'), 1, 'one framebuffer: the second GOP, over the same memory, left out')
+    t.expect_eq(int(r['framebuffer.address'], 16) & 0xfff, 0x800, 'the fake framebuffer, half a page in')

@@ -354,9 +354,11 @@ struct fake_gop {
 };
 
 // Bit 0: QueryMode() says EFI_NOT_STARTED until SetMode() is called. Bit 1:
-// SetMode() refuses mode 1, the EDID's.
+// SetMode() refuses mode 1, the EDID's. Bit 2: the framebuffer lies in boot
+// services data, half a page into its pages.
 #define FAKEGOP_NOT_STARTED 1
 #define FAKEGOP_MODE1_FAILS 2
+#define FAKEGOP_BS_DATA 4
 static uint64_t fakegop_flags;
 static EFI_PHYSICAL_ADDRESS fake_fb;
 static uint8_t fake_edid[128];
@@ -413,7 +415,13 @@ static void cmd_fakegop(char *arg) {
     uint64_t count = parse_hex(arg, &end);
     fakegop_flags = *end == ':' ? parse_hex(end + 1, NULL) : 0;
     if (fake_fb == 0) {
-        bs->AllocatePages(EfiAllocateAnyPages, EfiReservedMemoryType, (1280 * 1024 * 4 + 4095) / 4096, &fake_fb);
+        size_t pages = (1280 * 1024 * 4 + 4095) / 4096;
+        if (fakegop_flags & FAKEGOP_BS_DATA) {
+            bs->AllocatePages(EfiAllocateAnyPages, EfiBootServicesData, pages + 1, &fake_fb);
+            fake_fb += 2048;
+        } else {
+            bs->AllocatePages(EfiAllocateAnyPages, EfiReservedMemoryType, pages, &fake_fb);
+        }
         static const uint8_t timing[18] = { 0x64, 0x19, 0x20, 0x00, 0x30, 0x58, 0x00, 0x20 };
         static const uint8_t header[8] = { 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 };
         for (size_t i = 0; i < 8; i++) {
