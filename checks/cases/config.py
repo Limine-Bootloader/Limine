@@ -179,13 +179,15 @@ def config_macros(t):
 @test(ports=ALL_PORTS, tags=['config', 'hostile'])
 def config_malformed(t):
     """[intent] Configs Limine refuses: an entry two levels below the one
-    before it, directories more than 64 deep, a macro reference with no
-    closing brace, a macro name or value past its buffer, and an enrolled
-    config hash that is not hexadecimal. A macro may stand for a key."""
+    before it, or below none, directories more than 64 deep, a macro
+    reference with no closing brace, a macro name or value past its buffer,
+    and an enrolled config hash that is not hexadecimal. A macro may stand
+    for a key."""
     leaf = '    protocol: limine\n    path: boot():/boot/kernel.elf\n'
     deep = ''.join('/' * d + f'D{d}\n' for d in range(1, 67)) + '/' * 67 + 'Leaf\n' + leaf
     cases = [
         ('timeout: 0\n/A\n///B\n' + leaf, 'config: Malformed config file. Parentless child.'),
+        ('timeout: 0\n//Orphan\n' + leaf + '/A\n' + leaf, 'config: Malformed config file. Parentless child.'),
         ('timeout: 0\n' + deep, 'config: Menu nesting too deep (max 64)'),
         ('${UNCLOSED\n' + kernel_config('x'), 'config: Malformed macro usage'),
         (kernel_config('${OPEN'), 'config: Malformed macro usage'),
@@ -215,6 +217,63 @@ def config_malformed(t):
     tree.add(('/EFI/BOOT/' + name) if t.port.is_uefi else '/boot/limine-bios.sys', HostFile(patched))
     msg, _ = wait_panic(t, t.boot(t.boot_disk(tree)))
     t.expect_eq(msg, '!!! INVALID CHARACTER IN CONFIG CHECKSUM !!!', 'an enrolled hash with a non-hex digit')
+
+
+def many_entries_config(snapshots, last, globals_='timeout: no\n'):
+    """A config as snapshot tools write it: a first entry, a directory of
+    snapshots, each with a comment of its own, and last after them."""
+    lines = [globals_ + '/First', '    protocol: limine', '    path: boot():/boot/kernel.elf', '    cmdline: first',
+             '/Snapshots']
+    for i in range(snapshots):
+        lines += [f'//Snapshot {i}', f'    comment: comment of snapshot {i}', '    protocol: linux',
+                  f'    path: boot():/snapshots/{i}/vmlinuz', f'    cmdline: root=snapshot{i} rw quiet']
+    return '\n'.join(lines) + '\n' + last
+
+
+@test(ports=ALL_PORTS, tags=['config', 'menu'])
+def config_many_entries(t):
+    """[intent] A config of thousands of entries, as snapshot tools write, is
+    read without delay: the menu comes up at once, the last entry of a
+    directory and the last entry of all keep their own comments, and the
+    last one boots."""
+    snapshots = 5000
+    last = '/Last of many\n    comment: the last comment\n    protocol: limine\n' \
+           '    path: boot():/boot/kernel.elf\n    cmdline: last of many\n'
+    tree = with_kernel(t)
+    tree.add('/boot/limine.conf', many_entries_config(snapshots, last))
+    m = t.boot(t.boot_disk(tree))
+    wait_menu(t, m)
+    m.press('end')
+    t.wait_text(m, 'the last comment')
+    m.press('up', 'ret')
+    t.wait_text(m, 'Snapshot 0')
+    m.press('end', 'up')
+    t.wait_text(m, f'comment of snapshot {snapshots - 1}')
+    m.press('down')
+    t.wait_text(m, 'the last comment')
+    m.press('ret')
+    t.expect_eq(booted_cmdline(t, m), 'last of many', 'the last entry booted')
+
+
+@test(ports=ALL_PORTS, tags=['config'])
+def config_line_ends(t):
+    """[intent] Lines may end in CR LF, and blanks before a line's end are no
+    part of its value, whichever way the line ends; a blank after an
+    entry's slashes is no part of its name."""
+    config = ('TIMEOUT: 0 \r\n'
+              '/Test\t\r\n'
+              '    protocol: limine\t \r\n'
+              '    path: boot():/boot/kernel.elf  \r\n'
+              '    cmdline: crlf value \t \r\n')
+    cmdline, m = boot_config(t, config)
+    t.expect_eq(cmdline, 'crlf value', 'command line')
+    m.stop()
+    kernel = '    protocol: limine\n    path: boot():/boot/kernel.elf\n    cmdline: x\n'
+    tree = with_kernel(t)
+    tree.add('/boot/limine.conf', 'timeout: no\n/\tTabbed\n' + kernel + '/ Spaced\n' + kernel + '/Plain\n' + kernel)
+    scr = wait_menu(t, t.boot(t.boot_disk(tree)))
+    columns = {name: scr.find_one(name)[0] for name in ('Tabbed', 'Spaced', 'Plain')}
+    t.expect_eq(len(set(columns.values())), 1, f'names in one column: {columns}')
 
 
 @test(ports=ALL_PORTS, tags=['config'])

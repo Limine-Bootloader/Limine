@@ -129,6 +129,25 @@ def uefi_bli_entry_ids(t):
     t.expect_eq(booted_cmdline(t, m), 'second', 'LoaderEntryDefault holding a path')
 
 
+@test(ports=UEFI_PORTS, tags=['uefi', 'config'])
+def uefi_bli_many_entries(t):
+    """[intent] With more entries than LoaderEntries has room for, as many
+    identifiers as fit its 2048 characters are published, whole and in menu
+    order, and the boot goes on."""
+    from cases.config import many_entries_config
+    snapshots = 3000
+    m, _ = uefi_boot(t, many_entries_config(snapshots, probe_entry(1, 'Probe', f'vendor:{LOADER}'),
+                                            'timeout: 0\ndefault_entry: Probe\n'))
+    r = t.kernel_report(m, begin='B EFIPROBE')
+    data = var_data(r, 'LoaderEntries')
+    t.require(data is not None, 'LoaderEntries set')
+    ids = data.decode('utf-16-le').split('\0')[:-1]
+    want = ['First'] + [f'Snapshots.Snapshot-{i}' for i in range(snapshots)] + ['Probe']
+    t.expect_eq(ids, want[:len(ids)], 'whole identifiers, in menu order')
+    used = sum(len(i) + 1 for i in ids)
+    t.check(used <= 2048 < used + len(want[len(ids)]) + 1, f'as many as fit: {len(ids)}, {used} characters')
+
+
 @test(ports=UEFI_PORTS, tags=['uefi', 'hostile'])
 def uefi_exit_boot_services_retried(t):
     """[spec] ExitBootServices() refusing a stale map key is retried with the
