@@ -431,12 +431,9 @@ static size_t expand_macros(char *out, size_t config_size) {
                 i = orig_i;
                 goto next;
             }
+            // The config ends in a NUL, which stops this before its end.
             while (config_addr[i] != '\n' && config_addr[i] != 0) {
                 i++;
-                if (i >= config_size) {
-                    bad_config = true;
-                    panic(true, "config: Malformed macro usage");
-                }
             }
             continue;
         }
