@@ -210,11 +210,8 @@ $(OUT)/efi/$(1)/efiprobe.elf: $(addprefix $(OUT)/efi/$(1)/,entry.o reloc.o efipr
 	$$(LD) $$(EFI_LDFLAGS_$(1)) -nostdlib -pie -z text -z max-page-size=0x1000 --hash-style=gnu \
 		-z pack-relative-relocs -T $(SRCDIR)/picoefi/$(1)/link_script.lds $$^ -o $$@
 
-# Padded as Limine pads its own images, so that the raw data of the last
-# section, which the PE header describes in whole pages, is inside the file.
 $(OUT)/efi/$(1)/efiprobe.efi: $(OUT)/efi/$(1)/efiprobe.elf
 	$$(OBJCOPY) -O binary $$< $$@
-	dd if=/dev/null of=$$@ bs=4096 seek=$$$$(( ($$$$(wc -c < $$@) + 4095) / 4096 )) 2>/dev/null
 
 override EFI_PROBES += $(OUT)/efi/$(1)/efiprobe.efi
 endef

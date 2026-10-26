@@ -326,8 +326,6 @@ void init_memmap(void) {
 #if defined (UEFI)
 static struct memmap_entry *recl;
 
-extern symbol __slide, __image_base, __image_end;
-
 // Some UEFI implementations cannot handle allocations spanning a large
 // fraction of physical memory. Reduce the request cap no lower than 64MiB,
 // and use 1MiB requests only to recover a failed chunk.
@@ -571,9 +569,7 @@ void init_memmap(void) {
     untouched_memmap_entries = memmap_entries;
 
     // Allocate bootloader itself
-    size_t image_size = ALIGN_UP((uintptr_t)__image_end - (uintptr_t)__image_base, 4096, panic(false, "Alignment overflow"));
-
-    memmap_alloc_range((uintptr_t)__slide, (uintptr_t)image_size,
+    memmap_alloc_range((uintptr_t)EfiLoadSlide, EfiImageSize,
                        MEMMAP_BOOTLOADER_RECLAIMABLE, 0, true, false, true);
 
     pmm_sanitise_entries(memmap, &memmap_entries, false);
