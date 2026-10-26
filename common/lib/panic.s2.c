@@ -52,6 +52,14 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
     // Set on what term_fallback() installed, not on what it replaced.
     FOR_TERM(TERM->autoflush = true);
 
+#if defined (UEFI)
+    // The fallback draws over whatever the firmware left on its console,
+    // which a message written from the top corner would run into.
+    if (term_backend == FALLBACK && !efi_boot_services_exited) {
+        print("\e[2J\e[H");
+    }
+#endif
+
     if (
 #if defined (BIOS)
       stage3_loaded == true &&
