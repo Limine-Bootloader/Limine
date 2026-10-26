@@ -50,6 +50,8 @@ struct volume {
     int partition;
     int sector_size;
     struct volume *backing_dev;
+    // For a logical partition, the extended partition whose chain holds it.
+    struct volume *extended;
 
     int max_partition;
 

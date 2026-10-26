@@ -883,6 +883,7 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
     ret->first_sect  = first_sect_64;
     ret->sect_count  = entry.sect_count;
     ret->backing_dev = extended_part->backing_dev;
+    ret->extended = extended_part;
 
     struct guid guid;
     if (!fs_get_guid(&guid, ret)) {

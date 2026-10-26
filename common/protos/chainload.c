@@ -108,7 +108,7 @@ noreturn void spinup_freebsd(uint32_t drive, uint32_t buf, uint32_t count);
 // marks a loop.
 static bool logical_part_entry(struct volume *p, struct mbr_entry *entry) {
     struct volume *disk = p->backing_dev;
-    struct volume *extended = disk->ebr_part;
+    struct volume *extended = p->extended;
     uint64_t mult = (uint64_t)p->sector_size / 512;
     uint64_t visited[256];
     uint64_t ebr_sector = 0;

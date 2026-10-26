@@ -312,6 +312,35 @@ def bios_chainload_partitions_past_disk_end(t):
         m.stop()
 
 
+@test(ports=['bios'], tags=['chainload', 'partitions'])
+def bios_chainload_second_extended_partition(t):
+    """[intent] With two extended partitions, the boot record of a logical
+    partition in either gets DS:SI on its own entry, the later extended
+    partition's logicals numbered after the earlier one's."""
+    from cases.partitions import DISK_SECTORS, mbr_entry as part_entry, put_record
+    image = bytearray(DISK_SECTORS * 512)
+    put_record(image, 0, [part_entry(0x83, 2048, 4096), part_entry(0x05, 8192, 8192),
+                          part_entry(0x05, 16384, 8192)])
+    put_record(image, 8192, [part_entry(0x83, 63, 2000)])
+    put_record(image, 16384, [part_entry(0x83, 63, 2000)])
+    image[8255 * 512:8256 * 512] = bootrec(t, 'FIRST5')
+    image[16447 * 512:16448 * 512] = bootrec(t, 'SECOND6')
+    with open(t.path('two.img'), 'wb') as f:
+        f.write(image)
+    for partition, name, extent in ((5, 'FIRST5__', (8255, 2000)), (6, 'SECOND6_', (16447, 2000))):
+        config = 'timeout: 0\n' + entry('Chain', protocol='bios', extra=f'drive: 2\npartition: {partition}')
+        d1 = t.boot_disk(t.limine_files(config))
+        m = t.machine(drives=[Drive(d1.path, bootindex=0), Drive(t.path('two.img'), bootindex=1)])
+        r = bootrec_report(t, m)
+        t.expect_eq(r['name'], name, f'partition {partition} boot record ran')
+        check_real_mode_entry(t, r, '81', '07be')
+        entry_hex = r['entry']
+        start = int.from_bytes(bytes.fromhex(entry_hex[16:24]), 'little')
+        count = int.from_bytes(bytes.fromhex(entry_hex[24:32]), 'little')
+        t.expect_eq((start, count), extent, f'partition {partition}: its own entry')
+        m.stop()
+
+
 @test(ports=['bios'], tags=['chainload'])
 def bios_chainload_default_drive(t):
     """Without a drive, the boot drive."""
