@@ -136,17 +136,15 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
     struct multiboot_header *header = NULL;
 
-    // Per Multiboot2 spec, header must be within first 32768 bytes and 8-byte aligned.
-    // Ensure we don't read past end of file when checking magic.
-    size_t search_limit = MULTIBOOT_SEARCH;
+    // The header must lie wholly within the first 32768 bytes, 8-byte aligned;
+    // header_length says how far it reaches.
     if (kernel_file_size < sizeof(struct multiboot_header)) {
         panic(true, "multiboot2: Kernel file too small to contain header");
     }
-    if (search_limit > kernel_file_size - sizeof(struct multiboot_header)) {
-        search_limit = kernel_file_size - sizeof(struct multiboot_header);
-    }
+    size_t search_end = MIN(kernel_file_size, (size_t)MULTIBOOT_SEARCH);
 
-    for (size_t header_offset = 0; header_offset <= search_limit; header_offset += MULTIBOOT_HEADER_ALIGN) {
+    for (size_t header_offset = 0; header_offset <= search_end - sizeof(struct multiboot_header);
+         header_offset += MULTIBOOT_HEADER_ALIGN) {
         header = (void *)(kernel + header_offset);
 
         if (header->magic == MULTIBOOT2_HEADER_MAGIC) {
@@ -169,6 +167,9 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
     size_t header_offset_in_file = (uintptr_t)header - (uintptr_t)kernel;
     if (header->header_length > kernel_file_size - header_offset_in_file) {
         panic(true, "multiboot2: Header length exceeds kernel file size");
+    }
+    if (header->header_length > search_end - header_offset_in_file) {
+        panic(true, "multiboot2: Header extends past the first 32768 bytes");
     }
 
     struct multiboot_header_tag_address *addresstag = NULL;
