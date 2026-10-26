@@ -1941,8 +1941,12 @@ noreturn void _menu(bool first_run) {
             }
             if (is_index) {
                 selected_entry = strtoui(default_entry, NULL, 10);
-                if (selected_entry)
+                // Indices are 1-based, so 0 names no entry.
+                if (selected_entry == 0) {
+                    default_entry_unresolved = true;
+                } else {
                     selected_entry--;
+                }
             } else {
                 // Copy the path since find_entry_by_path calls config_get_value
                 // internally (via should_skip_entry), which clobbers the static buffer.
