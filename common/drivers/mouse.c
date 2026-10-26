@@ -856,7 +856,9 @@ int mouse_handle_efi_event(size_t index) {
                 if (steps == 0) {
                     steps = state.RelativeMovementZ > 0 ? 1 : -1;
                 }
-                ev |= wheel_by(steps);
+                // Z follows the Wheel usage (HID Usage Tables 1.7 section 4.3):
+                // positive means rolled away from the user, so scrolling up.
+                ev |= wheel_by(-steps);
             }
         }
 
