@@ -547,12 +547,26 @@ reloc_fail:
 
     acpi_get_smbios((void **)&smbios_entry_32, (void **)&smbios_entry_64);
 
+    // The tag holds the structure table each entry point points at, which
+    // has to be within reach to be copied.
+    void *smbios_table_32 = NULL, *smbios_table_64 = NULL;
+    uint32_t smbios_table_32_size = 0, smbios_table_64_size = 0;
+    if (smbios_entry_32 != NULL && smbios_entry_32->table_address != 0) {
+        smbios_table_32 = (void *)(uintptr_t)smbios_entry_32->table_address;
+        smbios_table_32_size = smbios_entry_32->table_length;
+    }
+    if (smbios_entry_64 != NULL && smbios_entry_64->table_address != 0
+     && smbios_entry_64->table_address + smbios_entry_64->table_maximum_size - 1 <= (uintptr_t)-1) {
+        smbios_table_64 = (void *)(uintptr_t)smbios_entry_64->table_address;
+        smbios_table_64_size = smbios_entry_64->table_maximum_size;
+    }
+
     uint32_t smbios_tag_size = 0;
 
-    if (smbios_entry_32 != NULL)
-        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_entry_32->length, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: tag size overflow"));
-    if (smbios_entry_64 != NULL)
-        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_entry_64->length, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: tag size overflow"));
+    if (smbios_table_32 != NULL)
+        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_table_32_size, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: tag size overflow"));
+    if (smbios_table_64 != NULL)
+        smbios_tag_size += ALIGN_UP(sizeof(struct multiboot_tag_smbios) + smbios_table_64_size, MULTIBOOT_TAG_ALIGN, panic(true, "multiboot2: tag size overflow"));
 
     size_t mb2_info_size = get_multiboot2_info_size(
         cmdline,
@@ -946,32 +960,32 @@ skip_modeset:;
         // smbios 32 and 64 bit entry points are present, then we pass both of them + smbios
         // support for grub2 is unimplemented. So, we are going to assume they expect us to
         // pass both of them if available. Oh well...
-        if (smbios_entry_32 != NULL) {
+        if (smbios_table_32 != NULL) {
             struct multiboot_tag_smbios *tag = (struct multiboot_tag_smbios *)(mb2_info + info_idx);
 
             tag->type = MULTIBOOT_TAG_TYPE_SMBIOS;
-            tag->size = sizeof(struct multiboot_tag_smbios) + smbios_entry_32->length;
+            tag->size = sizeof(struct multiboot_tag_smbios) + smbios_table_32_size;
 
             tag->major = smbios_entry_32->major_version;
             tag->minor = smbios_entry_32->minor_version;
 
             memset(tag->reserved, 0, 6);
-            memcpy(tag->tables, smbios_entry_32, smbios_entry_32->length);
+            memcpy(tag->tables, smbios_table_32, smbios_table_32_size);
 
             append_tag(info_idx, tag);
         }
 
-        if (smbios_entry_64 != NULL) {
+        if (smbios_table_64 != NULL) {
             struct multiboot_tag_smbios *tag = (struct multiboot_tag_smbios *)(mb2_info + info_idx);
 
             tag->type = MULTIBOOT_TAG_TYPE_SMBIOS;
-            tag->size = sizeof(struct multiboot_tag_smbios) + smbios_entry_64->length;
+            tag->size = sizeof(struct multiboot_tag_smbios) + smbios_table_64_size;
 
             tag->major = smbios_entry_64->major_version;
             tag->minor = smbios_entry_64->minor_version;
 
             memset(tag->reserved, 0, 6);
-            memcpy(tag->tables, smbios_entry_64, smbios_entry_64->length);
+            memcpy(tag->tables, smbios_table_64, smbios_table_64_size);
 
             append_tag(info_idx, tag);
         }
