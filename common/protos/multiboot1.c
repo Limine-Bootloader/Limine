@@ -544,7 +544,8 @@ skip_modeset:;
 #endif
     } else {
 #if defined (BIOS)
-        vga_textmode_init(false);
+        // Described as GRUB describes it, though not asked for.
+        goto textmode;
 #endif
     }
 
