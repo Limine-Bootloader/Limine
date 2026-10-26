@@ -390,6 +390,31 @@ int pit_sleep_and_quit_on_keypress(int seconds) {
 #endif
 
 #if defined (UEFI)
+// The firmware's console can pass on what a terminal sent as one sequence over
+// several of its polls of the serial line, so the next key of a sequence is
+// waited for rather than taken to be missing. EFI_TIMEOUT if none comes.
+static EFI_STATUS read_sequence_key(bool ext, EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *exproto,
+                                    EFI_SIMPLE_TEXT_INPUT_PROTOCOL *sproto, EFI_KEY_DATA *kd) {
+    EFI_EVENT events[2];
+    EFI_UINTN which;
+
+    events[0] = ext ? exproto->WaitForKeyEx : sproto->WaitForKey;
+    gBS->CreateEvent(EFI_EVT_TIMER, EFI_TPL_CALLBACK, NULL, NULL, &events[1]);
+    // 100ms, in 100ns units.
+    gBS->SetTimer(events[1], EfiTimerRelative, 1000000);
+    gBS->WaitForEvent(2, events, &which);
+    gBS->CloseEvent(events[1]);
+
+    if (which == 1) {
+        return EFI_TIMEOUT;
+    }
+
+    if (ext) {
+        return exproto->ReadKeyStrokeEx(exproto, kd);
+    }
+    return sproto->ReadKeyStroke(sproto, &kd->Key);
+}
+
 static int input_sequence(bool ss3, bool ext,
     EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *exproto, EFI_SIMPLE_TEXT_INPUT_PROTOCOL *sproto) {
     EFI_STATUS status;
@@ -399,11 +424,7 @@ static int input_sequence(bool ss3, bool ext,
     bool first_param = true;
 
     for (;;) {
-        if (ext == false) {
-            status = sproto->ReadKeyStroke(sproto, &kd.Key);
-        } else {
-            status = exproto->ReadKeyStrokeEx(exproto, &kd);
-        }
+        status = read_sequence_key(ext, exproto, sproto, &kd);
 
         if (status != EFI_SUCCESS) {
             return 0;
@@ -513,24 +534,11 @@ again:
     if (kd.Key.ScanCode == EFI_SCAN_ESC) {
         gBS->CloseEvent(events[1]);
 
-        gBS->CreateEvent(EFI_EVT_TIMER, EFI_TPL_CALLBACK, NULL, NULL, &events[1]);
+        status = read_sequence_key(!use_sproto, exproto, sproto, &kd);
 
-        gBS->SetTimer(events[1], EfiTimerRelative, 100000);
-
-        gBS->WaitForEvent(2, events, &which);
-
-        if (which == 1) {
-            gBS->CloseEvent(events[1]);
+        if (status == EFI_TIMEOUT) {
             return GETCHAR_ESCAPE;
         }
-
-        if (use_sproto) {
-            status = sproto->ReadKeyStroke(sproto, &kd.Key);
-        } else {
-            status = exproto->ReadKeyStrokeEx(exproto, &kd);
-        }
-
-        gBS->CloseEvent(events[1]);
 
         if (status != EFI_SUCCESS) {
             goto restart;

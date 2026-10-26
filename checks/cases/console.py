@@ -2,7 +2,7 @@ import re
 import time
 
 from harness.api import test
-from harness.ports import ALL_PORTS
+from harness.ports import ALL_PORTS, UEFI_PORTS
 from cases._common import entry, limine_version, screen_text
 from cases.menu import BRANDING_ARCH, KERNEL, boot_menu, booted_cmdline, nothing_booted, tree_menu
 
@@ -211,6 +211,25 @@ def console_serial_escape_sequences(t):
                 esc(b'[99999999999~'),                         # no such key
                 esc(b'[21~'))                                  # F10
     t.expect_eq(booted_cmdline(t, m), 'cdefXYZ', 'the edited entry booted')
+
+
+@test(ports=[p for p in UEFI_PORTS if p not in DIGIT_DROPPING_PORTS], tags=['console', 'serial'])
+def console_serial_split_sequences(t):
+    """[intent] A key's escape sequence whose bytes come apart, as the
+    firmware's console can pass them on over several of its polls of the
+    serial line, is still the one key: Down, Ctrl+Down, Shift+Up, End, and
+    F10, each sent a byte every 50ms."""
+    m = boot_menu(t, 'timeout: no\nserial: yes\n/Only\n    protocol: limine\n    cmdline: abcdef\n'
+                  f'    path: {KERNEL}\n')
+    t.wait_serial_text(m, 'ARROWS')
+    type_serial(m, b'e')
+    t.wait_serial_text(m, 'cmdline: abcdef')
+    for key in (esc(b'[B'), esc(b'[1;5B'), esc(b'[1;2A'), esc(b'[4~'), b'X', esc(b'[21~')):
+        for byte in key:
+            m.stream('serial').write(bytes([byte]))
+            time.sleep(0.05)
+        time.sleep(0.3)
+    t.expect_eq(booted_cmdline(t, m), 'abcdefX', 'the edited entry booted')
 
 
 @test(ports=DIGIT_DROPPING_PORTS, tags=['console', 'serial'])
