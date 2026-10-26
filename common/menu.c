@@ -1656,10 +1656,7 @@ static bool row_to_entry_index(size_t row, size_t tree_row_start, size_t window,
 }
 
 static void print_entry_comment(const struct menu_entry *entry, size_t row) {
-    const char *comment = entry->comment;
-    if (comment == NULL) {
-        comment = config_get_value(entry->body, 0, "COMMENT");
-    }
+    const char *comment = config_get_value(entry->body, 0, "COMMENT");
     if (comment == NULL) {
         return;
     }

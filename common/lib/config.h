@@ -10,7 +10,6 @@ extern bool bad_config;
 
 struct menu_entry {
     char *name;
-    char *comment;
     struct menu_entry *parent;
     struct menu_entry *sub;
     bool expanded;

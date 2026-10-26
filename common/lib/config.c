@@ -375,7 +375,6 @@ static struct menu_entry *create_menu_tree(void) {
         struct menu_entry *entry = ext_mem_alloc(sizeof(struct menu_entry));
         entry->name = name;
         entry->body = body;
-        entry->comment = NULL;
         entry->parent = last_at_depth[depth - 1];
         entry->expanded = default_expanded;
 
