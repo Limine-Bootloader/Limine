@@ -102,6 +102,24 @@ def mb2_relocation_search(t):
         m.stop()
 
 
+@test(ports=X86_PORTS, tags=['multiboot2', 'hostile'])
+def mb2_relocation_from_zero(t):
+    """A relocatable tag whose min_addr is 0, with the lowest place or none
+    preferred, does not have the image put over physical page 0, where GRUB
+    does not put it either [user]; otherwise the image goes where the tag
+    lets it (Multiboot2 2.0 section 3.1.13) [spec]."""
+    for variant in ('reloczero', 'reloczeronone'):
+        path = mb2_kernel(t, variant)
+        lo, hi = kernel_range(path)
+        m = boot_mb2(t, HostFile(path))
+        r = mb2_report(t, m)
+        base = h(r, 'load_base')
+        t.check(base >= 0x1000 and base + hi - lo <= 0x1000000, f'{variant}: {base:#x} past page 0, under max_addr')
+        t.expect_eq(base % 0x1000, 0, f'{variant}: aligned')
+        check_mb2_info(t, r, 'mb2 command line', [], (base, base + hi - lo), elf=read(path), load_base=base)
+        m.stop()
+
+
 @test(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_smbios3_and_resolution(t):
     """With only a 64-bit SMBIOS entry point the SMBIOS tag carries version

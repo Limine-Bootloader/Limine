@@ -449,6 +449,12 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
             reloc_tag.align = 1;
         }
 
+        // Page 0 sits at the null pointer; keep the image out of it, whatever
+        // min_addr allows.
+        if (reloc_tag.min_addr < 0x1000) {
+            reloc_tag.min_addr = 0x1000;
+        }
+
         bool reloc_ascend;
         uint64_t relocated_base;
 
