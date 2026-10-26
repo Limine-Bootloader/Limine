@@ -1542,6 +1542,9 @@ noreturn static void boot_uefi_shell(void) {
     if (!quiet) {
         reset_term();
     }
+    // Opened the way uefi_shell_available() found it. Should the boot fail,
+    // the menu it falls back to rewinds the flag along with the rest of .bss.
+    case_insensitive_fopen = true;
     boot(shell_entry);
 }
 
