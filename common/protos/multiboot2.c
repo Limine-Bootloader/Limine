@@ -702,7 +702,9 @@ reloc_fail:
     //////////////////////////////////////////////
     // Create load base address tag
     //////////////////////////////////////////////
-    if (has_reloc_header) {
+    // GRUB gives it to every executable, not only relocatable ones as
+    // Multiboot2 2.0 section 3.6.23 has it.
+    {
         uint32_t size = sizeof(struct multiboot_tag_load_base_addr);
         struct multiboot_tag_load_base_addr *tag = (void *)(mb2_info + info_idx);
 
