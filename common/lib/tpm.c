@@ -216,7 +216,8 @@ void tpm_measure_path(uint32_t pcr, uint32_t event_type,
         return;
     }
 
-    const char *hash_sep = strchr(path, '#');
+    // The hash follows the last '#', as uri.c reads it; the path may hold more.
+    const char *hash_sep = strrchr(path, '#');
     size_t path_len = hash_sep != NULL
         ? (size_t)(hash_sep - path)
         : strlen(path);
