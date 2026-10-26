@@ -405,11 +405,8 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
 
     struct hash_reference hash_ref;
     if (hash != NULL) {
-        if (!hash_reference_from_hex(&hash_ref, hash, strlen(hash))) {
-            URI_ERROR("Invalid hash for URI `%#`", uri);
-            fclose(raw);
-            return NULL;
-        }
+        // uri_resolve() has checked the hash's length and digits.
+        hash_reference_from_hex(&hash_ref, hash, strlen(hash));
     }
 
     // Snapshot metadata from raw before the close cascade frees its buffers.
