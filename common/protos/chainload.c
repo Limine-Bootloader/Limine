@@ -360,16 +360,19 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
 
     size_t original_path_chars = strlen(image->path);
 
-    // UTF-16 never takes more code units than UTF-8 takes bytes.
-    size_t efi_file_path_alloc_len = (original_path_chars + 1) * sizeof(EFI_CHAR16);
+    // UTF-16 never takes more code units than UTF-8 takes bytes; one more is
+    // for the backslash rooting the path, as firmware roots those of the
+    // images it loads.
+    size_t efi_file_path_alloc_len = (original_path_chars + 2) * sizeof(EFI_CHAR16);
     EFI_CHAR16 *efi_file_path = ext_mem_alloc(efi_file_path_alloc_len);
 
     size_t efi_file_path_chars;
-    utf8_to_utf16(efi_file_path, original_path_chars + 1, image->path, original_path_chars, &efi_file_path_chars);
+    utf8_to_utf16(efi_file_path + 1, original_path_chars + 1, image->path, original_path_chars, &efi_file_path_chars);
 
+    efi_file_path[0] = '\\';
     bool leading_slash = true;
-    size_t j = 0;
-    for (size_t i = 0; i < efi_file_path_chars; i++) {
+    size_t j = 1;
+    for (size_t i = 1; i <= efi_file_path_chars; i++) {
         if (efi_file_path[i] == '/' && leading_slash) {
             continue;
         }
