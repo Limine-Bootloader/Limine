@@ -13,27 +13,22 @@ BUILDDIR="$(pwd -P)"
 # onwards, but macOS still ships 3.81.
 AC_MSG_CHECKING([whether the source and build directory paths are usable])
 for bad_char in '"' "'" ':' '`' '#' '$' '&' ';' '|' '='; do
-    case "$SRCDIR" in
-        *"$bad_char"*)
-            AC_MSG_RESULT([no])
-            AC_MSG_ERROR([the source directory path contains '$bad_char'; move the source tree])
-            ;;
-    esac
+    AS_CASE(["$SRCDIR"],
+        [*"$bad_char"*],
+        [AC_MSG_RESULT([no])
+         AC_MSG_ERROR([the source directory path contains '$bad_char'; move the source tree])])
 done
 
 for bad_char in "'" '%' ':' '#' '$' '&' ';' '|' '=' '*' '?'; do
-    case "$BUILDDIR" in
-        *"$bad_char"*)
-            AC_MSG_RESULT([no])
-            AC_MSG_ERROR([the build directory path contains '$bad_char'; use a different build directory])
-            ;;
-    esac
+    AS_CASE(["$BUILDDIR"],
+        [*"$bad_char"*],
+        [AC_MSG_RESULT([no])
+         AC_MSG_ERROR([the build directory path contains '$bad_char'; use a different build directory])])
 done
 
-if test "$(printf '%s' "$SRCDIR$BUILDDIR" | wc -l)" -gt 0; then
-    AC_MSG_RESULT([no])
-    AC_MSG_ERROR([the source or build directory path contains a newline; move the tree])
-fi
+AS_IF([test "$(printf '%s' "$SRCDIR$BUILDDIR" | wc -l)" -gt 0],
+    [AC_MSG_RESULT([no])
+     AC_MSG_ERROR([the source or build directory path contains a newline; move the tree])])
 AC_MSG_RESULT([yes])
 
 AC_SUBST([SRCDIR])
