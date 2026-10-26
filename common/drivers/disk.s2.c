@@ -820,7 +820,7 @@ static bool is_efi_handle_driver_managed(EFI_HANDLE efi_handle, EFI_GUID *protoc
     return managed;
 }
 
-static bool should_connect_storage_controller(EFI_HANDLE efi_handle) {
+static bool should_connect_storage_controller(EFI_HANDLE efi_handle, bool bound) {
     EFI_GUID block_io_guid = EFI_BLOCK_IO_PROTOCOL_GUID;
     void *block_io = NULL;
     if (gBS->HandleProtocol(efi_handle, &block_io_guid, &block_io) == EFI_SUCCESS) {
@@ -851,31 +851,47 @@ static bool should_connect_storage_controller(EFI_HANDLE efi_handle) {
         return false;
     }
 
-    // Only connect controllers no bus driver has bound yet (the Fast Boot
-    // case of ticket #598). Re-connecting live controllers has no upside and
+    // Unless asked to, only connect controllers no bus driver has bound yet
+    // (the Fast Boot case of ticket #598). Re-connecting live controllers
     // makes some buggy firmware misbehave, up to spontaneous resets.
-    return !is_efi_handle_driver_managed(efi_handle, &pci_io_guid);
+    return bound || !is_efi_handle_driver_managed(efi_handle, &pci_io_guid);
 }
 
-void disk_create_index(void) {
-    EFI_STATUS status;
-
-    // Connect the storage controllers the firmware may have left unconnected (see
-    // should_connect_storage_controller() and ticket #598), recursively so that
-    // their disks and partitions appear, without pulling in unrelated slow drivers.
-    {
-        EFI_HANDLE *all_handles = NULL;
-        EFI_UINTN all_handles_count = 0;
-        if (gBS->LocateHandleBuffer(EfiAllHandles, NULL, NULL,
-                                    &all_handles_count, &all_handles) == EFI_SUCCESS) {
-            for (EFI_UINTN i = 0; i < all_handles_count; i++) {
-                if (should_connect_storage_controller(all_handles[i])) {
-                    gBS->ConnectController(all_handles[i], NULL, NULL, true);
-                }
-            }
-            gBS->FreePool(all_handles);
+// Recursively, so that their disks and partitions appear, without pulling in
+// unrelated slow drivers.
+static void connect_storage_controllers(bool bound) {
+    EFI_HANDLE *all_handles = NULL;
+    EFI_UINTN all_handles_count = 0;
+    if (gBS->LocateHandleBuffer(EfiAllHandles, NULL, NULL,
+                                &all_handles_count, &all_handles) != EFI_SUCCESS) {
+        return;
+    }
+    for (EFI_UINTN i = 0; i < all_handles_count; i++) {
+        if (should_connect_storage_controller(all_handles[i], bound)) {
+            gBS->ConnectController(all_handles[i], NULL, NULL, true);
         }
     }
+    gBS->FreePool(all_handles);
+}
+
+static bool is_efi_handle_indexed(EFI_HANDLE efi_handle) {
+    for (size_t i = 0; i < volume_index_i; i++) {
+        if (volume_index[i]->efi_handle == efi_handle) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Kept across index_disks() calls, so that disks found later number after
+// the ones found first.
+static int optical_indices = 1, hdd_indices = 1;
+
+// Index the disks, and their partitions, of the Block I/O handles not
+// indexed yet. Returns whether there were any.
+static bool index_disks(void) {
+    EFI_STATUS status;
 
     EFI_HANDLE tmp_handles[1];
 
@@ -885,16 +901,9 @@ void disk_create_index(void) {
 
     status = gBS->LocateHandle(EfiByProtocol, &block_io_guid, NULL, &handles_size, handles);
 
-    // we only care about the first handle, so ignore if we get EFI_BUFFER_TOO_SMALL
-    if (status != EFI_BUFFER_TOO_SMALL && status != EFI_SUCCESS) {
-        EFI_GUID pxe_guid = EFI_PXE_BASE_CODE_PROTOCOL_GUID;
-        status = gBS->LocateHandle(EfiByProtocol, &pxe_guid, NULL, &handles_size, handles);
-        // likewise, all that matters is that the protocol is present
-        if (status == EFI_BUFFER_TOO_SMALL || status == EFI_SUCCESS) {
-            return;
-        }
-
-        goto fail;
+    // A network boot may have no disks at all.
+    if (status == EFI_NOT_FOUND) {
+        return false;
     }
 
     handles = ext_mem_alloc(handles_size);
@@ -902,18 +911,17 @@ void disk_create_index(void) {
     status = gBS->LocateHandle(EfiByProtocol, &block_io_guid, NULL, &handles_size, handles);
 
     if (status != EFI_SUCCESS) {
-fail:
         panic(false, "LocateHandle for BLOCK_IO_PROTOCOL failed. Machine not supported by Limine UEFI.");
     }
 
-    int optical_indices = 1, hdd_indices = 1;
+    size_t indexed_before = volume_index_i;
 
     size_t handle_count = handles_size / sizeof(EFI_HANDLE);
 
     for (size_t i = 0; i < handle_count; i++) {
         EFI_BLOCK_IO_PROTOCOL *drive = NULL;
 
-        if (is_efi_handle_to_skip(handles[i])) {
+        if (is_efi_handle_to_skip(handles[i]) || is_efi_handle_indexed(handles[i])) {
             continue;
         }
 
@@ -1029,6 +1037,57 @@ fail:
     find_part_handles(handles, handle_count);
 
     pmm_free(handles, handles_size);
+
+    return volume_index_i != indexed_before;
+}
+
+void disk_create_index(void) {
+    connect_storage_controllers(false);
+
+    EFI_GUID block_io_guid = EFI_BLOCK_IO_PROTOCOL_GUID;
+    EFI_HANDLE handle;
+    EFI_UINTN handles_size = sizeof(handle);
+
+    EFI_STATUS status = gBS->LocateHandle(EfiByProtocol, &block_io_guid, NULL, &handles_size, &handle);
+
+    // Only the first handle matters, so EFI_BUFFER_TOO_SMALL is not an error.
+    if (status != EFI_BUFFER_TOO_SMALL && status != EFI_SUCCESS) {
+        EFI_GUID pxe_guid = EFI_PXE_BASE_CODE_PROTOCOL_GUID;
+        status = gBS->LocateHandle(EfiByProtocol, &pxe_guid, NULL, &handles_size, &handle);
+        // likewise, all that matters is that the protocol is present
+        if (status == EFI_BUFFER_TOO_SMALL || status == EFI_SUCCESS) {
+            return;
+        }
+
+        panic(false, "LocateHandle for BLOCK_IO_PROTOCOL failed. Machine not supported by Limine UEFI.");
+    }
+
+    index_disks();
+}
+
+bool disk_connect_all(void) {
+    static bool connected = false;
+    if (connected) {
+        return false;
+    }
+    connected = true;
+
+    connect_storage_controllers(true);
+
+    if (!index_disks()) {
+        return false;
+    }
+
+    // Volumes are told apart by content among all of them, the new ones too.
+    if (unique_sectors_calculated) {
+        for (size_t i = 0; i < volume_index_i; i++) {
+            volume_index[i]->unique_sector_valid = false;
+            memset(volume_index[i]->unique_sector_b2b, 0, BLAKE2B_OUT_BYTES);
+        }
+        unique_sectors_calculated = false;
+    }
+
+    return true;
 }
 
 #endif

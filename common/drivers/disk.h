@@ -26,6 +26,10 @@ enum {
 void disk_create_index(uint8_t boot_drive);
 #elif defined (UEFI)
 void disk_create_index(void);
+// Connect all storage controllers, also those a driver has bound, and index
+// the volumes that appear. Only the first call does so; returns whether there
+// were any.
+bool disk_connect_all(void);
 #endif
 int disk_read_sectors(struct volume *volume, void *buf, uint64_t block, size_t count);
 

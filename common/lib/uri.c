@@ -3,6 +3,7 @@
 #include <lib/uri.h>
 #include <lib/misc.h>
 #include <lib/part.h>
+#include <drivers/disk.h>
 #include <lib/libc.h>
 #include <lib/config.h>
 #include <fs/file.h>
@@ -141,13 +142,32 @@ static bool parse_bios_partition(char *loc, int *drive, int *partition) {
     return true;
 }
 
+// Under Fast Boot, firmware may connect a controller's boot disk alone. A
+// volume not found may be on one of its other disks, so all are connected and
+// the search is had again.
+static bool connect_all(void) {
+#if defined (UEFI)
+    return disk_connect_all();
+#else
+    return false;
+#endif
+}
+
+static struct volume *volume_by_coord(bool optical, int drive, int partition) {
+    struct volume *volume = volume_get_by_coord(optical, drive, partition);
+    if (volume == NULL && connect_all()) {
+        volume = volume_get_by_coord(optical, drive, partition);
+    }
+    return volume;
+}
+
 static struct file_handle *uri_hdd_dispatch(char *loc, char *path) {
     int drive, partition;
 
     if (!parse_bios_partition(loc, &drive, &partition))
         return NULL;
 
-    struct volume *volume = volume_get_by_coord(false, drive, partition);
+    struct volume *volume = volume_by_coord(false, drive, partition);
 
     if (volume == NULL)
         return NULL;
@@ -161,7 +181,7 @@ static struct file_handle *uri_odd_dispatch(char *loc, char *path) {
     if (!parse_bios_partition(loc, &drive, &partition))
         return NULL;
 
-    struct volume *volume = volume_get_by_coord(true, drive, partition);
+    struct volume *volume = volume_by_coord(true, drive, partition);
 
     if (volume == NULL)
         return NULL;
@@ -169,21 +189,28 @@ static struct file_handle *uri_odd_dispatch(char *loc, char *path) {
     return fopen(volume, path);
 }
 
-static struct file_handle *uri_guid_dispatch(char *guid_str, char *path) {
+static struct volume *volume_by_guid_str(char *guid_str) {
     struct guid guid;
     if (!string_to_guid_mixed(&guid, guid_str)) {
         return NULL;
     }
 
     struct volume *volume = volume_get_by_guid(&guid);
-    if (volume == NULL) {
-        if (!string_to_guid_be(&guid, guid_str)) {
-            return NULL;
-        }
-
+    if (volume == NULL && string_to_guid_be(&guid, guid_str)) {
         volume = volume_get_by_guid(&guid);
-        if (volume == NULL)
-            return NULL;
+    }
+
+    return volume;
+}
+
+static struct file_handle *uri_guid_dispatch(char *guid_str, char *path) {
+    struct volume *volume = volume_by_guid_str(guid_str);
+    if (volume == NULL && connect_all()) {
+        volume = volume_by_guid_str(guid_str);
+    }
+
+    if (volume == NULL) {
+        return NULL;
     }
 
     return fopen(volume, path);
@@ -191,6 +218,10 @@ static struct file_handle *uri_guid_dispatch(char *guid_str, char *path) {
 
 static struct file_handle *uri_fslabel_dispatch(char *fslabel, char *path) {
     struct volume *volume = volume_get_by_fslabel(fslabel);
+    if (volume == NULL && connect_all()) {
+        volume = volume_get_by_fslabel(fslabel);
+    }
+
     if (volume == NULL) {
         return NULL;
     }
