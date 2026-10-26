@@ -241,6 +241,67 @@ static void print_secondary_help(size_t row, bool firmware_setup, bool uefi_shel
     }
 }
 
+// The cells s takes on the terminal: none for an escape sequence or a control
+// character, and one per character however many bytes UTF-8 gives it. *keep
+// gets the length of the leading part that takes the most cells up to max,
+// ending right after its last character.
+static size_t display_width(const char *s, size_t max, size_t *keep) {
+    const uint8_t *p = (const uint8_t *)s;
+    size_t width = 0;
+    size_t i = 0;
+
+    *keep = 0;
+    while (p[i] != '\0') {
+        uint8_t c = p[i++];
+
+        if (c == '\e') {
+            if (p[i] == '[') {
+                // A CSI sequence ends at its final byte.
+                i++;
+                while (p[i] != '\0' && (p[i] < 0x40 || p[i] > 0x7e)) {
+                    i++;
+                }
+            } else if (p[i] == '(' || p[i] == ')') {
+                // The byte after these names a character set.
+                i++;
+            }
+            if (p[i] != '\0') {
+                i++;
+            }
+            continue;
+        }
+
+        if (c < 0x20 || c == 0x7f || (c & 0xc0) == 0x80) {
+            continue;
+        }
+
+        while ((p[i] & 0xc0) == 0x80) {
+            i++;
+        }
+        width++;
+        if (width <= max) {
+            *keep = i;
+        }
+    }
+
+    return width;
+}
+
+static void print_branding(void) {
+    size_t x, y;
+    terms[0]->get_cursor_pos(terms[0], &x, &y);
+    size_t max_width = terms[0]->cols - 2;
+    size_t keep;
+    size_t width = display_width(menu_branding, max_width > 3 ? max_width - 3 : 0, &keep);
+    if (width <= max_width) {
+        set_cursor_pos_helper((terms[0]->cols - width) / 2, y);
+        print("%s%s\e[0m", menu_branding_colour, menu_branding);
+    } else {
+        set_cursor_pos_helper(1, y);
+        print("%s%S...\e[0m", menu_branding_colour, menu_branding, keep);
+    }
+}
+
 static bool parse_rgb_colour_value(const char *str, uint32_t *out) {
     const char *end;
     uint32_t v = strtoui(str, &end, 16);
@@ -483,19 +544,7 @@ refresh:
         size_t x, y;
         print("\n");
         if (menu_branding[0] != '\0') {
-            terms[0]->get_cursor_pos(terms[0], &x, &y);
-            {
-                size_t branding_len = strlen(menu_branding);
-                size_t max_len = terms[0]->cols - 2;
-                if (branding_len <= max_len) {
-                    set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
-                    print("%s%s\e[0m", menu_branding_colour, menu_branding);
-                } else {
-                    size_t keep = max_len > 3 ? max_len - 3 : 0;
-                    set_cursor_pos_helper(1, y);
-                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, keep);
-                }
-            }
+            print_branding();
             print("\n\n");
         }
         terms[0]->get_cursor_pos(terms[0], &x, &y);
@@ -2082,25 +2131,10 @@ refresh:
     FOR_TERM(TERM->cursor_enabled = false);
 
     print("\e[2J\e[H");
-    {
-        size_t x, y;
-        print("\n");
-        if (menu_branding[0] != '\0') {
-            terms[0]->get_cursor_pos(terms[0], &x, &y);
-            {
-                size_t branding_len = strlen(menu_branding);
-                size_t max_len = terms[0]->cols - 2;
-                if (branding_len <= max_len) {
-                    set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
-                    print("%s%s\e[0m", menu_branding_colour, menu_branding);
-                } else {
-                    size_t keep = max_len > 3 ? max_len - 3 : 0;
-                    set_cursor_pos_helper(1, y);
-                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, keep);
-                }
-            }
-            print("\n\n\n\n");
-        }
+    print("\n");
+    if (menu_branding[0] != '\0') {
+        print_branding();
+        print("\n\n\n\n");
     }
 
     if (max_entries == 0) {
