@@ -178,7 +178,7 @@ static const char *verify_kernel(struct linux_header *header) {
            LINUX_HEADER_MINOR_VER(header->version));
     if (LINUX_HEADER_MAJOR_VER(header->version) == 0
      && LINUX_HEADER_MINOR_VER(header->version) < 2) {
-        return "linux: protocols < 0.2 are not supported";
+        return "protocols < 0.2 are not supported";
     }
 #endif
 
@@ -409,7 +409,7 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
         EFI_GUID initrd_table_guid = { 0x5568e427, 0x68fc, 0x4f3d, { 0xac, 0x74, 0xca, 0x55, 0x52, 0x31, 0xcc, 0x68}};
         ret = gBS->InstallConfigurationTable(&initrd_table_guid, initrd_table);
         if (ret != EFI_SUCCESS) {
-            panic(true, "linux: failed to install initrd\n");
+            panic(true, "linux: failed to install initrd");
         }
     }
 
