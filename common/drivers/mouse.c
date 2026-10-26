@@ -720,7 +720,6 @@ static EFI_SIMPLE_POINTER_PROTOCOL *rel_pointers[MAX_POINTERS];
 static size_t rel_pointer_count;
 static EFI_ABSOLUTE_POINTER_PROTOCOL *abs_pointers[MAX_POINTERS];
 static size_t abs_pointer_count;
-static uint32_t discard_first_move;
 
 static size_t locate_pointers(EFI_GUID *guid, void **out, size_t max) {
     void *iface;
@@ -767,12 +766,14 @@ bool mouse_init(void) {
 
     for (size_t i = 0; i < rel_pointer_count; i++) {
         rel_pointers[i]->Reset(rel_pointers[i], false);
+        // GetState() reports the motion since its last call (UEFI 2.11 section
+        // 12.5.3), which Reset() is not said to clear: drop what came before.
+        EFI_SIMPLE_POINTER_STATE state;
+        rel_pointers[i]->GetState(rel_pointers[i], &state);
     }
     for (size_t i = 0; i < abs_pointer_count; i++) {
         abs_pointers[i]->Reset(abs_pointers[i], false);
     }
-
-    discard_first_move = (1 << rel_pointer_count) - 1;
 
     left_down = false;
     right_down = false;
@@ -841,25 +842,19 @@ int mouse_handle_efi_event(size_t index) {
             return 0;
         }
 
-        int ev = 0;
+        int64_t res_x = p->Mode->ResolutionX != 0 ? p->Mode->ResolutionX : 4;
+        int64_t res_y = p->Mode->ResolutionY != 0 ? p->Mode->ResolutionY : 4;
+        int ev = move_by((int64_t)state.RelativeMovementX * 256 / (res_x * MM_PER_CELL_X),
+                         (int64_t)state.RelativeMovementY * 256 / (res_y * MM_PER_CELL_Y));
 
-        if (discard_first_move & (1 << index)) {
-            discard_first_move &= ~(1 << index);
-        } else {
-            int64_t res_x = p->Mode->ResolutionX != 0 ? p->Mode->ResolutionX : 4;
-            int64_t res_y = p->Mode->ResolutionY != 0 ? p->Mode->ResolutionY : 4;
-            ev |= move_by((int64_t)state.RelativeMovementX * 256 / (res_x * MM_PER_CELL_X),
-                          (int64_t)state.RelativeMovementY * 256 / (res_y * MM_PER_CELL_Y));
-
-            if (p->Mode->ResolutionZ != 0 && state.RelativeMovementZ != 0) {
-                int steps = state.RelativeMovementZ / (int64_t)p->Mode->ResolutionZ;
-                if (steps == 0) {
-                    steps = state.RelativeMovementZ > 0 ? 1 : -1;
-                }
-                // Z follows the Wheel usage (HID Usage Tables 1.7 section 4.3):
-                // positive means rolled away from the user, so scrolling up.
-                ev |= wheel_by(-steps);
+        if (p->Mode->ResolutionZ != 0 && state.RelativeMovementZ != 0) {
+            int steps = state.RelativeMovementZ / (int64_t)p->Mode->ResolutionZ;
+            if (steps == 0) {
+                steps = state.RelativeMovementZ > 0 ? 1 : -1;
             }
+            // Z follows the Wheel usage (HID Usage Tables 1.7 section 4.3):
+            // positive means rolled away from the user, so scrolling up.
+            ev |= wheel_by(-steps);
         }
 
         ev |= update_buttons(state.LeftButton, state.RightButton);
@@ -895,7 +890,6 @@ void mouse_flush(void) {
         EFI_ABSOLUTE_POINTER_STATE state;
         abs_pointers[i]->GetState(abs_pointers[i], &state);
     }
-    discard_first_move = (1 << rel_pointer_count) - 1;
     reset_transient_state();
     seen_released = false;
 }

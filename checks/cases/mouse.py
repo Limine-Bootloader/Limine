@@ -4,7 +4,7 @@ from harness.api import test
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, Drive
 from cases._common import kernel_file, screen_text
-from cases.menu import EDITOR_ENTRY, booted_cmdline, nothing_booted, tree_menu
+from cases.menu import EDITOR_ENTRY, booted_cmdline, nothing_booted, tree_menu, wait_menu
 
 # The mouse in the menu, as CONFIG.md's mouse option describes it: on BIOS a
 # PS/2 mouse, on UEFI a pointer the firmware exposes: a virtio tablet, an
@@ -129,17 +129,20 @@ def mouse_click_directory(t):
 def mouse_wheel(t):
     """The wheel moves the selection, one entry a notch, down when rolled
     towards the user: on UEFI the USB mouse's Wheel, whose values grow
-    rolled away from the user [spec: HID Usage Tables 1.7, 4.3]."""
+    rolled away from the user [spec: HID Usage Tables 1.7, 4.3]. The first
+    notch counts, once the menu is up as once back from the editor [user]."""
     m = mouse_boot(t, tree_menu(), 'usb-mouse' if t.port.is_uefi else 'ps2')
     t.wait_text(m, 'the first comment')
-    if t.port.is_uefi:
-        # Limine drops a relative pointer's first report [intent].
-        m.mouse_move(0, 1)
-        time.sleep(0.3)
     m.mouse_wheel(2)
     t.wait_text(m, 'an inner comment')
     m.mouse_wheel(-2)
     t.wait_text(m, 'the first comment')
+    m.press('e')
+    t.wait_text(m, 'cmdline: first')
+    m.press('esc')
+    wait_menu(t, m)
+    m.mouse_wheel(2)
+    t.wait_text(m, 'an inner comment')
 
 
 @test(ports=ALL_PORTS, tags=['mouse'])
