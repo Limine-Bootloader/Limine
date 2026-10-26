@@ -1522,6 +1522,13 @@ FEAT_START
         fclose(f);
     }
 
+    // PROTOCOL.md: no modules, no response, as when none was asked for.
+    if (final_module_count == 0) {
+        pmm_free(modules, module_count * sizeof(struct limine_file));
+        pmm_free(module_response, sizeof(struct limine_module_response));
+        break;
+    }
+
     uint64_t *modules_list = ext_mem_alloc_counted(final_module_count, sizeof(uint64_t));
     for (size_t i = 0; i < final_module_count; i++) {
         modules_list[i] = reported_addr(&modules[i]);
