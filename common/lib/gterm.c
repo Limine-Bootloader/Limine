@@ -299,13 +299,15 @@ static uint32_t *bg_canvas;
 #define B(rgb) (uint8_t)(rgb)
 #define ARGB(a, r, g, b) (((uint32_t)(a) << 24) | (((uint32_t)(r) & 0xFF) << 16) | (((uint32_t)(g) & 0xFF) << 8) | ((uint32_t)(b) & 0xFF))
 
+// Weights out of 255, so that a transparency of 00 gives fg exactly and one
+// of ff gives bg exactly.
 static inline uint32_t colour_blend(uint32_t fg, uint32_t bg) {
     unsigned alpha = 255 - A(fg);
-    unsigned inv_alpha = A(fg) + 1;
+    unsigned inv_alpha = A(fg);
 
-    uint8_t r = (uint8_t)((alpha * R(fg) + inv_alpha * R(bg)) / 256);
-    uint8_t g = (uint8_t)((alpha * G(fg) + inv_alpha * G(bg)) / 256);
-    uint8_t b = (uint8_t)((alpha * B(fg) + inv_alpha * B(bg)) / 256);
+    uint8_t r = (uint8_t)((alpha * R(fg) + inv_alpha * R(bg) + 127) / 255);
+    uint8_t g = (uint8_t)((alpha * G(fg) + inv_alpha * G(bg) + 127) / 255);
+    uint8_t b = (uint8_t)((alpha * B(fg) + inv_alpha * B(bg) + 127) / 255);
 
     return ARGB(0, r, g, b);
 }
