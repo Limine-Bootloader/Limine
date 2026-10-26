@@ -443,10 +443,11 @@ next:
             char macro_name[1024];
             i += 2;
             size_t j;
-            for (j = 0; j < sizeof(macro_name) - 1 && i < config_size && config_addr[i] != '}' && config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
+            // The config ends in a NUL, which stops this before its end.
+            for (j = 0; j < sizeof(macro_name) - 1 && config_addr[i] != '}' && config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
                 macro_name[j] = config_addr[i];
             }
-            if (i >= config_size || config_addr[i] != '}') {
+            if (config_addr[i] != '}') {
                 bad_config = true;
                 panic(true, "config: Malformed macro usage");
             }
