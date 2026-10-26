@@ -373,8 +373,13 @@ noreturn void linux_load(char *config, char *cmdline) {
     if (setup_header->version >= 0x20a && setup_header->init_size > kernel_alloc_size) {
         kernel_alloc_size = setup_header->init_size;
     }
+    // Non-relocatable kernels must be loaded at their required address; do
+    // not step up on failure.
+    bool relocatable_kernel = setup_header->version >= 0x205
+                           && setup_header->relocatable_kernel != 0;
+    // kernel_alignment only binds a relocatable kernel.
     uintptr_t kernel_align = 0x100000;
-    if (setup_header->version >= 0x205 && setup_header->kernel_alignment > kernel_align) {
+    if (relocatable_kernel && setup_header->kernel_alignment > kernel_align) {
         kernel_align = setup_header->kernel_alignment;
         if ((kernel_align & (kernel_align - 1)) != 0) {
             panic(true, "linux: kernel_alignment is not a power of two");
@@ -402,10 +407,6 @@ noreturn void linux_load(char *config, char *cmdline) {
      && setup_header->pref_address <= kernel_addr_limit - kernel_alloc_size) {
         kernel_search_start = (uintptr_t)setup_header->pref_address;
     }
-    // Non-relocatable kernels must be loaded at their required address; do
-    // not step up on failure.
-    bool relocatable_kernel = setup_header->version >= 0x205
-                           && setup_header->relocatable_kernel != 0;
     // The walk gets the ceiling the search start already has, so that both ends
     // of the range agree about what the handoff can express.
     uint64_t kernel_addr_max = 0;
