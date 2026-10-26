@@ -3,15 +3,15 @@
 .PHONY: test-clean
 test-clean:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk clean
-	rm -rf test_image test.hdd mbrtest.hdd test.iso loopback_dev edk2-ovmf.tar.gz
+	rm -rf test_image test.hdd mbrtest.hdd test.iso loopback_dev edk2-ovmf-bins.tar.gz
 
-.INTERMEDIATE: edk2-ovmf.tar.gz
-edk2-ovmf.tar.gz:
-	curl -fL -o $@ https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz
+.INTERMEDIATE: edk2-ovmf-bins.tar.gz
+edk2-ovmf-bins.tar.gz:
+	curl -fL -o $@ https://github.com/osdev0/edk2-ovmf-stable-bins/releases/latest/download/edk2-ovmf-bins.tar.gz
 
-edk2-ovmf: edk2-ovmf.tar.gz
-	rm -rf edk2-ovmf
-	gunzip < edk2-ovmf.tar.gz | tar -xf -
+edk2-ovmf-bins: edk2-ovmf-bins.tar.gz
+	rm -rf edk2-ovmf-bins
+	gunzip < edk2-ovmf-bins.tar.gz | tar -xf -
 
 .PHONY: test.hdd
 test.hdd:
@@ -134,7 +134,7 @@ iso9660-test:
 
 .PHONY: full-hybrid-test
 full-hybrid-test:
-	$(MAKE) edk2-ovmf
+	$(MAKE) edk2-ovmf-bins
 	$(MAKE) test-clean
 	$(MAKE) all
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk ARCH=x86
@@ -146,10 +146,10 @@ full-hybrid-test:
 	cp $(BINDIR)/BOOT*.EFI test_image/EFI/BOOT/
 	xorriso -as mkisofs -R -r -J -b boot/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot boot/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label test_image/ -o test.iso
 	$(BINDIR)/limine bios-install test.iso
-	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-x86_64.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -cdrom test.iso -debugcon stdio
-	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-x86_64.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.iso -debugcon stdio
-	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-ia32.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -cdrom test.iso -debugcon stdio
-	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-ia32.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.iso -debugcon stdio
+	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-x86_64.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -cdrom test.iso -debugcon stdio
+	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-x86_64.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.iso -debugcon stdio
+	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-ia32.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -cdrom test.iso -debugcon stdio
+	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-ia32.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.iso -debugcon stdio
 	qemu-system-x86_64 -m 512M -M q35 -net none -smp 4   -cdrom test.iso -debugcon stdio
 	qemu-system-x86_64 -m 512M -M q35 -net none -smp 4   -hda test.iso -debugcon stdio
 
@@ -168,7 +168,7 @@ pxe-test:
 # no network boot option is registered at all.
 .PHONY: uefi-x86-64-pxe-test
 uefi-x86-64-pxe-test:
-	$(MAKE) edk2-ovmf
+	$(MAKE) edk2-ovmf-bins
 	$(MAKE) test-clean
 	$(MAKE) limine-uefi-x86-64
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk ARCH=x86
@@ -176,11 +176,11 @@ uefi-x86-64-pxe-test:
 	$(MKDIR_P) test_image/boot
 	cp -R $(BINDIR)/* test_image/boot/
 	cp -R '$(call SHESCAPE,$(SRCDIR))/test'/* test_image/boot/
-	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-x86_64.fd,readonly=on -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci -netdev user,id=n0,tftp=./test_image,bootfile=boot/BOOTX64.EFI -device virtio-net-pci,netdev=n0,mac=00:00:00:11:11:11 -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 -boot n -debugcon stdio
+	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-x86_64.fd,readonly=on -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci -netdev user,id=n0,tftp=./test_image,bootfile=boot/BOOTX64.EFI -device virtio-net-pci,netdev=n0,mac=00:00:00:11:11:11 -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 -boot n -debugcon stdio
 
 .PHONY: uefi-x86-64-test
 uefi-x86-64-test:
-	$(MAKE) edk2-ovmf
+	$(MAKE) edk2-ovmf-bins
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-x86-64
@@ -200,11 +200,11 @@ uefi-x86-64-test:
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
 	rm -rf test_image loopback_dev
-	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-x86_64.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.hdd -debugcon stdio
+	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-x86_64.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.hdd -debugcon stdio
 
 .PHONY: uefi-aa64-test
 uefi-aa64-test:
-	$(MAKE) edk2-ovmf
+	$(MAKE) edk2-ovmf-bins
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-aarch64
@@ -224,11 +224,11 @@ uefi-aa64-test:
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
 	rm -rf test_image loopback_dev
-	qemu-system-aarch64 -m 512M -M virt -cpu cortex-a72 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-aarch64.fd,readonly=on -net none -smp 4 -device ramfb -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -device virtio-mouse-pci  -hda test.hdd -serial stdio
+	qemu-system-aarch64 -m 512M -M virt -cpu cortex-a72 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-aarch64.fd,readonly=on -net none -smp 4 -device ramfb -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -device virtio-mouse-pci  -hda test.hdd -serial stdio
 
 .PHONY: uefi-rv64-test
 uefi-rv64-test:
-	$(MAKE) edk2-ovmf
+	$(MAKE) edk2-ovmf-bins
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-riscv64
@@ -248,11 +248,11 @@ uefi-rv64-test:
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
 	rm -rf test_image loopback_dev
-	qemu-system-riscv64 -m 512M -M virt -cpu rv64 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-riscv64.fd,readonly=on -net none -smp 4 -device ramfb -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -device virtio-mouse-pci -hda test.hdd -serial stdio
+	qemu-system-riscv64 -m 512M -M virt -cpu rv64 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-riscv64.fd,readonly=on -net none -smp 4 -device ramfb -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -device virtio-mouse-pci -hda test.hdd -serial stdio
 
 .PHONY: uefi-loongarch64-test
 uefi-loongarch64-test:
-	$(MAKE) edk2-ovmf
+	$(MAKE) edk2-ovmf-bins
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-loongarch64
@@ -272,11 +272,11 @@ uefi-loongarch64-test:
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
 	rm -rf test_image loopback_dev
-	qemu-system-loongarch64 -m 1G -net none -M virt -cpu la464 -smp 4 -device ramfb -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -device virtio-mouse-pci -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-loongarch64.fd,readonly=on -hda test.hdd -serial stdio
+	qemu-system-loongarch64 -m 1G -net none -M virt -cpu la464 -smp 4 -device ramfb -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -device virtio-mouse-pci -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-loongarch64.fd,readonly=on -hda test.hdd -serial stdio
 
 .PHONY: uefi-ia32-test
 uefi-ia32-test:
-	$(MAKE) edk2-ovmf
+	$(MAKE) edk2-ovmf-bins
 	$(MAKE) test-clean
 	$(MAKE) test.hdd
 	$(MAKE) limine-uefi-ia32
@@ -296,4 +296,4 @@ uefi-ia32-test:
 	sudo umount test_image/
 	sudo losetup -d `cat loopback_dev`
 	rm -rf test_image loopback_dev
-	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf/ovmf-code-ia32.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.hdd -debugcon stdio
+	qemu-system-x86_64 -m 512M -M q35 -drive if=pflash,unit=0,format=raw,file=edk2-ovmf-bins/ovmf-code-ia32.fd,readonly=on -net none -smp 4 -device virtio-tablet-pci -device virtio-mouse-pci   -hda test.hdd -debugcon stdio

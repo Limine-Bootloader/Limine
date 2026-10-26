@@ -35,7 +35,7 @@
 /common/compress/pdgzip.h
 /pdgzip
 /libfdt
-/edk2-ovmf
+/edk2-ovmf-bins
 /bochsout.txt
 /bx_enh_dbg.ini
 /test_image
