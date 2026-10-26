@@ -631,6 +631,25 @@ static bool mbr_read_entry(struct volume *volume, uint64_t offset,
     return true;
 }
 
+// The volume of a partition running past the end of the disk is cut there, so
+// no read through it goes past the disk.
+static bool mbr_cut_to_disk(struct volume *disk, uint64_t first_sect,
+                            uint64_t *sect_count) {
+    if (disk->sect_count == (uint64_t)-1) {
+        return true;
+    }
+
+    if (first_sect >= disk->sect_count) {
+        return false;
+    }
+
+    if (*sect_count > disk->sect_count - first_sect) {
+        *sect_count = disk->sect_count - first_sect;
+    }
+
+    return true;
+}
+
 bool is_valid_mbr(struct volume *volume) {
     // Check if actually valid mbr
     uint16_t hint = 0;
@@ -703,16 +722,12 @@ uint32_t mbr_get_id(struct volume *volume) {
 
 // A data entry's start is relative to the EBR that carries it, where the chain
 // link's is relative to the extended partition.
-static bool mbr_logical_entry_contained(struct volume *extended_part, uint64_t ebr_sector,
-                                        struct mbr_part *entry, uint64_t *first_sect) {
+static bool mbr_logical_entry_contained(uint64_t extended_size, uint64_t ebr_sector,
+                                        struct mbr_part *entry) {
     uint64_t rel_first = CHECKED_ADD(ebr_sector, entry->first_sect, return false);
-    if (!partition_range_valid(extended_part, rel_first, entry->sect_count)) {
-        return false;
-    }
+    uint64_t rel_end = CHECKED_ADD(rel_first, entry->sect_count, return false);
 
-    *first_sect = CHECKED_ADD(extended_part->first_sect, rel_first, return false);
-
-    return partition_range_valid(extended_part->backing_dev, *first_sect, entry->sect_count);
+    return rel_end <= extended_size;
 }
 
 // Walks on from the memo. Wherever the walk stops, accepted is left holding the
@@ -720,6 +735,8 @@ static bool mbr_logical_entry_contained(struct volume *extended_part, uint64_t e
 // partition's chain numbers on from.
 static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part,
                                 int partition, int *accepted) {
+    struct volume *disk = extended_part->backing_dev;
+    struct mbr_part extended_entry;
     struct mbr_part entry;
 
     int depth = extended_part->ebr_walk_depth;
@@ -729,6 +746,13 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
     bool found = false;
 
     *accepted = extended_part->ebr_walk_index;
+
+    // The volume stops at the end of the disk, but containment goes by the
+    // extent the table declares.
+    uint64_t extended_offset = 0x1be + sizeof(struct mbr_entry) * (extended_part->partition - 1);
+    if (!mbr_read_entry(disk, extended_offset, &extended_entry)) {
+        return END_OF_TABLE;
+    }
 
     for (;;) {
         // The memo pairs an EBR with the count of logicals before it, so it has
@@ -780,8 +804,8 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
                 continue;
             }
 
-            bool contained = mbr_logical_entry_contained(extended_part, ebr_sector,
-                                                         &entry, &first_sect_64);
+            bool contained = mbr_logical_entry_contained(extended_entry.sect_count,
+                                                         ebr_sector, &entry);
 
             // Containment in the extended partition does not imply containment
             // in the extent the link that led to this EBR declared.
@@ -795,9 +819,19 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
             }
 
             if (*accepted == partition) {
-                if (!contained) {
+                // Without the disk's size, the extended partition is the only
+                // extent an entry can be checked against.
+                if (disk->sect_count == (uint64_t)-1 && !contained) {
                     return NO_PARTITION;
                 }
+
+                uint64_t rel_first = CHECKED_ADD(ebr_sector, entry.first_sect, return NO_PARTITION);
+                first_sect_64 = CHECKED_ADD(extended_part->first_sect, rel_first, return NO_PARTITION);
+
+                if (!mbr_cut_to_disk(disk, first_sect_64, &entry.sect_count)) {
+                    return NO_PARTITION;
+                }
+
                 found = true;
                 break;
             }
@@ -918,7 +952,8 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
                 continue;
             }
 
-            if (!partition_range_valid(volume, entry.first_sect, entry.sect_count)) {
+            uint64_t sect_count = entry.sect_count;
+            if (!mbr_cut_to_disk(volume, entry.first_sect, &sect_count)) {
                 continue;
             }
 
@@ -936,7 +971,7 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
             extended_part->partition   = i + 1;
             extended_part->sector_size = volume->sector_size;
             extended_part->first_sect  = entry.first_sect;
-            extended_part->sect_count  = entry.sect_count;
+            extended_part->sect_count  = sect_count;
             extended_part->backing_dev = volume;
 
             extended_part->ebr_walk_index = accepted;
@@ -975,7 +1010,7 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
         return NO_PARTITION;
     }
 
-    if (!partition_range_valid(volume, entry.first_sect, entry.sect_count)) {
+    if (!mbr_cut_to_disk(volume, entry.first_sect, &entry.sect_count)) {
         return NO_PARTITION;
     }
 

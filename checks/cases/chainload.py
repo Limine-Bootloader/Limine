@@ -284,6 +284,34 @@ def bios_chainload_partitions(t):
                 'logical entry made absolute')
 
 
+@test(ports=['bios'], tags=['chainload', 'partitions'])
+def bios_chainload_partitions_past_disk_end(t):
+    """[user] The boot record of a partition cut at its disk's end gets DS:SI
+    on its entry as the table holds it, with the size it claims [intent]."""
+    from cases.partitions import DISK_SECTORS, mbr_entry as part_entry, put_record
+    image = bytearray(DISK_SECTORS * 512)
+    put_record(image, 0, [part_entry(0x83, 2048, 4096), part_entry(0x83, 16384, 24576),
+                          part_entry(0x05, 8192, 8192)])
+    put_record(image, 8192, [part_entry(0x83, 63, 30000)])
+    image[16384 * 512:16385 * 512] = bootrec(t, 'CUTP2')
+    image[8255 * 512:8256 * 512] = bootrec(t, 'CUTP5')
+    with open(t.path('cut.img'), 'wb') as f:
+        f.write(image)
+    for partition, name, si, extent in ((2, 'CUTP2___', '07ce', (16384, 24576)),
+                                        (5, 'CUTP5___', '07be', (8255, 30000))):
+        config = 'timeout: 0\n' + entry('Chain', protocol='bios', extra=f'drive: 2\npartition: {partition}')
+        d1 = t.boot_disk(t.limine_files(config))
+        m = t.machine(drives=[Drive(d1.path, bootindex=0), Drive(t.path('cut.img'), bootindex=1)])
+        r = bootrec_report(t, m)
+        t.expect_eq(r['name'], name, f'partition {partition} boot record ran')
+        check_real_mode_entry(t, r, '81', si)
+        entry_hex = r['entry']
+        start = int.from_bytes(bytes.fromhex(entry_hex[16:24]), 'little')
+        count = int.from_bytes(bytes.fromhex(entry_hex[24:32]), 'little')
+        t.expect_eq((start, count), extent, f'partition {partition}: the entry start and size')
+        m.stop()
+
+
 @test(ports=['bios'], tags=['chainload'])
 def bios_chainload_default_drive(t):
     """Without a drive, the boot drive."""

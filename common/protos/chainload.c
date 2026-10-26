@@ -107,7 +107,8 @@ noreturn void spinup_freebsd(uint32_t drive, uint32_t buf, uint32_t count);
 // to a partition made in a gap before the others does, so only a repeated EBR
 // marks a loop.
 static bool logical_part_entry(struct volume *p, struct mbr_entry *entry) {
-    struct volume *extended = p->backing_dev->ebr_part;
+    struct volume *disk = p->backing_dev;
+    struct volume *extended = disk->ebr_part;
     uint64_t mult = (uint64_t)p->sector_size / 512;
     uint64_t visited[256];
     uint64_t ebr_sector = 0;
@@ -141,7 +142,18 @@ static bool logical_part_entry(struct volume *p, struct mbr_entry *entry) {
             }
 
             uint64_t first_sect = extended->first_sect + ebr_sector + table[i].first_sect * mult;
-            if (first_sect != p->first_sect || table[i].sect_count * mult != p->sect_count) {
+            if (first_sect != p->first_sect) {
+                continue;
+            }
+
+            // The volume of a partition running past the disk's end was cut
+            // there, while its entry keeps the declared size.
+            uint64_t sect_count = table[i].sect_count * mult;
+            if (disk->sect_count != (uint64_t)-1 && sect_count > disk->sect_count - first_sect) {
+                sect_count = disk->sect_count - first_sect;
+            }
+
+            if (sect_count != p->sect_count) {
                 continue;
             }
 

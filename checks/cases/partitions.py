@@ -4,7 +4,7 @@ import zlib
 from harness.api import test
 from harness.media import BASIC_DATA_TYPE, Disk, Fat, HostFile, Part, Tree
 from harness.ports import ALL_PORTS, Drive
-from cases._common import check_report_clean, entry, kernel_file
+from cases._common import check_file, check_report_clean, entry, kernel_file, wait_panic
 
 # Partition tables Limine has to work harder for: a GPT to be recovered from
 # its backup (UEFI 2.11 5.3.2), a GPT header longer than the 92 bytes it
@@ -146,3 +146,89 @@ def ebr_chains(t):
         data = f'module beside {label}\n'.encode() * 40
         disks.append((label, data, ebr_data_disk(t, f'{label}.img', label, data, ebrs)))
     check_modules(t, boot_with_data_disks(t, disks), disks)
+
+
+# A 16MiB data disk, for partitions that run past its end.
+DISK_SECTORS = 32768
+
+
+def past_end_disk(t, name, records, volumes):
+    """An MBR disk of DISK_SECTORS sectors holding records {lba: entries}
+    and, for each (lba, sectors, label, data), a FAT volume there with data
+    in /m.bin, which fits on the disk whatever its partition claims."""
+    path = t.path(name)
+    image = bytearray(DISK_SECTORS * 512)
+    for lba, entries in records.items():
+        put_record(image, lba, entries)
+    with open(path, 'wb') as f:
+        f.write(image)
+    for lba, sectors, label, data in volumes:
+        Fat(12, label=label, files={'/m.bin': data}).write_into(path, lba * 512, sectors * 512, t.workdir)
+    return path
+
+
+def boot_with_data_disk(t, path, modules):
+    """Boot an entry loading modules [(uri, string)], the disk at path being
+    drive 2; return the machine."""
+    tree = Tree()
+    tree.add('/boot/kernel.elf', HostFile(kernel_file(t, 'full')))
+    t.limine_files('timeout: 0\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='x', modules=modules),
+                   tree)
+    boot = t.boot_disk(tree)
+    return t.boot(drives=[Drive(boot.path, bootindex=1), Drive(path, kind='virtio')])
+
+
+@test(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
+def mbr_partitions_past_disk_end(t):
+    """[user] An MBR or EBR partition that starts on its disk but runs past
+    the end is kept, cut at the end, also inside an extended partition that
+    runs past it. Whether an entry in the last two slots of an EBR takes a
+    number does not depend on the disk's end, and one in the first two slots
+    is a partition wherever on the disk it lies, inside the extended
+    partition or not. Each module is loaded by its partition's number."""
+    layouts = {
+        'PRIMARY': ({0: [mbr_entry(0x0e, 2048, 8192), mbr_entry(0x0e, 16384, 24576),
+                         mbr_entry(0x0e, 45056, 4096), mbr_entry(0x0e, DISK_SECTORS, 1024)]},
+                    {1: (2048, 8192), 2: (16384, 16384)}),
+        # Slot 3 of the first EBR takes number 6, though it starts past the
+        # disk's end.
+        'EXTENDED': ({0: [mbr_entry(0x0e, 2048, 4096), mbr_entry(0x05, 8192, 40000)],
+                      8192: [mbr_entry(0x0e, 63, 4000), mbr_entry(0x05, 8192, 30000),
+                             mbr_entry(0x0e, 31000, 8000)],
+                      16384: [mbr_entry(0x0e, 63, 29937)]},
+                     {1: (2048, 4096), 5: (8255, 4000), 7: (16447, 16321)}),
+        'OUTSIDE': ({0: [mbr_entry(0x0e, 2048, 4096), mbr_entry(0x05, 8192, 8192)],
+                     8192: [mbr_entry(0x0e, 12000, 2000), mbr_entry(0x0e, 63, 10000)]},
+                    {1: (2048, 4096), 5: (20192, 2000), 6: (8255, 10000)}),
+    }
+    for name, (records, parts) in layouts.items():
+        volumes, modules, data = [], [], {}
+        for n, (lba, sectors) in parts.items():
+            label = f'{name[:8]}P{n}'
+            data[n] = f'module on {name} partition {n}\n'.encode() * 40
+            volumes.append((lba, sectors, label, data[n]))
+            modules.append((f'hdd(2:{n}):/m.bin', label))
+        m = boot_with_data_disk(t, past_end_disk(t, f'{name}.img', records, volumes), modules)
+        r = t.kernel_report(m)
+        check_report_clean(t, r)
+        for i, (n, (_, label)) in enumerate(zip(parts, modules)):
+            check_file(t, r, f'module.{i:02}', path='/m.bin', data=data[n], string=label, partition=n)
+        m.stop()
+
+
+@test(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
+def gpt_entry_past_disk_end(t):
+    """[user] A GPT entry that starts on its disk but runs past the end is no
+    partition, though a FAT volume lies at its start on the disk."""
+    from cases.host_edges import entry as gpt_entry, spoil
+    disk = Disk('gpt', 16, parts=[Part(size_mb=4, fs=Fat(12, label='GPTIN', files={'/m.bin': b'in\n' * 40}),
+                                       type=BASIC_DATA_TYPE),
+                                  Part(size_mb=4, fs=Fat(12, label='GPTCUT', files={'/m.bin': b'cut\n' * 40}),
+                                       type=BASIC_DATA_TYPE)])
+    path = t.path('gpt.img')
+    disk.build(path, t.workdir)
+    spoil(path, gpt_entry(1, end=disk.parts[1].start_sector + DISK_SECTORS))
+    m = boot_with_data_disk(t, path, [('hdd(2:1):/m.bin', None), ('hdd(2:2):/m.bin', None)])
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'limine: Failed to open module with path `hdd(2:2):/m.bin`. Is the path correct?',
+                'partition 1 opened, partition 2 not found')
