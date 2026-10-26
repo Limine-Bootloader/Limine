@@ -16,6 +16,10 @@ struct menu_entry {
     bool expanded;
     char *body;
     struct menu_entry *next;
+    bool skipped_computed;
+    bool skipped;
+    bool dup_index_computed;
+    size_t dup_index;
 };
 
 struct conf_tuple {

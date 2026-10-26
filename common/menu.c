@@ -884,7 +884,12 @@ static bool arch_in_list(const char *list, const char *arch) {
 }
 
 static inline bool should_skip_entry(struct menu_entry *entry) {
+    if (entry->skipped_computed) {
+        return entry->skipped;
+    }
     if (entry->sub != NULL) {
+        entry->skipped = false;
+        entry->skipped_computed = true;
         return false;
     }
     char *cur_entry_protocol = config_get_value(entry->body, 0, "PROTOCOL");
@@ -898,23 +903,33 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
          || strcmp(cur_entry_protocol, "efi_chainload") == 0
          || strcmp(cur_entry_protocol, "efi_boot_entry") == 0) {
 #endif
+            entry->skipped = true;
+            entry->skipped_computed = true;
             return true;
         }
     }
     char *cur_entry_if_fw_type = config_get_value(entry->body, 0, "IF_FW_TYPE");
     if (cur_entry_if_fw_type) {
         if (strcasecmp(cur_entry_if_fw_type, current_firmware()) != 0) {
+            entry->skipped = true;
+            entry->skipped_computed = true;
             return true;
         }
     }
     char *cur_entry_if_arch = config_get_value(entry->body, 0, "IF_ARCH");
     if (cur_entry_if_arch && !arch_in_list(cur_entry_if_arch, current_arch())) {
+        entry->skipped = true;
+        entry->skipped_computed = true;
         return true;
     }
     char *cur_entry_if_loader_arch = config_get_value(entry->body, 0, "IF_LOADER_ARCH");
     if (cur_entry_if_loader_arch && !arch_in_list(cur_entry_if_loader_arch, loader_arch())) {
+        entry->skipped = true;
+        entry->skipped_computed = true;
         return true;
     }
+    entry->skipped = false;
+    entry->skipped_computed = true;
     return false;
 }
 
@@ -938,6 +953,9 @@ static size_t count_visible_entries(struct menu_entry *entry) {
 #if defined(UEFI)
 // Count same-named non-skipped siblings preceding this entry (for #N suffix).
 static size_t get_sibling_dup_index(struct menu_entry *entry) {
+    if (entry->dup_index_computed) {
+        return entry->dup_index;
+    }
     struct menu_entry *first = entry->parent != NULL ? entry->parent->sub : menu_tree;
     size_t index = 0;
     for (struct menu_entry *e = first; e != entry; e = e->next) {
@@ -948,6 +966,8 @@ static size_t get_sibling_dup_index(struct menu_entry *entry) {
             index++;
         }
     }
+    entry->dup_index = index;
+    entry->dup_index_computed = true;
     return index;
 }
 
@@ -1125,19 +1145,24 @@ static struct menu_entry *bli_id_to_entry(struct menu_entry *node, const char *i
     return NULL;
 }
 
-static void bli_publish_entries_walk(struct menu_entry *node) {
+static bool bli_publish_entries_walk(struct menu_entry *node) {
     for (; node != NULL; node = node->next) {
         if (should_skip_entry(node)) {
             continue;
         }
         if (node->sub != NULL) {
-            bli_publish_entries_walk(node->sub);
+            if (!bli_publish_entries_walk(node->sub)) {
+                return false;
+            }
             continue;
         }
         char buf[BLI_ID_MAX];
         bli_entry_id(node, buf);
-        bli_entries_add(buf);
+        if (!bli_entries_add(buf)) {
+            return false;
+        }
     }
+    return true;
 }
 #endif
 
@@ -1579,20 +1604,24 @@ static bool row_to_entry_index(size_t row, size_t tree_row_start, size_t window,
 }
 
 static void print_entry_comment(const struct menu_entry *entry, size_t row) {
-    if (entry->comment == NULL) {
+    const char *comment = entry->comment;
+    if (comment == NULL) {
+        comment = config_get_value(entry->body, 0, "COMMENT");
+    }
+    if (comment == NULL) {
         return;
     }
 
-    size_t comment_len = strlen(entry->comment);
+    size_t comment_len = strlen(comment);
     size_t max_len = terms[0]->cols - 2;
     FOR_TERM(TERM->scroll_enabled = false);
     if (comment_len <= max_len) {
         set_cursor_pos_helper((terms[0]->cols - comment_len) / 2, row);
-        print("\e[36m%s\e[0m", entry->comment);
+        print("\e[36m%s\e[0m", comment);
     } else {
         size_t keep = max_len > 3 ? max_len - 3 : 0;
         set_cursor_pos_helper(1, row);
-        print("\e[36m%S...\e[0m", entry->comment, keep);
+        print("\e[36m%S...\e[0m", comment, keep);
     }
     FOR_TERM(TERM->scroll_enabled = true);
 }
@@ -2362,6 +2391,8 @@ timeout_aborted:
                     if (new_body == NULL)
                         goto refresh;
                     selected_menu_entry->body = new_body;
+                    selected_menu_entry->skipped_computed = false;
+                    selected_menu_entry->dup_index_computed = false;
                     goto autoboot;
                 }
                 break;

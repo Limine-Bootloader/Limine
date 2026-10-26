@@ -23,9 +23,6 @@
 
 const char *config_b2sum = CONFIG_B2SUM_SIGNATURE CONFIG_B2SUM_EMPTY;
 
-static char *config_get_entry_name(size_t index);
-static char *config_get_entry(size_t *size, size_t index);
-
 #define SEPARATOR '\n'
 
 bool config_ready = false;
@@ -299,104 +296,108 @@ bool init_config_smbios(void) {
     return false;
 }
 
-#define NOT_CHILD      (-1)
-#define DIRECT_CHILD   0
-#define INDIRECT_CHILD 1
-
-static int is_child(size_t current_depth, size_t index) {
-    char *buf = config_get_entry_name(index);
-    if (buf == NULL)
-        return NOT_CHILD;
-    int ret;
-    if (strlen(buf) < current_depth + 1) {
-        ret = NOT_CHILD;
-    } else {
-        ret = DIRECT_CHILD;
-        for (size_t j = 0; j < current_depth; j++) {
-            if (buf[j] != '/') {
-                ret = NOT_CHILD;
-                break;
-            }
-        }
-        if (ret == DIRECT_CHILD && buf[current_depth] == '/')
-            ret = INDIRECT_CHILD;
-    }
-    pmm_free(buf, strlen(buf) + 1);
-    return ret;
-}
-
-static bool is_directory(size_t current_depth, size_t index) {
-    switch (is_child(current_depth + 1, index + 1)) {
-        default:
-        case NOT_CHILD:
-            return false;
-        case INDIRECT_CHILD:
-            bad_config = true;
-            panic(true, "config: Malformed config file. Parentless child.");
-        case DIRECT_CHILD:
-            return true;
-    }
-}
-
 #define MAX_MENU_NESTING 64
 
-static struct menu_entry *create_menu_tree(struct menu_entry *parent,
-                                           size_t current_depth, size_t index) {
-    if (current_depth > MAX_MENU_NESTING) {
-        bad_config = true;
-        panic(true, "config: Menu nesting too deep (max %u)", MAX_MENU_NESTING);
+static struct menu_entry *create_menu_tree(void) {
+    struct menu_entry *root = NULL;
+    struct menu_entry *last_at_depth[MAX_MENU_NESTING + 2] = {0};
+
+    char *p = config_addr;
+    if (p == NULL) {
+        return NULL;
     }
 
-    struct menu_entry *root = NULL, *prev = NULL;
+    while (*p != '\0') {
+        if (*p == '/' && (p == config_addr || *(p - 1) == '\n')) {
+            break;
+        }
+        p++;
+    }
 
-    for (size_t i = index; ; i++) {
-        switch (is_child(current_depth, i)) {
-            case NOT_CHILD:
-                return root;
-            case INDIRECT_CHILD:
-                continue;
-            case DIRECT_CHILD:
-                break;
+    if (*p == '\0') {
+        return NULL;
+    }
+
+    if (p > config_addr) {
+        *(p - 1) = '\0';
+    }
+
+    while (*p != '\0') {
+        size_t depth = 0;
+        while (*p == '/') {
+            depth++;
+            p++;
+        }
+
+        if (depth > MAX_MENU_NESTING) {
+            bad_config = true;
+            panic(true, "config: Menu nesting too deep (max %u)", MAX_MENU_NESTING);
+        }
+
+        if (depth > 1 && last_at_depth[depth - 1] == NULL) {
+            bad_config = true;
+            panic(true, "config: Malformed config file. Parentless child.");
+        }
+
+        bool default_expanded = (*p == '+');
+        if (default_expanded) {
+            p++;
+        }
+
+        while (*p == ' ' || *p == '\t') {
+            p++;
+        }
+
+        char *name = p;
+        while (*p != '\n' && *p != '\0') {
+            p++;
+        }
+        if (*p == '\n') {
+            *p = '\0';
+            p++;
+        }
+
+        char *body = "";
+        if (*p != '/') {
+            body = p;
+            while (*p != '\0') {
+                if (*p == '/' && *(p - 1) == '\n') {
+                    break;
+                }
+                p++;
+            }
+
+            if (p > body && *(p - 1) == '\n') {
+                *(p - 1) = '\0';
+            }
         }
 
         struct menu_entry *entry = ext_mem_alloc(sizeof(struct menu_entry));
+        entry->name = name;
+        entry->body = body;
+        entry->comment = NULL;
+        entry->parent = last_at_depth[depth - 1];
+        entry->expanded = default_expanded;
 
-        if (root == NULL)
+        if (entry->parent != NULL) {
+            if (entry->parent->sub == NULL) {
+                entry->parent->sub = entry;
+            }
+        }
+
+        if (last_at_depth[depth] != NULL && last_at_depth[depth]->parent == entry->parent) {
+            last_at_depth[depth]->next = entry;
+        } else if (depth == 1 && root == NULL) {
             root = entry;
-
-        char *name = config_get_entry_name(i);
-
-        bool default_expanded = name[current_depth] == '+';
-
-        char *n = &name[current_depth + default_expanded];
-        while (*n == ' ') {
-            n++;
         }
 
-        entry->name = strdup(n);
-        pmm_free(name, strlen(name) + 1);
-        entry->parent = parent;
-
-        size_t entry_size;
-        char *config_entry = config_get_entry(&entry_size, i);
-        entry->body = ext_mem_alloc(entry_size + 1);
-        memcpy(entry->body, config_entry, entry_size);
-        entry->body[entry_size] = 0;
-
-        if (is_directory(current_depth, i)) {
-            entry->sub = create_menu_tree(entry, current_depth + 1, i + 1);
-            entry->expanded = default_expanded;
+        last_at_depth[depth] = entry;
+        for (size_t d = depth + 1; d <= MAX_MENU_NESTING; d++) {
+            last_at_depth[d] = NULL;
         }
-
-        char *comment = config_get_value(entry->body, 0, "COMMENT");
-        if (comment != NULL) {
-            entry->comment = strdup(comment);
-        }
-
-        if (prev != NULL)
-            prev->next = entry;
-        prev = entry;
     }
+
+    return root;
 }
 
 struct menu_entry *menu_tree = NULL;
@@ -442,13 +443,13 @@ static size_t expand_macros(char *out, size_t config_size) {
 
 next:
         if (config_size - i >= 2 && memcmp(config_addr + i, "${", 2) == 0) {
-            char *macro_name = ext_mem_alloc(1024);
+            char macro_name[1024];
             i += 2;
             size_t j;
-            for (j = 0; j < 1023 && config_addr[i] != '}' && config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
+            for (j = 0; j < sizeof(macro_name) - 1 && i < config_size && config_addr[i] != '}' && config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
                 macro_name[j] = config_addr[i];
             }
-            if (config_addr[i] != '}') {
+            if (i >= config_size || config_addr[i] != '}') {
                 bad_config = true;
                 panic(true, "config: Malformed macro usage");
             }
@@ -466,7 +467,6 @@ next:
                 }
                 macro = macro->next;
             }
-            pmm_free(macro_name, 1024);
             size_t value_len = strlen(macro_value);
             if (out != NULL) {
                 memcpy(out + in, macro_value, value_len);
@@ -487,6 +487,21 @@ next:
 too_large:
     bad_config = true;
     panic(true, "config: Config file too large for macro expansion");
+}
+
+static bool has_macro_references(const char *config, size_t config_size) {
+    const char *p = config;
+    size_t rem = config_size;
+    while ((p = memchr(p, '$', rem)) != NULL) {
+        rem = config_size - (p - config);
+        if (rem >= 2 && p[1] == '{') {
+            return true;
+        }
+        p++;
+        rem--;
+    }
+
+    return false;
 }
 
 int init_config(size_t config_size) {
@@ -521,98 +536,103 @@ int init_config(size_t config_size) {
 
     // add trailing newline if not present
     config_addr[config_size - 2] = '\n';
+    config_addr[config_size - 1] = '\0';
 
     size_t config_alloc_size = config_size;
 
-    // remove windows carriage returns and spaces at the start and end of lines, if any
-    for (size_t i = 0; i < config_size; i++) {
-        size_t skip = 0;
-        if (config_addr[i] == ' ' || config_addr[i] == '\t') {
-            while (i + skip < config_size && (config_addr[i + skip] == ' ' || config_addr[i + skip] == '\t')) {
-                skip++;
-            }
-            if (i + skip < config_size && config_addr[i + skip] == '\n') {
-                goto skip_loop;
-            }
-            skip = 0;
-        }
-        while (i + skip < config_size
-            && ((config_addr[i + skip] == '\r')
-                || ((!i || config_addr[i - 1] == '\n') && (config_addr[i + skip] == ' ' || config_addr[i + skip] == '\t')))
-        ) {
-            skip++;
-        }
-skip_loop:
-        if (skip) {
-            for (size_t j = i; j < config_size - skip; j++)
-                config_addr[j] = config_addr[j + skip];
-            config_size -= skip;
-            i--; // re-examine character shifted into position i
-        }
-    }
+    size_t write = 0;
+    bool at_line_start = true;
+    for (size_t read = 0; read < config_size - 1; read++) {
+        char c = config_addr[read];
 
-    // Load macros
-    struct macro *arch_macro = ext_mem_alloc(sizeof(struct macro));
-    strcpy(arch_macro->name, "ARCH");
-    strcpy(arch_macro->value, current_arch());
-    arch_macro->next = macros;
-    macros = arch_macro;
-
-    struct macro *fw_type_macro = ext_mem_alloc(sizeof(struct macro));
-    strcpy(fw_type_macro->name, "FW_TYPE");
-    strcpy(fw_type_macro->value, current_firmware());
-    fw_type_macro->next = macros;
-    macros = fw_type_macro;
-
-    struct macro *loader_arch_macro = ext_mem_alloc(sizeof(struct macro));
-    strcpy(loader_arch_macro->name, "LOADER_ARCH");
-    strcpy(loader_arch_macro->value, loader_arch());
-    loader_arch_macro->next = macros;
-    macros = loader_arch_macro;
-
-    for (size_t i = 0; i < config_size;) {
-        if ((config_size - i >= 3 && memcmp(config_addr + i, "\n${", 3) == 0)
-         || (config_size - i >= 2 && i == 0 && memcmp(config_addr, "${", 2) == 0)) {
-            struct macro *macro = ext_mem_alloc(sizeof(struct macro));
-
-            i += i ? 3 : 2;
-            size_t j;
-            for (j = 0; config_addr[i] != '}' && config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
-                if (j >= sizeof(macro->name) - 1) {
-                    bad_config = true;
-                    panic(true, "config: Macro name too long (max %U)", (uint64_t)(sizeof(macro->name) - 1));
-                }
-                macro->name[j] = config_addr[i];
-            }
-
-            if (config_addr[i] == '\n' || config_addr[i] == 0 || config_addr[i+1] != '=') {
-                pmm_free(macro, sizeof(struct macro));
-                continue;
-            }
-            i += 2;
-
-            macro->name[j] = 0;
-
-            for (j = 0; config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
-                if (j >= sizeof(macro->value) - 1) {
-                    bad_config = true;
-                    panic(true, "config: Macro value too long (max %U)", (uint64_t)(sizeof(macro->value) - 1));
-                }
-                macro->value[j] = config_addr[i];
-            }
-            macro->value[j] = 0;
-
-            macro->next = macros;
-            macros = macro;
-
+        if (c == '\r') {
             continue;
         }
 
-        i++;
+        if (at_line_start && (c == ' ' || c == '\t')) {
+            continue;
+        }
+
+        if (c == '\n') {
+            while (write > 0 && (config_addr[write - 1] == ' ' || config_addr[write - 1] == '\t')) {
+                write--;
+            }
+            at_line_start = true;
+        } else {
+            at_line_start = false;
+        }
+
+        config_addr[write++] = c;
     }
 
-    // Expand macros
-    if (macros != NULL) {
+    while (write > 0 && (config_addr[write - 1] == ' ' || config_addr[write - 1] == '\t')) {
+        write--;
+    }
+    config_addr[write++] = '\0';
+    config_size = write;
+
+    if (has_macro_references(config_addr, config_size)) {
+        // Load macros
+        struct macro *arch_macro = ext_mem_alloc(sizeof(struct macro));
+        strcpy(arch_macro->name, "ARCH");
+        strcpy(arch_macro->value, current_arch());
+        arch_macro->next = macros;
+        macros = arch_macro;
+
+        struct macro *fw_type_macro = ext_mem_alloc(sizeof(struct macro));
+        strcpy(fw_type_macro->name, "FW_TYPE");
+        strcpy(fw_type_macro->value, current_firmware());
+        fw_type_macro->next = macros;
+        macros = fw_type_macro;
+
+        struct macro *loader_arch_macro = ext_mem_alloc(sizeof(struct macro));
+        strcpy(loader_arch_macro->name, "LOADER_ARCH");
+        strcpy(loader_arch_macro->value, loader_arch());
+        loader_arch_macro->next = macros;
+        macros = loader_arch_macro;
+
+        for (size_t i = 0; i < config_size;) {
+            if ((config_size - i >= 3 && memcmp(config_addr + i, "\n${", 3) == 0)
+             || (config_size - i >= 2 && i == 0 && memcmp(config_addr, "${", 2) == 0)) {
+                struct macro *macro = ext_mem_alloc(sizeof(struct macro));
+
+                i += i ? 3 : 2;
+                size_t j;
+                for (j = 0; config_addr[i] != '}' && config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
+                    if (j >= sizeof(macro->name) - 1) {
+                        bad_config = true;
+                        panic(true, "config: Macro name too long (max %U)", (uint64_t)(sizeof(macro->name) - 1));
+                    }
+                    macro->name[j] = config_addr[i];
+                }
+
+                if (config_addr[i] == '\n' || config_addr[i] == 0 || config_addr[i+1] != '=') {
+                    pmm_free(macro, sizeof(struct macro));
+                    continue;
+                }
+                i += 2;
+
+                macro->name[j] = 0;
+
+                for (j = 0; config_addr[i] != '\n' && config_addr[i] != 0; j++, i++) {
+                    if (j >= sizeof(macro->value) - 1) {
+                        bad_config = true;
+                        panic(true, "config: Macro value too long (max %U)", (uint64_t)(sizeof(macro->value) - 1));
+                    }
+                    macro->value[j] = config_addr[i];
+                }
+                macro->value[j] = 0;
+
+                macro->next = macros;
+                macros = macro;
+
+                continue;
+            }
+
+            i++;
+        }
+
+        // Expand macros
         size_t new_config_size = expand_macros(NULL, config_size);
         char *new_config = ext_mem_alloc(new_config_size);
         expand_macros(new_config, config_size);
@@ -637,88 +657,9 @@ skip_loop:
 
     config_ready = true;
 
-    menu_tree = create_menu_tree(NULL, 1, 0);
-
-    size_t s;
-    char *c = config_get_entry(&s, 0);
-    if (c != NULL) {
-        while (*c != '/' && c > config_addr) {
-            c--;
-        }
-        if (*c == '/' && c > config_addr) {
-            c[-1] = 0;
-        }
-    }
+    menu_tree = create_menu_tree();
 
     return 0;
-}
-
-static char *config_get_entry_name(size_t index) {
-    if (!config_ready || config_addr == NULL)
-        return NULL;
-
-    char *p = config_addr;
-
-    for (size_t i = 0; i <= index; i++) {
-        while (*p != '/') {
-            if (!*p)
-                return NULL;
-            p++;
-        }
-        p++;
-        if ((p - 1) != config_addr && *(p - 2) != '\n')
-            i--;
-    }
-
-    p--;
-
-    size_t len = 0;
-    while (p[len] != SEPARATOR && p[len] != '\0') {
-        len++;
-    }
-
-    char *ret = ext_mem_alloc(len + 1);
-    memcpy(ret, p, len);
-    ret[len] = 0;
-    return ret;
-}
-
-static char *config_get_entry(size_t *size, size_t index) {
-    if (!config_ready || config_addr == NULL)
-        return NULL;
-
-    char *ret;
-    char *p = config_addr;
-
-    for (size_t i = 0; i <= index; i++) {
-        while (*p != '/') {
-            if (!*p)
-                return NULL;
-            p++;
-        }
-        p++;
-        if ((p - 1) != config_addr && *(p - 2) != '\n')
-            i--;
-    }
-
-    do {
-        p++;
-    } while (*p != '\n' && *p != '\0');
-
-    ret = p;
-
-cont:
-    while (*p != '/' && *p)
-        p++;
-
-    if (*p && *(p - 1) != '\n') {
-        p++;
-        goto cont;
-    }
-
-    *size = p - ret;
-
-    return ret;
 }
 
 static const char *lastkey;

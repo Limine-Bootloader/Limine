@@ -214,20 +214,21 @@ void bli_entries_reset(void) {
     loader_entries_full = false;
 }
 
-void bli_entries_add(const char *id) {
+bool bli_entries_add(const char *id) {
     size_t len = strlen(id);
 
     // Dropping whole identifiers keeps the list well formed when it fills.
     if (loader_entries_full
      || len + 1 > SIZEOF_ARRAY(loader_entries) - loader_entries_len) {
         loader_entries_full = true;
-        return;
+        return false;
     }
 
     for (size_t i = 0; i < len; i++) {
         loader_entries[loader_entries_len++] = (wchar_t)id[i];
     }
     loader_entries[loader_entries_len++] = L'\0';
+    return true;
 }
 
 void bli_entries_publish(void) {
