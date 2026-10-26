@@ -61,6 +61,8 @@ static size_t get_multiboot2_info_size(
             #elif defined (__x86_64__)
                 ALIGN_UP(sizeof(struct multiboot_tag_efi64), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
             #endif
+        #elif defined (BIOS)
+            ALIGN_UP(sizeof(struct multiboot_tag_bootdev), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
         #endif
         ALIGN_UP(sizeof(struct multiboot_tag_network) + DHCP_ACK_PACKET_LEN, MULTIBOOT_TAG_ALIGN, OVERFLOW) +
         ALIGN_UP(sizeof(struct multiboot_tag), MULTIBOOT_TAG_ALIGN, OVERFLOW);
@@ -123,6 +125,10 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
     uint8_t *kernel = kernel_file->fd;
 
     size_t kernel_file_size = kernel_file->size;
+
+#if defined (BIOS)
+    struct volume *kernel_volume = kernel_file->pxe ? NULL : kernel_file->vol;
+#endif
 
 #if defined (UEFI)
     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
@@ -216,6 +222,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                         // Supported requests. Multiboot 2 3.1.4 has a tag whose
                         // information is unavailable left out, required or not.
                         case MULTIBOOT_TAG_TYPE_CMDLINE:
+                        case MULTIBOOT_TAG_TYPE_BOOTDEV:
                         case MULTIBOOT_TAG_TYPE_BOOT_LOADER_NAME:
                         case MULTIBOOT_TAG_TYPE_MODULE:
                         case MULTIBOOT_TAG_TYPE_MMAP:
@@ -802,6 +809,25 @@ reloc_fail:
         strcpy(tag->string, LIMINE_BRAND);
         append_tag(info_idx, tag);
     }
+
+    //////////////////////////////////////////////
+    // Create BIOS boot device tag
+    //////////////////////////////////////////////
+#if defined (BIOS)
+    // The 0-based partition, all ones where unused (Multiboot2 2.0 section
+    // 3.6.4).
+    if (kernel_volume != NULL) {
+        struct multiboot_tag_bootdev *tag = (struct multiboot_tag_bootdev *)(mb2_info + info_idx);
+
+        tag->type = MULTIBOOT_TAG_TYPE_BOOTDEV;
+        tag->size = sizeof(struct multiboot_tag_bootdev);
+        tag->biosdev = (uint32_t)kernel_volume->drive & 0xff;
+        tag->slice = kernel_volume->partition == 0 ? 0xffffffff : (uint32_t)(kernel_volume->partition - 1);
+        tag->part = 0xffffffff;
+
+        append_tag(info_idx, tag);
+    }
+#endif
 
     //////////////////////////////////////////////
     // Create framebuffer tag
