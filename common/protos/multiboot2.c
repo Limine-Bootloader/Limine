@@ -906,8 +906,12 @@ textmode:
             }
         } else {
 #if defined (UEFI)
-            print("multiboot2: Warning: Cannot use text mode with UEFI\n");
-            goto modeset;
+            // As GRUB does, set no mode nobody asked for. Only a required
+            // console, which can only be a framebuffer here, asks for one.
+            if ((console_flags & 1) && is_framebuffer_declared) {
+                goto modeset;
+            }
+            goto skip_modeset;
 #elif defined (BIOS)
             goto textmode;
 #endif
