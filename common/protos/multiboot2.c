@@ -310,9 +310,9 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
             default:
                 if (is_required) {
                     if (tag->type <= 10 /* max specified ID */) {
-                        panic(true, "multiboot2: Unsupported header tag type: %u\n", tag->type);
+                        panic(true, "multiboot2: Unsupported header tag type: %u", tag->type);
                     } else {
-                        panic(true, "multiboot2: Unknown custom header tag type: %u\n", tag->type);
+                        panic(true, "multiboot2: Unknown custom header tag type: %u", tag->type);
                     }
                 } else {
                     if (tag->type > 10) {
