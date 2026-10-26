@@ -98,6 +98,62 @@ def patch_long_name(path, field, units):
         f.write(image)
 
 
+def patch_short_name(path, name, at, byte):
+    """In the FAT image at path, the byte at offset at of the 8.3 name name,
+    given as stored ('NAME    EXT'), set to byte: names mtools only writes
+    in its own code page. The name has no long name to go with it."""
+    with open(path, 'r+b') as f:
+        image = bytearray(f.read())
+        raw = name.encode()
+        i = image.find(raw)
+        assert i >= 32 and image.find(raw, i + 1) < 0, f'{name!r} once in the image'
+        assert image[i - 32 + 11] != 0x0f, f'{name!r} without a long name'
+        image[i + at] = byte
+        f.seek(0)
+        f.write(image)
+
+
+@test(ports=ALL_PORTS, tags=['fs', 'hostile'])
+def fs_fat_oem_short_names(t):
+    """An 8.3 name holds what lies past ASCII in an OEM code page (Microsoft
+    FAT Specification of 30 August 2005, section 6.1), read as CP437, its
+    first byte 0x05 standing for 0xE5 [user]. Such a name matches a UTF-8
+    path whatever the case of its letters, as an ASCII one does, but not one
+    without its accents, nor one holding what CP437 cannot [user]."""
+    stored = {'XTE.BIN': (0, 0x82), 'XTF.BIN': (0, 0x90), 'XTJ.BIN': (0, 0x05), 'XTK.BIN': (9, 0x8e),
+              'XTH.BIN': (0, 0xe1), 'XTL.BIN': (0, ord('_'))}
+    paths = [('éte.bin', 'XTE.BIN'), ('ÉTE.BIN', 'XTE.BIN'), ('étf.bin', 'XTF.BIN'), ('Étf.BIN', 'XTF.BIN'),
+             ('σtj.bin', 'XTJ.BIN'), ('ΣTJ.BIN', 'XTJ.BIN'), ('xtk.bän', 'XTK.BIN'), ('XTK.BÄN', 'XTK.BIN'),
+             ('ßth.bin', 'XTH.BIN'), ('_tl.bin', 'XTL.BIN')]
+    contents = {name: f'module named {name}\n'.encode() * 9 for name in stored}
+
+    def disk_with(mods):
+        tree = kernel_tree(t)
+        for name, data in contents.items():
+            tree.add('/' + name, data)
+        t.limine_files(modules_config(mods), tree)
+        disk = t.boot_disk(tree)
+        for name, (at, byte) in stored.items():
+            base, ext = name.split('.')
+            patch_short_name(disk.path, base.ljust(8) + ext, at, byte)
+        return disk
+
+    m = t.boot(disk_with([('boot():/' + path, None) for path, _ in paths]))
+    r = boot_report(t, m)
+    for i, (path, name) in enumerate(paths):
+        t.expect_eq(r[f'module.{i:02}.hash'], fnv1a(contents[name]), f'{path!r} found')
+    m.stop()
+    # The screen cannot show a character CP437 lacks, so the first one of
+    # each path is left out of the comparison.
+    for path in ('ete.bin', 'ŝtl.bin'):
+        m = t.boot(disk_with([('boot():/' + path, None)]))
+        msg, _ = wait_panic(t, m)
+        head, tail = 'limine: Failed to open module with path `boot():/', f'{path[1:]}`. Is the path correct?'
+        t.check(msg is not None and msg.startswith(head) and msg.endswith(tail) and len(msg) == len(head + tail) + 1,
+                f'{path!r} not found: {msg!r}')
+        m.stop()
+
+
 @test(ports=ALL_PORTS, tags=['fs', 'hostile'])
 def fs_fat_unicode_names(t):
     """Long names are UTF-16 (Microsoft FAT Specification of 30 August 2005,

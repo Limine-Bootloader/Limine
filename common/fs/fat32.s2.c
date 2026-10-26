@@ -5,6 +5,7 @@
 #include <lib/libc.h>
 #include <lib/print.h>
 #include <lib/utf.h>
+#include <lib/cp437.h>
 #include <mm/pmm.h>
 #include <stdbool.h>
 
@@ -415,15 +416,64 @@ static uint8_t fat32_lfn_checksum(const char *sfn) {
     return sum;
 }
 
-static bool fat32_filename_to_8_3(char *dest, const char *src) {
-    int i = 0, j = 0;
+// Unicode 16.0's simple lowercase mapping, exact for every character CP437
+// encodes.
+static uint16_t fat32_tolower(uint16_t c) {
+    if ((c >= 'A' && c <= 'Z')
+     || (c >= 0xc0 && c <= 0xde && c != 0xd7)
+     || (c >= 0x391 && c <= 0x3a9 && c != 0x3a2)) {
+        return c + 0x20;
+    }
+    return c;
+}
+
+// A short name is uppercased when created, and holds what lies past ASCII in
+// an OEM code page, taken here to be CP437 (Microsoft FAT Specification of 30
+// August 2005, section 6.1).
+static bool fat32_sfn_matches(const char *sfn, const uint16_t *fn) {
+    for (size_t i = 0; i < 8 + 3; i++) {
+        uint8_t c = sfn[i];
+        // 0xE5 in DIR_Name[0] marks a free entry, so 0x05 stands in for it.
+        if (i == 0 && c == 0x05) {
+            c = 0xE5;
+        }
+        uint16_t u = c < 0x80 ? c : cp437_to_unicode[c];
+        if (fat32_tolower(u) != fat32_tolower(fn[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool fat32_cp437_encodes(uint16_t c) {
+    if (c < 0x80) {
+        return true;
+    }
+    for (size_t i = 0x80; i < SIZEOF_ARRAY(cp437_to_unicode); i++) {
+        if (cp437_to_unicode[i] == c) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool fat32_filename_to_8_3(uint16_t *dest, const char *src) {
+    // A name that fits 8.3 is at most 12 characters with its dot, each a
+    // single code unit, so a longer src cannot match.
+    uint16_t src16[8 + 1 + 3 + 1];
+    size_t len;
+    if (!utf8_to_utf16(src16, SIZEOF_ARRAY(src16), src, strlen(src), &len)) {
+        return false;
+    }
+
+    size_t i = 0, j = 0;
     bool ext = false;
 
     for (size_t k = 0; k < 8+3; k++)
         dest[k] = ' ';
 
-    while (src[i]) {
-        if (src[i] == '.') {
+    while (i < len) {
+        if (src16[i] == '.') {
             if (ext) {
                 // This is a double extension here, just give up.
                 return false;
@@ -437,7 +487,11 @@ static bool fat32_filename_to_8_3(char *dest, const char *src) {
             // Filename too long, give up.
             return false;
         }
-        dest[j++] = toupper(src[i++]);
+        // Ill-formed UTF-8 came out as U+FFFD, which CP437 lacks.
+        if (!fat32_cp437_encodes(src16[i])) {
+            return false;
+        }
+        dest[j++] = src16[i++];
     }
 
     return true;
@@ -598,11 +652,11 @@ static int fat32_open_in(struct fat32_context* context, struct fat32_directory_e
             continue;
         }
         // SFN
-        char fn[8+3];
+        uint16_t fn[8+3];
         if (!fat32_filename_to_8_3(fn, name)) {
             continue;
         }
-        if (!strncmp(directory_entries[i].file_name_and_ext, fn, 8+3)) {
+        if (fat32_sfn_matches(directory_entries[i].file_name_and_ext, fn)) {
             *file = directory_entries[i];
             ret = 0;
             goto out;
