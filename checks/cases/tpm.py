@@ -234,6 +234,46 @@ def tpm_cc_measurements(t):
     t.expect_eq(msg, 'tpm: refusing to boot with an unmeasured component', 'any other key panics')
 
 
+TCG2_CALL = re.compile(r'K tcg2\.extend=([^\r\n]*)')
+LOG_FULL_WARNING = 'WARNING: tpm: The event log is full; measurements from here on are not logged.'
+
+
+def tcg2_extends(text):
+    """(pcr, type, fnv1a, length, description) of each extend the probe's
+    TCG2 protocol saw."""
+    out = []
+    for value in TCG2_CALL.findall(text):
+        pcr, kind, _, digest, length, desc = value.split(' ', 5)
+        out.append((int(pcr), int(kind, 16), int(digest, 16), int(length), unescape(desc)))
+    return out
+
+
+@test(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
+def tpm_event_log_full(t):
+    """EFI_VOLUME_FULL from HashLogExtendEvent() says the extend took place
+    and only its event went unlogged (TCG EFI Protocol Specification Level 00
+    Revision 00.13, Table 12; UEFI 2.11 section 38.2.4) [spec]. Under the
+    TCG2 protocol and the CC one, each a stand-in the EFI probe installs, the
+    boot goes on unasked, with one warning however many extends report it
+    [user]."""
+    from cases.chainload import probe_then_limine
+    kernel = read(kernel_file(t, 'full'))
+    mod = b'measured module\n'
+    kpath, mpath = 'boot():/boot/kernel.elf', 'boot():/boot/m.bin'
+    config = 'timeout: 0\nserial: yes\nmeasured_boot: yes\n' + entry('Test', path=kpath, cmdline='full log',
+                                                                      modules=[(mpath, 'mod')])
+    files = {'/boot/kernel.elf': kernel, '/boot/m.bin': mod}
+    for protocol, extends in (('tcg2', tcg2_extends), ('cc', cc_extends)):
+        m = probe_then_limine(t, f'name:{protocol} fake{protocol}:8', config, files)
+        t.kernel_report(m)
+        pcrs = sorted(e[0] for e in extends(m.stream(t.kernel_channel).text()) if e[0] >= 8)
+        t.expect_eq(pcrs, [8, 8, 8, 9, 9, 9], f'{protocol}: all six measurements extended')
+        serial = ESCAPES.sub('', m.stream('serial').text())
+        t.expect_eq(serial.count(LOG_FULL_WARNING), 1, f'{protocol}: one warning')
+        t.check(CC_PROMPT not in serial, f'{protocol}: no prompt to go on unmeasured')
+        m.stop()
+
+
 @test(ports=UEFI_PORTS, tags=['tpm', 'linux'])
 def tpm_cc_linux(t):
     """A Linux kernel booted under the CC measurement protocol is measured as

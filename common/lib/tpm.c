@@ -114,6 +114,19 @@ bool tpm_present(void) {
     return tcg2 != NULL || cc != NULL;
 }
 
+// EFI_VOLUME_FULL has the PCR extended and only the event left out of the log
+// (TCG EFI Protocol Specification Level 00 Revision 00.13, Table 12; UEFI 2.11
+// section 38.2.4), so the component stands measured.
+static void tpm_log_full(void) {
+    static bool warned = false;
+
+    if (!warned) {
+        warned = true;
+        quiet = false;
+        print("WARNING: tpm: The event log is full; measurements from here on are not logged.\n");
+    }
+}
+
 static void tpm_extend_failed(void) {
     print("         Press Y to continue, press any other key to panic...");
 
@@ -155,7 +168,9 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             tcg2, 0,
             (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
             event);
-        if (status != EFI_SUCCESS) {
+        if (status == EFI_VOLUME_FULL) {
+            tpm_log_full();
+        } else if (status != EFI_SUCCESS) {
             quiet = false;
             print("WARNING: tpm: HashLogExtendEvent for PCR %u failed: %X\n"
                   "         This component has not been measured.\n",
@@ -198,7 +213,9 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             cc, 0,
             (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
             event);
-        if (status != EFI_SUCCESS) {
+        if (status == EFI_VOLUME_FULL) {
+            tpm_log_full();
+        } else if (status != EFI_SUCCESS) {
             quiet = false;
             print("WARNING: tpm: CC HashLogExtendEvent for PCR %u (MR %u) failed: %X\n"
                   "         This component has not been measured.\n",

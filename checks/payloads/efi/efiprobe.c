@@ -726,7 +726,7 @@ static uint64_t fnv1a(const uint8_t *p, uint64_t len) {
 // and AMD SEV: it maps PCRs to MRs as TDX does (PCR 0 to the MRTD, 1 and 7 to
 // RTMR[0], 2 to 6 to RTMR[1], 8 to 15 to RTMR[2]), and reports each call.
 // Flags: 1 has MapPcrToMrIndex() fail, 2 HashLogExtendEvent(), 4
-// GetEventLog().
+// GetEventLog(); 8 has HashLogExtendEvent() report the event log full.
 static uint32_t fakecc_flags;
 
 static EFI_STATUS EFI_API fakecc_capability(EFI_CC_MEASUREMENT_PROTOCOL *this,
@@ -759,7 +759,7 @@ static EFI_STATUS EFI_API fakecc_extend(EFI_CC_MEASUREMENT_PROTOCOL *this, EFI_U
     (void)this;
     out("K cc.extend=%u %x %x %x %u %e\n", (uint64_t)event->Header.MrIndex, (uint64_t)event->Header.EventType,
         (uint64_t)flags, fnv1a((const uint8_t *)(uintptr_t)data, len), (uint64_t)len, (const char *)event->Event);
-    return (fakecc_flags & 2) ? EFI_DEVICE_ERROR : EFI_SUCCESS;
+    return (fakecc_flags & 2) ? EFI_DEVICE_ERROR : (fakecc_flags & 8) ? EFI_VOLUME_FULL : EFI_SUCCESS;
 }
 
 static EFI_STATUS EFI_API fakecc_map(EFI_CC_MEASUREMENT_PROTOCOL *this, EFI_TCG_PCRINDEX pcr, EFI_CC_MR_INDEX *mr) {
@@ -788,6 +788,60 @@ static void install_fakecc(void) {
     out("K fakecc=%x\n", (uint64_t)bs->InstallProtocolInterface(&h, &g, EFI_NATIVE_INTERFACE, &fakecc));
 }
 
+// A TCG2 protocol over no TPM that claims one, reporting each call. Flags as
+// the CC protocol's, but for 1, which it has no use for.
+static uint32_t faketcg2_flags;
+
+static EFI_STATUS EFI_API faketcg2_capability(EFI_TCG2_PROTOCOL *this, EFI_TCG2_BOOT_SERVICE_CAPABILITY *cap) {
+    (void)this;
+    cap->StructureVersion = (EFI_TCG2_VERSION){ 1, 1 };
+    cap->ProtocolVersion = (EFI_TCG2_VERSION){ 1, 1 };
+    cap->HashAlgorithmBitmap = EFI_TCG2_BOOT_HASH_ALG_SHA256;
+    cap->SupportedEventLogs = EFI_TCG2_EVENT_LOG_FORMAT_TCG_2;
+    cap->TPMPresentFlag = true;
+    cap->NumberOfPcrBanks = 1;
+    cap->ActivePcrBanks = EFI_TCG2_BOOT_HASH_ALG_SHA256;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS EFI_API faketcg2_event_log(EFI_TCG2_PROTOCOL *this, EFI_TCG2_EVENT_LOG_FORMAT format,
+                                             EFI_PHYSICAL_ADDRESS *location, EFI_PHYSICAL_ADDRESS *last,
+                                             EFI_BOOLEAN *truncated) {
+    (void)this;
+    out("K tcg2.event_log=%x\n", (uint64_t)format);
+    if (faketcg2_flags & 4) {
+        return EFI_DEVICE_ERROR;
+    }
+    *location = 0;
+    *last = 0;
+    *truncated = (faketcg2_flags & 8) != 0;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS EFI_API faketcg2_extend(EFI_TCG2_PROTOCOL *this, EFI_UINT64 flags, EFI_PHYSICAL_ADDRESS data,
+                                          EFI_UINT64 len, EFI_TCG2_EVENT *event) {
+    (void)this;
+    out("K tcg2.extend=%u %x %x %x %u %e\n", (uint64_t)event->Header.PCRIndex, (uint64_t)event->Header.EventType,
+        (uint64_t)flags, fnv1a((const uint8_t *)(uintptr_t)data, len), (uint64_t)len, (const char *)event->Event);
+    return (faketcg2_flags & 2) ? EFI_DEVICE_ERROR : (faketcg2_flags & 8) ? EFI_VOLUME_FULL : EFI_SUCCESS;
+}
+
+static EFI_TCG2_PROTOCOL faketcg2 = { faketcg2_capability, faketcg2_event_log, faketcg2_extend, NULL, NULL, NULL,
+                                      NULL };
+static bool faketcg2_pending;
+
+// Installed by chain, as the CC protocol is.
+static void cmd_faketcg2(char *arg) {
+    faketcg2_flags = (uint32_t)parse_hex(arg, NULL);
+    faketcg2_pending = true;
+}
+
+static void install_faketcg2(void) {
+    EFI_GUID g = EFI_TCG2_PROTOCOL_GUID;
+    EFI_HANDLE h = NULL;
+    out("K faketcg2=%x\n", (uint64_t)bs->InstallProtocolInterface(&h, &g, EFI_NATIVE_INTERFACE, &faketcg2));
+}
+
 static void cmd_chain(char *arg) {
     char *opts = arg;
     while (*opts != 0 && *opts != '@') {
@@ -806,6 +860,9 @@ static void cmd_chain(char *arg) {
     }
     if (fakecc_pending) {
         install_fakecc();
+    }
+    if (faketcg2_pending) {
+        install_faketcg2();
     }
     if (have_opts) {
         EFI_GUID lig = EFI_LOADED_IMAGE_PROTOCOL_GUID;
@@ -1318,6 +1375,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_ebsfail(tok + 8);
         } else if (sprefix(tok, "fakecc:")) {
             cmd_fakecc(tok + 7);
+        } else if (sprefix(tok, "faketcg2:")) {
+            cmd_faketcg2(tok + 9);
 #if defined (__riscv)
         } else if (sprefix(tok, "satpoff")) {
             cmd_satpoff();
