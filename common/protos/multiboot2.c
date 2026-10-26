@@ -300,8 +300,10 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                 reloc_tag = *reloc_tag_ptr;
                 break;
             }
+            // Both only apply along with the EFI boot services tag, which is
+            // never honoured.
+            case MULTIBOOT_HEADER_TAG_ENTRY_ADDRESS_EFI32:
             case MULTIBOOT_HEADER_TAG_ENTRY_ADDRESS_EFI64: {
-                // Ignore EFI64 entry address tag as we do not support it.
                 break;
             }
 
