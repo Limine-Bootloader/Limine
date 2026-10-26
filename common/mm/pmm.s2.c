@@ -405,6 +405,37 @@ static void pmm_claim_uefi_pages(EFI_PHYSICAL_ADDRESS base, EFI_UINTN page_count
     }
 }
 
+// Some firmware, edk2 for RISC-V among it, describes part of the stack it runs
+// us on as conventional memory. Claimed, it would be freed back before
+// chainloading and the firmware would clobber live frames, so the 128KiB of
+// stack UEFI 2.11 section 2.3 guarantees below ours, and frames above it,
+// stay the firmware's.
+static void pmm_spare_firmware_stack(void) {
+    uint64_t sp = (uintptr_t)__builtin_frame_address(0);
+    uint64_t bottom = sp > 0x20000 ? ALIGN_DOWN(sp - 0x20000, PAGE_SIZE) : 0;
+    uint64_t top = CHECKED_ADD(ALIGN_DOWN(sp, PAGE_SIZE), 0x10000, return);
+
+    bool carved;
+    do {
+        carved = false;
+        for (size_t i = 0; i < memmap_entries; i++) {
+            if (memmap[i].type != MEMMAP_USABLE) {
+                continue;
+            }
+
+            uint64_t base = MAX(memmap[i].base, bottom);
+            uint64_t end = MIN(CHECKED_ADD(memmap[i].base, memmap[i].length, continue), top);
+            if (base >= end) {
+                continue;
+            }
+
+            memmap_alloc_range(base, end - base, MEMMAP_EFI_RECLAIMABLE, MEMMAP_USABLE, true, false, false);
+            carved = true;
+            break;
+        }
+    } while (carved);
+}
+
 void init_memmap(void) {
     EFI_STATUS status;
 
@@ -507,6 +538,8 @@ void init_memmap(void) {
     // Page 0 sits at the null pointer and must never be handed out. Left to
     // the firmware, it still reaches kernels, typed by the final EFI memory map.
     memmap_alloc_range(0, PAGE_SIZE, MEMMAP_EFI_RECLAIMABLE, MEMMAP_USABLE, false, false, false);
+
+    pmm_spare_firmware_stack();
 
     allocations_disallowed = false;
 
