@@ -1,0 +1,93 @@
+/* Preprocessed with BASE set to the link address and PIE to whether the
+   executable is relocatable. */
+
+ENTRY(_start)
+
+PHDRS
+{
+    headers PT_PHDR PHDRS FLAGS(0x04);
+    text    PT_LOAD FILEHDR PHDRS FLAGS(0x05);
+    rodata  PT_LOAD FLAGS(0x04);
+    data    PT_LOAD FLAGS(0x06);
+#if PIE
+    dynamic PT_DYNAMIC FLAGS(0x06);
+#endif
+}
+
+SECTIONS
+{
+    . = BASE + SIZEOF_HEADERS;
+
+    .text : {
+        *(.text .text.*)
+        *(.plt .iplt)
+        text_end = .;
+    } :text
+
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    .rodata : {
+        rodata_start = .;
+        *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        *(.sdata2 .sdata2.*)
+    } :rodata
+
+    .dynsym : { *(.dynsym) } :rodata
+    .dynstr : { *(.dynstr) } :rodata
+    .gnu.hash : { *(.gnu.hash) } :rodata
+    .hash : { *(.hash) } :rodata
+    .rela.dyn : { *(.rela.*) } :rodata
+    .relr.dyn : { *(.relr.dyn) } :rodata
+
+    rodata_end = .;
+
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    .data : {
+        data_start = .;
+        *(.data .data.*)
+        *(.sdata .sdata.*)
+
+        KEEP(*(.limine_requests_before))
+        KEEP(*(.limine_requests_start_marker))
+        KEEP(*(.limine_requests))
+        KEEP(*(.limine_requests_end_marker))
+    } :data
+
+    .limine_reqs : {
+        KEEP(*(.limine_reqs))
+    } :data
+
+#if PIE
+    .dynamic : {
+        *(.dynamic)
+    } :data :dynamic
+#endif
+
+    .got : {
+        *(.got .got.*)
+    } :data
+
+    .bss : {
+        *(.bss .bss.*)
+        *(.sbss .sbss.*)
+        *(COMMON)
+        data_end = .;
+    } :data
+
+    executable_end = .;
+
+    /* For the shared object variant: an absolute symbol, which relocation
+       must leave alone. */
+    test_absolute_symbol = 0x1234;
+
+    /DISCARD/ : {
+        *(.eh_frame*)
+        *(.note .note.*)
+        *(.interp)
+        *(.ARM.attributes)
+        *(.riscv.attributes)
+        *(.comment)
+    }
+}

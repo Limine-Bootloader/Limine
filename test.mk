@@ -5,14 +5,6 @@ test-clean:
 	$(MAKE) -C '$(call SHESCAPE,$(SRCDIR))/test' -f test.mk clean
 	rm -rf test_image test.hdd mbrtest.hdd test.iso loopback_dev edk2-ovmf-bins.tar.gz
 
-.INTERMEDIATE: edk2-ovmf-bins.tar.gz
-edk2-ovmf-bins.tar.gz:
-	curl -fL -o $@ https://github.com/osdev0/edk2-ovmf-stable-bins/releases/latest/download/edk2-ovmf-bins.tar.gz
-
-edk2-ovmf-bins: edk2-ovmf-bins.tar.gz
-	rm -rf edk2-ovmf-bins
-	gunzip < edk2-ovmf-bins.tar.gz | tar -xf -
-
 .PHONY: test.hdd
 test.hdd:
 	rm -f test.hdd

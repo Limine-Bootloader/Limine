@@ -333,6 +333,7 @@ AS_IF([$CC_FOR_TARGET --version 2>/dev/null | $GREP -q '^Target: '],
     [CC_FOR_TARGET_IS_CLANG="yes"],
     [CC_FOR_TARGET_IS_CLANG="no"])
 AC_MSG_RESULT([$CC_FOR_TARGET_IS_CLANG])
+AC_SUBST([CC_FOR_TARGET_IS_CLANG])
 
 # Help lines name a flag with one dash or two, and may follow it with a comma,
 # an "=" or a "[" for its value.

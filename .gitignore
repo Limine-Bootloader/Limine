@@ -39,6 +39,9 @@
 /bochsout.txt
 /bx_enh_dbg.ini
 /test_image
+/checks-build
+/checks-results
+__pycache__
 /loopback_dev
 /configure
 /configure.ac.save

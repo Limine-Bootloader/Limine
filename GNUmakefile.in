@@ -80,6 +80,7 @@ OBJDUMP_FOR_TARGET := @OBJDUMP_FOR_TARGET@
 export OBJDUMP_FOR_TARGET
 READELF_FOR_TARGET := @READELF_FOR_TARGET@
 export READELF_FOR_TARGET
+override CC_FOR_TARGET_IS_CLANG := @CC_FOR_TARGET_IS_CLANG@
 
 override WERROR_FLAG := @WERROR_FLAG@
 export WERROR_FLAG
@@ -182,8 +183,46 @@ limine:
 	$(MAKE) '$(call SHESCAPE,$(BINDIR))/limine'
 
 .PHONY: clean
-clean: tools-clean limine-bios-clean limine-uefi-ia32-clean limine-uefi-x86-64-clean limine-uefi-aarch64-clean limine-uefi-riscv64-clean limine-uefi-loongarch64-clean
+clean: check-clean tools-clean limine-bios-clean limine-uefi-ia32-clean limine-uefi-x86-64-clean limine-uefi-aarch64-clean limine-uefi-riscv64-clean limine-uefi-loongarch64-clean
 	rm -rf '$(call SHESCAPE,$(BINDIR))' '$(call SHESCAPE,$(BUILDDIR))/host-build' '$(call SHESCAPE,$(BUILDDIR))/stage1.stamp'
+
+# The job count from the make command line, as MAKEFLAGS only holds it from GNU
+# make 4.2 onwards.
+override PARALLELISM = $(or $(shell ps -o args= -p $$PPID | $(SED) -n -e 's/.* --jobs[= ]\{1,\}\([0-9][0-9]*\).*/\1/p' -e 's/.* -j *\([0-9][0-9]*\).*/\1/p'),1)
+
+# The QEMU test suite, running as many tests at a time as make has jobs.
+# TESTFLAGS passes options to checks/run-tests, such as "-p bios -t menu".
+.PHONY: check
+check: all edk2-ovmf-bins
+	MAKE='$(call SHESCAPE,$(MAKE_COMMAND))' '$(call SHESCAPE,$(SRCDIR))/checks/run-tests' --builddir '$(call SHESCAPE,$(BUILDDIR))' -j $(PARALLELISM) $(TESTFLAGS)
+
+# The programs the tests boot, built for the ports the build enabled with the
+# toolchain that builds Limine. checks/run-tests makes this before testing.
+.PHONY: check-payloads
+check-payloads:
+	$(MAKE) -f '$(call SHESCAPE,$(SRCDIR))/checks/payloads/payloads.mk' \
+		SRCDIR='$(call SHESCAPE,$(SRCDIR))' \
+		OUT='$(call SHESCAPE,$(BUILDDIR))/checks-build' \
+		CC='$(call SHESCAPE,$(CC_FOR_TARGET))' \
+		LD='$(call SHESCAPE,$(LD_FOR_TARGET))' \
+		OBJCOPY='$(call SHESCAPE,$(OBJCOPY_FOR_TARGET))' \
+		READELF='$(call SHESCAPE,$(READELF_FOR_TARGET))' \
+		CC_IS_CLANG='$(CC_FOR_TARGET_IS_CLANG)' \
+		ENABLED_PORTS='$(strip $(if $(BUILD_BIOS),bios) $(if $(BUILD_UEFI_IA32),uefi-ia32) \
+			$(if $(BUILD_UEFI_X86_64),uefi-x86-64) $(if $(BUILD_UEFI_AARCH64),uefi-aarch64) \
+			$(if $(BUILD_UEFI_RISCV64),uefi-riscv64) $(if $(BUILD_UEFI_LOONGARCH64),uefi-loongarch64))'
+
+.PHONY: check-clean
+check-clean:
+	rm -rf '$(call SHESCAPE,$(BUILDDIR))/checks-build' '$(call SHESCAPE,$(BUILDDIR))/checks-results'
+
+.INTERMEDIATE: edk2-ovmf-bins.tar.gz
+edk2-ovmf-bins.tar.gz:
+	curl -fL -o $@ https://github.com/osdev0/edk2-ovmf-stable-bins/releases/latest/download/edk2-ovmf-bins.tar.gz
+
+edk2-ovmf-bins: edk2-ovmf-bins.tar.gz
+	rm -rf edk2-ovmf-bins
+	gunzip < edk2-ovmf-bins.tar.gz | tar -xf -
 
 .PHONY: install
 install: all
