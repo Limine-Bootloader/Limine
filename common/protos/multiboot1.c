@@ -86,6 +86,10 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
     size_t kernel_file_size = kernel_file->size;
 
+#if defined (BIOS)
+    struct volume *kernel_volume = kernel_file->pxe ? NULL : kernel_file->vol;
+#endif
+
 #if defined (UEFI)
     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
     tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
@@ -451,6 +455,16 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
     multiboot1_info->bootloader_name = (uint32_t)(size_t)lowmem_bootname - mb1_info_slide;
     multiboot1_info->flags |= (1 << 9);
+
+#if defined (BIOS)
+    // The drive, then the 0-based partitions, 0xff where unused (Multiboot
+    // 0.6.96 section 3.3).
+    if (kernel_volume != NULL) {
+        uint32_t part = kernel_volume->partition == 0 ? 0xff : (uint32_t)(kernel_volume->partition - 1) & 0xff;
+        multiboot1_info->boot_device = ((uint32_t)kernel_volume->drive & 0xff) << 24 | part << 16 | 0xffff;
+        multiboot1_info->flags |= (1 << 1);
+    }
+#endif
 
     term_notready();
 
