@@ -52,6 +52,10 @@ with no extensions must be used.
   bug that was just fixed by removing/changing some code).
 - Stick to ASCII: avoid em-dashes and other non-ASCII characters in code, comments, commit
   messages, and documentation, unless the non-ASCII character is essential to the work.
+- Whenever a specification is referenced, in code, comments, commit messages, or
+  documentation, name its version, revision, edition, or other identifier along with it,
+  as in `UEFI 2.11 section 8.2.3`, `PXE 2.1, 4.4.5`, or `Intel VT-d 5.20 section 6.5.2`.
+  Sections move between revisions, so a bare name does not say what is meant.
 - Do not add per-file license headers.
 - Do not edit fetched, generated, or vendored files: anything not in `git ls-files`, which
   includes everything `./bootstrap` pulls in, and files checked in unchanged from another
