@@ -68,14 +68,8 @@ bool hash_enrolled_empty(const char *hex) {
     return true;
 }
 
+// The caller has ruled out an empty slot with hash_enrolled_empty().
 bool hash_reference_from_enrolled(struct hash_reference *ref, const char *hex) {
-    if (hash_enrolled_empty(hex)) {
-        ref->type = HASH_NONE;
-        ref->digest_size = 0;
-        memset(ref->digest, 0, sizeof(ref->digest));
-        return true;
-    }
-
     // The config slot keeps legacy 128-char BLAKE2b hashes zero-padded in the
     // upper half; any non-zero upper half selects 256-char BLAKE3 XOF.
     for (size_t i = HASH_BLAKE2B_HEX_CHARS; i < HASH_MAX_HEX_CHARS; i++) {
