@@ -73,6 +73,7 @@ if ! test -f version; then
         picoefi \
         dc23de6c36ae9e10e5ff290d7c3dd6c04b141a7a
 
+    # 3.1.2-1-g3e311fe
     clone_repo_commit \
         https://github.com/Mintsuki/Flanterm.git \
         flanterm \
