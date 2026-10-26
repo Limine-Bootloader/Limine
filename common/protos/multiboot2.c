@@ -58,10 +58,8 @@ static size_t get_multiboot2_info_size(
             ALIGN_UP(sizeof(struct multiboot_tag_efi_mmap) + (efi_desc_size * EFI_MEMMAP_MAX), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
             #if defined (__i386__)
                 ALIGN_UP(sizeof(struct multiboot_tag_efi32), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
-                ALIGN_UP(sizeof(struct multiboot_tag_efi32_ih), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
             #elif defined (__x86_64__)
                 ALIGN_UP(sizeof(struct multiboot_tag_efi64), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
-                ALIGN_UP(sizeof(struct multiboot_tag_efi64_ih), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
             #endif
         #endif
         ALIGN_UP(sizeof(struct multiboot_tag_network) + DHCP_ACK_PACKET_LEN, MULTIBOOT_TAG_ALIGN, OVERFLOW) +
@@ -804,28 +802,6 @@ reloc_fail:
         strcpy(tag->string, LIMINE_BRAND);
         append_tag(info_idx, tag);
     }
-
-    //////////////////////////////////////////////
-    // Create EFI image handle tag
-    //////////////////////////////////////////////
-#if defined (UEFI)
-    {
-    #if defined (__i386__)
-        struct multiboot_tag_efi32_ih *tag = (struct multiboot_tag_efi32_ih *)(mb2_info + info_idx);
-
-        tag->type = MULTIBOOT_TAG_TYPE_EFI32_IH;
-        tag->size = sizeof(struct multiboot_tag_efi32_ih);
-    #elif defined (__x86_64__)
-        struct multiboot_tag_efi64_ih *tag = (struct multiboot_tag_efi64_ih *)(mb2_info + info_idx);
-
-        tag->type = MULTIBOOT_TAG_TYPE_EFI64_IH;
-        tag->size = sizeof(struct multiboot_tag_efi64_ih);
-    #endif
-
-        tag->pointer = (uintptr_t)efi_image_handle;
-        append_tag(info_idx, tag);
-    }
-#endif
 
     //////////////////////////////////////////////
     // Create framebuffer tag
