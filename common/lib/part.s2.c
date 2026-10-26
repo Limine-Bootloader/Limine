@@ -964,6 +964,12 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
     if (entry.type == 0)
         return NO_PARTITION;
 
+    // An extended partition keeps its slot's number but is no volume: its
+    // logical partitions are, from 5 up.
+    if (entry.type == 0x0f || entry.type == 0x05 || entry.type == 0x85) {
+        return NO_PARTITION;
+    }
+
     // Validate sect_count is non-zero
     if (entry.sect_count == 0) {
         return NO_PARTITION;
