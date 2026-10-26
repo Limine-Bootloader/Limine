@@ -369,11 +369,6 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         return NULL;
     }
 
-    if (resource == NULL) {
-        URI_ERROR("No resource specified for URI `%#`.", uri);
-        return NULL;
-    }
-
     bool gz_compressed = *resource == '$';
     if (gz_compressed) {
         resource++;
