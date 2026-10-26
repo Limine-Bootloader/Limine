@@ -221,8 +221,9 @@ file whose size the server does not report as missing.
 ## UEFI/PXE boot
 The `BOOT*.EFI` files are compatible with UEFI PXE.
 The steps needed to boot Limine are the same as with BIOS PXE,
-except that the `limine-bios.sys` file is not needed on the server, and
-neither is `tsize` support, as the firmware finds sizes without it.
+except that the `limine-bios.sys` file is not needed on the server.
+`tsize` support is needed here too: Limine has the firmware find the size of
+every file, which EDK2-based firmware only does through `tsize`.
 
 ## Configuration
 The `limine.conf` file contains Limine's configuration.
