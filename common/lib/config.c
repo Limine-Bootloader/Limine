@@ -318,6 +318,16 @@ static struct menu_entry *create_menu_tree(void) {
         return NULL;
     }
 
+    // One allocation for all the entries, as each of its own takes a page.
+    size_t entry_count = 1;
+    for (char *q = p + 1; *q != '\0'; q++) {
+        if (*q == '/' && *(q - 1) == '\n') {
+            entry_count++;
+        }
+    }
+    struct menu_entry *entries = ext_mem_alloc_counted(entry_count, sizeof(struct menu_entry));
+    size_t entries_used = 0;
+
     if (p > config_addr) {
         *(p - 1) = '\0';
     }
@@ -372,7 +382,7 @@ static struct menu_entry *create_menu_tree(void) {
             }
         }
 
-        struct menu_entry *entry = ext_mem_alloc(sizeof(struct menu_entry));
+        struct menu_entry *entry = &entries[entries_used++];
         entry->name = name;
         entry->body = body;
         entry->parent = last_at_depth[depth - 1];
