@@ -558,17 +558,15 @@ reloc_fail:
 
     acpi_get_smbios((void **)&smbios_entry_32, (void **)&smbios_entry_64);
 
-    // The tag holds the structure table each entry point points at, which
-    // has to be within reach to be copied.
+    // The tag holds the structure table each entry point points at.
     void *smbios_table_32 = NULL, *smbios_table_64 = NULL;
     uint32_t smbios_table_32_size = 0, smbios_table_64_size = 0;
-    if (smbios_entry_32 != NULL && smbios_entry_32->table_address != 0) {
-        smbios_table_32 = (void *)(uintptr_t)smbios_entry_32->table_address;
+    if (smbios_entry_32 != NULL) {
+        smbios_table_32 = smbios_get_table(smbios_entry_32->table_address, smbios_entry_32->table_length);
         smbios_table_32_size = smbios_entry_32->table_length;
     }
-    if (smbios_entry_64 != NULL && smbios_entry_64->table_address != 0
-     && smbios_entry_64->table_address + smbios_entry_64->table_maximum_size - 1 <= (uintptr_t)-1) {
-        smbios_table_64 = (void *)(uintptr_t)smbios_entry_64->table_address;
+    if (smbios_entry_64 != NULL) {
+        smbios_table_64 = smbios_get_table(smbios_entry_64->table_address, smbios_entry_64->table_maximum_size);
         smbios_table_64_size = smbios_entry_64->table_maximum_size;
     }
 
