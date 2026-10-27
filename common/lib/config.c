@@ -236,11 +236,12 @@ bool init_config_smbios(void) {
     size_t struct_count = 0;
     size_t table_length = 0;
 
-    if (smbios_entry_64) {
-        hdr = (void *)(uintptr_t) smbios_entry_64->table_address;
+    if (smbios_entry_64 != NULL) {
+        hdr = smbios_get_table(smbios_entry_64->table_address, smbios_entry_64->table_maximum_size);
         table_length = smbios_entry_64->table_maximum_size;
-    } else {
-        hdr = (void *)(uintptr_t) smbios_entry_32->table_address;
+    }
+    if (hdr == NULL && smbios_entry_32 != NULL) {
+        hdr = smbios_get_table(smbios_entry_32->table_address, smbios_entry_32->table_length);
         struct_count = smbios_entry_32->number_of_structures;
         table_length = smbios_entry_32->table_length;
     }

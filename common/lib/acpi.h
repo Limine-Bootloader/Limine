@@ -219,6 +219,7 @@ void   *acpi_get_table(const char *signature, int index);
 void   *acpi_get_table_quiet(const char *signature, int index);
 #endif
 void    acpi_get_smbios(void **smbios32, void **smbios64);
+void *smbios_get_table(uint64_t address, uint64_t size);
 
 void acpi_map_tables(void);
 void smbios_map_tables(void);

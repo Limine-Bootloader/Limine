@@ -18,6 +18,21 @@ static bool smbios_entry_32_valid(struct smbios_entry_point_32 *ep) {
     return true;
 }
 
+// The structure table an SMBIOS entry point points at, or NULL where it is
+// not wholly within reach.
+void *smbios_get_table(uint64_t address, uint64_t size) {
+    if (address == 0) {
+        return NULL;
+    }
+
+    uint64_t end = CHECKED_ADD(address, size, return NULL);
+    if (end - 1 > (uintptr_t)-1) {
+        return NULL;
+    }
+
+    return (void *)(uintptr_t)address;
+}
+
 #if defined (BIOS)
 
 /// Returns the RSDP v1 pointer if available or else NULL.
