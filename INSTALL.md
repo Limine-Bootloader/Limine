@@ -54,8 +54,7 @@ Besides what building Limine needs, the test suite needs:
   `qemu-system-x86_64` for the BIOS, IA-32 UEFI, and x86-64 UEFI ports, and
   `qemu-system-aarch64`, `qemu-system-riscv64`, and `qemu-system-loongarch64`
   for the other UEFI ports;
-- `mtools`, `mkfs.fat` (from `dosfstools`), and `xorriso`, which make the disk
-  and CD images;
+- `mtools` and `xorriso`, which make the disk and CD images;
 - `swtpm`, for the TPM tests; `openssl` and `virt-fw-vars` (from
   `virt-firmware`), for the UEFI variable stores and Secure Boot keys; and
   `b3sum`, for the BLAKE3 hash tests;

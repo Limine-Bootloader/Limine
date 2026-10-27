@@ -1,4 +1,5 @@
 import os
+import struct
 import subprocess
 import uuid
 
@@ -37,6 +38,18 @@ def _run(argv, **kwargs):
         raise RuntimeError(f'command failed ({res.returncode}): {" ".join(argv)}\n'
                            f'{res.stdout.decode(errors="replace")}')
     return res.stdout
+
+
+def _fat_type(path):
+    """The FAT type of the volume path starts with, by its cluster count
+    (Microsoft FAT Specification of 30 August 2005, 3.5)."""
+    with open(path, 'rb') as f:
+        bpb = f.read(40)
+    sector, cluster, reserved, fats, roots, total16, _, fat16 = struct.unpack_from('<HBHBHHBH', bpb, 11)
+    total32, fat32 = struct.unpack_from('<II', bpb, 32)
+    data = (total16 or total32) - reserved - fats * (fat16 or fat32) - (roots * 32 + sector - 1) // sector
+    clusters = data // cluster
+    return 12 if clusters < 4085 else 16 if clusters < 65525 else 32
 
 
 def _content(value):
@@ -122,19 +135,32 @@ class Fat:
     def write_into(self, image, offset, size, workdir):
         if offset % self.sector_size != 0:
             raise ValueError('FAT offset must be sector aligned')
-        argv = [which('mkfs.fat'), '-F', str(self.fat), '-S', str(self.sector_size)]
+        argv = ['-T', str(size // self.sector_size), '-h', '255', '-s', '63',
+                '-S', str(self.sector_size.bit_length() - 8),
+                '-N', f'{0x1234abcd if self.volid is None else self.volid:08x}']
+        if self.fat == 32:
+            argv.append('-F')
         if self.label is not None:
-            argv += ['-n', self.label]
-        if self.volid is not None:
-            argv += ['-i', f'{self.volid:08x}']
-        if self.cluster_sectors is not None:
-            argv += ['-s', str(self.cluster_sectors)]
+            argv += ['-v', self.label]
         if self.fats is not None:
-            argv += ['-f', str(self.fats)]
-        # mkfs.fat counts the offset in its own sector size and the size in KiB.
-        argv += ['--invariant', f'--offset={offset // self.sector_size}', image, str(size // 1024)]
-        _run(argv)
+            argv += ['-d', str(self.fats)]
+        # mformat makes FAT12 or FAT16 by the cluster count its cluster size
+        # gives, so cluster sizes are tried on a scratch image until one gives
+        # the type asked for.
+        probe = os.path.join(workdir, 'fatprobe.img')
+        sizes = [self.cluster_sectors] if self.cluster_sectors else [None] + [1 << i for i in range(8)]
+        for cluster in sizes:
+            fit = argv if cluster is None else argv + ['-c', str(cluster)]
+            with open(probe, 'wb') as f:
+                f.truncate(size)
+            _run([which('mformat'), '-i', probe, *fit, '::'], env=_MTOOLS_ENV)
+            if _fat_type(probe) == self.fat:
+                break
+        else:
+            raise ValueError(f'no FAT{self.fat} volume fits {size} bytes')
+        os.unlink(probe)
         spec = f'{image}@@{offset}'
+        _run([which('mformat'), '-i', spec, *fit, '::'], env=_MTOOLS_ENV)
         for d in self.tree.all_dirs():
             _run([which('mmd'), '-i', spec, '-D', 's', '::' + d], env=_MTOOLS_ENV)
         for path, value in self.tree.files.items():
