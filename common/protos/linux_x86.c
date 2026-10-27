@@ -624,6 +624,7 @@ no_modules:;
     fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
     if (fbs_count == 0) {
 #if defined (UEFI)
+        screen_info->orig_video_isVGA = VIDEO_TYPE_EFI;
         goto no_fb;
 #elif defined (BIOS)
 set_textmode:;

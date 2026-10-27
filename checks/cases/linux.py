@@ -549,3 +549,17 @@ def linux_random_seed(t):
         size, left = table(seed, carried)
         t.expect_eq(size - rng, more, f'{what}: the table {more} bytes over the RNG\'s {rng}')
         t.check(not left, f'{what}: the variable deleted')
+
+
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['linux'])
+def linux_x86_headless(t):
+    """[user] When booting without a display, screen_info reports VIDEO_TYPE_EFI
+    with zero dimensions so Linux avoids probing legacy VGA."""
+    m = boot_bzimage(t, display=False)
+    r = x86_report(t, m)
+    t.expect_eq(hexint(r, 'si.isvga'), 0x70, '[spec] screen_info: VIDEO_TYPE_EFI')
+    t.expect_eq(hexint(r, 'si.size'), 0, 'no framebuffer size')
+    t.expect_eq(hexint(r, 'si.base'), 0, 'no framebuffer base')
+    t.expect_eq(hexint(r, 'si.width'), 0, 'no framebuffer width')
+    t.expect_eq(hexint(r, 'si.height'), 0, 'no framebuffer height')
+
