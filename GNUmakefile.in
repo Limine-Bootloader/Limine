@@ -60,6 +60,7 @@ SED := @SED@
 export SED
 AWK := @AWK@
 export AWK
+PYTHON3 := @PYTHON3@
 
 CC := @CC@
 CC_FOR_BUILD := @CC_FOR_BUILD@
@@ -199,7 +200,7 @@ override PARALLELISM = $(or $(call JOBS_IN,'$(call SHESCAPE,$(MAKEFLAGS))'),$(ca
 # CHECKFLAGS passes options to checks/run-checks, such as "-p bios -t menu".
 .PHONY: check
 check: all edk2-ovmf-bins
-	MAKE='$(call SHESCAPE,$(MAKE_COMMAND))' '$(call SHESCAPE,$(SRCDIR))/checks/run-checks' --builddir '$(call SHESCAPE,$(BUILDDIR))' -j $(PARALLELISM) $(CHECKFLAGS)
+	MAKE='$(call SHESCAPE,$(MAKE_COMMAND))' $(PYTHON3) '$(call SHESCAPE,$(SRCDIR))/checks/run-checks' --builddir '$(call SHESCAPE,$(BUILDDIR))' -j $(PARALLELISM) $(CHECKFLAGS)
 
 # The programs the checks boot, built for the ports the build enabled with the
 # toolchain that builds Limine. checks/run-checks makes them first.

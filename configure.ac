@@ -180,6 +180,9 @@ AC_DEFUN([GET_PROG], [
 AC_ARG_VAR([STRIP], [strip command])
 GET_PROG([STRIP], [strip], [tool])
 
+AC_ARG_VAR([PYTHON3], [Python 3 command make check runs the checks with])
+AS_IF([test "x$PYTHON3" = "x"], [PYTHON3=python3])
+
 AC_CHECK_HEADERS([stdio.h stdlib.h stdint.h stddef.h stdbool.h stdarg.h string.h errno.h inttypes.h limits.h time.h],
     [], [AC_MSG_ERROR([required header not found])])
 
