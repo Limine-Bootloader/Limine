@@ -73,8 +73,8 @@ quotations. New lines are delimiters. Option names are not case sensitive.
 An option's value is truncated at 4095 characters.
 
 Some *options* are part of an entry (*local*), some other options are *global*.
-*Global options* can only appear outside of any entries, which is usually at the
-beginning of the file.
+*Global options* must come before the first *menu entry*. Any that come after
+it are part of an entry, where they are ignored.
 Some *local options* work the same between entries using any *protocol*, while
 other *local options* are specific to a given *protocol*.
 
