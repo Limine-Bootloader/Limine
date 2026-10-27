@@ -93,3 +93,19 @@ def gop_framebuffer_in_boot_services_data(t):
     r = boot_fake_gop_only(t, 4)
     t.expect_eq(r.int('framebuffer.count'), 1, 'one framebuffer: the second GOP, over the same memory, left out')
     t.expect_eq(int(r['framebuffer.address'], 16) & 0xfff, 0x800, 'the fake framebuffer, half a page in')
+
+
+@check(ports=UEFI_PORTS, tags=['limine-protocol', 'linux', 'gop', 'hostile'])
+def gop_without_display(t):
+    """[intent] The GOPs of GPUs with no display attached, their current mode
+    0x0 with no framebuffer, are left alone rather than set another mode,
+    which such firmware can hang in: the boot goes on without a framebuffer,
+    for the Limine protocol and, on x86, Linux."""
+    r = boot_fake_gop_only(t, 8)
+    t.expect_eq(r.flag('framebuffer.response'), False, 'no framebuffer response')
+    if t.port.is_x86:
+        from cases.linux import bzimage, hexint, x86_report
+        config = 'timeout: 0\n' + entry('Linux', protocol='linux', path='boot():/bzImage', cmdline='x')
+        m = probe_then_limine(t, 'fakegop:2:8', config, {'/bzImage': bzimage(t)}, display=False)
+        t.expect_eq(hexint(x86_report(t, m), 'si.isvga'), 0, 'Linux: no framebuffer in screen_info')
+        m.stop()

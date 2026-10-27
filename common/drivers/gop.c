@@ -339,6 +339,14 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
             gBS->FreePool(mode_info);
         }
 
+        // A GPU with no display attached can report a 0x0 current mode, and
+        // setting it another mode can hang the firmware. There is nothing to
+        // draw on, so leave it be.
+        if (mode_width == 0 || mode_height == 0) {
+            printv("gop: Current mode is 0x0, skipping this GOP.\n");
+            continue;
+        }
+
         if (preset_modes[i] == -1) {
             preset_modes[i] = gop->Mode->Mode;
         }

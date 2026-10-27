@@ -351,14 +351,18 @@ struct fake_gop {
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION info;
     EFI_EDID_ACTIVE_PROTOCOL edid;
     bool started;
+    bool no_display;
 };
 
 // Bit 0: QueryMode() says EFI_NOT_STARTED until SetMode() is called. Bit 1:
 // SetMode() refuses mode 1, the EDID's. Bit 2: the framebuffer lies in boot
-// services data, half a page into its pages.
+// services data, half a page into its pages. Bit 3: a GPU with no display
+// attached: no EDID, a current mode of 0x0 with no framebuffer, and a
+// SetMode() that never returns.
 #define FAKEGOP_NOT_STARTED 1
 #define FAKEGOP_MODE1_FAILS 2
 #define FAKEGOP_BS_DATA 4
+#define FAKEGOP_NO_DISPLAY 8
 static uint64_t fakegop_flags;
 static EFI_PHYSICAL_ADDRESS fake_fb;
 static uint8_t fake_edid[128];
@@ -382,12 +386,20 @@ static EFI_STATUS EFI_API fake_query_mode(EFI_GRAPHICS_OUTPUT_PROTOCOL *this, EF
     }
     *info = alloc(sizeof(**info));
     fake_info(*info, n);
+    if (((struct fake_gop *)this)->no_display && n == this->Mode->Mode) {
+        (*info)->HorizontalResolution = 0;
+        (*info)->VerticalResolution = 0;
+    }
     *size = sizeof(**info);
     return EFI_SUCCESS;
 }
 
 static EFI_STATUS EFI_API fake_set_mode(EFI_GRAPHICS_OUTPUT_PROTOCOL *this, EFI_UINT32 n) {
     struct fake_gop *f = (struct fake_gop *)this;
+    if (f->no_display) {
+        for (;;) {
+        }
+    }
     if (n >= FAKE_MODES) {
         return EFI_UNSUPPORTED;
     }
@@ -442,6 +454,7 @@ static void cmd_fakegop(char *arg) {
     EFI_GUID eg = EFI_EDID_ACTIVE_PROTOCOL_GUID;
     for (uint64_t i = 0; i < count; i++) {
         struct fake_gop *f = alloc(sizeof(*f));
+        f->no_display = false;
         f->gop.QueryMode = fake_query_mode;
         f->gop.SetMode = fake_set_mode;
         f->gop.Blt = fake_blt;
@@ -452,11 +465,18 @@ static void cmd_fakegop(char *arg) {
         f->mode.FrameBufferBase = fake_fb;
         fake_set_mode(&f->gop, 0);
         f->started = !(fakegop_flags & FAKEGOP_NOT_STARTED);
+        if (fakegop_flags & FAKEGOP_NO_DISPLAY) {
+            f->info.HorizontalResolution = 0;
+            f->info.VerticalResolution = 0;
+            f->mode.FrameBufferBase = 0;
+            f->mode.FrameBufferSize = 0;
+            f->no_display = true;
+        }
         f->edid.SizeOfEdid = sizeof(fake_edid);
         f->edid.Edid = fake_edid;
         EFI_HANDLE h = NULL;
         EFI_STATUS s = bs->InstallProtocolInterface(&h, &gg, EFI_NATIVE_INTERFACE, &f->gop);
-        if (s == EFI_SUCCESS && i == 0) {
+        if (s == EFI_SUCCESS && i == 0 && !(fakegop_flags & FAKEGOP_NO_DISPLAY)) {
             s = bs->InstallProtocolInterface(&h, &eg, EFI_NATIVE_INTERFACE, &f->edid);
         }
         out("K fakegop.%u=%x\n", i, (uint64_t)s);
