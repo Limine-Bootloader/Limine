@@ -452,9 +452,13 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     // Boot protocol 2.15 has the loader point code32_start at wherever it put
     // the kernel. The 64-bit entry, the only one used above 4GiB, ignores it.
-    if ((uint64_t)kernel_load_addr <= 0xffffffff) {
+#if defined (UEFI) && defined (__x86_64__)
+    if (kernel_load_addr <= 0xffffffff) {
         setup_header->code32_start = (uint32_t)kernel_load_addr;
     }
+#else
+    setup_header->code32_start = (uint32_t)kernel_load_addr;
+#endif
 
 #if defined (UEFI)
     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
