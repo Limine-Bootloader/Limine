@@ -3,6 +3,7 @@ import subprocess
 import time
 
 from harness import screen as screen_mod
+from harness import vt as vt_mod
 from harness.api import SETTLE_INTERVAL, payload_arch
 from harness.media import HostFile, Tree
 from harness.report import fnv1a, unescape
@@ -194,6 +195,35 @@ def panics_in_turn(t, m, count, timeout=60):
         msgs.append(wait_panic(t, m, timeout)[0])
         m.press('ret')
     return msgs
+
+
+COUNTDOWN = re.compile(r'Booting automatically in ([0-9.]+)\.\.\.')
+
+
+def countdown_start(t, m, timeout=60):
+    """The value the menu's countdown starts from, which a screenshot may show
+    ticked down already: the serial line keeps every update, however long a
+    check takes to look. The menu needs serial: yes, which on UEFI also has
+    the firmware's console draw over the screen."""
+    deadline = time.monotonic() + timeout * t.port.timeout_scale
+    while True:
+        found = COUNTDOWN.search(vt_mod.plain(m.stream('serial').raw()))
+        if found:
+            return found.group(1)
+        if m.exited() or time.monotonic() > deadline:
+            t.fail('no countdown on the serial line')
+        time.sleep(0.2)
+
+
+def countdown_stopped(t, m, seconds=3):
+    """Whether the countdown, gone from the screen, stays gone for seconds,
+    where a running one is redrawn every second."""
+    deadline = time.monotonic() + seconds * t.port.timeout_scale
+    while time.monotonic() < deadline:
+        if 'Booting automatically' in screen_text(t.screen(m, 'poll')):
+            return False
+        time.sleep(0.5)
+    return True
 
 
 def wait_done_or_panic(t, m, channel, timeout=60):

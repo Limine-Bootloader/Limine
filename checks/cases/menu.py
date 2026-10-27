@@ -5,7 +5,7 @@ from harness import efivars
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, UEFI_PORTS
 from harness.report import unescape
-from cases._common import kernel_file, limine_version, screen_text
+from cases._common import countdown_start, countdown_stopped, kernel_file, limine_version, screen_text
 
 # The boot menu, seen on screen and driven from the keyboard. Expectations
 # come from CONFIG.md; [intent] marks what only Limine's code says, such as
@@ -128,18 +128,16 @@ def menu_directories(t):
 def menu_countdown(t):
     """With a timeout the default entry boots after the countdown; a key
     pressed during it stops it."""
-    config = tree_menu('timeout: 3\n')
-    m = boot_menu(t, config)
-    scr = t.wait_text(m, 'Booting automatically in')
-    t.check('Booting automatically in 3...' in screen_text(scr) or 'Booting automatically in 2...' in screen_text(scr),
-            '[intent] countdown shown in seconds')
+    m = boot_menu(t, tree_menu('timeout: 3\nserial: yes\n'))
+    t.expect_eq(countdown_start(t, m), '3', '[intent] countdown shown in seconds')
     t.expect_eq(booted_cmdline(t, m, timeout=20), 'first', 'the default entry booted when the countdown ran out')
     m.stop()
-    m = boot_menu(t, tree_menu('timeout: 4\n'))
+    # Long enough for the key to land while it runs, however slow the machine.
+    m = boot_menu(t, tree_menu('timeout: 30\n'))
     t.wait_text(m, 'Booting automatically in')
     m.press('down')
-    scr = t.wait_screen(m, lambda s: 'Booting automatically' not in screen_text(s), desc='countdown gone')
-    t.check(nothing_booted(t, m, 6), 'a key press stopped the countdown')
+    t.wait_screen(m, lambda s: 'Booting automatically' not in screen_text(s), desc='countdown gone')
+    t.check(countdown_stopped(t, m) and nothing_booted(t, m, 0), 'a key press stopped the countdown')
 
 
 @check(ports=ALL_PORTS, tags=['menu'])
@@ -147,9 +145,8 @@ def menu_timeout_values(t):
     """timeout reads leading digits and an optional fraction, ignores what
     follows, caps at 9999, and treats a value without digits as 0."""
     for value, shown in (('10s', '10'), ('1e3', '1'), ('2,5', '2'), ('2.95', '2.95'), ('99999', '9999')):
-        m = boot_menu(t, tree_menu(f'timeout: {value}\n'))
-        scr = t.wait_text(m, 'Booting automatically in')
-        t.check(f'Booting automatically in {shown}...' in screen_text(scr), f'timeout: {value} counts from {shown}')
+        m = boot_menu(t, tree_menu(f'timeout: {value}\nserial: yes\n'))
+        t.expect_eq(countdown_start(t, m), shown, f'timeout: {value} counts from {shown}')
         m.stop()
     m = boot_menu(t, tree_menu('timeout: No\n'))
     t.expect_eq(booted_cmdline(t, m), 'first', 'timeout: No is 0: booted at once')
@@ -272,7 +269,9 @@ def menu_keyboard_layout(t):
 def menu_remember_last_entry(t):
     """remember_last_entry: yes makes the entry booted last the one selected
     on the next boot, ahead of default_entry."""
-    config = tree_menu('timeout: 3\nremember_last_entry: yes\ndefault_entry: 1\n')
+    # Long enough for the keys to land before it runs out, however slow the
+    # machine.
+    config = tree_menu('timeout: 10\nremember_last_entry: yes\ndefault_entry: 1\n')
     tree = Tree()
     tree.add('/boot/kernel.elf', HostFile(kernel_file(t, 'full')))
     t.limine_files(config, tree)

@@ -7,8 +7,8 @@ from harness import efivars
 from harness.efivars import GLOBAL, LOADER, load_option, utf16z
 from harness.media import HostFile, Tree
 from harness.ports import UEFI_PORTS
-from cases._common import (boot_entry, check_report_clean, entry, kernel_file, limine_version, screen_text,
-                           wait_panic)
+from cases._common import (boot_entry, check_report_clean, countdown_start, entry, kernel_file, limine_version,
+                           screen_text, wait_panic)
 from cases.menu import booted_cmdline, menu_entry, nothing_booted, tree_menu
 
 # What only UEFI Limine does: the Boot Loader Interface (systemd.io's document,
@@ -182,14 +182,12 @@ def uefi_bli_timeout_requests(t):
     t.check(not shown and nothing_booted(t, m, 4), '[spec] one-shot 0: the menu with no timeout')
     t.check(('LoaderConfigTimeoutOneShot', LOADER) not in stored(m), '[spec] the one-shot removed once read')
 
-    m, _ = uefi_boot(t, tree_menu('timeout: 0\n'), [var('LoaderConfigTimeoutOneShot', '7')])
-    t.check('Booting automatically in 7' in screen_text(t.wait_text(m, 'Booting automatically')),
-            '[spec] one-shot 7 over timeout: 0')
+    m, _ = uefi_boot(t, tree_menu('timeout: 0\nserial: yes\n'), [var('LoaderConfigTimeoutOneShot', '7')])
+    t.expect_eq(countdown_start(t, m), '7', '[spec] one-shot 7 over timeout: 0')
     m.stop()
 
-    m, _ = uefi_boot(t, tree_menu(''), [var('LoaderConfigTimeout', '3')])
-    t.check('Booting automatically in 3' in screen_text(t.wait_text(m, 'Booting automatically')),
-            '[spec] LoaderConfigTimeout 3 where timeout is not set')
+    m, _ = uefi_boot(t, tree_menu('serial: yes\n'), [var('LoaderConfigTimeout', '3')])
+    t.expect_eq(countdown_start(t, m), '3', '[spec] LoaderConfigTimeout 3 where timeout is not set')
     m.stop()
 
     m, _ = uefi_boot(t, tree_menu(''), [var('LoaderConfigTimeout', 'menu-force')])

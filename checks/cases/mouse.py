@@ -3,7 +3,7 @@ import time
 from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, Drive
-from cases._common import kernel_file, screen_text
+from cases._common import countdown_stopped, kernel_file, screen_text
 from cases.menu import EDITOR_ENTRY, booted_cmdline, nothing_booted, tree_menu, wait_menu
 
 # The mouse in the menu, as CONFIG.md's mouse option describes it: on BIOS a
@@ -148,11 +148,13 @@ def mouse_wheel(t):
 @check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_stops_countdown(t):
     """Using the mouse stops the countdown, as a key does."""
-    m = mouse_boot(t, tree_menu('timeout: 4\n'))
+    # Long enough for the pointer to move while it runs, however slow the
+    # machine.
+    m = mouse_boot(t, tree_menu('timeout: 30\n'))
     scr = t.wait_text(m, 'Booting automatically')
     Pointer(t, m, scr).point_at(scr, 'Last')
     t.wait_screen(m, lambda s: 'Booting automatically' not in screen_text(s), desc='countdown gone')
-    t.check(nothing_booted(t, m, 6), 'nothing booted')
+    t.check(countdown_stopped(t, m) and nothing_booted(t, m, 0), 'the countdown stopped')
 
 
 @check(ports=ALL_PORTS, tags=['mouse'])
