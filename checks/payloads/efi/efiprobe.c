@@ -1270,6 +1270,40 @@ static void cmd_seedtable(char *arg) {
     out("K seedtable=%x\n", (uint64_t)bs->InstallConfigurationTable(&g, table));
 }
 
+// An SMBIOS 3.0 entry point in place of the firmware's, giving a structure
+// table at ADDR of SIZE bytes (both hex, as ADDR:SIZE).
+static void cmd_smbios3(char *arg) {
+    const char *rest;
+    uint64_t addr = parse_hex(arg, &rest);
+    uint32_t size = *rest == ':' ? (uint32_t)parse_hex(rest + 1, NULL) : 0;
+    uint8_t *ep = NULL;
+    EFI_STATUS s = bs->AllocatePool(EfiRuntimeServicesData, 24, (void **)&ep);
+    if (s != EFI_SUCCESS) {
+        out("K smbios3=%x\n", (uint64_t)s);
+        return;
+    }
+    // DSP0134 3.9.0 section 5.2.2: the anchor, the checksum, the length,
+    // version 3.0, entry point revision 1, then the table's size and address.
+    memset(ep, 0, 24);
+    memcpy(ep, "_SM3_", 5);
+    ep[6] = 24;
+    ep[7] = 3;
+    ep[10] = 1;
+    for (int i = 0; i < 4; i++) {
+        ep[12 + i] = (uint8_t)(size >> (8 * i));
+    }
+    for (int i = 0; i < 8; i++) {
+        ep[16 + i] = (uint8_t)(addr >> (8 * i));
+    }
+    uint8_t sum = 0;
+    for (int i = 0; i < 24; i++) {
+        sum += ep[i];
+    }
+    ep[5] = (uint8_t)-sum;
+    EFI_GUID g = EFI_SMBIOS3_TABLE_GUID;
+    out("K smbios3=%x\n", (uint64_t)bs->InstallConfigurationTable(&g, ep));
+}
+
 #if defined (__riscv)
 // Translation off, as some RISC-V firmware runs: the firmware's identity map
 // leaves every address the same without it.
@@ -1377,6 +1411,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_dtb(tok + 4);
         } else if (sprefix(tok, "seedtable:")) {
             cmd_seedtable(tok + 10);
+        } else if (sprefix(tok, "smbios3:")) {
+            cmd_smbios3(tok + 8);
         } else if (sprefix(tok, "wdfail")) {
             cmd_wdfail();
         } else if (sprefix(tok, "ebsfail:")) {

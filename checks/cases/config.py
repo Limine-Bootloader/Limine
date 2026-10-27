@@ -14,6 +14,9 @@ LOADER_ARCH = {'bios': 'ia-32', 'uefi-ia32': 'ia-32', 'uefi-x86-64': 'x86-64', '
                'uefi-riscv64': 'riscv64', 'uefi-loongarch64': 'loongarch64'}
 
 
+SMBIOS_GUID = 'eb9d2d31-2d88-11d3-9a16-0090273fc14d'
+
+
 def kernel_config(cmdline, title='Test', extra='', path='boot():/boot/kernel.elf', globals_='timeout: 0\n'):
     return globals_ + entry(title, path=path, cmdline=cmdline, extra=extra)
 
@@ -131,6 +134,27 @@ def config_from_smbios(t):
     tree.add('/boot/limine.conf', kernel_config('from the disk'))
     m = t.boot(t.boot_disk(tree), smbios=[f'type=11,path={smbios_file}'])
     t.expect_eq(booted_cmdline(t, m), 'from SMBIOS', 'config taken from SMBIOS')
+
+
+@check(ports=UEFI_PORTS, tags=['config', 'hostile'])
+def config_from_smbios_out_of_reach(t):
+    """[intent] A 64-bit SMBIOS entry point whose structure table runs past
+    the top of the address space is passed over: the config is taken from
+    the 32-bit entry point's table where the firmware gives one, else from
+    the disk."""
+    from cases.chainload import probe_then_limine
+    smbios_file = t.path('smbios.txt')
+    with open(smbios_file, 'w') as f:
+        f.write('limine:config:' + kernel_config('from SMBIOS'))
+    m = probe_then_limine(t, 'tables smbios3:fffffffffffff000:2000', kernel_config('from the disk'),
+                          {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))},
+                          smbios=[f'type=11,path={smbios_file}'])
+    cmdline = booted_cmdline(t, m)
+    text = m.stream(t.kernel_channel).text()
+    t.check('K smbios3=0' in text.splitlines(), 'the probe put its entry point in place')
+    has_32 = SMBIOS_GUID in text.lower()
+    t.expect_eq(cmdline, 'from SMBIOS' if has_32 else 'from the disk',
+                f'config with{"" if has_32 else "out"} a 32-bit entry point')
 
 
 @check(ports=ALL_PORTS, tags=['config'])

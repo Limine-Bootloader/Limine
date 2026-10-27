@@ -132,3 +132,18 @@ def mb2_smbios3_and_resolution(t):
     t.expect_eq(major, 3, f'SMBIOS 3 ({major}.{minor})')
     t.check((first >> 8) & 0xff >= 4, f'the structure table, not an entry point: starts {first:08x}')
     t.expect_eq((h(r, 'fb.width'), h(r, 'fb.height')), (640, 480), 'the configured resolution')
+
+
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['multiboot2', 'hostile'])
+def mb2_smbios3_table_wraps(t):
+    """[intent] A 64-bit SMBIOS entry point whose structure table runs past
+    the top of the address space gives no SMBIOS tag, rather than one copied
+    from where the address wraps to; the 32-bit entry point still gives its
+    own."""
+    from cases.chainload import probe_then_limine
+    config = 'timeout: 0\n' + entry('MB2', protocol='multiboot2', path='boot():/kernel', cmdline='x')
+    m = probe_then_limine(t, 'smbios3:fffffffffffff000:2000', config, {'/kernel': HostFile(mb2_kernel(t))})
+    r = mb2_report(t, m)
+    t.check('K smbios3=0' in m.stream(t.kernel_channel).text().splitlines(), 'the probe put its entry point in place')
+    majors = [int(v.split()[0], 16) for v in r.multi.get('smbios', [])]
+    t.expect_eq(majors, [2], 'only the 32-bit entry point gives a tag')
