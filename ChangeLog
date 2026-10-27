@@ -1,3 +1,22 @@
+2026-10-28  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.9.6 ***
+
+    Noteworthy changes compared to the previous release, 12.9.5:
+
+    Bug fixes:
+        - UEFI: Leave GPUs with no display attached alone. Since 12.9.4,
+          Limine tried to set another graphics mode on them, which could hang
+          the boot. Fixes #701.
+
+    Miscellaneous:
+        - Document that global options must come before the first entry, as
+          has been the case since 4.0. A config whose first line is an entry
+          has had no global options since 12.9.5, whereas every option in it
+          used to count as global. Fixes #700.
+        - Stop the checks of the menu countdown failing spuriously on slow
+          machines, where the countdown could tick before they read it.
+
 2026-10-27  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.9.5 ***
