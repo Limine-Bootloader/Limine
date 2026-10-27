@@ -17,6 +17,10 @@ REGISTRY = []
 
 EFI_NAMES = ['BOOTX64.EFI', 'BOOTIA32.EFI', 'BOOTAA64.EFI', 'BOOTRISCV64.EFI', 'BOOTLOONGARCH64.EFI']
 
+# Seconds between a screenshot that shows what is waited for and the one that
+# confirms it.
+SETTLE_INTERVAL = 0.1
+
 
 class CheckFailure(AssertionError):
     pass
@@ -294,19 +298,25 @@ class Context:
                     firmware=False, **kwargs):
         """Poll screenshots until predicate(text_screen) holds. firmware reads
         them as edk2's console rather than Limine's terminal."""
-        deadline = time.monotonic() + timeout * self.port.timeout_scale
-        last = None
-        while True:
+        def poll():
             img = m.screendump('poll')
             try:
                 if firmware:
-                    last = screen_mod.decode_efi_console(img, m.firmware)
-                else:
-                    last = self.decode(m, img, **kwargs)
+                    return screen_mod.decode_efi_console(img, m.firmware)
+                return self.decode(m, img, **kwargs)
             except Exception:
-                last = None
+                return None
+
+        deadline = time.monotonic() + timeout * self.port.timeout_scale
+        while True:
+            last = poll()
             if last is not None and predicate(last):
-                return last
+                # One taken while the screen is redrawn can hold rows half
+                # drawn, so the screen counts once the next reads the same.
+                time.sleep(SETTLE_INTERVAL)
+                again = poll()
+                if again is not None and again.text() == last.text():
+                    return again
             if m.exited():
                 raise CheckTimeout(f'QEMU exited while waiting for {desc}')
             if time.monotonic() > deadline:

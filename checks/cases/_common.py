@@ -3,7 +3,7 @@ import subprocess
 import time
 
 from harness import screen as screen_mod
-from harness.api import payload_arch
+from harness.api import SETTLE_INTERVAL, payload_arch
 from harness.media import HostFile, Tree
 from harness.report import fnv1a, unescape
 
@@ -147,25 +147,37 @@ def continues(row):
     return bool(row.strip()) and not row.startswith('Stacktrace:') and not any(e in row for e in PANIC_ENDINGS)
 
 
+def shown_panic(t, m, **decode):
+    """(message, decoded screen) of the panic a screenshot shows, the message
+    None where it shows none. Before it has a terminal of its own, UEFI Limine
+    prints through the firmware's console."""
+    scr = None
+    try:
+        img = m.screendump('poll')
+        scr = t.decode(m, img, **decode)
+    except Exception:
+        img = None
+    msg = panic_message(scr) if scr is not None else None
+    if msg is None and img is not None and t.port.is_uefi:
+        fw = screen_mod.decode_efi_console(img, m.firmware)
+        fw_msg = panic_message(fw, FALLBACK_COLS)
+        if fw_msg is not None:
+            return fw_msg, fw
+    return msg, scr
+
+
 def wait_panic(t, m, timeout=60, **decode):
-    """Wait for a panic; return (message, decoded screen). Before it has a
-    terminal of its own, UEFI Limine prints through the firmware's console."""
+    """Wait for a panic; return (message, decoded screen)."""
     deadline = time.monotonic() + timeout * t.port.timeout_scale
     while True:
-        scr = None
-        try:
-            img = m.screendump('poll')
-            scr = t.decode(m, img, **decode)
-        except Exception:
-            img = None
-        msg = panic_message(scr) if scr is not None else None
+        msg, scr = shown_panic(t, m, **decode)
         if msg is not None:
-            return msg, scr
-        if img is not None and t.port.is_uefi:
-            fw = screen_mod.decode_efi_console(img, m.firmware)
-            msg = panic_message(fw, FALLBACK_COLS)
-            if msg is not None:
-                return msg, fw
+            # One taken while the screen is redrawn can hold rows half drawn,
+            # so the message counts once the next screenshot shows it the same.
+            time.sleep(SETTLE_INTERVAL)
+            again, again_scr = shown_panic(t, m, **decode)
+            if again == msg:
+                return again, again_scr
         if m.exited() or time.monotonic() > deadline:
             t.fail('no panic; screen:\n' + (screen_text(scr) if scr is not None else '(none)'))
         time.sleep(0.5)
