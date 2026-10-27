@@ -201,14 +201,15 @@ static void map_single_table(uint64_t addr, uint32_t len) {
         memcpy(&length, (void *)(uintptr_t)(addr + 4), sizeof(length));
     }
 
+    uint64_t top = CHECKED_ADD(addr, length, goto past_top);
     uint64_t aligned_base = ALIGN_DOWN(addr, 4096);
-    uint64_t aligned_top  = ALIGN_UP(addr + length, 4096, panic(false, "acpi: Alignment overflow"));
+    uint64_t aligned_top  = ALIGN_UP(top, 4096, goto past_top);
 
     if (!acpi_padding_is_safe(aligned_base, addr - aligned_base)) {
         aligned_base = addr;
     }
-    if (!acpi_padding_is_safe(addr + length, aligned_top - (addr + length))) {
-        aligned_top = addr + length;
+    if (!acpi_padding_is_safe(top, aligned_top - top)) {
+        aligned_top = top;
     }
 
     uint64_t memmap_type = pmm_check_type(addr);
@@ -216,6 +217,11 @@ static void map_single_table(uint64_t addr, uint32_t len) {
     if (memmap_type != MEMMAP_ACPI_RECLAIMABLE && memmap_type != MEMMAP_ACPI_NVS) {
         memmap_alloc_range(aligned_base, aligned_top - aligned_base, MEMMAP_RESERVED_MAPPED, 0, true, false, true);
     }
+    return;
+
+past_top:
+    // No range of the memory map can describe it.
+    print("acpi: warning: Table at %X runs past the top of the address space\n", addr);
 }
 
 
