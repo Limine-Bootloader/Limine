@@ -196,11 +196,12 @@ override JOBS_IN = $(shell printf ' %s\n' $(1) | $(SED) -n -e 's/ -- .*//' -e 's
 # MAKEFLAGS of the environment they started with, which $(shell) still sees.
 override PARALLELISM = $(or $(call JOBS_IN,'$(call SHESCAPE,$(MAKEFLAGS))'),$(call JOBS_IN,"`ps -o args= -p $$PPID`"),$(call JOBS_IN,"$$MAKEFLAGS"),1)
 
-# The QEMU checks, running as many at a time as make has jobs.
+# The QEMU checks, running as many at a time as make has jobs, with Python
+# kept from caching bytecode beside their sources.
 # CHECKFLAGS passes options to checks/run-checks, such as "-p bios -t menu".
 .PHONY: check
 check: all edk2-ovmf-bins
-	MAKE='$(call SHESCAPE,$(MAKE_COMMAND))' $(PYTHON3) '$(call SHESCAPE,$(SRCDIR))/checks/run-checks' --builddir '$(call SHESCAPE,$(BUILDDIR))' -j $(PARALLELISM) $(CHECKFLAGS)
+	PYTHONDONTWRITEBYTECODE=1 MAKE='$(call SHESCAPE,$(MAKE_COMMAND))' $(PYTHON3) '$(call SHESCAPE,$(SRCDIR))/checks/run-checks' --builddir '$(call SHESCAPE,$(BUILDDIR))' -j $(PARALLELISM) $(CHECKFLAGS)
 
 # The programs the checks boot, built for the ports the build enabled with the
 # toolchain that builds Limine. checks/run-checks makes them first.
