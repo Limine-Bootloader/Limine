@@ -93,6 +93,13 @@ class Context:
     def skip(self, why):
         raise Skip(why)
 
+    def skip_unless_built(self, *names):
+        """Skip unless the build made each of the files names, as the CD and
+        PXE images are only made when configured."""
+        for name in names:
+            if not os.path.exists(self.env.bin(name)):
+                self.skip(f'the build made no {name}')
+
     def path(self, name):
         return os.path.join(self.workdir, name)
 
@@ -147,6 +154,7 @@ class Context:
         self.counter += 1
         name = name or f'cd{self.counter}.iso'
         if hybrid:
+            self.skip_unless_built('limine-uefi-cd.bin' if self.port.is_uefi else 'limine-bios-cd.bin')
             # As much of it as the ports the build has make.
             bios = os.path.exists(self.env.bin('limine-bios-cd.bin'))
             uefi = os.path.exists(self.env.bin('limine-uefi-cd.bin'))
@@ -158,6 +166,10 @@ class Context:
         else:
             bios = (not self.port.is_uefi) if bios is None else bios
             uefi = self.port.is_uefi if uefi is None else uefi
+            if bios:
+                self.skip_unless_built('limine-bios-cd.bin')
+            if uefi:
+                self.skip_unless_built('limine-uefi-cd.bin')
         if bios:
             tree.add('/boot/limine-bios-cd.bin', HostFile(self.env.bin('limine-bios-cd.bin')))
         if uefi:
@@ -209,6 +221,8 @@ class Context:
         servers of QEMU's user networking, the latter serving tree; or, given
         the TFTP options to support, from a BootServer, as the machine's
         boot_server."""
+        if not self.port.is_uefi:
+            self.skip_unless_built('limine-bios-pxe.bin')
         self.counter += 1
         root = self.path(f'tftp{self.counter}')
         tree.materialise(root)

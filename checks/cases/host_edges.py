@@ -377,8 +377,10 @@ def host_gpt_checks(t):
 def hybrid_iso(t, name):
     """A hybrid ISO as USAGE.md makes one, before bios-install: the GPT in it
     is the one xorriso writes."""
+    files = ('limine-bios.sys', 'limine-bios-cd.bin', 'limine-uefi-cd.bin')
+    t.skip_unless_built(*files)
     tree = Tree()
-    for f in ('limine-bios.sys', 'limine-bios-cd.bin', 'limine-uefi-cd.bin'):
+    for f in files:
         tree.add('/boot/' + f, HostFile(t.env.bin(f)))
     path = t.path(name)
     Iso(tree, bios_boot='/boot/limine-bios-cd.bin', uefi_boot='/boot/limine-uefi-cd.bin').build(path, t.workdir)

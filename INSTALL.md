@@ -75,10 +75,11 @@ make check    # (or gmake where applicable)
 
 This builds Limine and the programs the checks boot, and runs every check on
 every port the build enabled, as many at a time as `make`'s `-j` option asks
-for, as in `make check -j8`, or one at a time without it. The UEFI ports
-boot the firmware from https://github.com/osdev0/edk2-ovmf-stable-bins, which
-the first `make check` downloads into the `edk2-ovmf-bins` directory; delete
-that directory to have the next one download the latest release.
+for, as in `make check -j8`, or one at a time without it. Checks that boot a
+CD or PXE image the build was not configured to make are skipped. The UEFI
+ports boot the firmware from https://github.com/osdev0/edk2-ovmf-stable-bins,
+which the first `make check` downloads into the `edk2-ovmf-bins` directory;
+delete that directory to have the next one download the latest release.
 
 A line is printed for each check as it finishes. The results go to the
 `checks-results` directory: a directory for each check and port, with its
