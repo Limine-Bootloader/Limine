@@ -1,3 +1,66 @@
+2026-10-27  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.9.5 ***
+
+    Noteworthy changes compared to the previous release, 12.9.4:
+
+    Bug fixes:
+        - Parse the config in linear time. Configs with thousands of entries
+          were slow to load.
+        - Only take an SMBIOS config from tables within reach, falling back to
+          the 32-bit entry point's.
+        - Cut MBR partitions that run past the end of the disk at its end,
+          rather than ignoring them. Booting from one waited for a key on UEFI.
+        - UEFI: Connect all disks before giving up on a volume, as Fast Boot
+          firmware may connect only the one booted from.
+        - UEFI: Keep the firmware's stack out of usable memory, which some
+          firmware, such as edk2 for riscv64, reports as free.
+        - UEFI: Wait for the rest of an escape sequence on a serial terminal,
+          rather than taking an arrow key for Escape and other keys.
+        - UEFI: Scroll up when the mouse wheel is rolled away from the user,
+          and stop ignoring a mouse's first movement.
+        - UEFI: Boot the UEFI Shell the menu offers when its file name differs
+          in case.
+        - UEFI: Remember the last booted entry under a valid version 4 UUID.
+          Entries remembered by earlier versions are not read back.
+        - TPM: Count a component as measured when the event log is full, as
+          its PCR is still extended, and warn once instead of prompting.
+        - x86: Quiesce VT-d queued invalidation before disabling it, which
+          could otherwise hang the handoff where firmware had left it on.
+        - `default_entry: 0` no longer selects the first entry, as entries are
+          numbered from 1.
+        - Centre and cut the menu branding and entry comments by displayed
+          width rather than byte length.
+        - FAT: Open files with non-ASCII 8.3 names, taken as CP437.
+        - Limine boot protocol: Give no module response when no module loads,
+          and stop panicking on a framebuffer in boot services memory or on
+          firmware tables past the top of the address space.
+        - Linux protocol/x86: Load non-relocatable kernels at 0x100000 whatever
+          their kernel_alignment, and point code32_start at the kernel.
+        - Multiboot 1: Find headers whose flags omit later fields near the end
+          of small kernels, refuse ones reaching past the first 8KiB, and on
+          BIOS, describe text mode when no video mode is requested.
+        - Multiboot 2: Refuse headers reaching past the first 32KiB, accept the
+          EFI i386 entry address tag, put the SMBIOS structure tables in the
+          SMBIOS tags, always give the load base address tag, keep relocated
+          kernels out of page 0, stop passing the EFI image handle, and on
+          UEFI, set no video mode for kernels that ask for none.
+        - Multiboot 1 and 2: Pass the BIOS boot device.
+        - Miscellaneous bug fixes.
+
+    Miscellaneous:
+        - Add QEMU-based checks covering every port, run by `make check` from
+          a build tree or a release tarball. INSTALL.md lists what they need.
+        - Update freestanding-c-hdrs, PicoEFI, and freestanding-lgrt, the
+          latter to its clean-room rewrite under the 0BSD license.
+        - Compile the UEFI ports with `-fvisibility=hidden`, which riscv64
+          images linked by GNU ld 2.30 and older need.
+        - Rebuild when the freestanding headers change, and relink when a link
+          script does.
+        - `make uninstall` only removes the files `make install` put in place.
+        - Document that UEFI PXE boot needs `tsize` support too.
+        - Miscellaneous improvements.
+
 2026-10-19  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.9.4 ***
