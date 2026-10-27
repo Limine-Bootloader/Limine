@@ -186,9 +186,14 @@ limine:
 clean: check-clean tools-clean limine-bios-clean limine-uefi-ia32-clean limine-uefi-x86-64-clean limine-uefi-aarch64-clean limine-uefi-riscv64-clean limine-uefi-loongarch64-clean
 	rm -rf '$(call SHESCAPE,$(BINDIR))' '$(call SHESCAPE,$(BUILDDIR))/host-build' '$(call SHESCAPE,$(BUILDDIR))/stage1.stamp'
 
-# The job count from the make command line, as MAKEFLAGS only holds it from GNU
-# make 4.2 onwards.
-override PARALLELISM = $(or $(shell ps -o args= -p $$PPID | $(SED) -n -e 's/.* --jobs[= ]\{1,\}\([0-9][0-9]*\).*/\1/p' -e 's/.* -j *\([0-9][0-9]*\).*/\1/p'),1)
+# The job count among make arguments, given as a quoted shell word: options
+# end at " -- ", and the first word of MAKEFLAGS may lack its dash.
+override JOBS_IN = $(shell printf ' %s\n' $(1) | $(SED) -n -e 's/ -- .*//' -e 's/^ *j/ -j/' -e 's/.* --jobs[= ]\{1,\}\([0-9][0-9]*\).*/\1/p' -e 's/.* -j *\([0-9][0-9]*\).*/\1/p')
+
+# The job count make was given. GNU make 4.2 and later keep it in MAKEFLAGS
+# however it was passed; older ones leave it on their command line, or in the
+# MAKEFLAGS of the environment they started with, which $(shell) still sees.
+override PARALLELISM = $(or $(call JOBS_IN,'$(call SHESCAPE,$(MAKEFLAGS))'),$(call JOBS_IN,"`ps -o args= -p $$PPID`"),$(call JOBS_IN,"$$MAKEFLAGS"),1)
 
 # The QEMU test suite, running as many tests at a time as make has jobs.
 # TESTFLAGS passes options to checks/run-tests, such as "-p bios -t menu".
