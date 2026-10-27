@@ -320,7 +320,7 @@ class Context:
 
     def serial_terminal(self, m, cols=200, rows=60):
         term = vt_mod.Terminal(cols, rows)
-        term.feed(m.stream('serial').data)
+        term.feed(m.stream('serial').raw())
         return term
 
     def wait_serial_text(self, m, needle, timeout=30, cols=80, rows=25):
@@ -340,4 +340,4 @@ class Context:
     def serial_plain(self, m):
         """The text written to the serial line in the order it was written,
         whatever escape sequences placed it."""
-        return vt_mod.plain(m.stream('serial').data)
+        return vt_mod.plain(m.stream('serial').raw())

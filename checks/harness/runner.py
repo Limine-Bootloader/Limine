@@ -178,10 +178,8 @@ def main(argv=None):
     os.makedirs(env.outdir, exist_ok=True)
     results = []
     start = time.monotonic()
-    # A process for each check: the threads that read a machine's character
-    # devices must not queue for the interpreter lock behind other checks'
-    # screen decoding, or QEMU finds the socket full, holds the guest's UART
-    # busy, and firmware that gives up waiting drops what it was writing.
+    # A process for each check, so that checks' Python work, such as decoding
+    # screens, runs side by side rather than in turns at the interpreter lock.
     os.environ['PYTHONPATH'] = os.pathsep.join(filter(None, (CHECKSDIR, os.environ.get('PYTHONPATH'))))
     # Logging every translated block slows emulation.
     if coverage is not None:

@@ -203,11 +203,18 @@ def build_machine(env, spec, workdir, coverage=None):
         argv += ['-no-reboot']
     argv += ['-display', 'none']
     sockdir = socket_dir()
-    def chardev(name):
+
+    def quoted(path):
         # QEMU takes a doubled comma for one in an option's value.
-        path = os.path.join(sockdir, name).replace(',', ',,')
-        return f'socket,id={name},path={path},server=on,wait=off'
-    argv += ['-chardev', chardev('qmp')]
+        return path.replace(',', ',,')
+
+    # The guest's output goes to a file, which takes it as fast as it comes:
+    # a UART QEMU keeps busy while a reader catches up makes firmware drop
+    # bytes. Input comes from a FIFO.
+    def chardev(name):
+        return (f'file,id={name},path={quoted(os.path.join(workdir, name + ".log"))},'
+                f'input-path={quoted(os.path.join(sockdir, name + ".in"))}')
+    argv += ['-chardev', f'socket,id=qmp,path={quoted(os.path.join(sockdir, "qmp"))},server=on,wait=off']
     # QEMU 11.1 has monitors made as objects, and deprecates -mon.
     if version >= (11, 1):
         argv += ['-object', 'monitor-qmp,id=qmpmon,chardev=qmp']

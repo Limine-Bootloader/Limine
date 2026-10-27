@@ -16,45 +16,68 @@ class CheckTimeout(Exception):
 
 
 class Stream:
-    """Accumulates everything a character device sends, for pattern waits."""
+    """Accumulates everything a character device sends, for pattern waits:
+    the file QEMU writes it to, read as it grows. What is sent to the device
+    goes through the FIFO QEMU reads its input from."""
 
-    def __init__(self, name, sock, logpath):
+    def __init__(self, name, path, fifo, exited):
         self.name = name
-        self.sock = sock
+        self.fd = os.open(path, os.O_RDONLY)
+        self.fifo = fifo
+        self.exited = exited
         self.data = bytearray()
         self.cond = threading.Condition()
         self.eof = False
-        self.log = open(logpath, 'wb')
+        self.closing = threading.Event()
         self.thread = threading.Thread(target=self._reader, daemon=True)
         self.thread.start()
 
+    def _drain(self):
+        """Take in all QEMU has written so far, with the lock held: what
+        callers see then includes all it wrote before what they waited for
+        on another device."""
+        while self.fd is not None:
+            chunk = os.read(self.fd, 65536)
+            if not chunk:
+                return
+            self.data += chunk
+
     def _reader(self):
+        """Wakes waiters on new output, and marks the end once QEMU exited."""
         while True:
-            try:
-                chunk = self.sock.recv(65536)
-            except OSError:
-                chunk = b''
+            # Asked before reading, so that what QEMU wrote before it exited
+            # is all read.
+            done = self.exited() or self.closing.is_set()
             with self.cond:
-                if not chunk:
+                size = len(self.data)
+                self._drain()
+                if len(self.data) != size:
+                    self.cond.notify_all()
+                elif done:
                     self.eof = True
                     self.cond.notify_all()
-                    break
-                self.data += chunk
-                self.log.write(chunk)
-                self.log.flush()
-                self.cond.notify_all()
+                    return
+            self.closing.wait(0.01)
 
     def write(self, data):
         if isinstance(data, str):
             data = data.encode()
-        self.sock.sendall(data)
+        while data:
+            data = data[os.write(self.fifo, data):]
+
+    def raw(self):
+        with self.cond:
+            self._drain()
+            return bytes(self.data)
 
     def text(self):
         with self.cond:
+            self._drain()
             return self.data.decode('latin-1')
 
     def size(self):
         with self.cond:
+            self._drain()
             return len(self.data)
 
     def wait_for(self, pattern, timeout, start=0, machine=None):
@@ -66,6 +89,8 @@ class Stream:
         deadline = time.monotonic() + timeout
         with self.cond:
             while True:
+                exited = machine is not None and machine.exited()
+                self._drain()
                 if isinstance(pattern, bytes):
                     idx = self.data.find(pattern, start)
                     if idx >= 0:
@@ -76,11 +101,7 @@ class Stream:
                         return m
                 if self.eof:
                     raise CheckTimeout(f'{self.name}: stream closed while waiting for {pattern!r}')
-                if machine is not None and machine.exited():
-                    # Let a final burst of output arrive before giving up.
-                    self.cond.wait(0.2)
-                    if isinstance(pattern, bytes) and self.data.find(pattern, start) >= 0:
-                        continue
+                if exited:
                     raise CheckTimeout(f'{self.name}: QEMU exited while waiting for {pattern!r}')
                 left = deadline - time.monotonic()
                 if left <= 0:
@@ -88,13 +109,15 @@ class Stream:
                 self.cond.wait(min(left, 0.5))
 
     def close(self):
-        try:
-            self.sock.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
-        self.sock.close()
+        if self.closing.is_set():
+            return
+        self.closing.set()
         self.thread.join(timeout=5)
-        self.log.close()
+        with self.cond:
+            self._drain()
+            os.close(self.fd)
+            self.fd = None
+        os.close(self.fifo)
 
 
 class Qmp:
@@ -191,24 +214,28 @@ class Machine:
         with open(os.path.join(self.workdir, 'qemu-cmdline.txt'), 'w') as f:
             f.write(' '.join(shlex_quote(a) for a in self.argv) + '\n')
         self.stderr = open(os.path.join(self.workdir, 'qemu-stderr.log'), 'wb')
+        for name in self.chardev_names:
+            fifo = self._addr(name + '.in')
+            os.mkfifo(fifo)
+            # QEMU opening its input to read waits for a writer, as opening it
+            # to write would wait for a reader: this end, opened for both first.
+            fd = os.open(fifo, os.O_RDWR)
+            log = os.path.join(self.workdir, f'{name}.log')
+            open(log, 'wb').close()
+            self.streams[name] = Stream(name, log, fd, self.exited)
         self.proc = subprocess.Popen(self.argv, stdin=subprocess.DEVNULL, stdout=self.stderr,
                                      stderr=subprocess.STDOUT, cwd=self.workdir,
                                      start_new_session=True)
         deadline = time.monotonic() + 30
         while True:
             try:
-                for name in self.chardev_names:
-                    if name not in self.streams:
-                        s = socket.socket(socket.AF_UNIX)
-                        s.connect(self._addr(name))
-                        self.streams[name] = Stream(name, s, os.path.join(self.workdir, f'{name}.log'))
                 self.qmp = Qmp(self._addr('qmp'))
                 break
             except (FileNotFoundError, ConnectionRefusedError):
                 if self.proc.poll() is not None:
                     raise RuntimeError(f'QEMU failed to start:\n{self._stderr_text()}')
                 if time.monotonic() > deadline:
-                    raise RuntimeError('QEMU sockets did not appear')
+                    raise RuntimeError('the QMP socket did not appear')
                 time.sleep(0.02)
         self.qmp.cmd('cont')
         if self.nudge:
@@ -332,6 +359,8 @@ class Machine:
     def stop(self):
         if self.proc is not None:
             self._stop_qemu()
+        for s in self.streams.values():
+            s.close()
         shutil.rmtree(self.sockdir, ignore_errors=True)
 
     def _stop_qemu(self):
@@ -350,8 +379,6 @@ class Machine:
                 self.proc.wait()
         if self.qmp is not None:
             self.qmp.close()
-        for s in self.streams.values():
-            s.close()
         self.stderr.close()
 
     def __enter__(self):
