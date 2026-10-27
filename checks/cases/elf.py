@@ -1,4 +1,4 @@
-from harness.api import payload_arch, test
+from harness.api import payload_arch, check
 from harness import elf
 from harness.elf import (DT_JMPREL, DT_NEEDED, DT_PLTREL, DT_PLTRELSZ, DT_REL, DT_RELA, DT_RELAENT, DT_RELASZ,
                          DT_RELR, DT_RELRENT, DT_RELRSZ, DT_STRTAB, DT_SYMENT, DT_SYMTAB, ET_DYN, HIGHER_HALF,
@@ -129,7 +129,7 @@ def hostile_images(arch, bits32):
     return cases
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'elf', 'hostile'], timeout=1200)
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'elf', 'hostile'], timeout=1200)
 def elf_hostile(t):
     """Spoilt executables end in the panic for what is wrong with them, never
     a crash, and the menu comes back."""

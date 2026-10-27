@@ -1,6 +1,6 @@
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Iso, Tree
 from harness.ports import ALL_PORTS, Drive
 from harness.report import fnv1a
@@ -57,7 +57,7 @@ def split_into_extents(image, name, order):
     return b''.join(data[s * SECTOR:(s + 1) * SECTOR] for s in order)
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'iso9660'])
+@check(ports=ALL_PORTS, tags=['fs', 'iso9660'])
 def iso9660_extents_and_long_directories(t):
     """A file in three extents, out of the order of its sectors on the disc,
     reads as its records give them; a file whose record lies in a

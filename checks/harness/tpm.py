@@ -1,4 +1,4 @@
-"""A TPM 2.0 for test machines, emulated by swtpm."""
+"""A TPM 2.0 for the checks' machines, emulated by swtpm."""
 
 import os
 import subprocess
@@ -23,7 +23,7 @@ def firmware_supports_tpm(code):
 
 
 class SoftwareTpm:
-    """swtpm serving the machines of one test, one at a time; each power on
+    """swtpm serving the machines of one check, one at a time; each power on
     resets its PCRs. Its socket is named relative to the directories swtpm
     and the machines run in, as a full path can outgrow a socket address."""
 

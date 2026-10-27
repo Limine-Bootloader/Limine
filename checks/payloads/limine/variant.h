@@ -1,7 +1,7 @@
 #ifndef VARIANT_H
 #define VARIANT_H
 
-// Build time knobs, each variant of the test executable setting some of these
+// Build time knobs, each variant of the check executable setting some of these
 // on the command line. The defaults request everything at the latest revision.
 
 #ifndef TEST_VARIANT

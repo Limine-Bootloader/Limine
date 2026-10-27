@@ -1,7 +1,7 @@
 import re
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile
 from cases._common import boot_entry, check_report_clean, entry, kernel_file
 
@@ -25,7 +25,7 @@ def boot_high_ids(t, variant):
     return r
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'smp'])
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'smp'])
 def x2apic_high_apic_ids(t):
     """With the MP request's x2APIC flag the AP at APIC ID 256 is started,
     in x2APIC mode [spec]; without it, an AP xAPIC cannot address is left
@@ -52,7 +52,7 @@ def boot_through_probe(t, config, files, **machine):
     return probe_then_limine(t, 'name:x2apic msr:1b', config, files, **machine)
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['smp', 'multiboot1', 'multiboot2', 'linux'])
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['smp', 'multiboot1', 'multiboot2', 'linux'])
 def x2apic_reverted_without_mp_request(t):
     """Firmware that enabled x2APIC, for the AP at APIC ID 256, has it
     turned back off for kernels that cannot ask for it: a Limine protocol
@@ -91,7 +91,7 @@ def dmar(flags):
     return bytes(table)
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'smp'])
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'smp'])
 def x2apic_opt_out(t):
     """A DMAR table with its x2APIC opt-out flag set beside interrupt
     remapping asks software not to enable x2APIC (Intel VT-d 5.20 section

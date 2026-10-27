@@ -16,7 +16,7 @@ def socket_dir():
     base = tempfile.gettempdir()
     if len(base) > 64:
         base = '/tmp'
-    return tempfile.mkdtemp(prefix='limine-test-', dir=base)
+    return tempfile.mkdtemp(prefix='limine-check-', dir=base)
 
 
 def qemu_version(qemu):
@@ -43,12 +43,12 @@ class Port:
         self.memory = memory
         self.machine = machine
         self.cpu = cpu
-        # Where the test payloads write: 'debugcon' (x86 port 0xe9) or 'serial'.
+        # Where the payloads write: 'debugcon' (x86 port 0xe9) or 'serial'.
         self.kernel_out = kernel_out
         self.limine_arch = limine_arch or arch
-        # LIMINE_TEST_SLOWDOWN stretches every timeout, for slow hosts and
+        # LIMINE_CHECK_SLOWDOWN stretches every timeout, for slow hosts and
         # instrumented runs.
-        self.timeout_scale = timeout_scale * float(os.environ.get('LIMINE_TEST_SLOWDOWN', '1'))
+        self.timeout_scale = timeout_scale * float(os.environ.get('LIMINE_CHECK_SLOWDOWN', '1'))
 
     @property
     def is_uefi(self):
@@ -108,7 +108,7 @@ class Drive:
 
 
 class MachineSpec:
-    """Everything a test may vary about the virtual machine."""
+    """Everything a check may vary about the virtual machine."""
 
     def __init__(self, port, drives=None, memory=None, smp=1, cpu=None, machine=None,
                  machine_opts=None, display=True, display_dev=None, keyboard=True,

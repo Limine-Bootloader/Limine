@@ -1,4 +1,4 @@
-"""Small images in the formats Limine reads wallpapers from, for tests that
+"""Small images in the formats Limine reads wallpapers from, for checks that
 know exactly which colour should land on which pixel. pixels is row-major,
 top row first, each 0xRRGGBB."""
 

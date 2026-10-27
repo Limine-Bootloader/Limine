@@ -1,6 +1,6 @@
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import X86_PORTS, Drive
 from harness.report import Report, fnv1a, unescape
@@ -170,7 +170,7 @@ def check_mbi(t, r, cmdline, modules, kernel_range, elf=None, page_aligned_spec=
 
 
 def kernel_range(path):
-    """Where the test kernel is linked: 3MiB up to the end of its bss."""
+    """Where the check kernel is linked: 3MiB up to the end of its bss."""
     data = open(path, 'rb').read()
     info = elf_sections(data)
     end = max(addr + size for typ, flags, addr, offset, size in info['sections'] if flags & 2)
@@ -181,7 +181,7 @@ MODULES = [('/boot/mod1.bin', b'first multiboot module\n' * 50, 'first module st
            ('/boot/mod2.bin', bytes(range(256)) * 9 + b'tail', None)]
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_elf(t):
     """An ELF kernel with modules: machine state and every information
     structure field Multiboot 0.6.96 defines."""
@@ -194,7 +194,7 @@ def mb1_elf(t):
     t.expect_eq(h(r, 'bss.zero'), 1, '[spec] bss zeroed (ELF: memory past the file image)')
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_elf64_container(t):
     """[intent] The same 32-bit kernel in an ELF64 file loads too; its
     section headers are passed in their 64-bit form."""
@@ -207,7 +207,7 @@ def mb1_elf64_container(t):
     t.expect_eq(h(r, 'elf.size'), 64, 'ELF64 section headers')
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_page_aligned_modules(t):
     """Header flags bit 0: modules page aligned."""
     path = mb1_kernel(t, 'align')
@@ -217,7 +217,7 @@ def mb1_page_aligned_modules(t):
               page_aligned_spec=True)
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_aout_kludge(t):
     """Header flags bit 16: a flat image placed and entered by the address
     fields, its bss zeroed, with load_end_addr given or 0 (whole file)."""
@@ -231,7 +231,7 @@ def mb1_aout_kludge(t):
         m.stop()
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_framebuffer(t):
     """Header flags bit 2 with a preferred 800x600x32 linear mode."""
     m = boot_mb1(t, HostFile(mb1_kernel(t, 'video')))
@@ -252,7 +252,7 @@ def mb1_framebuffer(t):
         t.expect_eq(img.pixel(x, 32), rgb, f'[spec] the framebuffer described is the one shown: {name} square')
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_text_mode(t):
     """Header flags bit 2 asking for EGA text: given on BIOS; [intent] UEFI
     has no text mode and sets a graphics one."""
@@ -268,7 +268,7 @@ def mb1_text_mode(t):
     t.check(scr.row_text(0).startswith('MB1 TEXT OK'), f'[spec] text memory shown: {scr.row_text(0)!r}')
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_no_video_request(t):
     """[intent] Without header flags bit 2, as GRUB does: BIOS is left in VGA
     text mode, described as EGA text; UEFI sets no mode and describes none."""
@@ -284,7 +284,7 @@ def mb1_no_video_request(t):
     t.expect_eq((img.width, img.height), (720, 400), 'VGA 80x25 text mode')
 
 
-@test(ports=['bios'], tags=['multiboot1'])
+@check(ports=['bios'], tags=['multiboot1'])
 def mb1_pic(t):
     """[spec] The PICs are left as BIOS programs them: IRQ0 at vector 8,
     IRQ8 at vector 0x70."""
@@ -294,7 +294,7 @@ def mb1_pic(t):
     t.expect_eq(h(r, 'pic.irq8_vector'), 0x70, 'IRQ8 vector')
 
 
-@test(ports=['bios'], tags=['multiboot1', 'hostile'])
+@check(ports=['bios'], tags=['multiboot1', 'hostile'])
 def mb1_a20_turned_off(t):
     """[spec] A20 is enabled for the kernel even when Limine is started with
     the gate off, a boot record before it having turned it off: Limine turns
@@ -339,7 +339,7 @@ def elf_with_header_flags(t, flags):
     return with_flags(data, data.find(struct.pack('<I', 0x1badb002)), flags)
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_header_placement(t):
     """[spec] The header lies wholly within the first 8192 bytes."""
     m = boot_mb1(t, flat_image(t, 8160))
@@ -355,7 +355,7 @@ def mb1_header_placement(t):
         m.stop()
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_optional_flags_ignored(t):
     """[spec] Bits 16-31 a loader does not know it may ignore."""
     m = boot_mb1(t, elf_with_header_flags(t, 0x2 | (1 << 17)))
@@ -363,7 +363,7 @@ def mb1_optional_flags_ignored(t):
     t.expect_eq(h(r, 'eax'), MB1_MAGIC, 'booted')
 
 
-@test(ports=X86_PORTS, tags=['multiboot1'])
+@check(ports=X86_PORTS, tags=['multiboot1'])
 def mb1_errors(t):
     hdr = 8160
     base = flat_image(t, hdr)
@@ -579,7 +579,7 @@ MB2_MODULES = [('/boot/m1.bin', b'multiboot2 module one\n' * 70, 'module one'),
                ('/boot/m2.bin', bytes(range(255, -1, -1)) * 5, None)]
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_elf(t):
     """An ELF kernel asking for every information tag Limine supports."""
     path = mb2_kernel(t)
@@ -590,7 +590,7 @@ def mb2_elf(t):
     t.expect_eq(h(r, 'bss.zero'), 1, '[spec] bss zeroed')
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_module_alignment(t):
     """The module alignment tag: modules page aligned."""
     path = mb2_kernel(t, 'modalign')
@@ -600,7 +600,7 @@ def mb2_module_alignment(t):
                    page_aligned_spec=True)
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_address_tag(t):
     """The address and entry address tags place a flat image, its bss
     zeroed; a load_addr of -1 loads from the file's start."""
@@ -614,7 +614,7 @@ def mb2_address_tag(t):
         m.stop()
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_relocatable(t):
     """The relocatable header tag: placed between min_addr and max_addr,
     aligned, lowest or highest first, and reported by the load base tag."""
@@ -636,7 +636,7 @@ def mb2_relocatable(t):
         m.stop()
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_framebuffer(t):
     """The framebuffer tag asking for 800x600x32."""
     m = boot_mb2(t, HostFile(mb2_kernel(t, 'fb')))
@@ -656,7 +656,7 @@ def mb2_framebuffer(t):
         t.expect_eq(img.pixel(x, 32), rgb, f'[spec] the framebuffer described is the one shown: {name} square')
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_console(t):
     """Console flags 3 (a console is required, EGA text supported) and no
     framebuffer support declared, by tag or by requesting framebuffer
@@ -673,7 +673,7 @@ def mb2_console(t):
     t.check(scr.row_text(0).startswith('MB2 TEXT OK'), f'[spec] text memory shown: {scr.row_text(0)!r}')
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_no_video_request(t):
     """[intent] With no framebuffer tag, as GRUB does: BIOS gets EGA text;
     UEFI, having no text mode, no mode set and no framebuffer tag."""
@@ -686,7 +686,7 @@ def mb2_no_video_request(t):
         t.expect_eq(h(r, 'fb.type'), 2, 'EGA text framebuffer tag')
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_efi_boot_services(t):
     """[intent] Limine always terminates boot services: an optional EFI boot
     services tag is passed over, a required one refused."""
@@ -729,7 +729,7 @@ def mb2_info_request_patched(t, variant, first_type):
     return bytes(data)
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_information_request(t):
     """[spec] A required request for a tag the loader does not support fails;
     an optional one is passed over."""
@@ -746,7 +746,7 @@ def mb2_flat(t, offset):
     return open(t.env.payload('multiboot', 'mb2', f'hdr{offset}.bin'), 'rb').read()
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_header_placement(t):
     """[spec] The header lies wholly within the first 32768 bytes."""
     m = boot_mb2(t, mb2_flat(t, 32704))
@@ -762,7 +762,7 @@ def mb2_header_placement(t):
         m.stop()
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_errors(t):
     hdr = 32704
     base = mb2_flat(t, hdr)

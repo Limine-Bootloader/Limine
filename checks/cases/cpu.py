@@ -1,11 +1,11 @@
-from harness.api import test
+from harness.api import check
 from harness.ports import X86_PORTS
 from cases._common import boot_entry, boot_kernel, check_report_clean, entry, screen_text, wait_panic
 
 # What Limine makes of the x86 CPU features it looks for.
 
 
-@test(ports=['bios', 'uefi-ia32'], tags=['limine-protocol', 'cpu'])
+@check(ports=['bios', 'uefi-ia32'], tags=['limine-protocol', 'cpu'])
 def cpu_without_long_mode(t):
     """On a CPU without long mode the menu's branding names IA-32, and a
     Limine protocol entry is refused [intent]."""
@@ -18,7 +18,7 @@ def cpu_without_long_mode(t):
     t.expect_eq(msg, 'limine: This CPU does not support 64-bit mode.', 'Limine protocol refused')
 
 
-@test(ports=X86_PORTS, tags=['limine-protocol', 'cpu'])
+@check(ports=X86_PORTS, tags=['limine-protocol', 'cpu'])
 def cpu_without_nx(t):
     """Without NX the executable is entered with EFER.NXE clear, and no page
     marked no-execute (PROTOCOL.md's x86-64 machine state asks for NXE only

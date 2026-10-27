@@ -1,7 +1,7 @@
 import calendar
 import re
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile
 from harness.ports import ALL_PORTS
 from harness.report import fnv1a, unescape
@@ -13,7 +13,7 @@ DEFAULT_ANSI = '000000 aa0000 00aa00 aa5500 0000aa aa00aa 00aaaa aaaaaa'
 DEFAULT_ANSI_BRIGHT = '555555 ff5555 55ff55 ffff55 5555ff ff55ff 55ffff ffffff'
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def full_conformance(t):
     """Every feature requested at base revision 6, checked against the
     specification by the executable and against the boot media here."""
@@ -49,7 +49,7 @@ def full_conformance(t):
     if t.port.arch == 'riscv64':
         t.expect_eq(report.flag('riscv_bsp_hartid.response'), True, 'RISC-V BSP hart ID response')
         t.expect_eq(report.int('riscv_bsp_hartid'), report.int('mp.bsp_id', 16), 'BSP hart ID agrees with MP')
-    # Firmware publishes a device tree on some platforms only (dtb_path tests
+    # Firmware publishes a device tree on some platforms only (dtb_path checks
     # cover the response); none exists on x86.
     if t.port.is_x86:
         t.expect_eq(report.flag('dtb.response'), False, 'no device tree response on x86')
@@ -78,7 +78,7 @@ def full_conformance(t):
 
 # QEMU's RISC-V virt firmware keeps time with a virtual clock that ignores the
 # RTC, so the firmware's GetTime is what Limine must agree with there.
-@test(ports=[p for p in ALL_PORTS if p != 'uefi-riscv64'], tags=['limine-protocol'])
+@check(ports=[p for p in ALL_PORTS if p != 'uefi-riscv64'], tags=['limine-protocol'])
 def date_at_boot(t):
     """The Date at Boot feature reports the RTC as a UNIX timestamp."""
     base = calendar.timegm((2001, 2, 3, 4, 5, 6))
@@ -88,7 +88,7 @@ def date_at_boot(t):
     t.check(base <= date <= base + 60, f'date at boot {date}, RTC started at {base}')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def base_revisions(t):
     """Each base revision is honoured, the tag answered, and what the revision
     governs (HHDM extent, identity map, table addresses, memory map types)
@@ -111,7 +111,7 @@ def base_revisions(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def base_revision_unsupported(t):
     """A revision newer than the bootloader's: loaded with the newest it has,
     the third tag word left untouched, the second set to that revision."""
@@ -123,7 +123,7 @@ def base_revision_unsupported(t):
     t.expect_eq(report.flag('identity_map'), False, 'no identity map (revision 6 semantics)')
 
 
-@test(ports=[p for p in ALL_PORTS if p != 'uefi-aarch64'], tags=['limine-protocol'])
+@check(ports=[p for p in ALL_PORTS if p != 'uefi-aarch64'], tags=['limine-protocol'])
 def base_revision_absent(t):
     """No base revision tag means base revision 0."""
     report, m, _ = boot_kernel(t, 'norev')
@@ -132,7 +132,7 @@ def base_revision_absent(t):
     t.expect_eq(report.flag('identity_map'), True, 'identity map present')
 
 
-@test(ports=['uefi-aarch64'], tags=['limine-protocol'])
+@check(ports=['uefi-aarch64'], tags=['limine-protocol'])
 def base_revision_absent_aarch64(t):
     """Without a tag the executable asks for revision 0, refused on aarch64."""
     m, _ = boot_entry(t, 'timeout: 0\n' + entry('Test', path='boot():/boot/kernel.elf'),
@@ -144,7 +144,7 @@ def base_revision_absent_aarch64(t):
 
 def boot_variant(t, variant, extra_entry='', cmdline='x', modules=(), smp=1, cpu=None, machine=None,
                  extra=None, globals_='timeout: 0\n', files=None):
-    """Boot a test executable variant with extra entry options; returns the
+    """Boot a check executable variant with extra entry options; returns the
     machine."""
     mod_entries = []
     tree_files = dict(files or {})
@@ -176,7 +176,7 @@ def expect_panic(t, m, message, what):
     t.expect_eq(msg, message, what)
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def minimal_executable(t):
     """An executable with only a base revision tag boots, with no responses."""
     m, _ = boot_variant(t, 'minimal')
@@ -185,7 +185,7 @@ def minimal_executable(t):
     t.expect_eq(report['entry'], 'elf', 'entered at the ELF entry point')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def elf_entry_point(t):
     """Without an entry point request, execution starts at the ELF entry."""
     m, _ = boot_variant(t, 'noentry')
@@ -193,7 +193,7 @@ def elf_entry_point(t):
     t.expect_eq(report['entry'], 'elf', 'entry')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def no_mp_request(t):
     """Without an MP request there is no MP response."""
     m, _ = boot_variant(t, 'nomp', smp=2)
@@ -201,7 +201,7 @@ def no_mp_request(t):
     t.expect_eq('mp.response' in report, False, 'no MP facts')
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol'])
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol'])
 def x2apic(t):
     """The MP request's x2APIC flag: honoured where the CPU has x2APIC."""
     m, _ = boot_variant(t, 'x2apic', smp=2, cpu='qemu64,+x2apic')
@@ -235,7 +235,7 @@ def paging_cpu(t, top):
     return full if top else limited
 
 
-@test(ports=[p for p in ALL_PORTS if p != 'uefi-loongarch64'], tags=['limine-protocol', 'paging'])
+@check(ports=[p for p in ALL_PORTS if p != 'uefi-loongarch64'], tags=['limine-protocol', 'paging'])
 def paging_mode_requests(t):
     """The paging mode request picks the mode within what the executable and
     the CPU allow, and refuses to boot when the two do not meet."""
@@ -298,7 +298,7 @@ def paging_mode_requests(t):
         m.stop()
 
 
-@test(ports=[p for p in ALL_PORTS if p != 'uefi-loongarch64'], tags=['limine-protocol', 'paging'])
+@check(ports=[p for p in ALL_PORTS if p != 'uefi-loongarch64'], tags=['limine-protocol', 'paging'])
 def paging_mode_config(t):
     """paging_mode, max_paging_mode and min_paging_mode bound the choice."""
     full, limited, top, top_name, below_name = PAGING[t.port.arch]
@@ -344,7 +344,7 @@ def paging_mode_config(t):
     m.stop()
 
 
-@test(ports=['uefi-loongarch64'], tags=['limine-protocol', 'paging'])
+@check(ports=['uefi-loongarch64'], tags=['limine-protocol', 'paging'])
 def paging_mode_loongarch(t):
     """loongarch64 has 4-level paging alone; the option accepts only that."""
     m, _ = boot_variant(t, 'full', extra_entry='paging_mode: 4level')
@@ -355,7 +355,7 @@ def paging_mode_loongarch(t):
     expect_panic(t, m, 'limine: Invalid MAX_PAGING_MODE: `5level`', '5level refused')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def duplicate_request(t):
     """Two requests with one ID: the bootloader refuses the executable."""
     m, _ = boot_variant(t, 'dupreq')
@@ -363,13 +363,13 @@ def duplicate_request(t):
                  'conflicting requests')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def duplicate_base_revision(t):
     m, _ = boot_variant(t, 'duprev')
     expect_panic(t, m, 'limine: Duplicated base revision tag', 'two base revision tags')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def request_outside_markers(t):
     """A request before the start marker is not honoured."""
     m, _ = boot_variant(t, 'outside')
@@ -377,7 +377,7 @@ def request_outside_markers(t):
     t.expect_eq(r.flag('outside_request.response'), False, 'request outside the markers ignored')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def no_markers(t):
     """Without delimiters the whole image is searched."""
     m, _ = boot_variant(t, 'nomarkers')
@@ -385,7 +385,7 @@ def no_markers(t):
     t.expect_eq(r.flag('firmware_type.response'), True, 'requests found')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def stack_sizes(t):
     """The Stack Size request grows the stack; below 64KiB it changes nothing.
     (The executable checks the size it is owed is mapped below its stack.)"""
@@ -397,7 +397,7 @@ def stack_sizes(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def entropy_counts(t):
     """Entropy: zero values gives a NULL array; past the limit, the limit."""
     m, _ = boot_variant(t, 'entropy0')
@@ -415,7 +415,7 @@ AMDVI_RUNNING = (1 << 3) | (1 << 4) | (1 << 7) | (1 << 8)
 VTD_ON = (1 << 31) | (1 << 26)
 
 
-@test(ports=['uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'iommu'])
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'iommu'])
 def iommu_off_at_entry(t):
     """An IOMMU the firmware left on, here the EFI probe that starts Limine,
     is off at entry from base revision 5, unless the executable asks for the
@@ -447,7 +447,7 @@ def iommu_off_at_entry(t):
             m.stop()
 
 
-@test(ports=['bios'], tags=['limine-protocol', 'vbe'])
+@check(ports=['bios'], tags=['limine-protocol', 'vbe'])
 def vbe_fallback_resolutions(t):
     """Without a resolution asked for and no EDID, or with one no mode has,
     VBE goes down its list, 1024x768, 800x600 and 640x480 at 32 bits per
@@ -464,7 +464,7 @@ def vbe_fallback_resolutions(t):
         m.stop()
 
 
-@test(ports=['bios'], tags=['limine-protocol'])
+@check(ports=['bios'], tags=['limine-protocol'])
 def tsc_frequency_from_pit(t):
     """With no ACPI, and so no PM timer, the TSC is timed against the PIT
     [intent]: the frequency given is the one the PM timer gives, to 10%."""
@@ -479,7 +479,7 @@ def tsc_frequency_from_pit(t):
     t.check(abs(pit - pm) <= pm // 10, f'PIT {pit} against PM timer {pm}')
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol'])
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol'])
 def entropy_cpu_instructions(t):
     """Entropy from the CPU's RDSEED, and from its RDRAND where it has no
     RDSEED, the strongest sources the protocol names [spec]: the values
@@ -508,7 +508,7 @@ def internal_module_files():
     }
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def internal_modules(t):
     """Internal modules resolve against the executable's directory, missing
     optional ones are skipped, compressed ones are inflated, and all of them
@@ -529,7 +529,7 @@ def internal_modules(t):
         check_file(t, report, f'module.{i:02}', path=path, data=data, string=string, disk=disk)
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def internal_module_required_missing(t):
     m, _ = boot_entry(t, 'timeout: 0\n' + entry('Test', path='boot():/boot/kernel.elf'), kernel_variant='im2')
     msg, _ = wait_panic(t, m)
@@ -537,7 +537,7 @@ def internal_module_required_missing(t):
                 'a required internal module that is missing')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def internal_module_optional_missing(t):
     """With no module found, there is no module response (PROTOCOL.md)."""
     report, _, _ = boot_kernel(t, 'im3', modules=[])
@@ -545,7 +545,7 @@ def internal_module_optional_missing(t):
     t.expect_eq(report.int('module.response'), 0, 'no module response')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def internal_modules_need_rev1(t):
     """A revision 0 module request has no internal modules (PROTOCOL.md)."""
     report, _, disk = boot_kernel(t, 'im1rev0', files=internal_module_files(),
@@ -555,7 +555,7 @@ def internal_modules_need_rev1(t):
     check_file(t, report, 'module.00', path='/boot/conf.bin', data=CONFIG_MODULE, string='config module', disk=disk)
 
 
-@test(ports=['uefi-aarch64'], tags=['limine-protocol'])
+@check(ports=['uefi-aarch64'], tags=['limine-protocol'])
 def aarch64_entry_el(t):
     """With the firmware, and so Limine, at EL2, the executable is entered at
     EL2 with VHE where the CPU has it, and at EL1 otherwise, never at EL2
@@ -573,7 +573,7 @@ def aarch64_entry_el(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol'])
+@check(ports=ALL_PORTS, tags=['limine-protocol'])
 def randomise_memory(t):
     """randomise_memory: yes, or its alias randomize_memory, fills RAM with
     random data at boot (CONFIG.md): most usable memory reaches the executable
@@ -598,7 +598,7 @@ def randomise_memory(t):
         m.stop()
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'paging'])
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'paging'])
 def x86_1gib_pages(t):
     """On a CPU with 1GiB pages the direct map may use them; every mapping the
     executable checks holds the same [intent]."""
@@ -606,7 +606,7 @@ def x86_1gib_pages(t):
     expect_report(t, m, '1GiB pages')
 
 
-@test(ports=['uefi-riscv64'], tags=['limine-protocol', 'paging'])
+@check(ports=['uefi-riscv64'], tags=['limine-protocol', 'paging'])
 def riscv_svpbmt(t):
     """[spec] With Svpbmt, mappings take the page-based memory types the
     protocol asks of them, framebuffers NC (PROTOCOL.md), which the

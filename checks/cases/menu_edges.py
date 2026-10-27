@@ -1,6 +1,6 @@
 import time
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile
 from harness.ports import ALL_PORTS, UEFI_PORTS
 from harness.screen import Font
@@ -21,7 +21,7 @@ def selected(scr, name):
     return cells is not None and cells[1].bg != scr.cell(0, scr.find(f' {name} ')[0][1]).bg
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_number_keys(t):
     """A digit boots the entry of that number, counting what is shown, and
     one past the last does nothing [intent]."""
@@ -33,7 +33,7 @@ def menu_number_keys(t):
     t.expect_eq(booted_cmdline(t, m), 'last', 'the sixth entry shown (Last) booted')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_home_end_wrap(t):
     """End selects the last entry, Home the first, Up from the first wraps to
     the last and Down from the last back to the first [intent]."""
@@ -49,7 +49,7 @@ def menu_home_end_wrap(t):
     t.wait_screen(m, lambda s: selected(s, 'First'), desc='Down from Last: First selected')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_overflow(t):
     """More entries than rows: arrows above and below the list show there is
     more [intent]; a name, a comment, or a branding too long for the screen
@@ -72,7 +72,7 @@ def menu_overflow(t):
     t.expect_eq(booted_cmdline(t, m), 'entry 59', 'the last entry booted')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_blank_entry(t):
     """B opens the editor on a blank entry, which F10 boots [intent]; with no
     entries configured the menu still offers it."""
@@ -88,7 +88,7 @@ def menu_blank_entry(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['menu', 'hostile'])
+@check(ports=ALL_PORTS, tags=['menu', 'hostile'])
 def menu_protocol_errors(t):
     """An entry without a protocol, or with one Limine does not know or this
     port does not boot, is refused, and the menu comes back; one for the
@@ -117,7 +117,7 @@ def editor_entry(cmdline, extra=''):
     return f'/Only\n    protocol: limine\n    path: {KERNEL}\n    cmdline: {cmdline}\n{extra}'
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_long_lines(t):
     """A line wider than the editor wraps, an arrow at the end of each row
     and at the start of the next [intent]; it edits as one line."""
@@ -135,7 +135,7 @@ def menu_editor_long_lines(t):
     t.expect_eq(booted_cmdline(t, m), cmdline + 'X', 'the whole line booted, edited at its end')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_tabs(t):
     """A tab shows as spaces to the next multiple of 8 columns [intent]."""
     m = boot_menu(t, 'timeout: no\n/Only\n\tprotocol: limine\n\tpath: ' + KERNEL + '\n\tcmdline: x\ty\n')
@@ -148,7 +148,7 @@ def menu_editor_tabs(t):
     t.expect_eq(booted_cmdline(t, m), 'x\ty', 'the tab kept')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_scrolling(t):
     """An entry longer than the editor window scrolls with the cursor, arrows
     in the frame showing what is out of view [intent]."""
@@ -170,7 +170,7 @@ def menu_editor_scrolling(t):
     t.expect_eq(booted_cmdline(t, m), 'scrolled', 'booted unchanged')
 
 
-@test(ports=ALL_PORTS, tags=['menu', 'hostile'])
+@check(ports=ALL_PORTS, tags=['menu', 'hostile'])
 def menu_editor_limits(t):
     """The editor holds 4095 characters: a larger entry is refused [intent],
     and typing into a full buffer says so instead of growing it."""
@@ -191,7 +191,7 @@ def menu_editor_limits(t):
     t.check('Buffer full' in screen_text(scr), 'the frame says the buffer is full')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_highlighting(t):
     """The editor colours a known key cyan, its colon green, a value in the
     default colour, a key Limine does not know red, and a comment brown
@@ -218,7 +218,7 @@ def menu_editor_highlighting(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_tall_line(t):
     """A line taller than the editor window: with the cursor at its end the
     window begins partway through it, its first row marked as continuing
@@ -238,7 +238,7 @@ def menu_editor_tall_line(t):
     t.expect_eq(booted_cmdline(t, m), cmdline + 'X', 'the whole line booted, edited at its end')
 
 
-@test(ports=ALL_PORTS, tags=['menu', 'hostile'])
+@check(ports=ALL_PORTS, tags=['menu', 'hostile'])
 def menu_branding_measure(t):
     """[user] The branding is measured by what it shows, in the menu as in
     the editor: an escape sequence takes no room, and a character one cell
@@ -269,7 +269,7 @@ def menu_branding_measure(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['menu', 'hostile'])
+@check(ports=ALL_PORTS, tags=['menu', 'hostile'])
 def menu_comment_measure(t):
     """[user] An entry's comment is measured by what it shows, as the
     branding is: an escape sequence takes no room, and a character one cell
@@ -296,7 +296,7 @@ def menu_comment_measure(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['menu', 'hostile'])
+@check(ports=ALL_PORTS, tags=['menu', 'hostile'])
 def menu_long_names(t):
     """Names wider than the screen are cut short with "...": the branding, an
     entry's title in the editor's frame, and the title the editor keeps for
@@ -324,7 +324,7 @@ def menu_long_names(t):
         wait_menu(t, m)
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_deep_tree(t):
     """Directories three deep draw their branches: a line down past an
     ancestor with entries after it, a gap past one without [intent]."""
@@ -339,7 +339,7 @@ def menu_deep_tree(t):
     t.expect_eq(booted_cmdline(t, m), 'deep', 'the deepest entry boots')
 
 
-@test(ports=UEFI_PORTS, tags=['menu'])
+@check(ports=UEFI_PORTS, tags=['menu'])
 def menu_narrow_help(t):
     """[intent] Where the actions after the entries do not fit the width,
     their labels shorten: Setup, Shell, Blank. In full, with a shell to

@@ -1,6 +1,6 @@
-"""UEFI Secure Boot for the tests: one set of test keys (PK, KEK, db), Limine
-and payloads signed with the db key, and variable stores with the keys
-enrolled and Secure Boot on, from the test firmware's -secboot images."""
+"""UEFI Secure Boot for the checks: one set of keys (PK, KEK, db), Limine and
+payloads signed with the db key, and variable stores with the keys enrolled
+and Secure Boot on, from the firmware's -secboot images."""
 
 import fcntl
 import os
@@ -19,11 +19,11 @@ def _run(argv):
 
 
 def keys(env):
-    """The test keys, made once per build directory: {name: (key, cert)}."""
+    """The checks' keys, made once per build directory: {name: (key, cert)}."""
     d = os.path.join(env.payloaddir, 'secureboot')
     out = {n: (os.path.join(d, f'{n}.key'), os.path.join(d, f'{n}.pem')) for n in ('PK', 'KEK', 'db')}
     os.makedirs(d, exist_ok=True)
-    # Tests run in processes of their own, and must all sign with one key.
+    # Checks run in processes of their own, and must all sign with one key.
     with open(os.path.join(d, '.lock'), 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         for name, (key, cert) in out.items():
@@ -52,7 +52,7 @@ def machine_options(port):
 
 
 def enrolled_vars(env, port, path):
-    """A variable store with the test keys enrolled and Secure Boot enabled."""
+    """A variable store with the keys enrolled and Secure Boot enabled."""
     _, template = firmware(env, port)
     k = keys(env)
     _run([which('virt-fw-vars'), '-i', template, '-o', path,

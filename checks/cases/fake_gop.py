@@ -1,4 +1,4 @@
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile
 from harness.ports import UEFI_PORTS
 from harness.report import fnv1a
@@ -43,7 +43,7 @@ def fake_framebuffer(t, r):
     return r['framebuffer.1']
 
 
-@test(ports=UEFI_PORTS, tags=['limine-protocol', 'gop'])
+@check(ports=UEFI_PORTS, tags=['limine-protocol', 'gop'])
 def gop_pixel_formats(t):
     """Without a resolution asked for, the EDID's preferred one is taken; a
     resolution names the mode, its pixel format becoming the framebuffer's
@@ -69,7 +69,7 @@ def boot_fake_gop_only(t, flags):
     return r
 
 
-@test(ports=UEFI_PORTS, tags=['limine-protocol', 'gop', 'hostile'])
+@check(ports=UEFI_PORTS, tags=['limine-protocol', 'gop', 'hostile'])
 def gop_not_started_or_refusing(t):
     """[intent] A GOP whose QueryMode() says EFI_NOT_STARTED, as some
     firmware's did until SetMode() was called, is started in its first mode
@@ -84,7 +84,7 @@ def gop_not_started_or_refusing(t):
             f'the EDID mode refused, another taken: {fb}')
 
 
-@test(ports=UEFI_PORTS, tags=['limine-protocol', 'gop', 'hostile'])
+@check(ports=UEFI_PORTS, tags=['limine-protocol', 'gop', 'hostile'])
 def gop_framebuffer_in_boot_services_data(t):
     """[user] A framebuffer in boot services data, here half a page into its
     pages, which the memory map hands the OS once boot services exit, is

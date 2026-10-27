@@ -1,4 +1,4 @@
-from harness.api import test
+from harness.api import check
 from harness.media import Disk, Fat, HostFile, Part, Tree, ESP_TYPE, BASIC_DATA_TYPE
 from harness.ports import ALL_PORTS, UEFI_PORTS
 from harness import media
@@ -43,7 +43,7 @@ def candidates(t):
     return (['/EFI/BOOT/limine.conf'] if t.port.is_uefi else []) + names
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_search_order(t):
     """Each candidate location is used when it is the first one present."""
     names = candidates(t)
@@ -56,7 +56,7 @@ def config_search_order(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['config'])
+@check(ports=UEFI_PORTS, tags=['config'])
 def config_efi_app_directory(t):
     """On EFI, <EFI app path>/limine.conf comes first, and /EFI/BOOT/limine.conf
     is only tried in its stead where that path cannot be determined."""
@@ -98,7 +98,7 @@ def two_partition_disk(t, first, second):
     return disk
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_partition_order(t):
     """On EFI the volume holding Limine is searched first; then, and on BIOS,
     the partitions in order."""
@@ -118,7 +118,7 @@ def config_partition_order(t):
         t.expect_eq(booted_cmdline(t, m), 'partition 1', 'without one in its own volume, the first partition\'s')
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_from_smbios(t):
     """An SMBIOS type 11 string starting limine:config: is the config, ahead
     of any file. Its boot() is undefined on BIOS, so the kernel is named by
@@ -133,7 +133,7 @@ def config_from_smbios(t):
     t.expect_eq(booted_cmdline(t, m), 'from SMBIOS', 'config taken from SMBIOS')
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_syntax(t):
     """Option names are case insensitive; comments are lines of their own; a
     value runs to the end of its line, with no quoting, spaces and all."""
@@ -148,7 +148,7 @@ def config_syntax(t):
     t.expect_eq(cmdline, '"quotes" stay, as does # this', 'command line')
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_aliases(t):
     """kernel_path and kernel_cmdline stand for path and cmdline."""
     config = 'timeout: 0\n/Test\n    protocol: limine\n    kernel_path: boot():/boot/kernel.elf\n' \
@@ -157,7 +157,7 @@ def config_aliases(t):
     t.expect_eq(cmdline, 'through the aliases', 'command line')
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_value_truncation(t):
     """An option's value is truncated at 4095 characters."""
     long = ''.join(chr(ord('a') + i % 26) for i in range(5000))
@@ -165,7 +165,7 @@ def config_value_truncation(t):
     t.expect_eq(cmdline, long[:4095], 'command line truncated to 4095 characters')
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_macros(t):
     """User macros, undefined ones expanding to nothing, and the built-in
     ARCH, FW_TYPE and LOADER_ARCH."""
@@ -176,7 +176,7 @@ def config_macros(t):
     t.expect_eq(cmdline, f'hello macro||{ARCH[t.port.name]}|{fw}|{LOADER_ARCH[t.port.name]}', 'expanded')
 
 
-@test(ports=ALL_PORTS, tags=['config', 'hostile'])
+@check(ports=ALL_PORTS, tags=['config', 'hostile'])
 def config_malformed(t):
     """[intent] Configs Limine refuses: an entry two levels below the one
     before it, or below none, directories more than 64 deep, a macro
@@ -230,7 +230,7 @@ def many_entries_config(snapshots, last, globals_='timeout: no\n'):
     return '\n'.join(lines) + '\n' + last
 
 
-@test(ports=ALL_PORTS, tags=['config', 'menu'])
+@check(ports=ALL_PORTS, tags=['config', 'menu'])
 def config_many_entries(t):
     """[intent] A config of thousands of entries, as snapshot tools write, is
     read without delay: the menu comes up at once, the last entry of a
@@ -255,7 +255,7 @@ def config_many_entries(t):
     t.expect_eq(booted_cmdline(t, m), 'last of many', 'the last entry booted')
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_line_ends(t):
     """[intent] Lines may end in CR LF, and blanks before a line's end are no
     part of its value, whichever way the line ends; a blank after an
@@ -276,7 +276,7 @@ def config_line_ends(t):
     t.expect_eq(len(set(columns.values())), 1, f'names in one column: {columns}')
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_entry_conditions(t):
     """if_fw_type, if_arch and if_loader_arch hide entries that do not match,
     and chainload entries for the other firmware are hidden; the first entry
@@ -320,7 +320,7 @@ def tree_config(default):
             + e(1, 'Back#slash\\', 'escapes'))
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_default_entry(t):
     """default_entry by index and by path, with \\/, \\\\ and \\# escapes and
     #N picking the Nth of same-named siblings."""
@@ -344,7 +344,7 @@ def wait_menu(t, m, timeout=30):
     return t.wait_text(m, 'ARROWS', timeout)
 
 
-@test(ports=ALL_PORTS, tags=['config'])
+@check(ports=ALL_PORTS, tags=['config'])
 def config_default_entry_unbootable(t):
     """A default_entry naming nothing bootable, an index or path matching
     nothing or a directory, disables autoboot even with timeout 0."""

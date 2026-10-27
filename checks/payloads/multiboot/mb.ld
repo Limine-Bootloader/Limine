@@ -1,4 +1,4 @@
-/* The Multiboot test kernels, at 3MiB: physical, with bit 20 set for the A20
+/* The Multiboot check kernels, at 3MiB: physical, with bit 20 set for the A20
    check, and clear of what firmware keeps low. */
 
 ENTRY(_start)

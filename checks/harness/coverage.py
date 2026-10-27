@@ -123,7 +123,7 @@ class Coverage:
         return ['-d', 'in_asm', '-D', os.path.join(workdir, TCG_LOG)]
 
     def collect(self, workdir):
-        """Turn the translation log of each machine of a test into its record
+        """Turn the translation log of each machine of a check into its record
         of the image offsets run, and drop the log."""
         port_name = os.path.basename(workdir)
         for root, _, files in os.walk(workdir):
@@ -258,7 +258,7 @@ class Coverage:
 
     @staticmethod
     def _records(workdirs):
-        """(port, record) for each machine run in the given test directories,
+        """(port, record) for each machine run in the given check directories,
         which are named after their port."""
         for workdir in workdirs:
             port_name = os.path.basename(workdir)
@@ -318,7 +318,7 @@ class Coverage:
         return path
 
     def report(self, outdir, workdirs):
-        """Report what the machines run in the test directories executed."""
+        """Report what the machines run in the check directories executed."""
         os.makedirs(outdir, exist_ok=True)
         records = {}
         for port_name, path in self._records(workdirs):

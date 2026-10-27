@@ -1,6 +1,6 @@
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile
 from harness.ports import X86_PORTS
 from cases._common import boot_entry, entry, panics_in_turn, read
@@ -33,7 +33,7 @@ def patched(data, at, fmt, *values):
     return bytes(data)
 
 
-@test(ports=X86_PORTS, tags=['multiboot2', 'hostile'], timeout=600)
+@check(ports=X86_PORTS, tags=['multiboot2', 'hostile'], timeout=600)
 def mb2_more_errors(t):
     """A missing kernel or module, an information request tag too short to
     be one, and an address tag whose image runs past 4GiB: each refused,
@@ -60,7 +60,7 @@ def mb2_more_errors(t):
         t.check(got == want, f'{text.split()[0]}: {got!r}, want {want!r}')
 
 
-@test(ports=X86_PORTS, tags=['multiboot2', 'elf'])
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf'])
 def mb2_elf64_container(t):
     """[intent] The same kernels in ELF64 files: loaded alike, their section
     headers passed in the 64-bit form, and a relocated one's allocated
@@ -79,7 +79,7 @@ def mb2_elf64_container(t):
     check_mb2_info(t, r, 'mb2 command line', [], (base, base + hi - lo), elf=read(path), load_base=base)
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_relocation_search(t):
     """The relocatable tag's search moves on from places that are not free
     RAM: up from the legacy video memory at 640KiB when the lowest is
@@ -102,7 +102,7 @@ def mb2_relocation_search(t):
         m.stop()
 
 
-@test(ports=X86_PORTS, tags=['multiboot2', 'hostile'])
+@check(ports=X86_PORTS, tags=['multiboot2', 'hostile'])
 def mb2_relocation_from_zero(t):
     """A relocatable tag whose min_addr is 0, with the lowest place or none
     preferred, does not have the image put over physical page 0, where GRUB
@@ -120,7 +120,7 @@ def mb2_relocation_from_zero(t):
         m.stop()
 
 
-@test(ports=X86_PORTS, tags=['multiboot2'])
+@check(ports=X86_PORTS, tags=['multiboot2'])
 def mb2_smbios3_and_resolution(t):
     """With only a 64-bit SMBIOS entry point the SMBIOS tag carries version
     3 and its structure table [spec]; resolution overrides what the

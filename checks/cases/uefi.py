@@ -2,7 +2,7 @@ import re
 import struct
 import time
 
-from harness.api import test
+from harness.api import check
 from harness import efivars
 from harness.efivars import GLOBAL, LOADER, load_option, utf16z
 from harness.media import HostFile, Tree
@@ -25,7 +25,7 @@ def probe_file(t):
 
 
 def uefi_boot(t, config, variables=(), files=None, **machine):
-    """Boot Limine with config from a disk holding the test executable and the
+    """Boot Limine with config from a disk holding the check executable and the
     probe, on a store with variables set; return (machine, disk)."""
     tree = Tree()
     tree.add('/boot/kernel.elf', HostFile(kernel_file(t, 'full')))
@@ -61,7 +61,7 @@ def probe_entry(level, title, commands):
     return f'{"/" * level}{title}\n    protocol: efi\n    path: {PROBE}\n    cmdline: {commands}\n'
 
 
-@test(ports=UEFI_PORTS, tags=['uefi'])
+@check(ports=UEFI_PORTS, tags=['uefi'])
 def uefi_bli_loader_variables(t):
     """The variables Limine sets for the OS: the ESP it ran from, when it
     started and handed over, its entries in menu order and the one booted."""
@@ -88,7 +88,7 @@ def var(name, value):
     return (name, LOADER, utf16z(value))
 
 
-@test(ports=UEFI_PORTS, tags=['uefi'])
+@check(ports=UEFI_PORTS, tags=['uefi'])
 def uefi_bli_entry_requests(t):
     """LoaderEntryOneShot picks the entry for one boot, over default_entry,
     and is used up; LoaderEntryDefault picks it only where default_entry is
@@ -108,7 +108,7 @@ def uefi_bli_entry_requests(t):
             t.check((name, LOADER) in left, f'[spec] {name} kept')
 
 
-@test(ports=UEFI_PORTS, tags=['uefi'])
+@check(ports=UEFI_PORTS, tags=['uefi'])
 def uefi_bli_entry_ids(t):
     """[intent] An identifier is the entry's path, with what a filename may
     not hold made a dash: a second entry of the same name is Twin#1, so
@@ -129,7 +129,7 @@ def uefi_bli_entry_ids(t):
     t.expect_eq(booted_cmdline(t, m), 'second', 'LoaderEntryDefault holding a path')
 
 
-@test(ports=UEFI_PORTS, tags=['uefi', 'config'])
+@check(ports=UEFI_PORTS, tags=['uefi', 'config'])
 def uefi_bli_many_entries(t):
     """[intent] With more entries than LoaderEntries has room for, as many
     identifiers as fit its 2048 characters are published, whole and in menu
@@ -148,7 +148,7 @@ def uefi_bli_many_entries(t):
     t.check(used <= 2048 < used + len(want[len(ids)]) + 1, f'as many as fit: {len(ids)}, {used} characters')
 
 
-@test(ports=UEFI_PORTS, tags=['uefi', 'hostile'])
+@check(ports=UEFI_PORTS, tags=['uefi', 'hostile'])
 def uefi_exit_boot_services_retried(t):
     """[spec] ExitBootServices() refusing a stale map key is retried with the
     map fetched again (UEFI 2.11 section 7.4.6), here a map that has grown past
@@ -171,7 +171,7 @@ def countdown_shown(t, m):
     return 'Booting automatically' in screen_text(t.screen(m)), scr
 
 
-@test(ports=UEFI_PORTS, tags=['uefi'])
+@check(ports=UEFI_PORTS, tags=['uefi'])
 def uefi_bli_timeout_requests(t):
     """LoaderConfigTimeoutOneShot overrides timeout for one boot, 0 meaning
     no timeout at all, and is used up; LoaderConfigTimeout applies only where
@@ -212,7 +212,7 @@ def uefi_bli_timeout_requests(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['uefi'])
+@check(ports=UEFI_PORTS, tags=['uefi'])
 def uefi_efi_boot_entry(t):
     """efi_boot_entry reboots into the firmware boot option whose description
     is entry, [intent] matched regardless of case; [intent] it panics when
@@ -237,7 +237,7 @@ def uefi_efi_boot_entry(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['uefi'])
+@check(ports=UEFI_PORTS, tags=['uefi'])
 def uefi_firmware_setup_key(t):
     """S reboots into the firmware's own interface [intent]: edk2, asked to,
     shows its boot manager menu or its front page."""
@@ -249,7 +249,7 @@ def uefi_firmware_setup_key(t):
                   90, desc="the firmware's interface", firmware=True)
 
 
-@test(ports=UEFI_PORTS, tags=['uefi'])
+@check(ports=UEFI_PORTS, tags=['uefi'])
 def uefi_shell_key(t):
     """With a UEFI Shell at the root of the boot volume U boots it [intent];
     without one the key is not offered."""
@@ -265,7 +265,7 @@ def uefi_shell_key(t):
     m.wait_for(t.kernel_channel, 'K name=fakeshell', 60)
 
 
-@test(ports=UEFI_PORTS, tags=['uefi', 'acpi'])
+@check(ports=UEFI_PORTS, tags=['uefi', 'acpi'])
 def uefi_firmware_logo(t):
     """firmware_logo: yes clears the BGRT's displayed bit, for the OS to draw
     the logo again, and centres the logo for the resolution the kernel gets;
@@ -296,7 +296,7 @@ def uefi_firmware_logo(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['uefi', 'hostile'])
+@check(ports=UEFI_PORTS, tags=['uefi', 'hostile'])
 def uefi_watchdog_not_disabled(t):
     """Firmware that will not disable its watchdog, here made so by the EFI
     probe that starts Limine, has Limine warn and go on [intent]."""

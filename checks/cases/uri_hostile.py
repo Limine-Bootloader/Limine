@@ -1,4 +1,4 @@
-from harness.api import test
+from harness.api import check
 from harness.ports import ALL_PORTS
 from cases._common import boot_entry, entry, panics_in_turn
 
@@ -38,7 +38,7 @@ CASES = [
 ]
 
 
-@test(ports=ALL_PORTS, tags=['uri', 'hostile'], timeout=600)
+@check(ports=ALL_PORTS, tags=['uri', 'hostile'], timeout=600)
 def uri_hostile(t):
     """Each bad module URI ends in a panic that names what is wrong."""
     entries = ''.join(entry(f'U{i:02}', path='boot():/boot/kernel.elf', modules=[(uri, None)])

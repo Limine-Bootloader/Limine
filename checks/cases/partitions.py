@@ -1,7 +1,7 @@
 import struct
 import zlib
 
-from harness.api import test
+from harness.api import check
 from harness.media import BASIC_DATA_TYPE, Disk, Fat, HostFile, Part, Tree
 from harness.ports import ALL_PORTS, Drive
 from cases._common import check_file, check_report_clean, entry, kernel_file, wait_panic
@@ -115,7 +115,7 @@ def check_modules(t, r, disks):
                     f'{label}: the module loaded')
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
+@check(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
 def gpt_recovery(t):
     """A GPT whose primary header is spoilt, by its signature or its CRC, is
     read from its backup at the end of the disk [spec]; a header longer than
@@ -131,7 +131,7 @@ def gpt_recovery(t):
     check_modules(t, boot_with_data_disks(t, disks, readonly=True), disks)
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
+@check(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
 def ebr_chains(t):
     """Chains of extended boot records that loop back, run past 256 links,
     point outside the extended partition, or put the link before an empty
@@ -178,7 +178,7 @@ def boot_with_data_disk(t, path, modules):
     return t.boot(drives=[Drive(boot.path, bootindex=1), Drive(path, kind='virtio')])
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
+@check(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
 def mbr_partitions_past_disk_end(t):
     """[user] An MBR or EBR partition that starts on its disk but runs past
     the end is kept, cut at the end, also inside an extended partition that
@@ -216,7 +216,7 @@ def mbr_partitions_past_disk_end(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
+@check(ports=ALL_PORTS, tags=['fs', 'partitions', 'hostile'])
 def gpt_entry_past_disk_end(t):
     """[user] A GPT entry that starts on its disk but runs past the end is no
     partition, though a FAT volume lies at its start on the disk."""

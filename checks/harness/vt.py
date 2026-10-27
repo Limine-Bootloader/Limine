@@ -3,7 +3,7 @@ import re
 from harness.screen import Cell, TextScreen
 
 # Colours are kept symbolic for the 16 ANSI ones ('c0'..'c15') and as 0xRRGGBB
-# integers for direct RGB, so tests state exactly what was sent.
+# integers for direct RGB, so checks state exactly what was sent.
 DEFAULT_FG = 'default'
 DEFAULT_BG = 'default'
 

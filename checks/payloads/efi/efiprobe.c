@@ -1,4 +1,4 @@
-// An EFI application the tests chainload or boot directly. It runs the space
+// An EFI application the checks chainload or boot directly. It runs the space
 // separated commands in its load options, or in \efiprobe.cmd on its own
 // volume when it has none, and reports in the "K key=value" format.
 

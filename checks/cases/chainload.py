@@ -1,4 +1,4 @@
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import UEFI_PORTS
 from harness.report import unescape
@@ -38,7 +38,7 @@ def probe_report(t, m, timeout=60):
     return t.kernel_report(m, timeout=timeout, begin='B EFIPROBE')
 
 
-@test(ports=UEFI_PORTS, tags=['chainload'])
+@check(ports=UEFI_PORTS, tags=['chainload'])
 def efi_chainload(t):
     """An EFI image runs with the cmdline as its load options, the partition
     as its device, and its path from that device's root."""
@@ -66,7 +66,7 @@ def shown_utf16(text, extra_units=()):
     return ''.join(chr(u) if 0x20 <= u < 0x7f and u != 0x5c else f'\\u{u:04x}' for u in units), len(units)
 
 
-@test(ports=UEFI_PORTS, tags=['chainload', 'hostile'])
+@check(ports=UEFI_PORTS, tags=['chainload', 'hostile'])
 def efi_chainload_unicode(t):
     """A cmdline past ASCII reaches the image as UTF-16 load options, a
     character past the BMP as a surrogate pair, each maximal ill-formed part
@@ -94,7 +94,7 @@ def efi_chainload_unicode(t):
     t.expect_eq(r['file_path'], shown_utf16('\\EFI\\probe\\😀-probe.efi')[0], 'the path in UTF-16')
 
 
-@test(ports=UEFI_PORTS, tags=['chainload'])
+@check(ports=UEFI_PORTS, tags=['chainload'])
 def efi_chainload_aliases(t):
     """'uefi' and 'efi_chainload' alias 'efi', 'image_path' aliases 'path'."""
     for proto, key in (('uefi', 'path'), ('efi_chainload', 'image_path'), ('efi', 'image_path')):
@@ -106,7 +106,7 @@ def efi_chainload_aliases(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['chainload'])
+@check(ports=UEFI_PORTS, tags=['chainload'])
 def efi_chainload_no_cmdline(t):
     """With no cmdline, an image gets no load options at all; it then reads
     its commands from \\efiprobe.cmd on its volume."""
@@ -118,7 +118,7 @@ def efi_chainload_no_cmdline(t):
     t.expect_eq(r.int('options_size'), 0, 'load options size 0')
 
 
-@test(ports=UEFI_PORTS, tags=['chainload'])
+@check(ports=UEFI_PORTS, tags=['chainload'])
 def efi_chainload_resolution(t):
     """The resolution option sets the video mode the image starts in."""
     config = 'timeout: 0\n' + entry('Probe', protocol='efi', path='boot():/probe.efi',
@@ -128,7 +128,7 @@ def efi_chainload_resolution(t):
     t.expect_eq(r['gop.mode'], '800x600', 'GOP mode')
 
 
-@test(ports=UEFI_PORTS, tags=['chainload'])
+@check(ports=UEFI_PORTS, tags=['chainload'])
 def efi_chainload_return(t):
     """When the image returns, Limine exits too, handing its status and exit
     data to whatever started Limine (here, another probe)."""
@@ -152,7 +152,7 @@ def efi_chainload_return(t):
     t.expect_eq(outer['chain.exit_data'], 'returned by inner', 'exit data passed through Limine')
 
 
-@test(ports=UEFI_PORTS, tags=['chainload'])
+@check(ports=UEFI_PORTS, tags=['chainload'])
 def efi_chainload_errors(t):
     config = 'timeout: 0\n' + entry('Probe', protocol='efi', path='boot():/missing.efi')
     m, _ = boot_config(t, config)
@@ -246,7 +246,7 @@ def mbr_entry(table_hex, slot):
     return table_hex[slot * 32:(slot + 1) * 32]
 
 
-@test(ports=['bios'], tags=['chainload'])
+@check(ports=['bios'], tags=['chainload'])
 def bios_chainload_drive(t):
     """A whole drive: its MBR runs, with no partition entry."""
     m, *_ = boot_bios_chainload(t, 'drive: 2')
@@ -255,7 +255,7 @@ def bios_chainload_drive(t):
     check_real_mode_entry(t, r, '81', '0000')
 
 
-@test(ports=['bios'], tags=['chainload'])
+@check(ports=['bios'], tags=['chainload'])
 def bios_chainload_partitions(t):
     """A primary partition's boot record runs with DS:SI on its entry in a
     copy of the table at 0x7be, that entry alone marked active."""
@@ -284,7 +284,7 @@ def bios_chainload_partitions(t):
                 'logical entry made absolute')
 
 
-@test(ports=['bios'], tags=['chainload', 'partitions'])
+@check(ports=['bios'], tags=['chainload', 'partitions'])
 def bios_chainload_partitions_past_disk_end(t):
     """[user] The boot record of a partition cut at its disk's end gets DS:SI
     on its entry as the table holds it, with the size it claims [intent]."""
@@ -312,7 +312,7 @@ def bios_chainload_partitions_past_disk_end(t):
         m.stop()
 
 
-@test(ports=['bios'], tags=['chainload', 'partitions'])
+@check(ports=['bios'], tags=['chainload', 'partitions'])
 def bios_chainload_second_extended_partition(t):
     """[intent] With two extended partitions, the boot record of a logical
     partition in either gets DS:SI on its own entry, the later extended
@@ -341,7 +341,7 @@ def bios_chainload_second_extended_partition(t):
         m.stop()
 
 
-@test(ports=['bios'], tags=['chainload'])
+@check(ports=['bios'], tags=['chainload'])
 def bios_chainload_default_drive(t):
     """Without a drive, the boot drive."""
     m, *_ = boot_bios_chainload(t, 'partition: 2')
@@ -350,7 +350,7 @@ def bios_chainload_default_drive(t):
     t.expect_eq(f"{int(r['dx'], 16) & 0xff:02x}", '80', '[spec] DL is the boot drive')
 
 
-@test(ports=['bios'], tags=['chainload'])
+@check(ports=['bios'], tags=['chainload'])
 def bios_chainload_default_drive_from_cd(t):
     """Booted from a CD, an omitted drive is the hard disk of the same index."""
     m, *_ = boot_bios_chainload(t, 'partition: 1', boot_iso=True)
@@ -358,7 +358,7 @@ def bios_chainload_default_drive_from_cd(t):
     t.expect_eq(r['name'], 'H1P1____', 'hard disk 1, partition 1')
 
 
-@test(ports=['bios'], tags=['chainload'])
+@check(ports=['bios'], tags=['chainload'])
 def bios_chainload_by_id(t):
     """mbr_id and gpt_uuid/gpt_guid pick the drive; partition still applies."""
     m, *_ = boot_bios_chainload(t, 'mbr_id: 1234ABCD\npartition: 1')
@@ -379,7 +379,7 @@ def bios_chainload_by_id(t):
     t.expect_eq(r['name'], 'D3P1____', 'gpt_guid overrides mbr_id')
 
 
-@test(ports=['bios'], tags=['chainload'])
+@check(ports=['bios'], tags=['chainload'])
 def bios_chainload_freebsd(t):
     """A freebsd-boot partition is loaded whole at 0x7c00, as FreeBSD's pmbr
     does."""
@@ -390,7 +390,7 @@ def bios_chainload_freebsd(t):
     t.expect_eq(r['tail'], marker.hex(), 'whole partition loaded, not just a sector')
 
 
-@test(ports=['bios'], tags=['chainload'])
+@check(ports=['bios'], tags=['chainload'])
 def bios_chainload_errors(t):
     cases = [
         ('drive: 2\npartition: 300', 'bios: BIOS partition number outside range 0-256'),

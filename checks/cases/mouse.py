@@ -1,6 +1,6 @@
 import time
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, Drive
 from cases._common import kernel_file, screen_text
@@ -8,7 +8,7 @@ from cases.menu import EDITOR_ENTRY, booted_cmdline, nothing_booted, tree_menu, 
 
 # The mouse in the menu, as CONFIG.md's mouse option describes it: on BIOS a
 # PS/2 mouse, on UEFI a pointer the firmware exposes: a virtio tablet, an
-# absolute pointer, or a USB mouse, a relative one (the test firmware's
+# absolute pointer, or a USB mouse, a relative one (the firmware's
 # drivers; edk2 firmware exposes no pointer for QEMU's USB tablet).
 
 ABS_MAX = 0x7fff
@@ -93,7 +93,7 @@ def selected(scr, name):
     return scr.cell(x + 1, y).bg != scr.cell(0, y).bg
 
 
-@test(ports=ALL_PORTS, tags=['mouse'])
+@check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_point_and_click(t):
     """The selection follows the pointer, and a left click boots the entry
     under it; on UEFI with an absolute pointer and with a relative one."""
@@ -110,7 +110,7 @@ def mouse_point_and_click(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['mouse'])
+@check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_click_directory(t):
     """A click on a directory expands it."""
     m = mouse_boot(t, tree_menu())
@@ -125,7 +125,7 @@ def mouse_click_directory(t):
 
 # With edk2 firmware a virtio tablet's wheel never reaches the pointer; a USB
 # mouse's does.
-@test(ports=ALL_PORTS, tags=['mouse'])
+@check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_wheel(t):
     """The wheel moves the selection, one entry a notch, down when rolled
     towards the user: on UEFI the USB mouse's Wheel, whose values grow
@@ -145,7 +145,7 @@ def mouse_wheel(t):
     t.wait_text(m, 'an inner comment')
 
 
-@test(ports=ALL_PORTS, tags=['mouse'])
+@check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_stops_countdown(t):
     """Using the mouse stops the countdown, as a key does."""
     m = mouse_boot(t, tree_menu('timeout: 4\n'))
@@ -155,7 +155,7 @@ def mouse_stops_countdown(t):
     t.check(nothing_booted(t, m, 6), 'nothing booted')
 
 
-@test(ports=ALL_PORTS, tags=['mouse'])
+@check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_disabled(t):
     """mouse: no leaves the pointer out of the menu."""
     m = mouse_boot(t, tree_menu('timeout: no\nmouse: no\n'))
@@ -169,7 +169,7 @@ def mouse_disabled(t):
     t.expect_eq(booted_cmdline(t, m), 'first', 'the keyboard still works')
 
 
-@test(ports=ALL_PORTS, tags=['mouse'])
+@check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_editor(t):
     """In the editor, a click puts the cursor on the character clicked, or
     at the end of the line when past it [intent], and the wheel moves it up

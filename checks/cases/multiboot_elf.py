@@ -1,4 +1,4 @@
-from harness.api import test
+from harness.api import check
 from harness.elf import ElfFile
 from harness.ports import X86_PORTS
 from cases._common import boot_entry, entry, panics_in_turn, read
@@ -64,7 +64,7 @@ def run_hostile(t, cases, proto):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')
 
 
-@test(ports=X86_PORTS, tags=['multiboot1', 'elf', 'hostile'], timeout=900)
+@check(ports=X86_PORTS, tags=['multiboot1', 'elf', 'hostile'], timeout=900)
 def mb1_elf_hostile(t):
     """Spoilt Multiboot 1 ELF kernels end in the panic for what is wrong with
     them, and the menu comes back."""
@@ -75,7 +75,7 @@ def mb1_elf_hostile(t):
     run_hostile(t, cases, 'multiboot1')
 
 
-@test(ports=X86_PORTS, tags=['multiboot2', 'elf', 'hostile'], timeout=900)
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf', 'hostile'], timeout=900)
 def mb2_elf_hostile(t):
     """The same for Multiboot 2."""
     e = ElfFile(read(mb2_kernel(t)))

@@ -49,7 +49,7 @@ def entry(title, protocol='limine', path=None, cmdline=None, modules=(), extra='
 def boot_kernel(t, variant='full', config_globals='timeout: 0\n', entry_text=None, files=None,
                 cmdline='hello world', modules=None, smp=1, memory=None, timeout=90, disk_kwargs=None,
                 machine_kwargs=None):
-    """Boot a Limine protocol test executable from a disk and return
+    """Boot a Limine protocol check executable from a disk and return
     (report, machine, disk)."""
     tree = Tree()
     tree.add('/boot/kernel.elf', HostFile(kernel_file(t, variant)))
@@ -205,7 +205,7 @@ def wait_done_or_panic(t, m, channel, timeout=60):
 
 
 def boot_entry(t, config, tree=None, files=None, kernel_variant='full', disk_kwargs=None, **machine):
-    """Boot a disk holding a config, and the test executable as
+    """Boot a disk holding a config, and the check executable as
     /boot/kernel.elf."""
     from harness.media import Tree
     tree = tree or Tree()

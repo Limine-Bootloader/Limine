@@ -1,4 +1,4 @@
-"""UEFI variable stores for the tests: a port's template with chosen variables
+"""UEFI variable stores for the checks: a port's template with chosen variables
 set beforehand, and what a store holds after a machine ran on it, both by way
 of virt-fw-vars."""
 

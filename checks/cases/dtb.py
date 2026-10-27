@@ -1,5 +1,5 @@
 from harness import fdt
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile
 from harness.ports import ALL_PORTS
 from cases._common import boot_entry, check_report_clean, entry, kernel_file, panics_in_turn
@@ -64,7 +64,7 @@ def boot_dtb(t, dtb, variant='full', globals_='timeout: 0\n', smp=1, machine=Non
     return r
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'dtb'])
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'dtb'])
 def dtb_path_response(t):
     """dtb_path: the executable gets that tree, firmware or no firmware tree,
     its memory nodes taken out [spec]."""
@@ -74,7 +74,7 @@ def dtb_path_response(t):
     t.expect_eq(r.int('dtb.memory_nodes'), 0, 'memory nodes removed')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'dtb'])
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'dtb'])
 def global_dtb(t):
     """global_dtb stands for the firmware's tree for entries without a
     dtb_path of their own, which wins where given [spec]."""
@@ -88,7 +88,7 @@ def global_dtb(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'dtb', 'hostile'])
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'dtb', 'hostile'])
 def dtb_path_errors(t):
     """A dtb_path that does not open, or holds no valid tree, is refused, and
     the menu comes back [intent]."""
@@ -146,7 +146,7 @@ def arm_tree(t, cpus, psci=None, cells=1):
     return tree(t, 'smp', cpus=nodes, **extra)
 
 
-@test(ports=['uefi-aarch64'], tags=['limine-protocol', 'smp', 'dtb'], timeout=900)
+@check(ports=['uefi-aarch64'], tags=['limine-protocol', 'smp', 'dtb'], timeout=900)
 def dtb_smp_aarch64(t):
     """Without ACPI the APs are started from the device tree, through PSCI
     by its node's method [intent]; a CPU node that cannot be started is left
@@ -181,7 +181,7 @@ def dtb_smp_aarch64(t):
         t.expect_eq(mp(boot_smp(t, dtb))[1], 0, f'{what}: no AP started')
 
 
-@test(ports=['uefi-riscv64'], tags=['limine-protocol', 'smp', 'dtb'], timeout=900)
+@check(ports=['uefi-riscv64'], tags=['limine-protocol', 'smp', 'dtb'], timeout=900)
 def dtb_harts_riscv(t):
     """With a device tree (the firmware's without ACPI, or dtb_path), Limine
     takes the harts from it: those with the BSP's ISA are started, any other
@@ -220,7 +220,7 @@ def dtb_harts_riscv(t):
     t.expect_eq(r.int('paging_mode'), 2, 'translation off and no MMU type: Sv57, the largest the hart takes')
 
 
-@test(ports=['uefi-riscv64'], tags=['limine-protocol', 'dtb', 'hostile'])
+@check(ports=['uefi-riscv64'], tags=['limine-protocol', 'dtb', 'hostile'])
 def dtb_harts_riscv_errors(t):
     """A dtb_path whose harts leave the BSP out or unusable is refused, and
     the menu comes back [intent]."""
@@ -247,7 +247,7 @@ def la_tree(t, ids, cells=1):
     return tree(t, 'smp', cpus=cpus)
 
 
-@test(ports=['uefi-loongarch64'], tags=['limine-protocol', 'smp', 'dtb'], timeout=900)
+@check(ports=['uefi-loongarch64'], tags=['limine-protocol', 'smp', 'dtb'], timeout=900)
 def dtb_smp_loongarch(t):
     """Without ACPI the APs are started from the device tree's CPU nodes
     [intent]; core IDs the IPI cannot address, or that no core answers to,
@@ -262,7 +262,7 @@ def dtb_smp_loongarch(t):
         t.expect_eq(mp(boot_smp(t, dtb))[1], 0, f'{what}: no AP started')
 
 
-@test(ports=['uefi-aarch64', 'uefi-riscv64', 'uefi-loongarch64'], tags=['linux', 'dtb'])
+@check(ports=['uefi-aarch64', 'uefi-riscv64', 'uefi-loongarch64'], tags=['linux', 'dtb'])
 def dtb_path_linux(t):
     """dtb_path for Linux: the kernel gets that tree, its memory nodes taken
     out, /chosen filled in [spec]; LoongArch kernels find it only as the
@@ -283,7 +283,7 @@ def dtb_path_linux(t):
 RISCV_BOOT_PROTOCOL = 'ccd15fec-6f73-4eec-8395-3e69e4b940bf'
 
 
-@test(ports=['uefi-riscv64'], tags=['dtb', 'hostile'])
+@check(ports=['uefi-riscv64'], tags=['dtb', 'hostile'])
 def riscv_boot_hart_from_dtb(t):
     """Firmware without the RISC-V boot protocol (here, the EFI probe takes
     it away, and installs a device tree of its own, before it starts Limine):

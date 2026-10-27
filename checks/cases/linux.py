@@ -1,7 +1,7 @@
 import os
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness import efivars
 from harness.media import HostFile, Tree
 from harness.ports import UEFI_PORTS
@@ -88,7 +88,7 @@ def check_common(t, r, cmdline, modules):
     t.expect_eq(int(r['screen_info.depth'], 16), 32, 'screen_info depth')
 
 
-@test(ports=NON_X86, tags=['linux'])
+@check(ports=NON_X86, tags=['linux'])
 def linux_handoff(t):
     """The handoff Linux Documentation/arch/{arm64,loongarch}/booting.rst and
     riscv/boot.rst ask for, and the tables passed with it."""
@@ -120,14 +120,14 @@ def linux_handoff(t):
     check_common(t, r, cmdline, modules)
 
 
-@test(ports=NON_X86, tags=['linux'])
+@check(ports=NON_X86, tags=['linux'])
 def linux_no_modules(t):
     m = boot_linux(t, 'root=/dev/nothing')
     r = stub_report(t, m)
     check_common(t, r, 'root=/dev/nothing', [])
 
 
-@test(ports=['uefi-aarch64'], tags=['linux'])
+@check(ports=['uefi-aarch64'], tags=['linux'])
 def linux_aarch64_el2(t):
     """Firmware at EL2: Linux is entered there, MMU off."""
     m = boot_linux(t, 'x', machine_opts=['virtualization=on'], cpu='max')
@@ -137,7 +137,7 @@ def linux_aarch64_el2(t):
     check_common(t, r, 'x', [])
 
 
-@test(ports=['uefi-aarch64'], tags=['linux'])
+@check(ports=['uefi-aarch64'], tags=['linux'])
 def linux_aarch64_placement(t):
     """With the header's physical placement flag the image may go anywhere;
     either way it is 2MiB aligned."""
@@ -147,7 +147,7 @@ def linux_aarch64_placement(t):
     check_common(t, r, 'x', [('/i', b'abc')])
 
 
-@test(ports=NON_X86, tags=['linux', 'hostile'])
+@check(ports=NON_X86, tags=['linux', 'hostile'])
 def linux_virtual_address_map_refused(t):
     """When SetVirtualAddressMap() fails, here made to by the EFI probe that
     starts Limine, the kernel is booted without runtime services: each
@@ -178,7 +178,7 @@ def patched_stub(t, patches, flavour='default'):
     return bytes(image)
 
 
-@test(ports=['uefi-aarch64'], tags=['linux'])
+@check(ports=['uefi-aarch64'], tags=['linux'])
 def linux_aarch64_pre_3_17_header(t):
     """[spec] An image_size of zero marks a header from before v3.17, whose
     text_offset is 0x80000 (Linux Documentation/arch/arm64/booting.rst)."""
@@ -187,7 +187,7 @@ def linux_aarch64_pre_3_17_header(t):
     t.expect_eq(int(r['image_base'], 16) % (2 << 20), 0x80000, 'the image 0x80000 into a 2MiB block')
 
 
-@test(ports=NON_X86, tags=['linux'])
+@check(ports=NON_X86, tags=['linux'])
 def linux_resolution(t):
     """The entry's resolution option picks the mode the framebuffer described
     to the kernel is in (CONFIG.md)."""
@@ -197,7 +197,7 @@ def linux_resolution(t):
                 'screen_info describes an 800x600 framebuffer')
 
 
-@test(ports=NON_X86, tags=['linux'])
+@check(ports=NON_X86, tags=['linux'])
 def linux_errors(t):
     cases = [
         (entry('L', protocol='linux'), 'linux: Kernel path not specified'),
@@ -364,7 +364,7 @@ def check_relocated(t, r):
         t.expect_eq(load, PREF_ADDRESS, '[spec] loaded at pref_address, which is free on BIOS')
 
 
-@test(ports=X86, tags=['linux'])
+@check(ports=X86, tags=['linux'])
 def linux_x86_32bit_entry(t):
     """The 32-bit boot protocol: flat 4GiB __BOOT_CS/__BOOT_DS, interrupts off,
     paging off, %esi the zero page, %ebp, %edi and %ebx zero."""
@@ -384,7 +384,7 @@ def linux_x86_32bit_entry(t):
     check_zero_page(t, r, cmdline, modules)
 
 
-@test(ports=['uefi-x86-64'], tags=['linux'])
+@check(ports=['uefi-x86-64'], tags=['linux'])
 def linux_x86_64bit_entry(t):
     """A kernel that can load above 4GiB and has a 64-bit entry is entered
     there, in long mode, when it is loaded above 4GiB."""
@@ -404,7 +404,7 @@ def linux_x86_64bit_entry(t):
     check_zero_page(t, r, 'x', [('/initrd.img', b'hi there')])
 
 
-@test(ports=X86, tags=['linux'])
+@check(ports=X86, tags=['linux'])
 def linux_x86_non_relocatable(t):
     """[intent] A non-relocatable kernel goes at pref_address, where boot
     protocol 2.15 says it runs, or not at all."""
@@ -420,7 +420,7 @@ def linux_x86_non_relocatable(t):
     check_zero_page(t, r, 'console=ttyS0 root=/dev/sda1', [])
 
 
-@test(ports=X86, tags=['linux'])
+@check(ports=X86, tags=['linux'])
 def linux_x86_pre210_non_relocatable(t):
     """[spec] A non-relocatable kernel from before pref_address (2.10) goes at
     0x100000; its kernel_alignment, 2MiB here, binds relocatable ones only."""
@@ -436,7 +436,7 @@ def linux_x86_pre210_non_relocatable(t):
     t.expect_eq(hexint(r, 'bp.code32_start'), 0x100000, 'code32_start points at it')
 
 
-@test(ports=X86, tags=['linux'])
+@check(ports=X86, tags=['linux'])
 def linux_x86_initrd_addr_max(t):
     """[spec] The initrd stays under the kernel's initrd_addr_max."""
     m = boot_bzimage(t, 'lowinitrd', modules=[('/i', b'q' * 300000)])
@@ -444,7 +444,7 @@ def linux_x86_initrd_addr_max(t):
     t.check(hexint(r, 'bp.ramdisk_image') + 300000 - 1 <= 0x07ffffff, f'ramdisk at {r["bp.ramdisk_image"]}')
 
 
-@test(ports=['bios'], tags=['linux'])
+@check(ports=['bios'], tags=['linux'])
 def linux_x86_textmode(t):
     """textmode: yes hands over VGA text mode 3 (BIOS only)."""
     m = boot_bzimage(t, extra='textmode: yes')
@@ -454,7 +454,7 @@ def linux_x86_textmode(t):
                  hexint(r, 'si.orig_video_lines')), (3, 80, 25), '[intent] mode 3, 80x25')
 
 
-@test(ports=X86, tags=['linux'])
+@check(ports=X86, tags=['linux'])
 def linux_x86_resolution(t):
     m = boot_bzimage(t, extra='resolution: 800x600')
     r = x86_report(t, m)
@@ -469,7 +469,7 @@ def u32(v):
     return v.to_bytes(4, 'little')
 
 
-@test(ports=X86, tags=['linux'])
+@check(ports=X86, tags=['linux'])
 def linux_x86_errors(t):
     big_setup = {0x1f1: u8(0x10)}
     cases = [
@@ -516,7 +516,7 @@ def linux_x86_errors(t):
 SEED_GUID = '1ce1e5bc-7ceb-42f2-81e5-8aadf180f57b'
 
 
-@test(ports=UEFI_PORTS, tags=['linux', 'uefi'])
+@check(ports=UEFI_PORTS, tags=['linux', 'uefi'])
 def linux_random_seed(t):
     """The random seed table (LINUX_EFI_RANDOM_SEED_TABLE_GUID), filled from
     the firmware's RNG, as without the RandomSeed variable, and from the

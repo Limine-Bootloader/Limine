@@ -1,6 +1,6 @@
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness.ports import ALL_PORTS
 from harness import images
 from harness.screen import Font, builtin_font
@@ -29,7 +29,7 @@ def font_shifted():
     return b''.join(b'\0' + f[c * 16:c * 16 + 15] for c in range(256))
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_colours(t):
     """term_foreground and term_background colour the text, the selected
     entry showing them swapped [intent]; term_palette sets the eight ANSI
@@ -45,7 +45,7 @@ def gterm_colours(t):
     t.expect_eq(scr.cell(x, y).fg, 0x123456, '[intent] the comment in the palette\'s cyan')
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_font_spacing(t):
     """term_font_spacing puts 0 to 8 dots between glyphs; above 8, or not a
     number, it is as if unset: 1."""
@@ -55,7 +55,7 @@ def gterm_font_spacing(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_font_scale(t):
     """term_font_scale scales glyphs by 1 to 8 in each direction; any other
     value is as if unset, which below 2560x1440 is 1x1, and 2x2 from there."""
@@ -73,7 +73,7 @@ def gterm_font_scale(t):
         t.note(f'no 2560x1440 mode here ({img.width}x{img.height}): the default scale at it is not checked')
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_font_file(t):
     """term_font loads a font, of term_font_size if given; a width other
     than 8, a size without term_font, a missing file, or one too short for
@@ -90,7 +90,7 @@ def gterm_font_file(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_margin(t):
     """term_margin insets the terminal by that many dots."""
     m = boot_menu(t, menu('term_margin: 40\nterm_margin_gradient: 99\n'))
@@ -109,7 +109,7 @@ def blank_cell_bg(scr):
     return scr.cell(scr.cols // 2, y).bg
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_wallpaper(t):
     """A wallpaper in any of the formats fills the screen; with one, the
     terminal is inset by 64 dots and its background is 80000000, black let
@@ -135,7 +135,7 @@ def qoi_hash(px):
     return (px[0] * 3 + px[1] * 5 + px[2] * 7 + px[3] * 11) % 64
 
 
-@test(ports=ALL_PORTS, tags=['gterm', 'hostile'])
+@check(ports=ALL_PORTS, tags=['gterm', 'hostile'])
 def gterm_wallpaper_qoi_chunks(t):
     """A QOI wallpaper of every kind of chunk, with channels wrapping around
     and the longest run, decodes as the QOI specification 1.0 has it, alpha
@@ -166,7 +166,7 @@ def gterm_wallpaper_qoi_chunks(t):
 PATTERN = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0x00ffff, 0xff00ff, 0x808080, 0x102030]
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_wallpaper_style(t):
     """wallpaper_style: tiled repeats the image from the top left corner,
     stretched (the default) scales it to the screen, and centered puts it in
@@ -194,7 +194,7 @@ def gterm_wallpaper_style(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_resolution(t):
     """interface_resolution picks the screen's resolution for the menu; one
     that is not available leaves Limine to pick another."""
@@ -210,7 +210,7 @@ def gterm_resolution(t):
     t.check((img.width, img.height) != (1234, 777), f'[spec] another resolution: {img.width}x{img.height}')
 
 
-@test(ports=['bios'], tags=['gterm'])
+@check(ports=['bios'], tags=['gterm'])
 def gterm_text_mode_ignores(t):
     """In text mode interface_resolution and the term_ options do nothing."""
     m = boot_menu(t, menu('graphics: no\ninterface_resolution: 800x600\nterm_font_scale: 2x2\n'
@@ -221,7 +221,7 @@ def gterm_text_mode_ignores(t):
     t.check('Only' in screen_text(scr), 'the menu in text mode')
 
 
-@test(ports=ALL_PORTS, tags=['gterm'])
+@check(ports=ALL_PORTS, tags=['gterm'])
 def gterm_rotation(t):
     """interface_rotation turns the interface by 90, 180 or 270 degrees,
     clockwise [intent]."""

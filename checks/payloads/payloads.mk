@@ -1,4 +1,4 @@
-# Builds the executables and images the test suite boots, as make
+# Builds the executables and images the checks boot, as make
 # check-payloads has it: with the toolchain that builds Limine, for the ports
 # the build enabled.
 
@@ -332,7 +332,7 @@ linux-stubs: $(LINUX_STUBS) $(if $(X86_PORTS),$(X86_BZIMAGES))
 .PHONY: bios-payloads
 bios-payloads: $(OUT)/bios/bootrec.bin $(OUT)/bios/a20off.bin $(OUT)/bios/a20off-noint15.bin
 
-# The Multiboot 1 test kernel, in the header flavours the tests need. Variant:
+# The Multiboot 1 check kernel, in the header flavours the checks need. Variant:
 # name, header flags, extra defines. The a.out kludge ones are flat binaries,
 # and one ELF64 container holds the plain 32-bit kernel too.
 override MB_CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Werror -ffreestanding -fno-stack-protector \
@@ -378,7 +378,7 @@ $(OUT)/multiboot/mb1/hdr%.bin: $(PAYLOADS)/multiboot/mb1_flat.asm
 	mkdir -p $(@D)
 	nasm -f bin -Wall -w-reloc -Werror -DHEADER_OFFSET=$* $< -o $@
 
-# The Multiboot 2 test kernel: position independent code, linked at 3MiB like
+# The Multiboot 2 check kernel: position independent code, linked at 3MiB like
 # the Multiboot 1 one, which the relocatable header tag can move. Only the
 # header may hold absolute addresses. Variant: name, defines.
 override MB2_VARIANTS := \

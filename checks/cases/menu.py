@@ -1,6 +1,6 @@
 import time
 
-from harness.api import test
+from harness.api import check
 from harness import efivars
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, UEFI_PORTS
@@ -70,7 +70,7 @@ def nothing_booted(t, m, seconds):
     return 'B LIMINE-TEST' not in m.stream(t.kernel_channel).text()
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_layout(t):
     """The menu lists entries, '+' directories expanded, others collapsed,
     the default entry highlighted with its comment shown."""
@@ -92,7 +92,7 @@ def menu_layout(t):
                 '[intent] the default entry is shown in inverse video')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_keyboard(t):
     """Arrows move the selection, its comment follows, and Enter boots it."""
     m = boot_menu(t, tree_menu())
@@ -106,7 +106,7 @@ def menu_keyboard(t):
     t.expect_eq(booted_cmdline(t, m), 'last', 'Enter booted the selected entry')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_directories(t):
     """Enter expands a collapsed directory and collapses an expanded one."""
     m = boot_menu(t, tree_menu())
@@ -124,7 +124,7 @@ def menu_directories(t):
     t.check(scr.find('[+] Dir'), 'Dir collapsed')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_countdown(t):
     """With a timeout the default entry boots after the countdown; a key
     pressed during it stops it."""
@@ -142,7 +142,7 @@ def menu_countdown(t):
     t.check(nothing_booted(t, m, 6), 'a key press stopped the countdown')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_timeout_values(t):
     """timeout reads leading digits and an optional fraction, ignores what
     follows, caps at 9999, and treats a value without digits as 0."""
@@ -155,7 +155,7 @@ def menu_timeout_values(t):
     t.expect_eq(booted_cmdline(t, m), 'first', 'timeout: No is 0: booted at once')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_interface_options(t):
     """interface_branding and its colour, the help colour, and hiding help."""
     config = ('timeout: no\ninterface_branding: A Custom Brand\ninterface_branding_colour: ff0000\n'
@@ -181,7 +181,7 @@ def menu_interface_options(t):
     t.check('ARROWS' not in screen_text(t.screen(m)), 'help hidden')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor(t):
     """E opens the selected entry in the editor; F10 boots the edited entry."""
     m = boot_menu(t, 'timeout: no\n' + menu_entry(1, 'Only', 'original'))
@@ -202,7 +202,7 @@ def menu_editor(t):
 EDITOR_ENTRY = '/Only\n    protocol: limine\n    cmdline: abcdef\n    path: boot():/boot/kernel.elf\n'
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_keys(t):
     """The editor's keys [intent]: Up goes to the line above, as far along
     as it allows, Home and End to a line's ends, Left and Right a character
@@ -223,7 +223,7 @@ def menu_editor_keys(t):
     t.expect_eq(booted_cmdline(t, m), 'YcdeZfX', 'booted as edited')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_discard(t):
     """ESC leaves the editor for the menu, the edit discarded [intent, from
     the help]."""
@@ -240,7 +240,7 @@ def menu_editor_discard(t):
     t.expect_eq(booted_cmdline(t, m), 'original', 'the entry as configured booted')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_editor_disabled(t):
     """editor_enabled: no takes the editor away."""
     m = boot_menu(t, 'timeout: no\neditor_enabled: no\n' + menu_entry(1, 'Only', 'original'))
@@ -251,7 +251,7 @@ def menu_editor_disabled(t):
     t.check('cmdline: original' not in screen_text(t.screen(m)), 'E does not open the editor')
 
 
-@test(ports=ALL_PORTS, tags=['menu'])
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_keyboard_layout(t):
     """keyboard_layout remaps what the firmware reads as US QWERTY keys
     before the menu and the editor see it: on Dvorak the key in QWERTY's D
@@ -268,7 +268,7 @@ def menu_keyboard_layout(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['menu'])
+@check(ports=UEFI_PORTS, tags=['menu'])
 def menu_remember_last_entry(t):
     """remember_last_entry: yes makes the entry booted last the one selected
     on the next boot, ahead of default_entry."""

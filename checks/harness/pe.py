@@ -1,5 +1,5 @@
 """PE32+ images for the Limine protocol's PE loader. from_elf() remakes an
-ELF test executable: a section for each loadable segment, at the same place
+ELF check executable: a section for each loadable segment, at the same place
 relative to the lowest one, which becomes the image base, and, for a position
 independent executable, base relocations from its R_*_RELATIVE dynamic
 relocations (PE Format of 07/14/2025, "The .reloc Section (Image Only)").

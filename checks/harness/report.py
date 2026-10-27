@@ -2,7 +2,7 @@ import re
 
 
 class Report:
-    """What a test payload printed: "K key=value" facts, "C PASS|FAIL" checks,
+    """What a check payload printed: "K key=value" facts, "C PASS|FAIL" checks,
     and the "E DONE" trailer."""
 
     def __init__(self, text, begin='B LIMINE-TEST'):

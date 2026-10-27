@@ -1,6 +1,6 @@
 import gzip
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, Drive
 from cases._common import check_report_clean, entry, kernel_file, wait_panic
@@ -34,7 +34,7 @@ def failing_disk(t, files, config):
     return f'blkdebug:{rules}:{disk.path}'
 
 
-@test(ports=ALL_PORTS, tags=['disk', 'hostile'])
+@check(ports=ALL_PORTS, tags=['disk', 'hostile'])
 def disk_read_errors(t):
     """A module whose data the medium cannot deliver ends the boot with a
     panic [intent], whether read as it is or inflated."""
@@ -47,7 +47,7 @@ def disk_read_errors(t):
         m.stop()
 
 
-@test(ports=['bios'], tags=['disk'])
+@check(ports=['bios'], tags=['disk'])
 def disk_smaller_than_transfers(t):
     """A disk smaller than the 32KiB Limine reads to size up its transfers
     does not stop the boot [intent]."""

@@ -1,5 +1,5 @@
-// Reporting for the Multiboot test kernels, on port 0xe9, in the "K key=value"
-// format the harness parses.
+// Reporting for the Multiboot check kernels, on port 0xe9, in the
+// "K key=value" format the harness parses.
 
 #include "mbio.h"
 

@@ -2,7 +2,7 @@ import hashlib
 import re
 import time
 
-from harness.api import test
+from harness.api import check
 from harness import secureboot
 from harness.tpm import firmware_supports_tpm
 from harness.media import HostFile, Tree
@@ -12,9 +12,9 @@ from cases._common import entry, kernel_file, read, screen_text, wait_panic
 from cases.secureboot import kernel_entry, sb_boot
 
 # Measured boot as USAGE.md's "Measured Boot" section has it: what Limine
-# extends PCR 8 and PCR 9 with, read back from the event log the test
-# executable is handed. A TPM takes the test firmware's -secboot build,
-# left in Setup Mode unless a test enrols keys. [intent] marks what only
+# extends PCR 8 and PCR 9 with, read back from the event log the check
+# executable is handed. A TPM takes the firmware's -secboot build, left
+# in Setup Mode unless a check enrols keys. [intent] marks what only
 # Limine's code says.
 
 EV_IPL = 0x0000000d
@@ -62,7 +62,7 @@ def by_pcr(evs, pcr):
     return [(kind, digest, data) for p, kind, digest, data in evs if p == pcr]
 
 
-@test(ports=UEFI_PORTS, tags=['tpm'])
+@check(ports=UEFI_PORTS, tags=['tpm'])
 def tpm_measured_boot(t):
     """measured_boot: yes extends PCR 8 with the command line and the paths
     of the executable and each module, any trailing #hash taken off; and
@@ -91,7 +91,7 @@ def tpm_measured_boot(t):
     ], '[spec] PCR 9 ([intent] the paths described as written)')
 
 
-@test(ports=UEFI_PORTS, tags=['tpm'])
+@check(ports=UEFI_PORTS, tags=['tpm'])
 def tpm_not_opted_in(t):
     """Without measured_boot Limine extends nothing, but the firmware's own
     event log is still passed on."""
@@ -103,7 +103,7 @@ def tpm_not_opted_in(t):
     t.check(evs and all(pcr < 8 for pcr, _, _, _ in evs), f'[spec] firmware events only: {[e[0] for e in evs]}')
 
 
-@test(ports=UEFI_PORTS, tags=['tpm'])
+@check(ports=UEFI_PORTS, tags=['tpm'])
 def tpm_absent(t):
     """measured_boot: yes with no TPM measures nothing and boots as usual."""
     config = 'timeout: 0\nmeasured_boot: yes\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='plain')
@@ -113,7 +113,7 @@ def tpm_absent(t):
     t.check(not r.flag('tpm_event_log.response'), '[spec] no event log without a TPM')
 
 
-@test(ports=UEFI_PORTS, tags=['tpm'])
+@check(ports=UEFI_PORTS, tags=['tpm'])
 def tpm_panic_halts(t):
     """Under measured boot a panic halts rather than offering the menu again."""
     config = 'timeout: 0\nmeasured_boot: yes\n' + entry('Test', path='boot():/boot/missing.elf')
@@ -123,7 +123,7 @@ def tpm_panic_halts(t):
     t.check('System halted.' in text and 'Press a key' not in text, f'[spec] halted:\n{text}')
 
 
-@test(ports=UEFI_PORTS, tags=['tpm', 'secureboot'])
+@check(ports=UEFI_PORTS, tags=['tpm', 'secureboot'])
 def tpm_forced_by_secure_boot(t):
     """With Secure Boot active and a config hash enrolled, measured boot is
     on without measured_boot set."""
@@ -134,7 +134,7 @@ def tpm_forced_by_secure_boot(t):
             f'[spec] the config measured into PCR 9: {[(e[0], e[3]) for e in evs]}')
 
 
-@test(ports=UEFI_PORTS, tags=['tpm', 'linux'])
+@check(ports=UEFI_PORTS, tags=['tpm', 'linux'])
 def tpm_linux_event_log(t):
     """Linux gets the firmware's event log as the LINUX_EFI_TPM_EVENT_LOG
     configuration table USAGE.md names: the crypto-agile log, version 2,
@@ -195,7 +195,7 @@ def answer_prompts(t, m, key, done, most):
     return answered
 
 
-@test(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
+@check(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
 def tpm_cc_measurements(t):
     """With no TPM but a CC measurement protocol, here one the EFI probe
     installs, the same events go to the MR each PCR maps to (USAGE.md) [spec].
@@ -248,7 +248,7 @@ def tcg2_extends(text):
     return out
 
 
-@test(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
+@check(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
 def tpm_event_log_full(t):
     """EFI_VOLUME_FULL from HashLogExtendEvent() says the extend took place
     and only its event went unlogged (TCG EFI Protocol Specification Level 00
@@ -274,7 +274,7 @@ def tpm_event_log_full(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['tpm', 'linux'])
+@check(ports=UEFI_PORTS, tags=['tpm', 'linux'])
 def tpm_cc_linux(t):
     """A Linux kernel booted under the CC measurement protocol is measured as
     USAGE.md has it: command line and paths into PCR 8, the config, the

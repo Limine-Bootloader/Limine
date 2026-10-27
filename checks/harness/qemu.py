@@ -11,7 +11,7 @@ import time
 from harness import screen as screen_mod
 
 
-class TestTimeout(Exception):
+class CheckTimeout(Exception):
     pass
 
 
@@ -75,16 +75,16 @@ class Stream:
                     if m:
                         return m
                 if self.eof:
-                    raise TestTimeout(f'{self.name}: stream closed while waiting for {pattern!r}')
+                    raise CheckTimeout(f'{self.name}: stream closed while waiting for {pattern!r}')
                 if machine is not None and machine.exited():
                     # Let a final burst of output arrive before giving up.
                     self.cond.wait(0.2)
                     if isinstance(pattern, bytes) and self.data.find(pattern, start) >= 0:
                         continue
-                    raise TestTimeout(f'{self.name}: QEMU exited while waiting for {pattern!r}')
+                    raise CheckTimeout(f'{self.name}: QEMU exited while waiting for {pattern!r}')
                 left = deadline - time.monotonic()
                 if left <= 0:
-                    raise TestTimeout(f'{self.name}: timed out after {timeout}s waiting for {pattern!r}')
+                    raise CheckTimeout(f'{self.name}: timed out after {timeout}s waiting for {pattern!r}')
                 self.cond.wait(min(left, 0.5))
 
     def close(self):
@@ -248,7 +248,7 @@ class Machine:
         try:
             return self.proc.wait(timeout * self.timeout_scale)
         except subprocess.TimeoutExpired:
-            raise TestTimeout(f'QEMU did not exit within {timeout}s')
+            raise CheckTimeout(f'QEMU did not exit within {timeout}s')
 
     def send_key(self, *keys, hold_ms=None):
         """Press keys (qcodes) together, e.g. send_key('ctrl', 'x')."""

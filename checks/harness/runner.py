@@ -45,12 +45,12 @@ def build_payloads(env, jobs):
     res = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if res.returncode != 0:
         sys.stdout.write(res.stdout.decode(errors='replace'))
-        raise SystemExit('building the test payloads failed')
+        raise SystemExit('building the check payloads failed')
 
 
 class Result:
-    def __init__(self, test, port, status, detail='', duration=0.0, workdir=None):
-        self.test = test
+    def __init__(self, check, port, status, detail='', duration=0.0, workdir=None):
+        self.check = check
         self.port = port
         self.status = status
         self.detail = detail
@@ -59,36 +59,36 @@ class Result:
 
     @property
     def id(self):
-        return f'{self.test.full_name}[{self.port}]'
+        return f'{self.check.full_name}[{self.port}]'
 
 
-def run_one(env, test, port, coverage, keep):
-    workdir = os.path.join(env.outdir, test.full_name, port)
+def run_one(env, check, port, coverage, keep):
+    workdir = os.path.join(env.outdir, check.full_name, port)
     if os.path.exists(workdir):
         shutil.rmtree(workdir)
     ctx = api.Context(env, PORTS[port], workdir, coverage=coverage)
     start = time.monotonic()
     status, detail = 'PASS', ''
-    deadline = [start + test.timeout * PORTS[port].timeout_scale]
+    deadline = [start + check.timeout * PORTS[port].timeout_scale]
     done = threading.Event()
 
     def watchdog():
         while not done.wait(1):
             if time.monotonic() > deadline[0]:
-                ctx.soft_failures.append(f'test exceeded its {test.timeout}s budget')
+                ctx.soft_failures.append(f'check exceeded its {check.timeout}s budget')
                 ctx.stop_all()
                 return
 
     wd = threading.Thread(target=watchdog, daemon=True)
     wd.start()
     try:
-        test.func(ctx)
+        check.func(ctx)
         if ctx.soft_failures:
             status = 'FAIL'
             detail = '\n'.join(ctx.soft_failures)
     except api.Skip as e:
         status, detail = 'SKIP', str(e)
-    except (api.TestFailure, AssertionError, api.TestTimeout) as e:
+    except (api.CheckFailure, AssertionError, api.CheckTimeout) as e:
         status = 'FAIL'
         detail = '\n'.join(ctx.soft_failures + [f'{e.__class__.__name__}: {e}'])
     except Exception:
@@ -108,7 +108,7 @@ def run_one(env, test, port, coverage, keep):
         coverage.collect(workdir)
     duration = time.monotonic() - start
     with open(os.path.join(workdir, 'result.txt'), 'w') as f:
-        f.write(f'{status} {test.full_name}[{port}] {duration:.1f}s\n')
+        f.write(f'{status} {check.full_name}[{port}] {duration:.1f}s\n')
         if ctx.notes:
             f.write('\n'.join(ctx.notes) + '\n')
         if detail:
@@ -119,55 +119,55 @@ def run_one(env, test, port, coverage, keep):
             for fn in files:
                 if fn.endswith(('.img', '.iso', '.fd', '.ppm')) and not fn.startswith('keep-'):
                     os.unlink(os.path.join(root, fn))
-    return Result(test, port, status, detail, duration, workdir)
+    return Result(check, port, status, detail, duration, workdir)
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description='Run the Limine test suite under QEMU.')
+    ap = argparse.ArgumentParser(description='Run the Limine checks under QEMU.')
     ap.add_argument('-k', '--filter', action='append', default=[],
-                    help='only tests whose name matches this glob (repeatable)')
+                    help='only checks whose name matches this glob (repeatable)')
     ap.add_argument('-p', '--port', action='append', default=[],
                     help=f'only these ports ({", ".join(PORTS)})')
-    ap.add_argument('-t', '--tag', action='append', default=[], help='only tests with this tag')
+    ap.add_argument('-t', '--tag', action='append', default=[], help='only checks with this tag')
     ap.add_argument('-j', '--jobs', type=int, default=max(1, min(8, (os.cpu_count() or 2) // 2)))
     ap.add_argument('--builddir', help='Limine build directory (default: the source tree)')
     ap.add_argument('--outdir', help='where results go (default: <builddir>/checks-results)')
     ap.add_argument('--ovmfdir', help='directory with the UEFI firmware images')
-    ap.add_argument('--no-build', action='store_true', help='do not (re)build the test payloads')
-    ap.add_argument('--keep', action='store_true', help='keep disk images of passing tests')
-    ap.add_argument('--list', action='store_true', help='list the selected tests and exit')
+    ap.add_argument('--no-build', action='store_true', help='do not (re)build the check payloads')
+    ap.add_argument('--keep', action='store_true', help='keep disk images of passing checks')
+    ap.add_argument('--list', action='store_true', help='list the selected checks and exit')
     ap.add_argument('--coverage', action='store_true',
                     help='record executed Limine code and report line coverage')
     args = ap.parse_args(argv)
 
     env = Env(args.builddir, args.outdir, args.ovmfdir)
-    tests = load_cases()
+    checks = load_cases()
     selected = []
     # Unless asked for by name, ports the build left out are left out here.
     unbuilt = set()
     for name, port in PORTS.items():
         if not args.port and not os.path.exists(env.bin(port.efi_name if port.is_uefi else 'limine-bios.sys')):
             unbuilt.add(name)
-    for t in tests:
-        if args.filter and not any(fnmatch.fnmatch(t.full_name, f) or f in t.full_name
+    for c in checks:
+        if args.filter and not any(fnmatch.fnmatch(c.full_name, f) or f in c.full_name
                                    for f in args.filter):
             continue
-        if args.tag and not set(args.tag) & set(t.tags):
+        if args.tag and not set(args.tag) & set(c.tags):
             continue
-        for p in t.ports:
+        for p in c.ports:
             if (args.port and p not in args.port) or p in unbuilt:
                 continue
-            selected.append((t, p))
+            selected.append((c, p))
     if unbuilt:
         print(f'not built, left out: {", ".join(sorted(unbuilt))}')
 
     if args.list:
-        for t, p in selected:
-            print(f'{t.full_name}[{p}]')
+        for c, p in selected:
+            print(f'{c.full_name}[{p}]')
         return 0
 
     if not args.no_build:
-        print('Building the programs the tests boot', flush=True)
+        print('Building the programs the checks boot', flush=True)
         build_payloads(env, args.jobs * 2)
 
     coverage = None
@@ -178,28 +178,28 @@ def main(argv=None):
     os.makedirs(env.outdir, exist_ok=True)
     results = []
     start = time.monotonic()
-    # A process for each test: the threads that read a machine's character
-    # devices must not queue for the interpreter lock behind other tests'
+    # A process for each check: the threads that read a machine's character
+    # devices must not queue for the interpreter lock behind other checks'
     # screen decoding, or QEMU finds the socket full, holds the guest's UART
     # busy, and firmware that gives up waiting drops what it was writing.
     os.environ['PYTHONPATH'] = os.pathsep.join(filter(None, (CHECKSDIR, os.environ.get('PYTHONPATH'))))
     # Logging every translated block slows emulation.
     if coverage is not None:
-        os.environ.setdefault('LIMINE_TEST_SLOWDOWN', '3')
+        os.environ.setdefault('LIMINE_CHECK_SLOWDOWN', '3')
         os.environ['LLVM_PROFILE_FILE'] = coverage.host_profile_pattern
     if not selected:
-        print('No test runs selected')
+        print('No check runs selected')
         return 0
     paint = painter(sys.stdout)
     total = len(selected)
     width = len(str(total))
-    # Details line up with the test's name, after its count, status and time.
+    # Details line up with the check's name, after its count, status and time.
     indent = ' ' * len(f'[{total}/{total}] {"PASS":5} {0:6.1f}s  ')
     used = {p for _, p in selected}
-    print(f'Running {total} test runs on {", ".join(p for p in PORTS if p in used)}, '
+    print(f'Running {total} check runs on {", ".join(p for p in PORTS if p in used)}, '
           f'{args.jobs} at a time\n', flush=True)
     with ProcessPoolExecutor(max_workers=args.jobs, mp_context=multiprocessing.get_context('forkserver')) as pool:
-        futures = [pool.submit(run_one, env, t, p, coverage, args.keep) for t, p in selected]
+        futures = [pool.submit(run_one, env, c, p, coverage, args.keep) for c, p in selected]
         for done, future in enumerate(as_completed(futures), 1):
             r = future.result()
             results.append(r)
@@ -219,12 +219,12 @@ def main(argv=None):
                         for s in STATUS_WORDS if s in counts)
     minutes, seconds = divmod(round(time.monotonic() - start), 60)
     elapsed = f'{minutes}m {seconds:02}s' if minutes else f'{seconds}s'
-    print(f'\n{len(results)} test runs in {elapsed}: {summary}')
+    print(f'\n{len(results)} check runs in {elapsed}: {summary}')
     failed = sorted(r.id for r in results if r.status in ('FAIL', 'ERROR'))
     if failed:
         print('\nFailed:\n' + '\n'.join(f'  {f}' for f in failed))
     with open(os.path.join(env.outdir, 'results.json'), 'w') as f:
-        json.dump([{'test': r.test.full_name, 'port': r.port, 'status': r.status,
+        json.dump([{'check': r.check.full_name, 'port': r.port, 'status': r.status,
                     'duration': round(r.duration, 2), 'detail': r.detail} for r in results],
                   f, indent=1)
     if coverage is not None:

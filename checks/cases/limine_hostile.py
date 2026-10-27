@@ -1,7 +1,7 @@
 import gzip
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness.elf import ElfFile
 from harness.ports import ALL_PORTS
 from harness.report import fnv1a
@@ -10,7 +10,7 @@ from cases._common import (boot_entry, boot_kernel, check_file, check_report_cle
 from cases.limine_protocol import INTERNAL_COMPRESSED, INTERNAL_REQUIRED, internal_module_files
 
 # Executables whose requests point where they must not, built by patching the
-# test executables; the messages are Limine's own [intent].
+# check executables; the messages are Limine's own [intent].
 
 OUTSIDE = 0x1000
 COMMON_MAGIC = (0xc7b1dd30df4c8b88, 0x0a82e883a194f07b)
@@ -68,7 +68,7 @@ def too_many_requests(t):
     return e.with_bytes(text, fake)
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'hostile'], timeout=600)
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'hostile'], timeout=600)
 def limine_hostile_requests(t):
     """An entry without an executable, internal modules the request places
     outside the executable or describes impossibly, and more requests than
@@ -89,7 +89,7 @@ def limine_hostile_requests(t):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'fs'])
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'fs'])
 def limine_compressed_executable(t):
     """A gzip compressed executable ($ before its path, CONFIG.md) boots, the
     executable file response holding it inflated; internal modules resolve

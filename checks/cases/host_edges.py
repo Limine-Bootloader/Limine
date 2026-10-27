@@ -3,7 +3,7 @@ import struct
 import uuid
 import zlib
 
-from harness.api import test
+from harness.api import check
 from harness.media import BASIC_DATA_TYPE, BIOS_BOOT_TYPE, Disk, HostFile, Iso, Part, Tree
 from cases.host import limine, read
 
@@ -105,7 +105,7 @@ def install(t, path, *args):
     return limine(t, 'bios-install', path, *args)
 
 
-@test(ports=['bios'], tags=['host'])
+@check(ports=['bios'], tags=['host'])
 def host_cli_edges(t):
     """Each command's --help, and the arguments each refuses."""
     code, out, err = limine(t)
@@ -144,7 +144,7 @@ def host_cli_edges(t):
     t.check(code != 0 and "Couldn't determine block size of device" in err, f'[intent] under a sector: {err!r}')
 
 
-@test(ports=['bios'], tags=['host'])
+@check(ports=['bios'], tags=['host'])
 def host_enroll_config_edges(t):
     """enroll-config's usage, and the hashes and files it refuses: a hash of
     any length but a BLAKE2b or BLAKE3 one, or with a non-hexadecimal digit, a
@@ -186,7 +186,7 @@ def uninstall_data(*entries, count=None):
     return out
 
 
-@test(ports=['bios'], tags=['host'])
+@check(ports=['bios'], tags=['host'])
 def host_uninstall_data_edges(t):
     """--uninstall with uninstall data that is missing, short, or claims more
     than it can hold refuses before writing anything; data that cannot be
@@ -250,7 +250,7 @@ def mbr_with(entries=(), status=None, at=None):
     return bytes(data)
 
 
-@test(ports=['bios'], tags=['host'])
+@check(ports=['bios'], tags=['host'])
 def host_mbr_checks(t):
     """Installing to an MBR, bios-install wants the boot signature, status
     bytes that are 0 or 0x80, no partition starting below sector 63, and no
@@ -299,7 +299,7 @@ def host_mbr_checks(t):
         t.check(code != 0 and 'Install failed, undoing work...' in err, f'a disk that takes no writes: {err!r}')
 
 
-@test(ports=['bios'], tags=['host'])
+@check(ports=['bios'], tags=['host'])
 def host_gpt_checks(t):
     """On GPT, the partition named for the boot code must be a number of one
     the table lists, wholly inside the usable range and clear of the GPT
@@ -404,7 +404,7 @@ MBR_TYPES = {'c12a7328-f81f-11d2-ba4b-00a0c93ec93b': 0xef, 'ebd0a0a2-b9e5-4433-8
              '48465300-0000-11aa-aa11-00306543ecac': 0xaf}
 
 
-@test(ports=['bios'], tags=['host', 'iso'])
+@check(ports=['bios'], tags=['host', 'iso'])
 def host_isohybrid_conversion(t):
     """An isohybrid's GPT becomes an MBR of the same partitions, typed from a
     table of GPT types, CHS filled in, the disk ID derived from the disk GUID,
@@ -505,7 +505,7 @@ def put(fmt, off, value):
     return lambda data, at, lba: struct.pack_into(fmt, data, at + off, value)
 
 
-@test(ports=['bios'], tags=['host'])
+@check(ports=['bios'], tags=['host'])
 def host_gpt_verify(t):
     """A GPT is used only when a header passes UEFI 2.11 section 5.3.2's
     checks, signature, header CRC, MyLBA and entry array CRC, and holds
@@ -544,7 +544,7 @@ def host_gpt_verify(t):
     t.check(code == 0 and 'Installing to GPT' in err, f'the unspoilt disk installs to GPT: {err!r}')
 
 
-@test(ports=['bios'], tags=['host'])
+@check(ports=['bios'], tags=['host'])
 def host_gpt_not_iso(t):
     """A GPT disk is converted only if it is an ISO 9660 one, its primary
     volume descriptor among the first 256 [intent]: not where a terminator
@@ -601,7 +601,7 @@ def fnv1a32_zero_guid():
     raise RuntimeError('no FNV-1a preimage of 0 found')
 
 
-@test(ports=['bios'], tags=['host', 'iso'])
+@check(ports=['bios'], tags=['host', 'iso'])
 def host_isohybrid_conversion_edges(t):
     """The corners of the conversion: an alternate header the end of the
     medium does not hold, one closer to the usable range than a reserve, a
@@ -679,7 +679,7 @@ def gpt_header(my_lba, alternate_lba, first_usable, last_usable, array_lba, coun
     return bytes(h)
 
 
-@test(ports=['bios'], tags=['host', 'hostile'])
+@check(ports=['bios'], tags=['host', 'hostile'])
 def host_gpt_array_budget(t):
     """Looking for a GPT reads at most two entry arrays' worth, 2MiB: a
     primary and an alternate at the end, each with a 1MiB array that fails

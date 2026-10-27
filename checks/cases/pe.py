@@ -1,13 +1,13 @@
 import struct
 
-from harness.api import payload_arch, test
+from harness.api import payload_arch, check
 from harness import pe
 from harness.ports import ALL_PORTS
 from cases._common import boot_entry, boot_kernel, check_report_clean, entry, kernel_file, panics_in_turn, read
 
 # PE32+ executables for the Limine protocol, which PROTOCOL.md does not
 # mention, so [intent]: Limine's PE loader takes them where its ELF one takes
-# ELF executables. The images are remade from the ELF test executables.
+# ELF executables. The images are remade from the ELF check executables.
 
 HIGHER_HALF = 0xffffffff80000000
 
@@ -21,7 +21,7 @@ def pe_report(t, variant, options=''):
     return report
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'pe'])
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'pe'])
 def pe_executable(t):
     """A PE32+ executable boots as the ELF one it is remade from: its own
     checks pass, and it runs at the same place."""
@@ -32,7 +32,7 @@ def pe_executable(t):
     t.expect_eq(report['entry'], elf['entry'], 'entered as the ELF one is')
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'pe', 'relocation'])
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'pe', 'relocation'])
 def pe_relocatable(t):
     """A relocatable PE32+ executable based in the lower half runs in the
     higher half, its base relocations applied, at the same place every boot;
@@ -126,7 +126,7 @@ def hostile_images(arch):
     return cases
 
 
-@test(ports=ALL_PORTS, tags=['limine-protocol', 'pe', 'hostile'], timeout=900)
+@check(ports=ALL_PORTS, tags=['limine-protocol', 'pe', 'hostile'], timeout=900)
 def pe_hostile(t):
     """Spoilt images end in the panic for what is wrong with them, never a
     crash, and the menu comes back."""

@@ -1,13 +1,13 @@
 import struct
 
-from harness.api import test
+from harness.api import check
 from cases._common import boot_entry, entry
 
 # Where BIOS Limine's serial output goes (CONFIG.md's serial option): the
 # UART the ACPI SPCR table names (Microsoft's Serial Port Console Redirection
 # Table specification, table revision 4), if it is one Limine can drive and
 # it answers, else COM1 as the BIOS data area gives it. QEMU builds no SPCR
-# for x86, so the tests give it one with -acpitable; COM2 writes to a file.
+# for x86, so the checks give it one with -acpitable; COM2 writes to a file.
 
 LOADING = 'limine: Loading executable'
 IO, MEMORY = 1, 0
@@ -38,7 +38,7 @@ def boot_with_spcr(t, table):
         return m.stream('serial').text(), f.read()
 
 
-@test(ports=['bios'], tags=['console', 'serial'])
+@check(ports=['bios'], tags=['console', 'serial'])
 def serial_spcr(t):
     """The SPCR's UART is used: COM2 by I/O port at revision 2, and at
     revision 3 with the clock it states [spec]. One Limine cannot drive or

@@ -1,10 +1,10 @@
-from harness.api import test
+from harness.api import check
 from harness.ports import ALL_PORTS
 from harness.elf import ElfFile
 from cases._common import boot_kernel, check_report_clean, entry, kernel_file, read
 
 # Relocatable executables, as PROTOCOL.md's "Memory Layout at Entry" has them,
-# and CONFIG.md's kaslr and randomise_hhdm_base options. The pie test
+# and CONFIG.md's kaslr and randomise_hhdm_base options. The pie check
 # executable is linked at 0, and checks itself that it runs where the
 # executable address response says.
 
@@ -24,7 +24,7 @@ def layouts(t, n, **kwargs):
     return [layout(t, **kwargs) for _ in range(n)]
 
 
-@test(ports=ALL_PORTS, tags=['limine', 'relocation'])
+@check(ports=ALL_PORTS, tags=['limine', 'relocation'])
 def relocatable_slide(t):
     """A relocatable executable linked in the lower half runs in the higher
     half, slid by at least 0xffffffff80000000 less its lowest address; with
@@ -34,7 +34,7 @@ def relocatable_slide(t):
     t.expect_eq(runs[0], runs[1], '[spec] no randomisation by default')
 
 
-@test(ports=ALL_PORTS, tags=['limine', 'relocation'])
+@check(ports=ALL_PORTS, tags=['limine', 'relocation'])
 def relocatable_kaslr(t):
     """kaslr: yes randomises the slide, and with it by default the HHDM
     base."""
@@ -44,7 +44,7 @@ def relocatable_kaslr(t):
     t.check(len({hhdm for _, hhdm in runs}) > 1, f'[spec] HHDM bases randomised: {runs}')
 
 
-@test(ports=ALL_PORTS, tags=['limine', 'relocation'])
+@check(ports=ALL_PORTS, tags=['limine', 'relocation'])
 def relocatable_hhdm_options(t):
     """randomise_hhdm_base sets whether the HHDM base is randomised, KASLR
     or not."""
@@ -57,7 +57,7 @@ def relocatable_hhdm_options(t):
     t.check(len({hhdm for _, hhdm in free}) > 1, f'[spec] HHDM bases randomised by the alias: {free}')
 
 
-@test(ports=ALL_PORTS, tags=['limine', 'relocation'])
+@check(ports=ALL_PORTS, tags=['limine', 'relocation'])
 def kaslr_needs_relocatable(t):
     """kaslr applies to relocatable executables only: one linked for the
     higher half stays where it asked to be."""
@@ -66,7 +66,7 @@ def kaslr_needs_relocatable(t):
     t.expect_eq(runs[0][0], HIGHER_HALF, '[spec] at its link address')
 
 
-@test(ports=ALL_PORTS, tags=['limine', 'relocation'])
+@check(ports=ALL_PORTS, tags=['limine', 'relocation'])
 def relocatable_relr(t):
     """DT_RELR relocations (ELF gABI 4.3) are applied, slid or not."""
     if '.relr.dyn' not in ElfFile(read(kernel_file(t, 'pierelr'))).sections:
@@ -76,7 +76,7 @@ def relocatable_relr(t):
         t.check(base >= HIGHER_HALF, f'[spec] {options or "no KASLR"}: slid into the higher half: {base:#x}')
 
 
-@test(ports=ALL_PORTS, tags=['limine', 'relocation'])
+@check(ports=ALL_PORTS, tags=['limine', 'relocation'])
 def relocatable_shared_object(t):
     """A shared object's symbolic relocations, GLOB_DAT, JUMP_SLOT and 64-bit
     absolute ones, resolve through its dynamic symbol table (ELF gABI 4.3):

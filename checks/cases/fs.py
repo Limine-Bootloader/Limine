@@ -2,7 +2,7 @@ import gzip
 import hashlib
 import subprocess
 
-from harness.api import test
+from harness.api import check
 from harness import media
 from harness.media import Disk, Fat, HostFile, Iso, Part, Tree, BASIC_DATA_TYPE, ESP_TYPE
 from harness.ports import ALL_PORTS, Drive
@@ -42,7 +42,7 @@ def boot_report(t, m, timeout=60):
     return report
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_fat_types(t):
     """Booting from FAT12, FAT16 and FAT32, each sized to be that type by its
     cluster count (Microsoft FAT Specification of 30 August 2005, 3.5)."""
@@ -59,7 +59,7 @@ def fs_fat_types(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_fat_names(t):
     """On FAT an 8.3 name matches whatever its case; a long name only as
     written."""
@@ -113,7 +113,7 @@ def patch_short_name(path, name, at, byte):
         f.write(image)
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'hostile'])
+@check(ports=ALL_PORTS, tags=['fs', 'hostile'])
 def fs_fat_oem_short_names(t):
     """An 8.3 name holds what lies past ASCII in an OEM code page (Microsoft
     FAT Specification of 30 August 2005, section 6.1), read as CP437, its
@@ -154,7 +154,7 @@ def fs_fat_oem_short_names(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'hostile'])
+@check(ports=ALL_PORTS, tags=['fs', 'hostile'])
 def fs_fat_unicode_names(t):
     """Long names are UTF-16 (Microsoft FAT Specification of 30 August 2005,
     section 7), matched against paths in UTF-8: names of two and three byte
@@ -181,7 +181,7 @@ def fs_fat_unicode_names(t):
                     f'{read_as.get(name, name)!r} found')
 
 
-@test(ports=ALL_PORTS, tags=['fs', 'hostile'])
+@check(ports=ALL_PORTS, tags=['fs', 'hostile'])
 def fs_fat32_active_fat(t):
     """[spec] With mirroring off, BPB_ExtFlags bit 7, only the FAT its bits 0-3
     number is in use (Microsoft FAT Specification of 30 August 2005, section
@@ -224,7 +224,7 @@ def iso_boot(t, tree, **iso_kwargs):
     return t.boot(cdrom=iso)
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_iso9660_rock_ridge(t):
     """Rock Ridge names keep their case and length and match as written."""
     data = b'rock ridge module\n' * 40
@@ -250,7 +250,7 @@ def fs_iso9660_rock_ridge(t):
 PLAIN_ISO = ['-iso-level', '3', '-relaxed-filenames']
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_iso9660_rr_identifiers(t):
     """[intent] Rock Ridge is recognised by the ER entry of RRIP 1.12 writers
     too, IEEE_1282 or IEEE_P1282, and not only RRIP_1991A: on such volumes,
@@ -294,7 +294,7 @@ def fs_iso9660_rr_identifiers(t):
     t.expect_eq(msg, 'iso9660: Path component exceeds maximum length', 'a 300 character component')
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_iso9660_plain(t):
     """Without Rock Ridge, ISO 9660 names (uppercase) match whatever the case,
     the config file included; Joliet is not read."""
@@ -316,7 +316,7 @@ def fs_iso9660_plain(t):
                 'a name only Joliet holds in full is not found')
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_hashes(t):
     """A path may end in #<hash>: 128 hex digits for BLAKE2b, 64 for BLAKE3 and
     256 for extended-output BLAKE3; a matching file loads. The BLAKE3 files
@@ -337,7 +337,7 @@ def fs_hashes(t):
         t.expect_eq(unescape(r[f'module.{i:02}.path']), f'/boot/h{i}.bin', f'[intent] module {i} path without its hash')
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_hash_mismatch(t):
     """A hash that does not match panics unless hash_mismatch_panic is no; a
     hash of no supported length is refused."""
@@ -358,7 +358,7 @@ def fs_hash_mismatch(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_hash_mismatch_no_panic(t):
     """With hash_mismatch_panic: no a mismatch asks; Y boots on, anything else
     returns to the menu. So for a gzip file, whose hash is of its compressed
@@ -387,7 +387,7 @@ def fs_hash_mismatch_no_panic(t):
             m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_gzip(t):
     """$ before the resource inflates a gzip file; its hash is that of the
     compressed bytes, anything after the gzip data included."""
@@ -433,7 +433,7 @@ def uri_media(t):
     return files, disk, second, iso
 
 
-@test(ports=ALL_PORTS, tags=['fs'])
+@check(ports=ALL_PORTS, tags=['fs'])
 def fs_resources(t):
     """boot(), hdd() with and without a partition, odd(), guid()/uuid() and
     fslabel() reach the volumes they name; partitions 5 and up are logical."""
@@ -473,7 +473,7 @@ def fs_resources(t):
                    disk=disk if on_boot_disk else None, media_type=1 if on_cd else 0)
 
 
-@test(ports=['uefi-ia32', 'uefi-x86-64'], tags=['fs'])
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['fs'])
 def fs_unconnected_disk(t):
     """[user] A volume on a disk that shares the boot disk's AHCI controller,
     which OVMF's fast boot leaves unconnected, is found all the same by

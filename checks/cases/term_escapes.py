@@ -1,4 +1,4 @@
-from harness.api import test
+from harness.api import check
 from harness.ports import ALL_PORTS
 from cases.menu import boot_menu, booted_cmdline, menu_entry, wait_menu
 
@@ -35,7 +35,7 @@ def branding_cells(t, graphics, branding, shown):
     return branding_at(t, graphics, branding, shown)[0]
 
 
-@test(ports=['bios'], tags=['console', 'term'])
+@check(ports=['bios'], tags=['console', 'term'])
 def term_escapes_textmode(t):
     """In VGA text mode: SGR 1 brightens the default foreground, SGR 5 the
     default background, 90-97 and 100-107 are the bright colours, bold
@@ -54,7 +54,7 @@ def term_escapes_textmode(t):
     t.expect_eq(moved, row + 1, 'reverse index at the top scrolled the branding down a row')
 
 
-@test(ports=['bios'], tags=['console', 'term'])
+@check(ports=['bios'], tags=['console', 'term'])
 def term_textmode_verbose_boot(t):
     """verbose: yes in text mode: more lines than the screen has scroll it,
     and the entry boots."""
@@ -62,7 +62,7 @@ def term_textmode_verbose_boot(t):
     t.expect_eq(booted_cmdline(t, m), 'verbose', 'booted')
 
 
-@test(ports=ALL_PORTS, tags=['console', 'term'])
+@check(ports=ALL_PORTS, tags=['console', 'term'])
 def term_escapes_graphical(t):
     """The same in the graphical terminal: the cursor and editing sequences
     the same, bright colours brighter than the normal ones, and a 24-bit
@@ -74,7 +74,7 @@ def term_escapes_graphical(t):
     t.expect_eq(c['G'].bg, 0x010203, '24-bit background')
 
 
-@test(ports=ALL_PORTS, tags=['console', 'term'])
+@check(ports=ALL_PORTS, tags=['console', 'term'])
 def term_too_small_falls_back(t):
     """A terminal too small for the menu (here, a font scaled up fourfold)
     gives way to the text console: VGA text mode on BIOS, the firmware's

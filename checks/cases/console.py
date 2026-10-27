@@ -1,7 +1,7 @@
 import re
 import time
 
-from harness.api import test
+from harness.api import check
 from harness.ports import ALL_PORTS, UEFI_PORTS
 from cases._common import entry, limine_version, screen_text
 from cases.menu import BRANDING_ARCH, KERNEL, boot_menu, booted_cmdline, nothing_booted, tree_menu
@@ -19,7 +19,7 @@ def type_serial(m, *keys):
         time.sleep(0.3)
 
 
-@test(ports=ALL_PORTS, tags=['console'])
+@check(ports=ALL_PORTS, tags=['console'])
 def console_serial_menu(t):
     """serial: yes puts the menu on the serial line, drawn in ASCII [intent],
     and takes keys typed there."""
@@ -38,7 +38,7 @@ def console_serial_menu(t):
     t.expect_eq(booted_cmdline(t, m), 'inner one', 'keys typed on the serial line chose and booted Inner One')
 
 
-@test(ports=ALL_PORTS, tags=['console'])
+@check(ports=ALL_PORTS, tags=['console'])
 def console_graphics_no(t):
     """graphics: no draws the menu in text mode: VGA text mode on BIOS, and
     on UEFI, which has no text mode of its own, the firmware's console
@@ -67,7 +67,7 @@ def limine_shown(t, m):
     return any('ARROWS' in text or 'Limine ' in text for text in texts)
 
 
-@test(ports=ALL_PORTS, tags=['console'])
+@check(ports=ALL_PORTS, tags=['console'])
 def console_quiet(t):
     """quiet: yes shows nothing while the timeout runs and then boots the
     default entry; a key pressed during the timeout shows the menu and stops
@@ -114,7 +114,7 @@ def boot_messages(t, globals_):
 LOADING = ('limine: Loading executable `boot():/boot/kernel.elf`...', 'limine: Loading module `boot():/boot/mod1.bin`...')
 
 
-@test(ports=ALL_PORTS, tags=['console'])
+@check(ports=ALL_PORTS, tags=['console'])
 def console_message_levels(t):
     """Loading messages are printed by default and not with terse: yes;
     verbose: yes adds the executable's load addresses; quiet: yes prints
@@ -156,7 +156,7 @@ def uart_divisor(m, base=0x3f8):
     return divisor
 
 
-@test(ports=['bios'], tags=['console'])
+@check(ports=['bios'], tags=['console'])
 def console_serial_baudrate(t):
     """serial_baudrate sets the rate serial I/O runs at: 115200 by default
     and at most, 50 at least, and only rates dividing 115200; anything else
@@ -188,7 +188,7 @@ def esc(seq):
 DIGIT_DROPPING_PORTS = ['uefi-riscv64', 'uefi-loongarch64']
 
 
-@test(ports=[p for p in ALL_PORTS if p not in DIGIT_DROPPING_PORTS], tags=['console', 'serial'])
+@check(ports=[p for p in ALL_PORTS if p not in DIGIT_DROPPING_PORTS], tags=['console', 'serial'])
 def console_serial_escape_sequences(t):
     """Keys typed on the serial line as the escape sequences terminals send
     (ECMA-48 5th edition control sequences, VT220's numbered ~ keys, xterm's
@@ -213,7 +213,7 @@ def console_serial_escape_sequences(t):
     t.expect_eq(booted_cmdline(t, m), 'cdefXYZ', 'the edited entry booted')
 
 
-@test(ports=[p for p in UEFI_PORTS if p not in DIGIT_DROPPING_PORTS], tags=['console', 'serial'])
+@check(ports=[p for p in UEFI_PORTS if p not in DIGIT_DROPPING_PORTS], tags=['console', 'serial'])
 def console_serial_split_sequences(t):
     """[intent] A key's escape sequence whose bytes come apart, as the
     firmware's console can pass them on over several of its polls of the
@@ -232,7 +232,7 @@ def console_serial_split_sequences(t):
     t.expect_eq(booted_cmdline(t, m), 'abcdefX', 'the edited entry booted')
 
 
-@test(ports=DIGIT_DROPPING_PORTS, tags=['console', 'serial'])
+@check(ports=DIGIT_DROPPING_PORTS, tags=['console', 'serial'])
 def console_serial_decoded_keys(t):
     """Keys that firmware's terminal decodes work in the editor: Home and End
     as control sequence (ECMA-48 5th edition) and SS3 finals, Backspace sent

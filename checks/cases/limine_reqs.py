@@ -1,6 +1,6 @@
 import struct
 
-from harness.api import test
+from harness.api import check
 from harness.elf import ElfFile
 from harness.ports import ALL_PORTS
 from cases._common import boot_entry, check_report_clean, entry, kernel_file, panics_in_turn, read
@@ -27,7 +27,7 @@ def boot_report(t, variant):
     return report
 
 
-@test(ports=PORTS, tags=['limine-protocol', 'elf'])
+@check(ports=PORTS, tags=['limine-protocol', 'elf'])
 def limine_reqs_section(t):
     """At base revision 0 the requests are the ones .limine_reqs lists [spec],
     pointers that relocation moves like any other in a relocatable executable;
@@ -40,7 +40,7 @@ def limine_reqs_section(t):
             t.expect_eq(r.int(f'{listed}.response'), 1, f'{variant}: listed {listed} request answered')
 
 
-@test(ports=PORTS, tags=['limine-protocol', 'elf'])
+@check(ports=PORTS, tags=['limine-protocol', 'elf'])
 def limine_reqs_ignored(t):
     """From base revision 1 on, .limine_reqs is not looked at: the date at
     boot request it leaves out is found and answered all the same [spec]."""
@@ -91,7 +91,7 @@ def reqs_cases(t):
     return cases
 
 
-@test(ports=PORTS, tags=['limine-protocol', 'elf', 'hostile'], timeout=600)
+@check(ports=PORTS, tags=['limine-protocol', 'elf', 'hostile'], timeout=600)
 def limine_reqs_hostile(t):
     """A .limine_reqs that cannot be found leaves the image to be scanned; one
     pointing outside the image or off 8 bytes, or holding more requests than
@@ -107,7 +107,7 @@ def limine_reqs_hostile(t):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')
 
 
-@test(ports=PORTS, tags=['limine-protocol', 'elf'])
+@check(ports=PORTS, tags=['limine-protocol', 'elf'])
 def limine_reqs_extended_numbering(t):
     """The section is found through ELF gABI 4.3 extended section numbering,
     the count in section 0's sh_size, the string table index in its sh_link."""

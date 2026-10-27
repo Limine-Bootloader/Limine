@@ -2,7 +2,7 @@ import hashlib
 import shutil
 import subprocess
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import UEFI_PORTS
 from harness.report import unescape
@@ -28,7 +28,7 @@ def need_firmware(t):
 
 
 def limine_efi(t, config=None):
-    """Limine signed with the test db key, with config's hash enrolled first."""
+    """Limine signed with the db key, with config's hash enrolled first."""
     name = t.port.efi_name
     path = t.path(name)
     shutil.copyfile(t.env.bin(name), path)
@@ -41,7 +41,7 @@ def limine_efi(t, config=None):
 
 def sb_boot(t, config, enrolled=True, files=None, keys=True, **machine):
     """Boot signed Limine with config, its hash enrolled unless not enrolled,
-    on firmware with the test keys enrolled, or with none (Setup Mode)."""
+    on firmware with the checks' keys enrolled, or with none (Setup Mode)."""
     code, template = need_firmware(t)
     tree = Tree()
     tree.add('/EFI/BOOT/' + t.port.efi_name, HostFile(limine_efi(t, config if enrolled else None)))
@@ -64,7 +64,7 @@ def kernel_entry(t, hashed=True, extra='', modules=(), cmdline='secure boot'):
     return entry('Test', path=path, cmdline=cmdline, modules=modules, extra=extra)
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_enforced(t):
     """With Secure Boot active and the config hash enrolled, a config whose
     paths all carry hashes boots."""
@@ -72,7 +72,7 @@ def sb_enforced(t):
     t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'booted')
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_path_needs_hash(t):
     """Every path must carry a hash."""
     m = sb_boot(t, 'timeout: 0\n' + kernel_entry(t, hashed=False))
@@ -81,7 +81,7 @@ def sb_path_needs_hash(t):
                 '[intent] a kernel path without a hash')
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_config_mismatch(t):
     """The config is checked against the enrolled hash on every boot."""
     code, _ = need_firmware(t)
@@ -96,7 +96,7 @@ def sb_config_mismatch(t):
     t.expect_eq(msg, '!!! CHECKSUM MISMATCH FOR CONFIG FILE !!!', '[intent] tampered config')
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_hash_mismatch_always_panics(t):
     """hash_mismatch_panic is forced to yes."""
     config = 'timeout: 0\nhash_mismatch_panic: no\n' + kernel_entry(
@@ -106,7 +106,7 @@ def sb_hash_mismatch_always_panics(t):
     t.expect_eq(msg, 'BLAKE2b hash for URI `boot():/boot/m.bin` does not match!', 'a mismatch panics regardless')
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_menu_restrictions(t):
     """The editor is off whatever editor_enabled says, and the UEFI Shell key
     is gone; [intent] the branding says Secure Boot."""
@@ -122,7 +122,7 @@ def sb_menu_restrictions(t):
     t.check('cmdline: secure boot' not in screen_text(t.wait_text(m, 'ARROWS')), 'E does nothing')
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_unhashed_wallpaper_font_skipped(t):
     """A wallpaper or font without a hash is skipped, the defaults taking
     their place, rather than a panic."""
@@ -134,7 +134,7 @@ def sb_unhashed_wallpaper_font_skipped(t):
     t.check(m.screendump().count_colour(0xff0000) == 0, 'no wallpaper drawn')
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_efi_chainload(t):
     """EFI chainloading needs no hash: the firmware checks the image's signature
     instead, booting a signed one and refusing an unsigned one."""
@@ -153,7 +153,7 @@ def sb_efi_chainload(t):
         m.stop()
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_not_enrolled(t):
     """With no config hash enrolled Secure Boot counts as inactive: paths need
     no hash and the editor is there."""
@@ -167,7 +167,7 @@ def sb_not_enrolled(t):
     t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'a kernel without a hash boots')
 
 
-@test(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_setup_mode(t):
     """Firmware in Setup Mode, with no platform key, does not count as Secure
     Boot being active: an enrolled config hash then enforces nothing more,

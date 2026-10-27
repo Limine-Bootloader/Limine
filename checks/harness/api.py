@@ -8,7 +8,7 @@ from harness.ports import PORTS, MachineSpec, Drive, build_machine, qemu_version
 from harness.report import Report
 from harness.tpm import SoftwareTpm
 from harness.bootserver import BootServer
-from harness.qemu import TestTimeout
+from harness.qemu import CheckTimeout
 from harness import screen as screen_mod
 from harness import vt as vt_mod
 
@@ -18,7 +18,7 @@ REGISTRY = []
 EFI_NAMES = ['BOOTX64.EFI', 'BOOTIA32.EFI', 'BOOTAA64.EFI', 'BOOTRISCV64.EFI', 'BOOTLOONGARCH64.EFI']
 
 
-class TestFailure(AssertionError):
+class CheckFailure(AssertionError):
     pass
 
 
@@ -26,7 +26,7 @@ class Skip(Exception):
     pass
 
 
-class TestDef:
+class CheckDef:
     def __init__(self, func, ports, tags, timeout, name):
         self.func = func
         self.ports = ports
@@ -40,10 +40,10 @@ class TestDef:
         return f'{self.module}.{self.name}'
 
 
-def test(ports=None, tags=(), timeout=180, name=None):
-    """Register a test function, run once per port in ports."""
+def check(ports=None, tags=(), timeout=180, name=None):
+    """Register a check function, run once per port in ports."""
     def wrap(func):
-        REGISTRY.append(TestDef(func, list(ports or PORTS), list(tags), timeout, name or func.__name__))
+        REGISTRY.append(CheckDef(func, list(ports or PORTS), list(tags), timeout, name or func.__name__))
         return func
     return wrap
 
@@ -53,7 +53,7 @@ def payload_arch(port):
 
 
 class Context:
-    """Everything one test case run gets: its port, a work directory, and
+    """Everything one check run gets: its port, a work directory, and
     helpers that build media, start machines and record failures."""
 
     def __init__(self, env, port, workdir, coverage=None):
@@ -72,10 +72,10 @@ class Context:
     # Results
 
     def fail(self, msg):
-        raise TestFailure(msg)
+        raise CheckFailure(msg)
 
     def check(self, cond, msg):
-        """A soft assertion: recorded, and the test carries on."""
+        """A soft assertion: recorded, and the check carries on."""
         if not cond:
             self.soft_failures.append(msg)
         return cond
@@ -85,7 +85,7 @@ class Context:
 
     def require(self, cond, msg):
         if not cond:
-            raise TestFailure(msg)
+            raise CheckFailure(msg)
 
     def note(self, msg):
         self.notes.append(msg)
@@ -174,7 +174,7 @@ class Context:
     # Machines
 
     def software_tpm(self):
-        """A TPM 2.0 for machines of this test to use, stopped with them."""
+        """A TPM 2.0 for machines of this check to use, stopped with them."""
         if self.port.name == 'uefi-loongarch64' and qemu_version(self.port.qemu) < (10, 0):
             self.skip('QEMU before 10.0 shows loongarch64 firmware no TPM')
         tpm = SoftwareTpm(self.workdir)
@@ -253,7 +253,7 @@ class Context:
         return self.port.kernel_out
 
     def kernel_report(self, m, timeout=60, begin='B LIMINE-TEST'):
-        """Wait for a test payload to finish and parse what it printed."""
+        """Wait for a check payload to finish and parse what it printed."""
         ch = self.kernel_channel
         m.wait_for(ch, 'E DONE', timeout)
         # The rest of the line.
@@ -294,11 +294,11 @@ class Context:
             if last is not None and predicate(last):
                 return last
             if m.exited():
-                raise TestTimeout(f'QEMU exited while waiting for {desc}')
+                raise CheckTimeout(f'QEMU exited while waiting for {desc}')
             if time.monotonic() > deadline:
                 if last is not None:
-                    raise TestTimeout(f'timed out waiting for {desc}; last screen:\n{last.text()}')
-                raise TestTimeout(f'timed out waiting for {desc}')
+                    raise CheckTimeout(f'timed out waiting for {desc}; last screen:\n{last.text()}')
+                raise CheckTimeout(f'timed out waiting for {desc}')
             time.sleep(interval)
 
     def wait_text(self, m, needle, timeout=30, **kwargs):
@@ -317,9 +317,9 @@ class Context:
             if scr.find(needle):
                 return scr
             if m.exited():
-                raise TestTimeout(f'QEMU exited while waiting for {needle!r} on the serial line')
+                raise CheckTimeout(f'QEMU exited while waiting for {needle!r} on the serial line')
             if time.monotonic() > deadline:
-                raise TestTimeout(f'timed out waiting for {needle!r} on the serial line; last screen:\n'
+                raise CheckTimeout(f'timed out waiting for {needle!r} on the serial line; last screen:\n'
                                   + scr.text())
             time.sleep(0.5)
 

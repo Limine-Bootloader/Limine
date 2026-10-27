@@ -1,7 +1,7 @@
 import gzip
 import hashlib
 
-from harness.api import test
+from harness.api import check
 from harness.report import fnv1a
 from cases._common import boot_kernel, check_report_clean, entry
 
@@ -19,7 +19,7 @@ def pattern(size):
     return (PERIOD * (size // len(PERIOD) + 1))[:size]
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'memory'], timeout=300)
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'memory'], timeout=300)
 def modules_above_4g(t):
     """Modules too large for the memory below 4GiB are put above it, whole:
     one read as it is, one decompressed as it is read, its buffer grown as it

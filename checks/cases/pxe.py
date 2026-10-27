@@ -1,7 +1,7 @@
 import ipaddress
 import time
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, UEFI_PORTS
 from harness.report import unescape
@@ -59,7 +59,7 @@ def dhcp_message(packet):
     return packet[0], str(ipaddress.IPv4Address(packet[16:20])), packet[236:240].hex(), options
 
 
-@test(ports=ALL_PORTS, tags=['pxe'])
+@check(ports=ALL_PORTS, tags=['pxe'])
 def pxe_boot_files(t):
     """Booted over PXE, Limine reads its config and what it loads from the
     server: boot() standing for tftp(), tftp() for the server it booted from,
@@ -83,7 +83,7 @@ def pxe_boot_files(t):
         t.expect_eq(r[prefix + '.tftp'], f'{SERVER}:69', f'[spec] {prefix} server')
 
 
-@test(ports=ALL_PORTS, tags=['pxe'])
+@check(ports=ALL_PORTS, tags=['pxe'])
 def pxe_config_search(t):
     """The config is looked for on the server as on any volume (CONFIG.md):
     on UEFI /EFI/BOOT/limine.conf first, the image's path being no file
@@ -98,7 +98,7 @@ def pxe_config_search(t):
     t.expect_eq(unescape(t.kernel_report(m, timeout=120)['cmdline']), expected, '[spec] the config used')
 
 
-@test(ports=UEFI_PORTS, tags=['pxe', 'uefi'])
+@check(ports=UEFI_PORTS, tags=['pxe', 'uefi'])
 def pxe_no_uefi_shell(t):
     """Booted over PXE the menu offers no UEFI Shell, even with one on the
     server (USAGE.md)."""
@@ -109,7 +109,7 @@ def pxe_no_uefi_shell(t):
     t.check('UEFI Shell' not in text, f'[spec] no U key:\n{text}')
 
 
-@test(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['pxe', 'multiboot'])
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['pxe', 'multiboot'])
 def pxe_mb2_network_tag(t):
     """A Multiboot 2 kernel booted over PXE gets the DHCP ACK in a network
     tag (Multiboot2 2.0 section 3.6.18), as GRUB passes it."""
@@ -123,7 +123,7 @@ def pxe_mb2_network_tag(t):
     t.expect_eq(options.get(53), bytes([DHCPACK]), '[spec: RFC 2132] message type DHCPACK')
 
 
-@test(ports=ALL_PORTS, tags=['pxe'])
+@check(ports=ALL_PORTS, tags=['pxe'])
 def pxe_tftp_off_pxe(t):
     """Off PXE the tftp resource is unavailable (CONFIG.md): the file is
     not found, with or without a server named."""
@@ -152,7 +152,7 @@ def boot_outcome(t, m, timeout=120):
     return None
 
 
-@test(ports=ALL_PORTS, tags=['pxe'])
+@check(ports=ALL_PORTS, tags=['pxe'])
 def pxe_tsize(t):
     """USAGE.md: the server must report sizes (tsize, RFC 2349), Limine
     asking for the size of every file and taking a file whose size goes
@@ -190,7 +190,7 @@ def pxe_tsize(t):
         m.stop()
 
 
-@test(ports=ALL_PORTS, tags=['pxe', 'hostile'])
+@check(ports=ALL_PORTS, tags=['pxe', 'hostile'])
 def pxe_tftp_errors(t):
     """A tftp server address that is no IPv4 address is refused; a file the
     server does not have, or, on BIOS, one whose name is past the 127

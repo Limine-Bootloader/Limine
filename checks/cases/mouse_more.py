@@ -1,6 +1,6 @@
 import time
 
-from harness.api import test
+from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import ALL_PORTS, Drive
 from cases._common import kernel_file
@@ -18,7 +18,7 @@ def boot_with_mouse(t, config, mouse):
     return t.boot(drives=[Drive(t.boot_disk(tree).path)], mouse=mouse)
 
 
-@test(ports=['bios'], tags=['mouse'])
+@check(ports=['bios'], tags=['mouse'])
 def mouse_textmode(t):
     """In VGA text mode the pointer is the text cursor, and clicks work the
     same [intent]."""
@@ -32,7 +32,7 @@ def mouse_textmode(t):
     t.expect_eq(booted_cmdline(t, m), 'last', 'a click booted Last')
 
 
-@test(ports=ALL_PORTS, tags=['mouse'])
+@check(ports=ALL_PORTS, tags=['mouse'])
 def mouse_rotated(t):
     """On a rotated interface the pointer is drawn turned with it; moving it,
     the wheel and the right button change nothing a key cannot set back."""
