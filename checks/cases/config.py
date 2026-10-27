@@ -173,6 +173,22 @@ def config_syntax(t):
 
 
 @check(ports=ALL_PORTS, tags=['config'])
+def config_globals_before_first_entry(t):
+    """Global options come before the first entry; one after it, however
+    indented, is part of an entry. That holds for a config opening with an
+    entry too, which then has no global options, its timeout the default
+    [intent]."""
+    entries = (entry('First', path='boot():/boot/kernel.elf', cmdline='first') + 'default_entry: 2\n'
+               + entry('Second', path='boot():/boot/kernel.elf', cmdline='second'))
+    cmdline, m = boot_config(t, 'timeout: 0\n' + entries)
+    t.expect_eq(cmdline, 'first', 'default_entry after the first entry ignored')
+    m.stop()
+    cmdline, m = boot_config(t, entries)
+    t.expect_eq(cmdline, 'first', 'likewise in a config opening with an entry')
+    m.stop()
+
+
+@check(ports=ALL_PORTS, tags=['config'])
 def config_aliases(t):
     """kernel_path and kernel_cmdline stand for path and cmdline."""
     config = 'timeout: 0\n/Test\n    protocol: limine\n    kernel_path: boot():/boot/kernel.elf\n' \
