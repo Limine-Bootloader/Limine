@@ -49,6 +49,73 @@ static char menu_branding_colour[24] = "\e[38;2;0;170;170m";
 
 static char *menu_branding = NULL;
 
+// Horizontal and vertical anchoring both reduce to start, centre, or end.
+enum menu_placement {
+    MENU_PLACEMENT_START,
+    MENU_PLACEMENT_CENTER,
+    MENU_PLACEMENT_END,
+};
+
+static enum menu_placement menu_anchor_h = MENU_PLACEMENT_CENTER;
+static enum menu_placement menu_anchor_v = MENU_PLACEMENT_CENTER;
+static enum menu_placement menu_align = MENU_PLACEMENT_START;
+static int64_t menu_offset_x = 0;
+static int64_t menu_offset_y = 0;
+static size_t menu_block_width = 0;
+
+static int64_t parse_signed_dec(const char *str) {
+    bool neg = false;
+
+    if (*str == '-' || *str == '+') {
+        neg = *str == '-';
+        str++;
+    }
+
+    int64_t val = 0;
+
+    while (isdigit((unsigned char)*str)) {
+        if (val <= (INT64_MAX - 9) / 10) {
+            val = val * 10 + (*str - '0');
+        }
+        str++;
+    }
+
+    return neg ? -val : val;
+}
+
+// The offsets nudge every anchored row, so that the branding, help, comment,
+// and countdown rows travel with the menu instead of drifting away from it.
+static size_t anchored_x(size_t width) {
+    size_t max_x = width < terms[0]->cols ? terms[0]->cols - width : 0;
+    size_t x;
+
+    switch (menu_anchor_h) {
+        case MENU_PLACEMENT_START: {
+            x = 0;
+            break;
+        }
+        case MENU_PLACEMENT_END: {
+            x = max_x;
+            break;
+        }
+        default: {
+            x = max_x / 2;
+            break;
+        }
+    }
+
+    int64_t off = (int64_t)x + menu_offset_x;
+
+    if (off < 0) {
+        off = 0;
+    }
+    if (off > (int64_t)max_x) {
+        off = (int64_t)max_x;
+    }
+
+    return (size_t)off;
+}
+
 enum keyboard_layout current_keyboard_layout = KEYBOARD_LAYOUT_UNKNOWN;
 
 static void keyboard_layout_init(void) {
@@ -227,7 +294,7 @@ static void print_secondary_help(size_t row, bool firmware_setup, bool uefi_shel
         }
     }
 
-    set_cursor_pos_helper((terms[0]->cols > len) ? (terms[0]->cols - len) / 2 : 0, row);
+    set_cursor_pos_helper(anchored_x(len), row);
 
     bool need_separator = false;
     if (firmware_setup) {
@@ -294,10 +361,11 @@ static void print_branding(void) {
     size_t keep;
     size_t width = display_width(menu_branding, max_width > 3 ? max_width - 3 : 0, &keep);
     if (width <= max_width) {
-        set_cursor_pos_helper((terms[0]->cols - width) / 2, y);
+        set_cursor_pos_helper(anchored_x(width), y);
         print("%s%s\e[0m", menu_branding_colour, menu_branding);
     } else {
-        set_cursor_pos_helper(1, y);
+        // keep counts bytes, not cells; a truncated line is max_width wide.
+        set_cursor_pos_helper(anchored_x(max_width), y);
         print("%s%S...\e[0m", menu_branding_colour, menu_branding, keep);
     }
 }
@@ -1360,6 +1428,79 @@ static void find_entry_by_bli_id_or_path(const char *str,
 }
 #endif
 
+// Prints the entry name, inverted when selected, truncated to what the row has
+// left once the decorations are accounted for.
+static void print_entry_label(const struct menu_entry *entry, bool selected, size_t max_name) {
+    if (selected) {
+        print("\e[7m");
+    }
+
+    if (strlen(entry->name) > max_name && max_name > 3) {
+        print(" %S...\e[27m", entry->name, (size_t)(max_name - 3));
+    } else {
+        print(" %s \e[27m", entry->name);
+    }
+}
+
+// Prints the tree decorations and the entry marker. Mirrored emits them after
+// the name, with the corners and the arrow flipped, so that a right-aligned
+// tree branches outwards to the right.
+static void print_tree_branch(const struct menu_entry *entry, size_t level, bool mirrored) {
+    const struct menu_entry *ancestor;
+
+    if (mirrored) {
+        if (entry->sub) {
+            print(entry->expanded ? "[-]" : "[+]");
+        } else if (level) {
+            print(SERIAL_CONSOLE ? "<--" : "◄──");
+        } else {
+            print("   ");
+        }
+
+        if (level) {
+            print(entry->next != NULL ? (SERIAL_CONSOLE ? "| " : "┤ ")
+                                      : (SERIAL_CONSOLE ? "' " : "┘ "));
+
+            for (size_t i = 1; i < level; i++) {
+                ancestor = entry;
+                for (size_t j = 0; j < i; j++) {
+                    ancestor = ancestor->parent;
+                }
+                print(ancestor->next != NULL ? (SERIAL_CONSOLE ? "| " : "│ ") : "  ");
+            }
+        }
+
+        return;
+    }
+
+    if (level) {
+        for (size_t i = level - 1; i > 0; i--) {
+            ancestor = entry;
+            for (size_t j = 0; j < i; j++) {
+                ancestor = ancestor->parent;
+            }
+            print(ancestor->next != NULL ? (SERIAL_CONSOLE ? " |" : " │") : "  ");
+        }
+
+        print(entry->next != NULL ? (SERIAL_CONSOLE ? " |" : " ├")
+                                  : (SERIAL_CONSOLE ? " `" : " └"));
+    }
+
+    if (entry->sub) {
+        print(entry->expanded ? "[-]" : "[+]");
+    } else if (level) {
+        print(SERIAL_CONSOLE ? "-->" : "──►");
+    } else {
+        print("   ");
+    }
+}
+
+// The cells a tree line occupies, counted before printing so that the line can
+// be padded out to the width of the widest one.
+static size_t tree_line_len(const struct menu_entry *entry, size_t level) {
+    return 2 * level + 3 + 1 + strlen(entry->name) + 1;
+}
+
 static size_t print_tree(size_t offset, size_t window, const char *shift, size_t level, size_t base_index, size_t selected_entry,
                       struct menu_entry *current_entry,
                       struct menu_entry **selected_menu_entry,
@@ -1384,7 +1525,8 @@ static size_t print_tree(size_t offset, size_t window, const char *shift, size_t
     }
 
     for (;;) {
-        size_t cur_len = 0;
+        size_t cur_len = 2 * level + 3;
+        size_t pad = 0;
         if (current_entry == NULL)
             break;
         if (should_skip_entry(current_entry)) {
@@ -1397,53 +1539,46 @@ static size_t print_tree(size_t offset, size_t window, const char *shift, size_t
         if (!no_print && base_index + max_entries >= offset + window) {
             goto skip_line;
         }
-        if (!no_print) print("%s", shift);
-        if (level) {
-            for (size_t i = level - 1; i > 0; i--) {
-                struct menu_entry *actual_parent = current_entry;
-                for (size_t j = 0; j < i; j++)
-                    actual_parent = actual_parent->parent;
-                if (actual_parent->next != NULL) {
-                    if (!no_print) print(SERIAL_CONSOLE ? " |" : " │");
-                } else {
-                    if (!no_print) print("  ");
+        if (!no_print) {
+            if (menu_align != MENU_PLACEMENT_START && menu_block_width != 0) {
+                size_t line_len = tree_line_len(current_entry, level);
+
+                if (line_len < menu_block_width) {
+                    pad = menu_block_width - line_len;
                 }
-                cur_len += 2;
             }
-            if (current_entry->next == NULL) {
-                if (!no_print) print(SERIAL_CONSOLE ? " `" : " └");
+
+            if (menu_align == MENU_PLACEMENT_CENTER) {
+                pad /= 2;
+            }
+
+            print("%s", shift);
+
+            for (size_t i = 0; i < pad; i++) {
+                print(" ");
+            }
+
+            size_t used = strlen(shift) + pad + cur_len + 1 + 1; // shift + padding + decorations + spaces
+            size_t max_name = (terms[0]->cols > used) ? terms[0]->cols - used : 0;
+            bool selected = (base_index + max_entries == selected_entry);
+
+            if (menu_align == MENU_PLACEMENT_END) {
+                print_entry_label(current_entry, selected, max_name);
+                print_tree_branch(current_entry, level, true);
             } else {
-                if (!no_print) print(SERIAL_CONSOLE ? " |" : " ├");
+                print_tree_branch(current_entry, level, false);
+                print_entry_label(current_entry, selected, max_name);
             }
-            cur_len += 2;
+
+            print("\n");
         }
-        if (current_entry->sub) {
-            if (!no_print) print(current_entry->expanded ? "[-]" : "[+]");
-        } else if (level) {
-            if (!no_print) print(SERIAL_CONSOLE ? "-->" : "──►");
-        } else {
-            if (!no_print) print("   ");
-        }
-        cur_len += 3;
+
         if (base_index + max_entries == selected_entry) {
             *selected_menu_entry = current_entry;
-            if (!no_print) print("\e[7m");
         }
-        {
-            size_t name_len = strlen(current_entry->name);
-            if (!no_print) {
-                size_t prefix_len = shift ? strlen(shift) : 0;
-                size_t used = prefix_len + cur_len + 1 + 1; // shift + decorations + space before + space after
-                size_t max_name = (terms[0]->cols > used) ? terms[0]->cols - used : 0;
-                if (name_len > max_name && max_name > 3) {
-                    print(" %S...\e[27m\n", current_entry->name, (size_t)(max_name - 3));
-                } else {
-                    print(" %s \e[27m\n", current_entry->name);
-                }
-            }
-            (*max_height)++;
-            cur_len += 1 + name_len + 1;
-        }
+
+        (*max_height)++;
+        cur_len += 1 + strlen(current_entry->name) + 1;
 skip_line:
         if (current_entry->sub && current_entry->expanded) {
             max_entries += print_tree(offset, window, shift, level + 1, base_index + max_entries + 1,
@@ -1666,10 +1801,10 @@ static void print_entry_comment(const struct menu_entry *entry, size_t row) {
     size_t width = display_width(comment, max_width > 3 ? max_width - 3 : 0, &keep);
     FOR_TERM(TERM->scroll_enabled = false);
     if (width <= max_width) {
-        set_cursor_pos_helper((terms[0]->cols - width) / 2, row);
+        set_cursor_pos_helper(anchored_x(width), row);
         print("\e[36m%s\e[0m", comment);
     } else {
-        set_cursor_pos_helper(1, row);
+        set_cursor_pos_helper(anchored_x(max_width), row);
         print("\e[36m%S...\e[0m", comment, keep);
     }
     FOR_TERM(TERM->scroll_enabled = true);
@@ -1830,6 +1965,61 @@ noreturn void _menu(bool first_run) {
     char *help_hidden_str = config_get_value(NULL, 0, "INTERFACE_HELP_HIDDEN");
     if (help_hidden_str != NULL) {
         help_hidden = strcmp(help_hidden_str, "yes") == 0;
+    }
+
+    char *anchor_str = config_get_value(NULL, 0, "INTERFACE_ANCHOR");
+    if (anchor_str != NULL) {
+        const char *p = anchor_str;
+
+        // The horizontal and vertical parts may come in either order.
+        while (*p != 0) {
+            while (*p == '_' || *p == ',' || *p == ' ') {
+                p++;
+            }
+
+            const char *token = p;
+
+            while (*p != 0 && *p != '_' && *p != ',' && *p != ' ') {
+                p++;
+            }
+
+            size_t token_len = (size_t)(p - token);
+
+            if (token_len == 4 && !strncasecmp(token, "left", token_len)) {
+                menu_anchor_h = MENU_PLACEMENT_START;
+            } else if (token_len == 6 && !strncasecmp(token, "right", token_len)) {
+                menu_anchor_h = MENU_PLACEMENT_END;
+            } else if (token_len == 6 && !strncasecmp(token, "center", token_len)) {
+                menu_anchor_h = MENU_PLACEMENT_CENTER;
+            } else if (token_len == 3 && !strncasecmp(token, "top", token_len)) {
+                menu_anchor_v = MENU_PLACEMENT_START;
+            } else if (token_len == 6 && !strncasecmp(token, "middle", token_len)) {
+                menu_anchor_v = MENU_PLACEMENT_CENTER;
+            } else if (token_len == 6 && !strncasecmp(token, "bottom", token_len)) {
+                menu_anchor_v = MENU_PLACEMENT_END;
+            }
+        }
+    }
+
+    char *offset_x_str = config_get_value(NULL, 0, "INTERFACE_OFFSET_X");
+    if (offset_x_str != NULL) {
+        menu_offset_x = parse_signed_dec(offset_x_str);
+    }
+
+    char *offset_y_str = config_get_value(NULL, 0, "INTERFACE_OFFSET_Y");
+    if (offset_y_str != NULL) {
+        menu_offset_y = parse_signed_dec(offset_y_str);
+    }
+
+    char *align_str = config_get_value(NULL, 0, "INTERFACE_ALIGN");
+    if (align_str != NULL) {
+        if (!strcasecmp(align_str, "left")) {
+            menu_align = MENU_PLACEMENT_START;
+        } else if (!strcasecmp(align_str, "center")) {
+            menu_align = MENU_PLACEMENT_CENTER;
+        } else if (!strcasecmp(align_str, "right")) {
+            menu_align = MENU_PLACEMENT_END;
+        }
     }
 
     uint32_t help_rgb = 0x00aa00;
@@ -2141,7 +2331,7 @@ refresh:
         } else {
             msg = "[config file not found]";
         }
-        set_cursor_pos_helper((terms[0]->cols - strlen(msg)) / 2, (terms[0]->rows - 1) / 2);
+        set_cursor_pos_helper(anchored_x(strlen(msg)), (terms[0]->rows - 1) / 2);
         print("%s\n", msg);
     }
 
@@ -2150,7 +2340,8 @@ refresh:
                              &selected_menu_entry, &max_tree_len, &max_tree_height);
 
     if (max_entries != 0) {
-        size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 3) ? (terms[0]->cols - max_tree_len - 3) / 2 : 1;
+        menu_block_width = max_tree_len;
+        size_t tree_prefix_len = anchored_x(max_tree_len + 3);
         char *tree_prefix = ext_mem_alloc(tree_prefix_len + 1);
         memset(tree_prefix, ' ', tree_prefix_len);
 
@@ -2158,10 +2349,40 @@ refresh:
             max_tree_height = terms[0]->rows - 8 - header_offset;
         }
 
-        size_t tree_start = (terms[0]->rows - max_tree_height) / 2;
-        if (tree_start < 4 + header_offset) {
-            tree_start = 4 + header_offset;
+        size_t min_tree_start = 4 + header_offset;
+        size_t max_tree_start = min_tree_start;
+
+        // Leave the comment and countdown rows below the menu alone.
+        if (terms[0]->rows > 3 + max_tree_height) {
+            max_tree_start = terms[0]->rows - 3 - max_tree_height;
         }
+
+        size_t tree_start;
+
+        switch (menu_anchor_v) {
+            case MENU_PLACEMENT_START: {
+                tree_start = min_tree_start;
+                break;
+            }
+            case MENU_PLACEMENT_END: {
+                tree_start = max_tree_start;
+                break;
+            }
+            default: {
+                tree_start = (terms[0]->rows - max_tree_height) / 2;
+                break;
+            }
+        }
+
+        int64_t off = (int64_t)tree_start + menu_offset_y;
+
+        if (off < (int64_t)min_tree_start) {
+            off = (int64_t)min_tree_start;
+        }
+        if (off > (int64_t)max_tree_start) {
+            off = (int64_t)max_tree_start;
+        }
+        tree_start = (size_t)off;
         tree_row_start = tree_start;
         set_cursor_pos_helper(0, tree_start);
 
@@ -2177,12 +2398,12 @@ refresh:
 
         if (max_entries != 0) {
             if (tree_offset > 0) {
-                set_cursor_pos_helper((terms[0]->cols - 3) / 2, 3 + header_offset);
+                set_cursor_pos_helper(anchored_x(3), 3 + header_offset);
                 print(SERIAL_CONSOLE ? "^^^" : "↑↑↑");
             }
 
             if (tree_offset + (terms[0]->rows - 8 - header_offset) < max_entries) {
-                set_cursor_pos_helper((terms[0]->cols - 3) / 2, terms[0]->rows - 4);
+                set_cursor_pos_helper(anchored_x(3), terms[0]->rows - 4);
                 print(SERIAL_CONSOLE ? "vvv" : "↓↓↓");
             }
         }
@@ -2192,18 +2413,18 @@ refresh:
                 size_t primary_row = 1 + header_offset - (has_secondary_help ? 2 : 0);
                 if (selected_menu_entry->sub == NULL) {
                     if (editor_enabled) {
-                        set_cursor_pos_helper((terms[0]->cols - 37) / 2, primary_row);
+                        set_cursor_pos_helper(anchored_x(37), primary_row);
                         print("%sARROWS\e[0m Select    %sENTER\e[0m Boot    %sE\e[0m Edit",
                               interface_help_colour, interface_help_colour, interface_help_colour);
                     } else {
-                        set_cursor_pos_helper((terms[0]->cols - 27) / 2, primary_row);
+                        set_cursor_pos_helper(anchored_x(27), primary_row);
                         print("%sARROWS\e[0m Select    %sENTER\e[0m Boot",
                               interface_help_colour, interface_help_colour);
                     }
                 } else {
                     const char *action = selected_menu_entry->expanded ? "Collapse" : "Expand";
                     size_t len = 23 + strlen(action);
-                    set_cursor_pos_helper((terms[0]->cols - len) / 2, primary_row);
+                    set_cursor_pos_helper(anchored_x(len), primary_row);
                     print("%sARROWS\e[0m Select    %sENTER\e[0m %s",
                           interface_help_colour, interface_help_colour, action);
                 }
@@ -2234,7 +2455,7 @@ refresh:
             size_t timeout_len = format_timeout_ms(timeout_buf, timeout_ms);
             size_t msg_len = 28 + timeout_len;
             mouse_erase_pointer();
-            set_cursor_pos_helper((terms[0]->cols - msg_len) / 2, terms[0]->rows - 2);
+            set_cursor_pos_helper(anchored_x(msg_len), terms[0]->rows - 2);
             FOR_TERM(TERM->scroll_enabled = false);
             print("\e[2K%sBooting automatically in %s%s%s...\e[0m",
                   interface_help_colour, interface_help_colour_bright, timeout_buf, interface_help_colour);
