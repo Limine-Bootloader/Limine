@@ -203,6 +203,21 @@ Limine interface control options:
   to each channel (saturating at `0xff`).
 * `interface_help_color_bright` - Alias of `interface_help_colour_bright`.
 
+Menu text placement options:
+
+These place the menu text within the area left over by `term_margin`, which is
+otherwise centred.
+
+* `interface_anchor` - Where the menu text sits: `left`, `center`, or `right`
+  for the horizontal part, and `top`, `middle`, or `bottom` for the vertical
+  part. The parts may be given in either order, separated by `_`, `,`, or a
+  space, as in `left_top` or `bottom,right`. Default is `center_middle`.
+* `interface_offset_x` - Nudge of the menu text in character cells, applied
+  after `interface_anchor`; may be negative. The branding, help, comment, and
+  countdown rows are nudged with it. Default is `0`.
+* `interface_offset_y` - Nudge of the menu text block in character cells,
+  applied after `interface_anchor`; may be negative. Default is `0`.
+
 Limine graphical terminal control options:
 
 These are ignored if using text mode.
