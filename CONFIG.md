@@ -212,6 +212,10 @@ otherwise centred.
   for the horizontal part, and `top`, `middle`, or `bottom` for the vertical
   part. The parts may be given in either order, separated by `_`, `,`, or a
   space, as in `left_top` or `bottom,right`. Default is `center_middle`.
+* `interface_align` - How the lines of the menu text line up against each
+  other: `left`, `center`, or `right`. Default is `left`. With `right`, the tree
+  decorations and the entry marker follow the name, mirrored, so that the tree
+  branches outwards to the right.
 * `interface_offset_x` - Nudge of the menu text in character cells, applied
   after `interface_anchor`; may be negative. The branding, help, comment, and
   countdown rows are nudged with it. Default is `0`.

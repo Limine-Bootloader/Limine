@@ -58,8 +58,10 @@ enum menu_placement {
 
 static enum menu_placement menu_anchor_h = MENU_PLACEMENT_CENTER;
 static enum menu_placement menu_anchor_v = MENU_PLACEMENT_CENTER;
+static enum menu_placement menu_align = MENU_PLACEMENT_START;
 static int64_t menu_offset_x = 0;
 static int64_t menu_offset_y = 0;
+static size_t menu_block_width = 0;
 
 static int64_t parse_signed_dec(const char *str) {
     bool neg = false;
@@ -1426,6 +1428,79 @@ static void find_entry_by_bli_id_or_path(const char *str,
 }
 #endif
 
+// Prints the entry name, inverted when selected, truncated to what the row has
+// left once the decorations are accounted for.
+static void print_entry_label(const struct menu_entry *entry, bool selected, size_t max_name) {
+    if (selected) {
+        print("\e[7m");
+    }
+
+    if (strlen(entry->name) > max_name && max_name > 3) {
+        print(" %S...\e[27m", entry->name, (size_t)(max_name - 3));
+    } else {
+        print(" %s \e[27m", entry->name);
+    }
+}
+
+// Prints the tree decorations and the entry marker. Mirrored emits them after
+// the name, with the corners and the arrow flipped, so that a right-aligned
+// tree branches outwards to the right.
+static void print_tree_branch(const struct menu_entry *entry, size_t level, bool mirrored) {
+    const struct menu_entry *ancestor;
+
+    if (mirrored) {
+        if (entry->sub) {
+            print(entry->expanded ? "[-]" : "[+]");
+        } else if (level) {
+            print(SERIAL_CONSOLE ? "<--" : "◄──");
+        } else {
+            print("   ");
+        }
+
+        if (level) {
+            print(entry->next != NULL ? (SERIAL_CONSOLE ? "| " : "┤ ")
+                                      : (SERIAL_CONSOLE ? "' " : "┘ "));
+
+            for (size_t i = 1; i < level; i++) {
+                ancestor = entry;
+                for (size_t j = 0; j < i; j++) {
+                    ancestor = ancestor->parent;
+                }
+                print(ancestor->next != NULL ? (SERIAL_CONSOLE ? "| " : "│ ") : "  ");
+            }
+        }
+
+        return;
+    }
+
+    if (level) {
+        for (size_t i = level - 1; i > 0; i--) {
+            ancestor = entry;
+            for (size_t j = 0; j < i; j++) {
+                ancestor = ancestor->parent;
+            }
+            print(ancestor->next != NULL ? (SERIAL_CONSOLE ? " |" : " │") : "  ");
+        }
+
+        print(entry->next != NULL ? (SERIAL_CONSOLE ? " |" : " ├")
+                                  : (SERIAL_CONSOLE ? " `" : " └"));
+    }
+
+    if (entry->sub) {
+        print(entry->expanded ? "[-]" : "[+]");
+    } else if (level) {
+        print(SERIAL_CONSOLE ? "-->" : "──►");
+    } else {
+        print("   ");
+    }
+}
+
+// The cells a tree line occupies, counted before printing so that the line can
+// be padded out to the width of the widest one.
+static size_t tree_line_len(const struct menu_entry *entry, size_t level) {
+    return 2 * level + 3 + 1 + strlen(entry->name) + 1;
+}
+
 static size_t print_tree(size_t offset, size_t window, const char *shift, size_t level, size_t base_index, size_t selected_entry,
                       struct menu_entry *current_entry,
                       struct menu_entry **selected_menu_entry,
@@ -1450,7 +1525,8 @@ static size_t print_tree(size_t offset, size_t window, const char *shift, size_t
     }
 
     for (;;) {
-        size_t cur_len = 0;
+        size_t cur_len = 2 * level + 3;
+        size_t pad = 0;
         if (current_entry == NULL)
             break;
         if (should_skip_entry(current_entry)) {
@@ -1463,53 +1539,46 @@ static size_t print_tree(size_t offset, size_t window, const char *shift, size_t
         if (!no_print && base_index + max_entries >= offset + window) {
             goto skip_line;
         }
-        if (!no_print) print("%s", shift);
-        if (level) {
-            for (size_t i = level - 1; i > 0; i--) {
-                struct menu_entry *actual_parent = current_entry;
-                for (size_t j = 0; j < i; j++)
-                    actual_parent = actual_parent->parent;
-                if (actual_parent->next != NULL) {
-                    if (!no_print) print(SERIAL_CONSOLE ? " |" : " │");
-                } else {
-                    if (!no_print) print("  ");
+        if (!no_print) {
+            if (menu_align != MENU_PLACEMENT_START && menu_block_width != 0) {
+                size_t line_len = tree_line_len(current_entry, level);
+
+                if (line_len < menu_block_width) {
+                    pad = menu_block_width - line_len;
                 }
-                cur_len += 2;
             }
-            if (current_entry->next == NULL) {
-                if (!no_print) print(SERIAL_CONSOLE ? " `" : " └");
+
+            if (menu_align == MENU_PLACEMENT_CENTER) {
+                pad /= 2;
+            }
+
+            print("%s", shift);
+
+            for (size_t i = 0; i < pad; i++) {
+                print(" ");
+            }
+
+            size_t used = strlen(shift) + pad + cur_len + 1 + 1; // shift + padding + decorations + spaces
+            size_t max_name = (terms[0]->cols > used) ? terms[0]->cols - used : 0;
+            bool selected = (base_index + max_entries == selected_entry);
+
+            if (menu_align == MENU_PLACEMENT_END) {
+                print_entry_label(current_entry, selected, max_name);
+                print_tree_branch(current_entry, level, true);
             } else {
-                if (!no_print) print(SERIAL_CONSOLE ? " |" : " ├");
+                print_tree_branch(current_entry, level, false);
+                print_entry_label(current_entry, selected, max_name);
             }
-            cur_len += 2;
+
+            print("\n");
         }
-        if (current_entry->sub) {
-            if (!no_print) print(current_entry->expanded ? "[-]" : "[+]");
-        } else if (level) {
-            if (!no_print) print(SERIAL_CONSOLE ? "-->" : "──►");
-        } else {
-            if (!no_print) print("   ");
-        }
-        cur_len += 3;
+
         if (base_index + max_entries == selected_entry) {
             *selected_menu_entry = current_entry;
-            if (!no_print) print("\e[7m");
         }
-        {
-            size_t name_len = strlen(current_entry->name);
-            if (!no_print) {
-                size_t prefix_len = shift ? strlen(shift) : 0;
-                size_t used = prefix_len + cur_len + 1 + 1; // shift + decorations + space before + space after
-                size_t max_name = (terms[0]->cols > used) ? terms[0]->cols - used : 0;
-                if (name_len > max_name && max_name > 3) {
-                    print(" %S...\e[27m\n", current_entry->name, (size_t)(max_name - 3));
-                } else {
-                    print(" %s \e[27m\n", current_entry->name);
-                }
-            }
-            (*max_height)++;
-            cur_len += 1 + name_len + 1;
-        }
+
+        (*max_height)++;
+        cur_len += 1 + strlen(current_entry->name) + 1;
 skip_line:
         if (current_entry->sub && current_entry->expanded) {
             max_entries += print_tree(offset, window, shift, level + 1, base_index + max_entries + 1,
@@ -1942,6 +2011,17 @@ noreturn void _menu(bool first_run) {
         menu_offset_y = parse_signed_dec(offset_y_str);
     }
 
+    char *align_str = config_get_value(NULL, 0, "INTERFACE_ALIGN");
+    if (align_str != NULL) {
+        if (!strcasecmp(align_str, "left")) {
+            menu_align = MENU_PLACEMENT_START;
+        } else if (!strcasecmp(align_str, "center")) {
+            menu_align = MENU_PLACEMENT_CENTER;
+        } else if (!strcasecmp(align_str, "right")) {
+            menu_align = MENU_PLACEMENT_END;
+        }
+    }
+
     uint32_t help_rgb = 0x00aa00;
     char *interface_help_colour_str = config_get_value(NULL, 0, "INTERFACE_HELP_COLOUR");
     if (interface_help_colour_str == NULL) {
@@ -2260,6 +2340,7 @@ refresh:
                              &selected_menu_entry, &max_tree_len, &max_tree_height);
 
     if (max_entries != 0) {
+        menu_block_width = max_tree_len;
         size_t tree_prefix_len = anchored_x(max_tree_len + 3);
         char *tree_prefix = ext_mem_alloc(tree_prefix_len + 1);
         memset(tree_prefix, ' ', tree_prefix_len);
