@@ -5,14 +5,24 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-// PCR allocation, following the GRUB convention:
-//   PCR 8: kernel command line and other authoritative strings
-//   PCR 9: kernel image, initrd, devicetree, and other binary blobs
-#define TPM_PCR_BOOT_AUTH       8
-#define TPM_PCR_LOADED_IMAGES   9
+// Standard PCR allocation (TCG PC Client Platform Firmware Profile & Linux TPM PCR Registry):
+#define TPM_PCR_BOOT_CODE       4
+#define TPM_PCR_CONFIG          5
+#define TPM_PCR_SECURE_BOOT     7
+#define TPM_PCR_CMDLINE         8
+#define TPM_PCR_INITRD          9
+#define TPM_PCR_KERNEL_CONFIG   12
+
+// Legacy aliases for backward compatibility:
+#define TPM_PCR_BOOT_AUTH       TPM_PCR_CMDLINE
+#define TPM_PCR_LOADED_IMAGES   TPM_PCR_INITRD
 
 // TCG PC Client Platform Firmware Profile event types
+#define TPM_EV_EVENT_TAG        0x00000006
 #define TPM_EV_IPL              0x0000000d
+
+// Tagged event IDs
+#define LOADER_CONF_EVENT_TAG_ID 0xf5bc582a
 
 #if defined (UEFI)
 
@@ -24,6 +34,10 @@ bool tpm_present(void);
 void tpm_measure(uint32_t pcr, uint32_t event_type,
                  const void *data, size_t data_size,
                  const char *desc_prefix, const char *desc_value);
+
+void tpm_measure_tagged_event(uint32_t pcr, uint32_t event_id,
+                             const void *data, size_t data_size,
+                             const char *description);
 
 // Measure a config-supplied URI string into the given PCR with any trailing
 // `#<hash>` suffix stripped, so the digest captures only the policy-stable

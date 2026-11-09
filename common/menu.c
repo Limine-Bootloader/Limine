@@ -1809,8 +1809,8 @@ noreturn void _menu(bool first_run) {
     size_t raw_size;
     const char *raw = config_get_raw(&raw_size);
     if (raw != NULL) {
-        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                    raw, raw_size, "limine_cfg", NULL);
+        tpm_measure_tagged_event(TPM_PCR_CONFIG, LOADER_CONF_EVENT_TAG_ID,
+                                 raw, raw_size, "limine.conf");
     }
 #endif
 

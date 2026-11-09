@@ -25,9 +25,6 @@
 // TPMs have a handful of PCR banks; the cap keeps record parsing cheap.
 #define TCG_LOG_MAX_ALGORITHMS 16
 
-// TCG EFI Protocol section 7, UEFI 2.11 section 38.3.
-#define TCG_FINAL_EVENTS_TABLE_VERSION 1
-
 // Section 5.1, without the trailing event data.
 struct tcg_pcr_event {
     uint32_t pcr_index;
@@ -65,9 +62,8 @@ struct tcg_digest_sizes {
     struct tcg_efi_spec_id_event_algorithm_size algorithms[TCG_LOG_MAX_ALGORITHMS];
 };
 
-// At most one of these is non-NULL after tpm_init. tcg2 takes precedence
-// since it's the more common case (real TPMs); the cc fallback is for
-// confidential-computing platforms (TDX, SEV-SNP) without a discrete TPM.
+// Both may be non-NULL after tpm_init if both protocols are available,
+// in order to extend both protocols.
 static EFI_TCG2_PROTOCOL *tcg2 = NULL;
 static EFI_CC_MEASUREMENT_PROTOCOL *cc = NULL;
 
@@ -82,13 +78,18 @@ void tpm_init(void) {
         status = tcg2_proto->GetCapability(tcg2_proto, &cap);
         if (status == EFI_SUCCESS && cap.TPMPresentFlag) {
             tcg2 = tcg2_proto;
+            uint32_t active_banks = 0;
+            if (cap.StructureVersion.Major > 1 ||
+                (cap.StructureVersion.Major == 1 && cap.StructureVersion.Minor >= 1)) {
+                active_banks = (uint32_t)cap.ActivePcrBanks;
+            }
             printv("tpm: TCG2 protocol located, TPM present (active PCR banks: %x)\n",
-                   (uint32_t)cap.ActivePcrBanks);
-            return;
+                   active_banks);
         }
     }
 
-    // No TCG2/TPM 2.0; fall back to the CC measurement protocol.
+    // Locate CC measurement protocol. Do not return early if TCG2 was found;
+    // keep both pointers so both are extended.
     EFI_GUID cc_guid = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
     EFI_CC_MEASUREMENT_PROTOCOL *cc_proto = NULL;
     status = gBS->LocateProtocol(&cc_guid, NULL, (void **)&cc_proto);
@@ -105,7 +106,6 @@ void tpm_init(void) {
                 case EFI_CC_TYPE_INTEL_TDX: cc_name = "Intel TDX"; break;
             }
             printv("tpm: CC measurement protocol located (type: %s)\n", cc_name);
-            return;
         }
     }
 }
@@ -137,6 +137,87 @@ static void tpm_extend_failed(void) {
     }
 }
 
+static void tcg2_extend(uint32_t pcr, uint32_t event_type,
+                        const void *data, size_t data_size,
+                        const void *event_payload, size_t payload_size) {
+    if (tcg2 == NULL) {
+        return;
+    }
+
+    size_t event_size = offsetof(EFI_TCG2_EVENT, Event) + payload_size;
+    EFI_TCG2_EVENT *event = ext_mem_alloc(event_size);
+    event->Size = (EFI_UINT32)event_size;
+    event->Header.HeaderSize = sizeof(EFI_TCG2_EVENT_HEADER);
+    event->Header.HeaderVersion = 1;
+    event->Header.PCRIndex = pcr;
+    event->Header.EventType = event_type;
+    if (event_payload != NULL && payload_size > 0) {
+        memcpy(event->Event, event_payload, payload_size);
+    }
+
+    EFI_STATUS status = tcg2->HashLogExtendEvent(
+        tcg2, 0,
+        (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
+        event);
+    if (status == EFI_VOLUME_FULL) {
+        tpm_log_full();
+    } else if (status != EFI_SUCCESS) {
+        quiet = false;
+        print("WARNING: tpm: HashLogExtendEvent for PCR %u failed: %X\n"
+              "         This component has not been measured.\n",
+              pcr, (uint64_t)status);
+        tpm_extend_failed();
+    }
+
+    pmm_free(event, event_size);
+}
+
+static void cc_extend(uint32_t pcr, uint32_t event_type,
+                      const void *data, size_t data_size,
+                      const void *event_payload, size_t payload_size) {
+    if (cc == NULL) {
+        return;
+    }
+
+    EFI_CC_MR_INDEX mr_index;
+    EFI_STATUS status = cc->MapPcrToMrIndex(cc, pcr, &mr_index);
+    if (status != EFI_SUCCESS) {
+        quiet = false;
+        print("WARNING: tpm: no measurement register for PCR %u: %X\n"
+              "         This component has not been measured.\n",
+              pcr, (uint64_t)status);
+        tpm_extend_failed();
+        return;
+    }
+
+    size_t event_size = offsetof(EFI_CC_EVENT, Event) + payload_size;
+    EFI_CC_EVENT *event = ext_mem_alloc(event_size);
+    event->Size = (EFI_UINT32)event_size;
+    event->Header.HeaderSize = sizeof(EFI_CC_EVENT_HEADER);
+    event->Header.HeaderVersion = EFI_CC_EVENT_HEADER_VERSION;
+    event->Header.MrIndex = mr_index;
+    event->Header.EventType = event_type;
+    if (event_payload != NULL && payload_size > 0) {
+        memcpy(event->Event, event_payload, payload_size);
+    }
+
+    status = cc->HashLogExtendEvent(
+        cc, 0,
+        (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
+        event);
+    if (status == EFI_VOLUME_FULL) {
+        tpm_log_full();
+    } else if (status != EFI_SUCCESS) {
+        quiet = false;
+        print("WARNING: tpm: CC HashLogExtendEvent for PCR %u (MR %u) failed: %X\n"
+              "         This component has not been measured.\n",
+              pcr, (uint32_t)mr_index, (uint64_t)status);
+        tpm_extend_failed();
+    }
+
+    pmm_free(event, event_size);
+}
+
 void tpm_measure(uint32_t pcr, uint32_t event_type,
                  const void *data, size_t data_size,
                  const char *desc_prefix, const char *desc_value) {
@@ -148,83 +229,46 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
     size_t value_len = desc_value != NULL ? strlen(desc_value) : 0;
     size_t desc_len = prefix_len + value_len + 1;
 
-    if (tcg2 != NULL) {
-        size_t event_size = offsetof(EFI_TCG2_EVENT, Event) + desc_len;
-
-        EFI_TCG2_EVENT *event = ext_mem_alloc(event_size);
-        event->Size = (EFI_UINT32)event_size;
-        event->Header.HeaderSize = sizeof(EFI_TCG2_EVENT_HEADER);
-        event->Header.HeaderVersion = 1;
-        event->Header.PCRIndex = pcr;
-        event->Header.EventType = event_type;
-        if (prefix_len > 0) {
-            memcpy(event->Event, desc_prefix, prefix_len);
-        }
-        if (value_len > 0) {
-            memcpy(event->Event + prefix_len, desc_value, value_len);
-        }
-
-        EFI_STATUS status = tcg2->HashLogExtendEvent(
-            tcg2, 0,
-            (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
-            event);
-        if (status == EFI_VOLUME_FULL) {
-            tpm_log_full();
-        } else if (status != EFI_SUCCESS) {
-            quiet = false;
-            print("WARNING: tpm: HashLogExtendEvent for PCR %u failed: %X\n"
-                  "         This component has not been measured.\n",
-                  pcr, (uint64_t)status);
-            tpm_extend_failed();
-        }
-
-        pmm_free(event, event_size);
-    } else if (cc != NULL) {
-        // CC platforms expose Memory Reference (MR) registers rather than
-        // PCRs. The protocol provides a translation from a requested PCR
-        // index to the platform's corresponding MR index.
-        EFI_CC_MR_INDEX mr_index;
-        EFI_STATUS status = cc->MapPcrToMrIndex(cc, pcr, &mr_index);
-        if (status != EFI_SUCCESS) {
-            quiet = false;
-            print("WARNING: tpm: no measurement register for PCR %u: %X\n"
-                  "         This component has not been measured.\n",
-                  pcr, (uint64_t)status);
-            tpm_extend_failed();
-            return;
-        }
-
-        size_t event_size = offsetof(EFI_CC_EVENT, Event) + desc_len;
-
-        EFI_CC_EVENT *event = ext_mem_alloc(event_size);
-        event->Size = (EFI_UINT32)event_size;
-        event->Header.HeaderSize = sizeof(EFI_CC_EVENT_HEADER);
-        event->Header.HeaderVersion = EFI_CC_EVENT_HEADER_VERSION;
-        event->Header.MrIndex = mr_index;
-        event->Header.EventType = event_type;
-        if (prefix_len > 0) {
-            memcpy(event->Event, desc_prefix, prefix_len);
-        }
-        if (value_len > 0) {
-            memcpy(event->Event + prefix_len, desc_value, value_len);
-        }
-
-        status = cc->HashLogExtendEvent(
-            cc, 0,
-            (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
-            event);
-        if (status == EFI_VOLUME_FULL) {
-            tpm_log_full();
-        } else if (status != EFI_SUCCESS) {
-            quiet = false;
-            print("WARNING: tpm: CC HashLogExtendEvent for PCR %u (MR %u) failed: %X\n"
-                  "         This component has not been measured.\n",
-                  pcr, (uint32_t)mr_index, (uint64_t)status);
-            tpm_extend_failed();
-        }
-
-        pmm_free(event, event_size);
+    char *desc = ext_mem_alloc(desc_len);
+    if (prefix_len > 0) {
+        memcpy(desc, desc_prefix, prefix_len);
     }
+    if (value_len > 0) {
+        memcpy(desc + prefix_len, desc_value, value_len);
+    }
+
+    tcg2_extend(pcr, event_type, data, data_size, desc, desc_len);
+    cc_extend(pcr, event_type, data, data_size, desc, desc_len);
+
+    pmm_free(desc, desc_len);
+}
+
+void tpm_measure_tagged_event(uint32_t pcr, uint32_t event_id,
+                             const void *data, size_t data_size,
+                             const char *description) {
+    if (!measured_boot || data == NULL) {
+        return;
+    }
+
+    size_t desc_len = description != NULL ? strlen(description) + 1 : 1;
+    const char *desc_str = description != NULL ? description : "";
+
+    if (tcg2 != NULL) {
+        size_t tag_hdr_size = 2 * sizeof(uint32_t);
+        size_t tagged_size = tag_hdr_size + desc_len;
+        uint8_t *tagged = ext_mem_alloc(tagged_size);
+
+        uint32_t *hdr = (uint32_t *)tagged;
+        hdr[0] = event_id;
+        hdr[1] = (uint32_t)desc_len;
+        memcpy(tagged + tag_hdr_size, desc_str, desc_len);
+
+        tcg2_extend(pcr, TPM_EV_EVENT_TAG, data, data_size, tagged, tagged_size);
+        pmm_free(tagged, tagged_size);
+    }
+
+    // CC measurement protocol has no tagged-event concept; fall back to EV_IPL
+    cc_extend(pcr, TPM_EV_IPL, data, data_size, desc_str, desc_len);
 }
 
 void tpm_measure_path(uint32_t pcr, uint32_t event_type,
@@ -423,7 +467,7 @@ static bool tcg_final_events_preboot(const uint8_t *log_data, size_t log_size,
 
     EFI_TCG2_FINAL_EVENTS_TABLE header;
     memcpy(&header, table, offsetof(EFI_TCG2_FINAL_EVENTS_TABLE, Event));
-    if (header.Version != TCG_FINAL_EVENTS_TABLE_VERSION) {
+    if (header.Version != EFI_TCG2_FINAL_EVENTS_TABLE_VERSION) {
         return false;
     }
 
@@ -611,7 +655,7 @@ size_t tpm_append_final_events(void) {
 
     EFI_TCG2_FINAL_EVENTS_TABLE header;
     memcpy(&header, table, offsetof(EFI_TCG2_FINAL_EVENTS_TABLE, Event));
-    if (header.Version != TCG_FINAL_EVENTS_TABLE_VERSION
+    if (header.Version != EFI_TCG2_FINAL_EVENTS_TABLE_VERSION
      || header.NumberOfEvents < event_log_preboot_count) {
         return event_log_size;
     }
@@ -663,11 +707,9 @@ void tpm_release_event_log(void) {
 void *tpm_get_final_events_table(void) {
     EFI_GUID guid;
     if (tcg2 != NULL) {
-        EFI_GUID tcg2_guid = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
-        guid = tcg2_guid;
+        guid = (EFI_GUID)EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
     } else if (cc != NULL) {
-        EFI_GUID cc_guid = EFI_CC_FINAL_EVENTS_TABLE_GUID;
-        guid = cc_guid;
+        guid = (EFI_GUID)EFI_CC_FINAL_EVENTS_TABLE_GUID;
     } else {
         return NULL;
     }

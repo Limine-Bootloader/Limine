@@ -77,6 +77,9 @@ def tpm_measured_boot(t):
         modules=[(m1path, 'one'), (f'{m2path}#{blake2b(mod2)}', 'two')])
     m = tpm_boot(t, config, {'/boot/k#1.elf': kernel, '/boot/m1.bin': mod1, '/boot/m2.bin': mod2})
     evs = events(t.kernel_report(m, timeout=120))
+    t.expect_eq([e for e in by_pcr(evs, 5) if e[0] == 0x06], [
+        (0x06, sha256(config.encode()), '*X\xbc\xf5\x0c'),
+    ], '[spec] PCR 5 config')
     t.expect_eq(by_pcr(evs, 8), [
         (EV_IPL, sha256(b'measured cmdline'), 'cmdline: measured cmdline'),
         (EV_IPL, sha256(kpath.encode()), f'path: {kpath}'),
@@ -84,7 +87,6 @@ def tpm_measured_boot(t):
         (EV_IPL, sha256(m2path.encode()), f'module_path: {m2path}'),
     ], '[spec] PCR 8 ([intent] the paths described without their hash)')
     t.expect_eq(by_pcr(evs, 9), [
-        (EV_IPL, sha256(config.encode()), 'limine_cfg'),
         (EV_IPL, sha256(kernel), f'path: {kpath}#{blake2b(kernel)}'),
         (EV_IPL, sha256(mod1), f'module_path: {m1path}'),
         (EV_IPL, sha256(mod2), f'module_path: {m2path}#{blake2b(mod2)}'),
@@ -130,8 +132,8 @@ def tpm_forced_by_secure_boot(t):
     tpm_firmware(t)
     m = sb_boot(t, 'timeout: 0\n' + kernel_entry(t), tpm=t.software_tpm())
     evs = events(t.kernel_report(m, timeout=120))
-    t.check(any(pcr == 9 and data == 'limine_cfg' for pcr, _, _, data in evs),
-            f'[spec] the config measured into PCR 9: {[(e[0], e[3]) for e in evs]}')
+    t.check(any(pcr == 5 and data.startswith('*X\xbc\xf5') for pcr, _, _, data in evs),
+            f'[spec] the config measured into PCR 5: {[(e[0], e[3]) for e in evs]}')
 
 
 @check(ports=UEFI_PORTS, tags=['tpm', 'linux'])
@@ -209,14 +211,15 @@ def tpm_cc_measurements(t):
     files = {'/boot/kernel.elf': kernel, '/boot/m.bin': mod}
     m = cc_boot(t, 0, config, files)
     r = t.kernel_report(m)
-    # Firmware measures into the PCRs below 8 for itself.
-    evs = [e for e in cc_extends(m.stream(t.kernel_channel).text()) if e[0] >= 8]
-    want = [(8, b'cc cmdline', 'cmdline: cc cmdline'), (8, kpath.encode(), f'path: {kpath}'),
-            (8, mpath.encode(), f'module_path: {mpath}'), (9, config.encode(), 'limine_cfg'),
-            (9, kernel, f'path: {kpath}'), (9, mod, f'module_path: {mpath}')]
+    # Firmware measures into the PCRs below 4 for itself.
+    evs = [e for e in cc_extends(m.stream(t.kernel_channel).text()) if e[0] in (5, 8, 9)]
+    want = [(5, 2, config.encode(), 'limine.conf'),
+            (8, 3, b'cc cmdline', 'cmdline: cc cmdline'), (8, 3, kpath.encode(), f'path: {kpath}'),
+            (8, 3, mpath.encode(), f'module_path: {mpath}'),
+            (9, 3, kernel, f'path: {kpath}'), (9, 3, mod, f'module_path: {mpath}')]
     got = sorted(evs, key=lambda e: e[0])
-    t.expect_eq(got, [(pcr, 3, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, data, desc in want],
-                '[spec] PCR 8 and 9 events, in RTMR[2], the MR they map to')
+    t.expect_eq(got, [(pcr, mr, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, mr, data, desc in want],
+                '[spec] PCR 5, 8 and 9 events, in RTMR[2], the MR they map to')
     t.check(not r.flag('tpm_event_log.response'), 'no event log from a protocol that gives none')
     m.stop()
     config = 'timeout: 0\nserial: yes\nmeasured_boot: yes\n' + entry('Test', path=kpath, cmdline='x')
@@ -266,8 +269,8 @@ def tpm_event_log_full(t):
     for protocol, extends in (('tcg2', tcg2_extends), ('cc', cc_extends)):
         m = probe_then_limine(t, f'name:{protocol} fake{protocol}:8', config, files)
         t.kernel_report(m)
-        pcrs = sorted(e[0] for e in extends(m.stream(t.kernel_channel).text()) if e[0] >= 8)
-        t.expect_eq(pcrs, [8, 8, 8, 9, 9, 9], f'{protocol}: all six measurements extended')
+        pcrs = sorted(e[0] for e in extends(m.stream(t.kernel_channel).text()) if e[0] in (5, 8, 9))
+        t.expect_eq(pcrs, [5, 8, 8, 8, 9, 9], f'{protocol}: all six measurements extended')
         serial = ESCAPES.sub('', m.stream('serial').text())
         t.expect_eq(serial.count(LOG_FULL_WARNING), 1, f'{protocol}: one warning')
         t.check(CC_PROMPT not in serial, f'{protocol}: no prompt to go on unmeasured')
@@ -290,12 +293,15 @@ def tpm_cc_linux(t):
     m = cc_boot(t, 4, config, {path: kernel, '/initrd': initrd})
     r = x86_report(t, m) if t.port.is_x86 else stub_report(t, m)
     text = m.stream(t.kernel_channel).text()
-    evs = [e for e in cc_extends(text) if e[0] >= 8]
-    want = [(8, b'cc linux', 'cmdline: cc linux'), (8, f'boot():{path}'.encode(), f'path: boot():{path}'),
-            (8, b'boot():/initrd', 'module_path: boot():/initrd'), (9, config.encode(), 'limine_cfg'),
-            (9, kernel, f'path: boot():{path}'), (9, initrd, 'module_path: boot():/initrd')]
+    evs = [e for e in cc_extends(text) if e[0] in (5, 8, 9)]
+    want = [(5, 2, config.encode(), 'limine.conf'),
+            (8, 3, b'cc linux', 'cmdline: cc linux'),
+            (8, 3, f'boot():{path}'.encode(), f'path: boot():{path}'),
+            (8, 3, b'boot():/initrd', 'module_path: boot():/initrd'),
+            (9, 3, kernel, f'path: boot():{path}'),
+            (9, 3, initrd, 'module_path: boot():/initrd')]
     t.expect_eq(sorted(evs, key=lambda e: e[0]),
-                [(pcr, 3, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, data, desc in want],
-                '[spec] PCR 8 and 9 events')
+                [(pcr, mr, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, mr, data, desc in sorted(want, key=lambda e: e[0])],
+                '[spec] PCR 5, 8 and 9 events')
     t.check('K cc.event_log=2' in text, 'the TCG 2 log asked for')
     t.check('tpm_log.size' not in r, 'no TPM event log table')
