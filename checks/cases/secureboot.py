@@ -155,16 +155,24 @@ def sb_efi_chainload(t):
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_not_enrolled(t):
-    """With no config hash enrolled Secure Boot counts as inactive: paths need
-    no hash and the editor is there."""
+    """With no config hash enrolled but Secure Boot active in firmware,
+    Secure Boot lockdown is enforced: editor is disabled, branding shows Secure Boot,
+    and unhashed non-PE binaries are rejected."""
     config = 'timeout: no\n' + kernel_entry(t, hashed=False)
     m = sb_boot(t, config, enrolled=False)
     scr = t.wait_text(m, 'ARROWS')
     text = screen_text(scr)
-    t.check('E Edit' in text, 'editor available')
-    t.check(', Secure Boot)' not in text, '[intent] branding without Secure Boot')
+    t.check('E Edit' not in text, 'editor disabled under Secure Boot lockdown')
+    t.check('UEFI Shell' not in text, 'no UEFI Shell key')
+    t.check(', Secure Boot)' in text, '[intent] branding indicates Secure Boot active')
     m.press('ret')
-    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'a kernel without a hash boots')
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/boot/kernel.elf` has no associated hash!',
+                '[intent] unhashed kernel rejected under Secure Boot lockdown')
+    m.stop()
+    m2 = sb_boot(t, 'timeout: 0\n' + kernel_entry(t, hashed=True), enrolled=False)
+    t.expect_eq(unescape(t.kernel_report(m2)['cmdline']), 'secure boot',
+                'a hashed kernel boots even when config hash is not enrolled')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
@@ -178,4 +186,60 @@ def sb_setup_mode(t):
     t.check(', Secure Boot)' not in text, '[intent] branding without Secure Boot')
     m.press('ret')
     t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', '[spec] a kernel without a hash boots')
+
+
+@check(ports=UEFI_PORTS, tags=['secureboot'])
+def sb_unhashed_module_unenrolled(t):
+    """Under unenrolled Secure Boot, modules without a hash are permitted and boot."""
+    config = 'timeout: 0\n' + kernel_entry(t, hashed=True, modules=[('boot():/boot/m.bin', None)])
+    m = sb_boot(t, config, enrolled=False, files={'/boot/m.bin': b'sample module content'})
+    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'booted with unhashed module')
+
+
+@check(ports=UEFI_PORTS, tags=['secureboot'])
+def sb_unhashed_module_enrolled(t):
+    """Under enrolled Secure Boot, modules without a hash cause a panic."""
+    config = 'timeout: 0\n' + kernel_entry(t, hashed=True, modules=[('boot():/boot/m.bin', None)])
+    m = sb_boot(t, config, enrolled=True, files={'/boot/m.bin': b'sample module content'})
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/boot/m.bin` has no associated hash!',
+                'unhashed module rejected when config enrolled')
+
+
+@check(ports=UEFI_PORTS, tags=['secureboot'])
+def sb_polyglot_module_enrolled(t):
+    """Under enrolled Secure Boot, a module with MZ/PE header without a hash still causes a panic."""
+    arch = {'uefi-ia32': 'ia32', 'uefi-x86-64': 'x86_64'}.get(t.port.name, t.port.arch)
+    probe_pe = open(t.env.payload('efi', arch, 'efiprobe.efi'), 'rb').read()
+    config = 'timeout: 0\n' + kernel_entry(t, hashed=True, modules=[('boot():/boot/polyglot.bin', None)])
+    m = sb_boot(t, config, enrolled=True, files={'/boot/polyglot.bin': probe_pe})
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/boot/polyglot.bin` has no associated hash!',
+                'polyglot module without hash rejected when config enrolled')
+
+
+@check(ports=UEFI_PORTS, tags=['secureboot'])
+def sb_multiboot_unhashed_unenrolled(t):
+    """Under Secure Boot, multiboot kernels without a hash cause a panic even when unenrolled."""
+    kernel = open(kernel_file(t, 'full'), 'rb').read()
+    config = 'timeout: 0\n' + entry('Multiboot', protocol='multiboot1', path='boot():/boot/k.elf')
+    m = sb_boot(t, config, enrolled=False, files={'/boot/k.elf': kernel})
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/boot/k.elf` has no associated hash!',
+                'unhashed multiboot kernel rejected under Secure Boot')
+
+
+@check(ports=UEFI_PORTS, tags=['secureboot'])
+def sb_linux_non_pe_panics(t):
+    """Under Secure Boot, a non-PE kernel (e.g. bzImage without EFI stub) panics even if hashed."""
+    from cases.linux import bzimage
+    kernel = open(bzimage(t).path, 'rb').read()
+    path = f'boot():/bzImage#{b2(kernel)}'
+    config = 'timeout: 0\n' + entry('Linux', protocol='linux', path=path)
+    m = sb_boot(t, config, enrolled=False, files={'/bzImage': kernel})
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'Kernel signature verification failed: not a valid PE image!',
+                'non-PE kernel panics under Secure Boot even when hashed')
+
+
 
