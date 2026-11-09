@@ -9,6 +9,7 @@
 #include <lib/fb.h>
 #include <lib/image.h>
 #include <lib/rand.h>
+#include <crypt/hash.h>
 #include <mm/pmm.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
@@ -620,7 +621,7 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
         }
         char *background_path = config_get_value(config, wallpaper_index, "WALLPAPER");
         if (background_path != NULL) {
-            if (secure_boot_active && strchr(background_path, '#') == NULL) {
+            if (secure_boot_active && !hash_enrolled_empty(config_b2sum) && strchr(background_path, '#') == NULL) {
                 print("Wallpaper skipped: Secure Boot is active and no hash is associated.\n");
             } else {
                 struct file_handle *bg_file;
@@ -700,7 +701,7 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
 
     char *menu_font = config_get_value(config, 0, "TERM_FONT");
     if (menu_font != NULL) {
-        if (secure_boot_active && strchr(menu_font, '#') == NULL) {
+        if (secure_boot_active && !hash_enrolled_empty(config_b2sum) && strchr(menu_font, '#') == NULL) {
             print("Font skipped: Secure Boot is active and no hash is associated.\n");
             goto config_no_load_font;
         }

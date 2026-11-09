@@ -7,6 +7,7 @@
 
 extern bool config_ready;
 extern bool bad_config;
+extern const char *config_b2sum;
 
 struct menu_entry {
     char *name;

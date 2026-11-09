@@ -76,6 +76,7 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
             EFI_STATUS sm_status = gRT->GetVariable(L"SetupMode", &global_variable, NULL, &sm_size, &setup_mode);
             if (sm_status != EFI_SUCCESS || setup_mode == 0) {
                 secure_boot_active = true;
+                editor_enabled = false;
             }
         }
     }
@@ -88,6 +89,10 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
     for (size_t j = 0; j < 25; j++) {
         if (current_handle == NULL) {
 could_not_match:
+            if (secure_boot_active) {
+                panic(false, "Could not match boot device handle with a volume");
+            }
+
             print("WARNING: Could not meaningfully match the boot device handle with a volume.\n");
             print("         Using the first volume containing a Limine configuration!\n");
             print("\n");

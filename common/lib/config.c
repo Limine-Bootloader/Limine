@@ -515,11 +515,11 @@ static bool has_macro_references(const char *config, size_t config_size) {
 int init_config(size_t config_size) {
     config_b2sum += sizeof(CONFIG_B2SUM_SIGNATURE) - 1;
 
-    if (hash_enrolled_empty(config_b2sum)) {
-        secure_boot_active = false;
-    } else {
+    if (secure_boot_active || !hash_enrolled_empty(config_b2sum)) {
         editor_enabled = false;
+    }
 
+    if (!hash_enrolled_empty(config_b2sum)) {
         struct hash_reference ref;
         uint8_t out_buf[HASH_MAX_BYTES];
 
