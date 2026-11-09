@@ -23,6 +23,10 @@
 #include <drivers/edid.h>
 #include <drivers/vga_textmode.h>
 #include <drivers/gop.h>
+#include <lib/pe.h>
+#if defined (UEFI)
+#include <lib/shim.h>
+#endif
 
 noreturn void linux_spinup(void *entry, void *boot_params);
 #if defined (UEFI) && defined (__x86_64__)
@@ -246,12 +250,24 @@ static uint32_t linux_version_of(struct file_handle *kernel_file,
     return LINUX_VER(major, minor);
 }
 
+#if defined (UEFI)
+static EFI_STATUS verify_and_load_kernel_image(
+    const void *kernel_buf,
+    size_t kernel_size,
+    EFI_HANDLE *out_image_handle
+) {
+    return shim_load_image(false, efi_image_handle, NULL,
+                           kernel_buf, kernel_size,
+                           out_image_handle);
+}
+#endif
+
 noreturn void linux_load(char *config, char *cmdline) {
     struct file_handle *kernel_file;
 
 #if defined (UEFI)
     if (cmdline != NULL) {
-        tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
+        tpm_measure(TPM_PCR_CMDLINE, TPM_EV_IPL,
                     cmdline, strlen(cmdline), "cmdline: ", cmdline);
     }
 #endif
@@ -293,6 +309,28 @@ noreturn void linux_load(char *config, char *cmdline) {
     if (signature != 0x53726448) {
         panic(true, "linux: Invalid kernel signature");
     }
+
+#if defined (UEFI)
+    bool validated_by_shim = false;
+    if (secure_boot_active) {
+        if (!pe_is_valid(kernel_file)) {
+            panic(false, "Kernel signature verification failed: not a valid PE image!");
+        }
+
+        EFI_HANDLE kernel_image_handle = NULL;
+        EFI_STATUS status = verify_and_load_kernel_image(
+            kernel_file->fd, kernel_file->size, &kernel_image_handle);
+        if (status != EFI_SUCCESS) {
+            panic(false, "Kernel signature verification failed against Secure Boot database / Shim MOK!");
+        }
+
+        validated_by_shim = shim_last_image_validated_by_shim();
+
+        if (kernel_image_handle != NULL) {
+            gBS->UnloadImage(kernel_image_handle);
+        }
+    }
+#endif
 
     size_t setup_code_size = 0;
     fread(kernel_file, &setup_code_size, 0x1f1, 1);
@@ -461,9 +499,14 @@ noreturn void linux_load(char *config, char *cmdline) {
 #endif
 
 #if defined (UEFI)
-    tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
-    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                kernel_file->fd, kernel_file->size, "path: ", kernel_path);
+    tpm_measure_path(TPM_PCR_CMDLINE, TPM_EV_IPL, "path: ", kernel_path);
+    if (!secure_boot_active) {
+        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                    kernel_file->fd, kernel_file->size, "path: ", kernel_path);
+    } else if (validated_by_shim) {
+        tpm_measure(TPM_PCR_BOOT_CODE, TPM_EV_IPL,
+                    kernel_file->fd, kernel_file->size, "path: ", kernel_path);
+    }
 #endif
 
     fclose(kernel_file);
@@ -569,8 +612,8 @@ noreturn void linux_load(char *config, char *cmdline) {
                padded_size - module_size);
 
 #if defined (UEFI)
-        tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
-        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+        tpm_measure_path(TPM_PCR_CMDLINE, TPM_EV_IPL, "module_path: ", module_path);
+        tpm_measure(TPM_PCR_INITRD, TPM_EV_IPL,
                     (void *)_modules_mem_base, module_size, "module_path: ", module_path);
 #endif
 

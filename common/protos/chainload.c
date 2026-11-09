@@ -21,6 +21,7 @@
 #include <mm/pmm.h>
 #if defined (UEFI)
 #  include <efi.h>
+#  include <lib/shim.h>
 #endif
 
 #if defined (BIOS)
@@ -438,9 +439,6 @@ noreturn void chainload(char *config, char *cmdline) {
     // The firmware's LoadImage will verify the Secure Boot signature of the
     // chainloaded EFI application, so Limine does not need to enforce its
     // own hash check here.
-    bool saved_secure_boot_active = secure_boot_active;
-    secure_boot_active = false;
-
     struct file_handle *image;
     if ((image = uri_open(image_path, MEMMAP_RESERVED, URI_AUTH_PE_VALIDATED
 #if defined (__i386__)
@@ -448,8 +446,6 @@ noreturn void chainload(char *config, char *cmdline) {
 #endif
     )) == NULL)
         panic(true, "efi: Failed to open image with path `%s`. Is the path correct?", image_path);
-
-    secure_boot_active = saved_secure_boot_active;
 
     EFI_STATUS status;
 
@@ -501,27 +497,11 @@ noreturn void chainload(char *config, char *cmdline) {
 
     pmm_release_uefi_mem();
 
-    EFI_MEMMAP_DEVICE_PATH memdev_path[2];
-
-    memdev_path[0].Header.Type = EFI_HARDWARE_DEVICE_PATH;
-    memdev_path[0].Header.SubType = EFI_HW_MEMMAP_DP;
-    memdev_path[0].Header.Length[0] = sizeof(EFI_MEMMAP_DEVICE_PATH);
-    memdev_path[0].Header.Length[1] = sizeof(EFI_MEMMAP_DEVICE_PATH) >> 8;
-
-    memdev_path[0].MemoryType       = EfiLoaderCode;
-    memdev_path[0].StartingAddress  = (uintptr_t)ptr;
-    memdev_path[0].EndingAddress    = (uintptr_t)ptr + image_size;
-
-    memdev_path[1].Header.Type = EFI_END_DEVICE_PATH_TYPE;
-    memdev_path[1].Header.SubType = EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE;
-    memdev_path[1].Header.Length[0] = sizeof(EFI_DEVICE_PATH_PROTOCOL);
-    memdev_path[1].Header.Length[1] = sizeof(EFI_DEVICE_PATH_PROTOCOL) >> 8;
-
     EFI_HANDLE new_handle = 0;
 
-    status = gBS->LoadImage(0, efi_image_handle,
-                            (EFI_DEVICE_PATH_PROTOCOL *)memdev_path,
-                            ptr, image_size, &new_handle);
+    status = shim_load_image(false, efi_image_handle,
+                             NULL,
+                             ptr, image_size, &new_handle);
     if (status) {
         panic(false, "efi: LoadImage failure (%X)", (uint64_t)status);
     }

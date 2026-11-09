@@ -19,6 +19,11 @@
 #include <lib/fdt.h>
 #include <drivers/edid.h>
 #include <libfdt.h>
+#if defined (UEFI)
+#include <efi.h>
+#include <lib/shim.h>
+#include <lib/pe.h>
+#endif
 
 #if defined(__riscv)
 // Linux Documentation/arch/riscv/boot-image-header.rst.
@@ -238,8 +243,8 @@ static void load_module(struct boot_param *p, char *config) {
 
         char *module_path = config_get_value(config, i, "MODULE_PATH");
 
-        tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
-        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+        tpm_measure_path(TPM_PCR_CMDLINE, TPM_EV_IPL, "module_path: ", module_path);
+        tpm_measure(TPM_PCR_INITRD, TPM_EV_IPL,
                     p->module_base + offset, module_size, "module_path: ", module_path);
 
         printv("linux: loaded module `%s` at %p, size %U\n", module_path,
@@ -662,7 +667,7 @@ noreturn void linux_load(char *config, char *cmdline) {
     p.cmdline = cmdline;
 
     if (cmdline != NULL) {
-        tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
+        tpm_measure(TPM_PCR_CMDLINE, TPM_EV_IPL,
                     cmdline, strlen(cmdline), "cmdline: ", cmdline);
     }
 
@@ -684,7 +689,8 @@ noreturn void linux_load(char *config, char *cmdline) {
         panic(true, "linux: failed to open kernel `%s`. Is the path correct?", kernel_path);
     }
 
-    p.kernel_size = kernel_file->size;
+    size_t kernel_file_size = kernel_file->size;
+    p.kernel_size = kernel_file_size;
 
     if (p.kernel_size < sizeof(struct linux_header)) {
         panic(true, "linux: kernel too small to contain a valid header");
@@ -749,13 +755,45 @@ noreturn void linux_load(char *config, char *cmdline) {
     p.kernel_base = ext_mem_alloc_type_aligned(kernel_region_size, MEMMAP_KERNEL_AND_MODULES, 2 * 1024 * 1024);
 #endif
     p.kernel_base += text_offset;
-    fread(kernel_file, p.kernel_base, 0, p.kernel_size);
-    fclose(kernel_file);
-    printv("linux: loaded kernel `%s` at %p, size %U\n", kernel_path, p.kernel_base, (uint64_t)p.kernel_size);
+    fread(kernel_file, p.kernel_base, 0, kernel_file_size);
 
-    tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
-    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                p.kernel_base, p.kernel_size, "path: ", kernel_path);
+#if defined (UEFI)
+    bool validated_by_shim = false;
+    if (secure_boot_active) {
+        if (!pe_is_valid(kernel_file)) {
+            panic(false, "Kernel signature verification failed: not a valid PE image!");
+        }
+
+        EFI_HANDLE kernel_image_handle = NULL;
+        EFI_STATUS status = shim_load_image(false, efi_image_handle, NULL,
+                                            p.kernel_base, kernel_file_size,
+                                            &kernel_image_handle);
+        if (status != EFI_SUCCESS) {
+            panic(false, "Kernel signature verification failed against Secure Boot database / Shim MOK!");
+        }
+
+        validated_by_shim = shim_last_image_validated_by_shim();
+
+        if (kernel_image_handle != NULL) {
+            gBS->UnloadImage(kernel_image_handle);
+        }
+    }
+#endif
+
+    fclose(kernel_file);
+    printv("linux: loaded kernel `%s` at %p, size %U\n", kernel_path, p.kernel_base, (uint64_t)kernel_file_size);
+
+    tpm_measure_path(TPM_PCR_CMDLINE, TPM_EV_IPL, "path: ", kernel_path);
+    if (!secure_boot_active) {
+        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
+                    p.kernel_base, kernel_file_size, "path: ", kernel_path);
+    }
+#if defined (UEFI)
+    else if (validated_by_shim) {
+        tpm_measure(TPM_PCR_BOOT_CODE, TPM_EV_IPL,
+                    p.kernel_base, kernel_file_size, "path: ", kernel_path);
+    }
+#endif
 
     load_module(&p, config);
 
