@@ -11,9 +11,8 @@ from harness.screen import Font, builtin_font
 from cases._common import entry, kernel_file, screen_text, wait_panic
 
 # UEFI Secure Boot: what USAGE.md ("Secure Boot") says Limine enforces once
-# Secure Boot is active and a config hash is enrolled, and that without an
-# enrolled hash it treats Secure Boot as inactive. [intent] marks what only
-# Limine's code says.
+# Secure Boot is active. Hash-based native loaders additionally need an
+# enrolled config hash. [intent] marks what only Limine's code says.
 
 
 def b2(data):
@@ -167,12 +166,13 @@ def sb_not_enrolled(t):
     t.check(', Secure Boot)' in text, '[intent] branding indicates Secure Boot active')
     m.press('ret')
     msg, _ = wait_panic(t, m)
-    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/boot/kernel.elf` has no associated hash!',
-                '[intent] unhashed kernel rejected under Secure Boot lockdown')
+    t.expect_eq(msg, 'Secure Boot requires an enrolled config hash for URI `boot():/boot/kernel.elf`!',
+                '[intent] native kernel rejected without a config trust anchor')
     m.stop()
     m2 = sb_boot(t, 'timeout: 0\n' + kernel_entry(t, hashed=True), enrolled=False)
-    t.expect_eq(unescape(t.kernel_report(m2)['cmdline']), 'secure boot',
-                'a hashed kernel boots even when config hash is not enrolled')
+    msg, _ = wait_panic(t, m2)
+    t.check(msg.startswith('Secure Boot requires an enrolled config hash for URI'),
+            'a hash in an unauthenticated config cannot authorise a kernel')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
@@ -189,11 +189,13 @@ def sb_setup_mode(t):
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
-def sb_unhashed_module_unenrolled(t):
-    """Under unenrolled Secure Boot, modules without a hash are permitted and boot."""
+def sb_config_hash_is_trust_anchor(t):
+    """An attacker cannot authorise a native kernel by replacing its config hash."""
     config = 'timeout: 0\n' + kernel_entry(t, hashed=True, modules=[('boot():/boot/m.bin', None)])
     m = sb_boot(t, config, enrolled=False, files={'/boot/m.bin': b'sample module content'})
-    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'booted with unhashed module')
+    msg, _ = wait_panic(t, m)
+    t.check(msg.startswith('Secure Boot requires an enrolled config hash for URI'),
+            'kernel rejected before loading the untrusted module')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
@@ -218,22 +220,23 @@ def sb_polyglot_module_enrolled(t):
                 'polyglot module without hash rejected when config enrolled')
 
 
-@check(ports=UEFI_PORTS, tags=['secureboot'])
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['secureboot'])
 def sb_multiboot_unhashed_unenrolled(t):
     """Under Secure Boot, multiboot kernels without a hash cause a panic even when unenrolled."""
     kernel = open(kernel_file(t, 'full'), 'rb').read()
     config = 'timeout: 0\n' + entry('Multiboot', protocol='multiboot1', path='boot():/boot/k.elf')
     m = sb_boot(t, config, enrolled=False, files={'/boot/k.elf': kernel})
     msg, _ = wait_panic(t, m)
-    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/boot/k.elf` has no associated hash!',
+    t.expect_eq(msg, 'Secure Boot requires an enrolled config hash for URI `boot():/boot/k.elf`!',
                 'unhashed multiboot kernel rejected under Secure Boot')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_linux_non_pe_panics(t):
     """Under Secure Boot, a non-PE kernel (e.g. bzImage without EFI stub) panics even if hashed."""
-    from cases.linux import bzimage
-    kernel = open(bzimage(t).path, 'rb').read()
+    from cases.linux import bzimage, stub
+    image = bzimage(t) if t.port.is_x86 else stub(t)
+    kernel = open(image.path, 'rb').read()
     path = f'boot():/bzImage#{b2(kernel)}'
     config = 'timeout: 0\n' + entry('Linux', protocol='linux', path=path)
     m = sb_boot(t, config, enrolled=False, files={'/bzImage': kernel})
@@ -242,4 +245,39 @@ def sb_linux_non_pe_panics(t):
                 'non-PE kernel panics under Secure Boot even when hashed')
 
 
+@check(ports=['uefi-x86-64'], tags=['secureboot', 'linux', 'tpm'])
+def sb_linux_signed_pe(t):
+    """Linux's native handoff consumes only a PE image accepted by firmware,
+    even when its URI hash matches an unauthenticated config."""
+    from harness import pe
+    from cases.linux import bzimage, x86_report
+    kernel = open(bzimage(t).path, 'rb').read()
+    # Keep the Linux header in the DOS padding and at the start of .text.
+    image = bytearray(pe.build(0x8664, 0x1000000, 0x1000,
+        [[b'.text', 0x1000, len(kernel) - 512, kernel[512:],
+          pe.SCN_READ | pe.SCN_EXECUTE | pe.SCN_CODE]], True).data)
+    image[0x1f1:0x200] = kernel[0x1f1:0x200]
+    unsigned = t.path('kernel.efi')
+    with open(unsigned, 'wb') as f:
+        f.write(image)
+    signed = secureboot.sign(t.env, unsigned, t.path('kernel-signed.efi'))
+    signed = open(signed, 'rb').read()
+    tampered = bytearray(signed)
+    tampered[1024] ^= 1
+    for name, data in (('signed', signed), ('unsigned', image), ('tampered', tampered)):
+        config = 'timeout: 0\n' + entry('Linux', protocol='linux',
+            path=f'boot():/kernel.efi#{b2(data)}', cmdline='signed linux')
+        m = sb_boot(t, config, enrolled=False, files={'/kernel.efi': data},
+                    tpm=t.software_tpm() if name == 'signed' else None)
+        if name == 'signed':
+            r = x86_report(t, m)
+            t.expect_eq(int(r['bp.secure_boot'], 16), 3, 'Secure Boot passed to Linux')
+            t.expect_eq(unescape(r['cmdline']), 'signed linux', 'signed kernel booted')
+            t.check(int(r['tpm_log.size'], 16) > 0, 'TPM event log handed to Linux')
+        else:
+            msg, _ = wait_panic(t, m)
+            t.expect_eq(msg,
+                'Kernel signature verification failed against Secure Boot database / Shim MOK!',
+                f'{name} PE rejected despite matching URI hash')
+        m.stop()
 

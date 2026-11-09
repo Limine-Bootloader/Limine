@@ -402,18 +402,16 @@ struct file_handle *uri_open(char *uri, uint32_t type, enum uri_flags flags
         return NULL;
     }
 
-    // Secure Boot policy:
-    // (a) Executable kernels & chainloaded EFI applications:
-    //     - If URI_AUTH_PE_VALIDATED is set (linux and chainload), unhashed images
-    //       are permitted ONLY if they are valid uncompressed PE images, which the
-    //       caller guarantees will be authenticated via Authenticode (firmware / Shim MOK).
-    //       Non-PE kernels (ELF, compressed bzImage without EFI stub) require a hash.
-    //     - If URI_RESOURCE_KERNEL is set (multiboot, limine protocol),
-    //       the loader cannot perform Authenticode verification, so a hash is
-    //       ALWAYS required under Secure Boot, even if unenrolled.
-    // (b) Data resources (initramfs, modules, DTBs):
-    //     - Require a hash ONLY when config is enrolled (hash_enrolled_empty(config_b2sum) == false).
-    //     - When config is unenrolled, unhashed resources are permitted and measured into PCR 9.
+    // A resource hash is a trust anchor only when its config is authenticated.
+    if (secure_boot_active && is_kernel && hash_enrolled_empty(config_b2sum)) {
+        URI_ERROR("Secure Boot requires an enrolled config hash for URI `%#`!", uri);
+        fclose(raw);
+        return NULL;
+    }
+
+    // Linux and EFI callers authenticate PE images through LoadImage later.
+    // Native protocols require a hash in an authenticated config. Data hashes
+    // are mandatory only with an enrolled config.
     if (secure_boot_active && hash == NULL) {
         if (auth_pe_validated) {
             if (gz_compressed || !pe_is_valid(raw)) {
