@@ -250,18 +250,6 @@ static uint32_t linux_version_of(struct file_handle *kernel_file,
     return LINUX_VER(major, minor);
 }
 
-#if defined (UEFI)
-static EFI_STATUS verify_and_load_kernel_image(
-    const void *kernel_buf,
-    size_t kernel_size,
-    EFI_HANDLE *out_image_handle
-) {
-    return shim_load_image(false, efi_image_handle, NULL,
-                           kernel_buf, kernel_size,
-                           out_image_handle);
-}
-#endif
-
 noreturn void linux_load(char *config, char *cmdline) {
     struct file_handle *kernel_file;
 
@@ -311,23 +299,23 @@ noreturn void linux_load(char *config, char *cmdline) {
     }
 
 #if defined (UEFI)
-    bool validated_by_shim = false;
     if (secure_boot_active) {
         if (!pe_is_valid(kernel_file)) {
             panic(false, "Kernel signature verification failed: not a valid PE image!");
         }
 
         EFI_HANDLE kernel_image_handle = NULL;
-        EFI_STATUS status = verify_and_load_kernel_image(
+        EFI_STATUS status = shim_load_image(false, efi_image_handle, NULL,
             kernel_file->fd, kernel_file->size, &kernel_image_handle);
         if (status != EFI_SUCCESS) {
             panic(false, "Kernel signature verification failed against Secure Boot database / Shim MOK!");
         }
 
-        validated_by_shim = shim_last_image_validated_by_shim();
-
         if (kernel_image_handle != NULL) {
-            gBS->UnloadImage(kernel_image_handle);
+            status = gBS->UnloadImage(kernel_image_handle);
+            if (status != EFI_SUCCESS) {
+                panic(false, "linux: UnloadImage failure (%X)", (uint64_t)status);
+            }
         }
     }
 #endif
@@ -502,9 +490,6 @@ noreturn void linux_load(char *config, char *cmdline) {
     tpm_measure_path(TPM_PCR_CMDLINE, TPM_EV_IPL, "path: ", kernel_path);
     if (!secure_boot_active) {
         tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                    kernel_file->fd, kernel_file->size, "path: ", kernel_path);
-    } else if (validated_by_shim) {
-        tpm_measure(TPM_PCR_BOOT_CODE, TPM_EV_IPL,
                     kernel_file->fd, kernel_file->size, "path: ", kernel_path);
     }
 #endif

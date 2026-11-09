@@ -43,18 +43,22 @@ is set and `SetupMode` is not), the following security policies are enforced:
 * Booting from an unmatched boot volume is rejected to prevent hijacking.
 * Under Secure Boot, Limine sets `secure_boot = 3` (Enabled) in the Linux `boot_params` setup header and `linux,uefi-secure-boot = <3>` in the Device Tree on RISC architectures, signaling platform lockdown to the operating system.
 * **Integrity and Authentication Rules**:
-  1. **Kernels and Chainload Images**: Executable images booted via `protocol: linux` or `protocol: efi` must be valid PE/COFF binaries authenticated via Authenticode (by firmware against platform `db`/`dbx` or by Shim via `shim_verify` against MOK). A `#<hash>` is strictly an optional additional pin and does not waive the requirement for an Authenticode-signed PE image. Kernels loaded via protocols that do not perform Authenticode validation (`multiboot1`, `multiboot2`, `limine`) **always** require a `#<hash>` in their URI under Secure Boot, even when the config hash is not enrolled.
+  1. **Kernels and Chainload Images**: Executable images booted via `protocol: linux` or `protocol: efi` must be valid PE/COFF binaries authenticated via `LoadImage()` (by firmware against platform `db`/`dbx`, or by Shim's image loader). A `#<hash>` is strictly an optional additional pin and does not waive the requirement for an Authenticode-verified PE image. Kernels loaded via protocols that do not perform Authenticode validation (`multiboot1`, `multiboot2`, `limine`) require both an enrolled, verified config checksum and a matching `#<hash>` in their URI under Secure Boot. A hash in an unauthenticated config cannot authorise executable code.
   2. **Data Resources (initramfs, modules, DTBs)**: require an associated `#<hash>` **only** when a config checksum has been enrolled via `limine enroll-config`. When the config hash is not enrolled, unhashed modules and initramfs are permitted and measured into TPM PCR 9.
   3. **Wallpapers and Fonts**: without a hash are skipped only when a config hash is enrolled. Under unenrolled Secure Boot, they are loaded with fallback to defaults.
 * **Breaking Changes**:
-  * **Authenticode Requirement**: Under UEFI Secure Boot, Linux kernels booted via `protocol: linux` must now be PE/COFF binaries signed with a trusted key in UEFI `db` or Shim MOK. Booting an unsigned kernel or a legacy non-PE bzImage without EFI stub (even if hashed in `limine.conf`) is not permitted under Secure Boot and will trigger a verification panic.
+  * **Image Authentication**: Under UEFI Secure Boot, Linux kernels booted via `protocol: linux` must be PE/COFF binaries accepted by the active `LoadImage()` policy. This can use a trusted signing key or an image digest in the platform database. A hash in `limine.conf` does not replace that authentication. Legacy non-PE bzImages without an EFI stub are rejected even if their config hash matches.
   * **Kernel Lockdown**: `secure_boot_active` is no longer cleared when the config is unenrolled. Limine unconditionally sets `secure_boot = 3` in Linux `boot_params` whenever firmware Secure Boot is enabled, triggering kernel lockdown (`CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT` / `lockdown=integrity`) on any Secure Boot boot.
 * When a config checksum is enrolled via `limine enroll-config`:
   * The config file is verified against the enrolled checksum on every boot; any mismatch causes a panic.
   * All file paths except Authenticode-verified PE kernels and chainload images **must** have a BLAKE2b or BLAKE3 hash appended.
   * `hash_mismatch_panic` is forced to `yes` regardless of the config setting.
 
-When booted under Shim (`shimx64.efi`), Limine integrates with `SHIM_LOCK_PROTOCOL` (using the System V ABI on x86) and hooks `EFI_SECURITY2_ARCH_PROTOCOL`, enabling images signed with MOK keys to be validated via Shim's `shim_verify` hook.
+Image authentication is delegated to `LoadImage()`, including the loader
+installed by Shim's image-loader protocol. Limine does not replace firmware Security
+protocol callbacks. MOK-only images require Shim's image loader; the legacy
+`SHIM_LOCK_PROTOCOL` alone is not supported. With older Shim, images must be
+accepted by the firmware's own Secure Boot policy.
 
 ## Measured Boot
 Measured boot is opt-in. Limine performs measurements only when the
@@ -80,7 +84,11 @@ For backward compatibility, the legacy aliases `TPM_PCR_BOOT_AUTH` (mapping to P
 
 All standard measurements use event type `EV_IPL` (`0x0000000d`), while bootloader configuration uses `EV_EVENT_TAG` (`0x00000006`).
 
-On confidential computing platforms (such as AMD SEV-SNP and Intel TDX), Limine simultaneously measures into both `EFI_TCG2_PROTOCOL` and `EFI_CC_MEASUREMENT_PROTOCOL` (translating PCR indices to Memory Reference registers via `MapPcrToMrIndex`). This dual measurement ensures complete attestation coverage across both platform and guest firmware environments.
+On confidential computing platforms, Limine measures into both
+`EFI_TCG2_PROTOCOL` and `EFI_CC_MEASUREMENT_PROTOCOL` when available,
+translating PCR indices to Measurement Register (MR) indices via
+`MapPcrToMrIndex`. This does not by itself establish acceptance by a remote
+attestation verifier.
 
 The captured TCG event log is published to the operating system via the
 `LINUX_EFI_TPM_EVENT_LOG` configuration table (for the Linux protocol), or

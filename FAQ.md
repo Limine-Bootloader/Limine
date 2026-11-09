@@ -33,14 +33,15 @@ When UEFI Secure Boot is active, Limine automatically enforces security
 lockdown: the config editor is disabled, UEFI Shell access is blocked, and
 unverified boot device fallbacks are rejected. PE kernel images (such as Linux
 `vmlinuz`) are authenticated in memory against the UEFI Secure Boot database
-(`db` by firmware) or Machine Owner Keys (MOK by Shim via `shim_verify`),
-generating the necessary `EV_EFI_VARIABLE_AUTHORITY` TPM measurements in PCR 7
-required for Secure Boot attestation. If a config checksum is enrolled via
+(`db` by firmware) or Shim's image loader. Firmware and Shim are
+responsible for the corresponding TPM image and authority measurements.
+Legacy ShimLock-only MOK verification is not supported. If a config checksum is enrolled via
 `limine enroll-config`, Limine additionally mandates that all files except
 Authenticode-verified PE kernels and chainload images (such as initramfs,
 modules, or DTBs) must have matching checksums in the config file. Protocols
 that do not perform Authenticode verification (`multiboot1`, `multiboot2`, `limine`)
-always require a checksum under Secure Boot.
+require both an enrolled config checksum and a matching kernel checksum under
+Secure Boot.
 See [USAGE.md](USAGE.md) for details.
 
 ### I do not want to have a separate FAT boot partition! What can I do?

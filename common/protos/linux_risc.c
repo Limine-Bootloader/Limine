@@ -758,7 +758,6 @@ noreturn void linux_load(char *config, char *cmdline) {
     fread(kernel_file, p.kernel_base, 0, kernel_file_size);
 
 #if defined (UEFI)
-    bool validated_by_shim = false;
     if (secure_boot_active) {
         if (!pe_is_valid(kernel_file)) {
             panic(false, "Kernel signature verification failed: not a valid PE image!");
@@ -772,10 +771,11 @@ noreturn void linux_load(char *config, char *cmdline) {
             panic(false, "Kernel signature verification failed against Secure Boot database / Shim MOK!");
         }
 
-        validated_by_shim = shim_last_image_validated_by_shim();
-
         if (kernel_image_handle != NULL) {
-            gBS->UnloadImage(kernel_image_handle);
+            status = gBS->UnloadImage(kernel_image_handle);
+            if (status != EFI_SUCCESS) {
+                panic(false, "linux: UnloadImage failure (%X)", (uint64_t)status);
+            }
         }
     }
 #endif
@@ -788,12 +788,6 @@ noreturn void linux_load(char *config, char *cmdline) {
         tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
                     p.kernel_base, kernel_file_size, "path: ", kernel_path);
     }
-#if defined (UEFI)
-    else if (validated_by_shim) {
-        tpm_measure(TPM_PCR_BOOT_CODE, TPM_EV_IPL,
-                    p.kernel_base, kernel_file_size, "path: ", kernel_path);
-    }
-#endif
 
     load_module(&p, config);
 
