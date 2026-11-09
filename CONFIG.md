@@ -256,7 +256,7 @@ Editor control options:
 
 * `editor_enabled` - If set to `no`, the editor will not be accessible.
   Defaults to `yes` unless a config hash is enrolled. Unconditionally
-  disabled when Secure Boot is active and a config hash is enrolled.
+  disabled when Secure Boot is active.
 * `editor_highlighting` - If set to `no`, syntax highlighting in the editor
   will be disabled. Defaults to `yes`.
 * `editor_validation` - If set to `no`, the editor will not alert you about
@@ -451,9 +451,9 @@ BLAKE3, 128 is BLAKE2b, and 256 is extended-output BLAKE3.
 When Secure Boot is active and a config hash is enrolled, all file paths
 **must** have a hash appended or Limine will panic (except for wallpapers and
 fonts, which are silently skipped instead, falling back to defaults, and for
-images chainloaded with the `efi` protocol, whose signature the firmware
-verifies instead). Without an enrolled hash Limine treats Secure Boot as
-inactive; see [USAGE.md](USAGE.md#secure-boot).
+executable PE kernel or chainload images, whose Authenticode signature the firmware
+or Shim verifies instead; non-executable modules with PE headers still require a hash).
+See [USAGE.md](USAGE.md#secure-boot).
 
 A gzip-compressed resource is indicated by inserting a dollar character (`$`)
 before the resource string. This allows for transparent decompression. For

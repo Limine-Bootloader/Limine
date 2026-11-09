@@ -92,8 +92,8 @@ Options for the check runner, which only runs through `make check`, go in
   contains it.
 - `-p PORT`: only run checks on `PORT`, one of `bios`, `uefi-ia32`,
   `uefi-x86-64`, `uefi-aarch64`, `uefi-riscv64`, and `uefi-loongarch64`.
-- `-t TAG`: only run the checks tagged `TAG`, such as `menu`, `linux`, or
-  `tpm`.
+- `-t TAG`: only run the checks tagged `TAG`, such as `menu`, `linux`,
+  `tpm`, or `secureboot`.
 - `-j JOBS`: run `JOBS` checks at a time, whatever `make`'s own `-j` says.
 - `--list`: list the checks that would run instead of running them.
 - `--keep`: keep the disk images of the checks that passed too.

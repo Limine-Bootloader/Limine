@@ -26,15 +26,22 @@ Limine provides a way to modify its own EFI executable to bake in the BLAKE2b
 checksum of the config file itself, or its 128-byte extended-output BLAKE3
 checksum (`b3sum --length 128`; the default 32-byte output cannot be enrolled).
 The EFI executable can then get signed with a key added to the firmware's
-keychain. This prevents modifications to the config file (and in turn the
-checksums contained there) from going unnoticed.
+keychain (or signed for Shim/MOK). This prevents modifications to the config
+file (and in turn the checksums contained there) from going unnoticed.
 
-Additionally, when UEFI Secure Boot is active **and** a config checksum has
-been enrolled, Limine enforces that all loaded files have hashes in their
-paths (except for images chainloaded with the `efi` protocol, whose signature
-the firmware verifies instead), and disables the config editor. Enrolling a
-checksum is the explicit opt-in to this hardening; without one, Secure Boot
-enforcement is not applied. See [USAGE.md](USAGE.md) for details.
+When UEFI Secure Boot is active, Limine automatically enforces security
+lockdown: the config editor is disabled, UEFI Shell access is blocked, and
+unverified boot device fallbacks are rejected. PE kernel images (such as Linux
+`vmlinuz`) are authenticated in memory against the UEFI Secure Boot database
+(`db` by firmware) or Machine Owner Keys (MOK by Shim via `shim_verify`),
+generating the necessary `EV_EFI_VARIABLE_AUTHORITY` TPM measurements in PCR 7
+required for Secure Boot attestation. If a config checksum is enrolled via
+`limine enroll-config`, Limine additionally mandates that all files except
+Authenticode-verified PE kernels and chainload images (such as initramfs,
+modules, or DTBs) must have matching checksums in the config file. Protocols
+that do not perform Authenticode verification (`multiboot1`, `multiboot2`, `limine`)
+always require a checksum under Secure Boot.
+See [USAGE.md](USAGE.md) for details.
 
 ### I do not want to have a separate FAT boot partition! What can I do?
 

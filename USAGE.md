@@ -27,9 +27,9 @@ This is not available when Limine is booted over PXE.
 
 ## Secure Boot
 Limine can be booted with Secure Boot if the executable is signed and the key
-used to sign it is added to the firmware's keychain. This should be done in
-combination with enrolling the BLAKE2b or BLAKE3 hash of the Limine config
-file into the Limine EFI executable image itself for verification purposes.
+used to sign it is added to the firmware's keychain (or verified via Shim).
+This can be combined with enrolling the BLAKE2b or BLAKE3 hash of the Limine config
+file into the Limine EFI executable image itself (`limine enroll-config`).
 For config enrollment, BLAKE3 must use 128-byte extended output (256
 hexadecimal characters), generated with `b3sum --length 128 limine.conf`,
 rather than the default 32-byte output used in resource paths.
@@ -37,26 +37,24 @@ For more information see the `limine enroll-config` program and
 [the FAQ](FAQ.md).
 
 When Limine detects that UEFI Secure Boot is active (the `SecureBoot` variable
-is set and `SetupMode` is not) **and** a config hash is enrolled
-in the Limine EFI executable, the following security policies are enforced:
+is set and `SetupMode` is not), the following security policies are enforced:
 
-* The config file is verified against the enrolled checksum on every boot.
-  Any mismatch will cause a panic.
-* All file paths (kernels, modules, DTBs, etc.) **must** have a BLAKE2b
-  or BLAKE3 hash appended (e.g. `boot():/kernel#<hash>`). Loading a file
-  without a hash will cause a panic. The exception is EFI chainloading, where
-  the firmware's own Secure Boot image verification is used instead.
-* Wallpaper and font files without an associated hash are silently skipped
-  (falling back to defaults) rather than causing a panic.
-* The config editor is unconditionally disabled.
-* The UEFI Shell key (`U`) is unavailable.
-* `hash_mismatch_panic` is forced to `yes` regardless of the config setting.
+* The config editor is unconditionally disabled, and the UEFI Shell key (`U`) is unavailable.
+* Booting from an unmatched boot volume is rejected to prevent hijacking.
+* Under Secure Boot, Limine sets `secure_boot = 3` (Enabled) in the Linux `boot_params` setup header and `linux,uefi-secure-boot = <3>` in the Device Tree on RISC architectures, signaling platform lockdown to the operating system.
+* **Integrity and Authentication Rules**:
+  1. **Kernels and Chainload Images**: Executable images booted via `protocol: linux` or `protocol: efi` must be valid PE/COFF binaries authenticated via Authenticode (by firmware against platform `db`/`dbx` or by Shim via `shim_verify` against MOK). A `#<hash>` is strictly an optional additional pin and does not waive the requirement for an Authenticode-signed PE image. Kernels loaded via protocols that do not perform Authenticode validation (`multiboot1`, `multiboot2`, `limine`) **always** require a `#<hash>` in their URI under Secure Boot, even when the config hash is not enrolled.
+  2. **Data Resources (initramfs, modules, DTBs)**: require an associated `#<hash>` **only** when a config checksum has been enrolled via `limine enroll-config`. When the config hash is not enrolled, unhashed modules and initramfs are permitted and measured into TPM PCR 9.
+  3. **Wallpapers and Fonts**: without a hash are skipped only when a config hash is enrolled. Under unenrolled Secure Boot, they are loaded with fallback to defaults.
+* **Breaking Changes**:
+  * **Authenticode Requirement**: Under UEFI Secure Boot, Linux kernels booted via `protocol: linux` must now be PE/COFF binaries signed with a trusted key in UEFI `db` or Shim MOK. Booting an unsigned kernel or a legacy non-PE bzImage without EFI stub (even if hashed in `limine.conf`) is not permitted under Secure Boot and will trigger a verification panic.
+  * **Kernel Lockdown**: `secure_boot_active` is no longer cleared when the config is unenrolled. Limine unconditionally sets `secure_boot = 3` in Linux `boot_params` whenever firmware Secure Boot is enabled, triggering kernel lockdown (`CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT` / `lockdown=integrity`) on any Secure Boot boot.
+* When a config checksum is enrolled via `limine enroll-config`:
+  * The config file is verified against the enrolled checksum on every boot; any mismatch causes a panic.
+  * All file paths except Authenticode-verified PE kernels and chainload images **must** have a BLAKE2b or BLAKE3 hash appended.
+  * `hash_mismatch_panic` is forced to `yes` regardless of the config setting.
 
-If no config checksum is enrolled, Limine treats Secure Boot as inactive and
-none of the above hardening is applied. Enrolling a checksum is the explicit
-opt-in to Secure Boot enforcement; an unenrolled image can still be signed
-and booted under Secure Boot, but it provides no integrity guarantees beyond
-those of the firmware itself.
+When booted under Shim (`shimx64.efi`), Limine integrates with `SHIM_LOCK_PROTOCOL` (using the System V ABI on x86) and hooks `EFI_SECURITY2_ARCH_PROTOCOL`, enabling images signed with MOK keys to be validated via Shim's `shim_verify` hook.
 
 ## Measured Boot
 Measured boot is opt-in. Limine performs measurements only when the
@@ -69,36 +67,20 @@ relayed if a TPM is present, since it carries useful PCR 0-7 information
 regardless of what Limine does.
 
 When measured boot is active, Limine extends the platform PCRs with the
-artifacts it loads, following the GRUB convention from the
-[UAPI Linux TPM PCR Registry](https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/):
+artifacts it loads, adhering to the TCG PC Client Platform Firmware Profile and the
+[Linux TPM PCR Registry](https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/):
 
-* **PCR 8** receives, in order, the kernel command line of the booted entry
-  (from its `cmdline` config option, exactly as Limine will hand it to the
-  kernel), the kernel image's path, each module/initrd's path in the order
-  they appear in the config, and the DTB's path when the booted protocol
-  consumes one specified via `dtb_path` or `global_dtb`. Any trailing
-  `#<hash>` integrity suffix is stripped before measurement so PCR 8 stays
-  stable across kernel/module/DTB updates; the `$` decompression prefix is
-  preserved as part of the policy.
-* **PCR 9** receives, in order, the on-disk `limine.conf` bytes (before any
-  in-memory cleanup), the kernel image as read from disk, each module/initrd
-  in the order they appear in the config, and, when the booted protocol
-  consumes a device tree blob, the DTB as loaded (taken from
-  `dtb_path`/`global_dtb` if set, otherwise from the firmware's
-  `EFI_DTB_TABLE_GUID` table) before Limine's `/chosen` and memory-node
-  fixups.
+* **PCR 4**: UEFI firmware automatically measures the Authenticode PE digest of kernel and bootloader binaries loaded via `LoadImage()` (`EV_EFI_BOOT_SERVICES_APPLICATION`). Limine does not duplicate this measurement.
+* **PCR 5** receives the on-disk `limine.conf` configuration file bytes, measured as a tagged event (`EV_EVENT_TAG`, event ID `0xf5bc582a` / `LOADER_CONF_EVENT_TAG_ID`, description `limine.conf`).
+* **PCR 7** measures platform Secure Boot policies, keys (`PK`, `KEK`, `db`, `dbx`), and the certifying authority (`EV_EFI_VARIABLE_AUTHORITY`, recorded by firmware for platform `db` keys and by Shim for MOK keys).
+* **PCR 8** receives, in order, the kernel command line of the booted entry (from its `cmdline` config option, `cmdline: <cmdline>`), the kernel image path (`path: <kernel_path>`), each module/initrd path (`module_path: <module_path>`), and the DTB path (`dtb_path: <dtb_path>`). Any trailing `#<hash>` integrity suffix is stripped before measurement so PCR 8 stays stable across kernel/module/DTB updates; the `$` decompression prefix is preserved as part of the policy.
+* **PCR 9** receives the ramdisk / initramfs modules (`module_path: <module_path>`) and device tree blobs (`dtb_path: <dtb_path>` / `efi_dtb`). When booting without Secure Boot, the kernel binary is also measured into PCR 9 (`path: <kernel_path>`).
 
-All measurements use event type `EV_IPL` (`0x0000000d`). Each event's payload
-in the TCG log is the NUL-terminated description identifying what was
-measured: `cmdline: <cmdline>` for command lines, `path: <kernel_path>` for
-the kernel image, `module_path: <module_path>` for modules and initrds,
-`dtb_path: <dtb_path>` for a DTB loaded from a file, `efi_dtb` for the
-firmware-provided DTB, and `limine_cfg` for the `limine.conf` blob.
+For backward compatibility, the legacy aliases `TPM_PCR_BOOT_AUTH` (mapping to PCR 8) and `TPM_PCR_LOADED_IMAGES` (mapping to PCR 9) remain available.
 
-On confidential computing platforms each PCR index is translated to the
-corresponding Memory Reference (MR) register via
-`EFI_CC_MEASUREMENT_PROTOCOL.MapPcrToMrIndex`; the rest of the contract is
-unchanged.
+All standard measurements use event type `EV_IPL` (`0x0000000d`), while bootloader configuration uses `EV_EVENT_TAG` (`0x00000006`).
+
+On confidential computing platforms (such as AMD SEV-SNP and Intel TDX), Limine simultaneously measures into both `EFI_TCG2_PROTOCOL` and `EFI_CC_MEASUREMENT_PROTOCOL` (translating PCR indices to Memory Reference registers via `MapPcrToMrIndex`). This dual measurement ensures complete attestation coverage across both platform and guest firmware environments.
 
 The captured TCG event log is published to the operating system via the
 `LINUX_EFI_TPM_EVENT_LOG` configuration table (for the Linux protocol), or
@@ -116,8 +98,13 @@ handoff is consistent across attempts:
 ### Reproducing the digests
 For an external verifier to recompute a PCR extend, hash exactly these bytes:
 
-For PCR 8:
+For PCR 4:
+* Extended by UEFI firmware (`LoadImage`) with the Authenticode PE digest of the bootloader and kernel binaries.
 
+For PCR 5:
+* `limine.conf`: the on-disk `limine.conf` file bytes verbatim (no trailing newline added, no NUL appended), measured with event tag `0xf5bc582a`.
+
+For PCR 8:
 * `cmdline: <cmdline>`: the kernel command line bytes, without trailing
   NUL, i.e. `strlen(cmdline)` bytes.
 * `path: <kernel_path>`: the kernel image's path string with any trailing
@@ -128,12 +115,7 @@ For PCR 8:
   `#<hash>` suffix stripped, without trailing NUL.
 
 For PCR 9:
-
-* `limine_cfg`: the on-disk `limine.conf` file bytes verbatim (no trailing
-  newline added, no NUL appended).
-* `path: <kernel_path>`: the full file bytes of the kernel image as opened
-  by Limine (post-decompression for `$`-prefixed paths, after hash
-  verification when Secure Boot is active).
+* `path: <kernel_path>`: when booting without Secure Boot, the full file bytes of the kernel image as opened by Limine.
 * `module_path: <module_path>`: the full file bytes of the module/initrd as
   loaded.
 * `dtb_path: <dtb_path>`/`efi_dtb`: the device tree blob bytes as loaded,
