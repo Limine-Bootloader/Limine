@@ -442,7 +442,7 @@ noreturn void chainload(char *config, char *cmdline) {
     secure_boot_active = false;
 
     struct file_handle *image;
-    if ((image = uri_open(image_path, MEMMAP_RESERVED, false
+    if ((image = uri_open(image_path, MEMMAP_RESERVED, URI_AUTH_PE_VALIDATED
 #if defined (__i386__)
         , NULL, NULL
 #endif

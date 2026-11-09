@@ -234,7 +234,7 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
         if (dtb_path != NULL) {
             // A URI the parser refuses panics whatever required says, since
             // ignoring one would silently drop a hash the config asked for.
-            struct file_handle *dtb_file = uri_open(dtb_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+            struct file_handle *dtb_file = uri_open(dtb_path, MEMMAP_BOOTLOADER_RECLAIMABLE, URI_DEFAULT
 #if defined (__i386__)
                 , NULL, NULL
 #endif

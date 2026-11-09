@@ -75,7 +75,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         print("multiboot1: Loading executable `%#`...\n", kernel_path);
     }
 
-    if ((kernel_file = uri_open(kernel_path, MEMMAP_KERNEL_AND_MODULES, false
+    if ((kernel_file = uri_open(kernel_path, MEMMAP_KERNEL_AND_MODULES, URI_RESOURCE_KERNEL
 #if defined (__i386__)
         , NULL, NULL
 #endif
@@ -396,7 +396,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
             }
 
             struct file_handle *f;
-            if ((f = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+            if ((f = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, URI_DEFAULT
 #if defined (__i386__)
                 , NULL, NULL
 #endif

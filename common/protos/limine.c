@@ -624,7 +624,7 @@ noreturn void limine_load(char *config, char *cmdline) {
     }
 
     struct file_handle *kernel_file;
-    if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
+    if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, URI_RESOURCE_KERNEL
 #if defined (__i386__)
         , NULL, NULL
 #endif
@@ -1491,9 +1491,9 @@ FEAT_START
         // memory and high allocations remain measurable.
         if ((f = uri_open(module_path, MEMMAP_KERNEL_AND_MODULES,
 #if defined (__i386__)
-            !measured_boot, limine_memcpy_to_64, limine_memcpy_from_64
+            !measured_boot ? URI_ALLOW_HIGH_MEM : URI_DEFAULT, limine_memcpy_to_64, limine_memcpy_from_64
 #else
-            true
+            URI_ALLOW_HIGH_MEM
 #endif
         )) == NULL) {
             if (module_required) {

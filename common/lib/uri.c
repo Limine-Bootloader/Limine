@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <lib/uri.h>
 #include <lib/misc.h>
+#include <lib/pe.h>
 #include <lib/part.h>
 #include <drivers/disk.h>
 #include <lib/libc.h>
@@ -350,12 +351,16 @@ static bool uri_hash_mismatch(const struct hash_reference *hash_ref, const char 
     return true;
 }
 
-struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
+struct file_handle *uri_open(char *uri, uint32_t type, enum uri_flags flags
 #if defined (__i386__)
     , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
 #endif
 ) {
+    bool allow_high_mem = (flags & URI_ALLOW_HIGH_MEM) != 0;
+    bool auth_pe_validated = (flags & URI_AUTH_PE_VALIDATED) != 0;
+    bool is_kernel = (flags & URI_RESOURCE_KERNEL) != 0;
+
 #if defined (__i386__)
     if (memcpy_to_64 == NULL || memcpy_from_64 == NULL) {
         allow_high_mem = false;
@@ -397,10 +402,36 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         return NULL;
     }
 
+    // Secure Boot policy:
+    // (a) Executable kernels & chainloaded EFI applications:
+    //     - If URI_AUTH_PE_VALIDATED is set (linux and chainload), unhashed images
+    //       are permitted ONLY if they are valid uncompressed PE images, which the
+    //       caller guarantees will be authenticated via Authenticode (firmware / Shim MOK).
+    //       Non-PE kernels (ELF, compressed bzImage without EFI stub) require a hash.
+    //     - If URI_RESOURCE_KERNEL is set (multiboot, limine protocol),
+    //       the loader cannot perform Authenticode verification, so a hash is
+    //       ALWAYS required under Secure Boot, even if unenrolled.
+    // (b) Data resources (initramfs, modules, DTBs):
+    //     - Require a hash ONLY when config is enrolled (hash_enrolled_empty(config_b2sum) == false).
+    //     - When config is unenrolled, unhashed resources are permitted and measured into PCR 9.
     if (secure_boot_active && hash == NULL) {
-        URI_ERROR("Secure Boot is active and URI `%#` has no associated hash!", uri);
-        fclose(raw);
-        return NULL;
+        if (auth_pe_validated) {
+            if (gz_compressed || !pe_is_valid(raw)) {
+                URI_ERROR("Secure Boot is active and URI `%#` has no associated hash!", uri);
+                fclose(raw);
+                return NULL;
+            }
+        } else if (is_kernel) {
+            URI_ERROR("Secure Boot is active and URI `%#` has no associated hash!", uri);
+            fclose(raw);
+            return NULL;
+        } else {
+            if (!hash_enrolled_empty(config_b2sum)) {
+                URI_ERROR("Secure Boot is active and URI `%#` has no associated hash!", uri);
+                fclose(raw);
+                return NULL;
+            }
+        }
     }
 
     struct hash_reference hash_ref;
@@ -721,14 +752,14 @@ grew:;
     return out;
 }
 
-struct file_handle *uri_open_optional(char *uri, uint32_t type, bool allow_high_mem
+struct file_handle *uri_open_optional(char *uri, uint32_t type, enum uri_flags flags
 #if defined (__i386__)
     , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
 #endif
 ) {
     optional_resource = true;
-    struct file_handle *ret = uri_open(uri, type, allow_high_mem
+    struct file_handle *ret = uri_open(uri, type, flags
 #if defined (__i386__)
         , memcpy_to_64, memcpy_from_64
 #endif

@@ -206,7 +206,7 @@ static void load_module(struct boot_param *p, char *config) {
             print("linux: Loading module `%#`...\n", module_path);
         }
 
-        struct file_handle *module_file = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false);
+        struct file_handle *module_file = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, URI_DEFAULT);
         if (!module_file) {
             panic(true, "linux: failed to open module `%s`. Is the path correct?", module_path);
         }
@@ -680,7 +680,7 @@ noreturn void linux_load(char *config, char *cmdline) {
         print("linux: Loading kernel `%#`...\n", kernel_path);
     }
 
-    if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false)) == NULL) {
+    if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE, URI_AUTH_PE_VALIDATED)) == NULL) {
         panic(true, "linux: failed to open kernel `%s`. Is the path correct?", kernel_path);
     }
 

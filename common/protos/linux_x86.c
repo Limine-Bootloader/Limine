@@ -270,9 +270,9 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
 #if defined (__i386__)
-        false, NULL, NULL
+        URI_AUTH_PE_VALIDATED, NULL, NULL
 #else
-        true
+        URI_AUTH_PE_VALIDATED | URI_ALLOW_HIGH_MEM
 #endif
     )) == NULL)
         panic(true, "linux: Failed to open kernel with path `%#`. Is the path correct?", kernel_path);
@@ -498,9 +498,9 @@ noreturn void linux_load(char *config, char *cmdline) {
         struct file_handle *module;
         if ((module = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
 #if defined (__i386__)
-            false, NULL, NULL
+            URI_DEFAULT, NULL, NULL
 #else
-            true
+            URI_ALLOW_HIGH_MEM
 #endif
         )) == NULL)
             panic(true, "linux: Failed to open module with path `%s`. Is the path correct?", module_path);
