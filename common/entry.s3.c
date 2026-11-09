@@ -10,6 +10,7 @@
 #include <lib/trace.h>
 #include <lib/bli.h>
 #include <lib/tpm.h>
+#include <lib/shim.h>
 #include <sys/e820.h>
 #include <sys/a20.h>
 #include <sys/idt.h>
@@ -82,6 +83,7 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
     }
 
     tpm_init();
+    shim_init();
 
     boot_volume = NULL;
 
