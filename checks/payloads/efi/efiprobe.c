@@ -1179,6 +1179,52 @@ static void cmd_msr(char *arg) {
     asm volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msr));
     out("K msr.%x=%x\n", (uint64_t)msr, ((uint64_t)hi << 32) | lo);
 }
+
+static void acpi_checksum(uint8_t *table) {
+    uint32_t len;
+    memcpy(&len, table + 4, 4);
+    uint8_t sum = 0;
+    table[9] = 0;
+    for (uint32_t i = 0; i < len; i++) {
+        sum += table[i];
+    }
+    table[9] = (uint8_t)-sum;
+}
+
+// The first remapping unit of the DMAR, or of the IVRS, moved to memory that
+// reads as a unit left on which never acts on being told to stop: VT-d with
+// translation, interrupt remapping and queued invalidation on, its queue a
+// page of its own (Intel VT-d 5.20 sections 11.4.4.2 and 11.4.7), or AMD-Vi
+// with its command buffer and event log running (AMD IOMMU 3.11 sections
+// 3.4.1 and 3.4.16): fakeiommu:vtd or fakeiommu:amdvi.
+static void cmd_fakeiommu(char *arg) {
+    bool vtd = sprefix(arg, "vtd");
+    uint8_t *table = (uint8_t *)acpi_table(vtd ? "DMAR" : "IVRS");
+    EFI_PHYSICAL_ADDRESS regs = 0xffffffff;
+    if (table == NULL
+     || bs->AllocatePages(EfiAllocateMaxAddress, EfiReservedMemoryType, 4, &regs) != EFI_SUCCESS) {
+        out("K fakeiommu=unavailable\n");
+        return;
+    }
+    uint8_t *r = (uint8_t *)(uintptr_t)regs;
+    memset(r, 0, 4 * 4096);
+    if (vtd) {
+        uint32_t gsts = (uint32_t)1 << 31 | (uint32_t)1 << 26 | (uint32_t)1 << 25;
+        uint64_t iqa = regs + 3 * 4096;
+        memcpy(r + 0x1c, &gsts, 4);
+        memcpy(r + 0x90, &iqa, 8);
+    } else {
+        uint64_t control = (1 << 0) | (1 << 2) | (1 << 12);
+        uint64_t status = (1 << 3) | (1 << 4);
+        memcpy(r + 0x18, &control, 8);
+        memcpy(r + 0x2020, &status, 8);
+    }
+    // The base address field of the unit's structure, the first of the table.
+    memcpy(table + 48 + 8, &regs, 8);
+    acpi_checksum(table);
+    out("K fakeiommu=%x\n", (uint64_t)regs);
+}
+
 #endif
 
 #if !defined (__x86_64__) && !defined (__i386__)
@@ -1452,6 +1498,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_vtdon();
         } else if (sprefix(tok, "amdvion")) {
             cmd_amdvion();
+        } else if (sprefix(tok, "fakeiommu:")) {
+            cmd_fakeiommu(tok + 10);
 #else
         } else if (sprefix(tok, "svamfail")) {
             cmd_svamfail();
