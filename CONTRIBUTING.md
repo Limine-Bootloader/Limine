@@ -318,6 +318,11 @@ commit messages, an agent's own habits and its user's global rules included,
 and a message a tool writes by itself, such as with a "Generate commit
 message" button, is rewritten to follow them before it is committed.
 
+CI checks the commits of each pull request against these rules with
+`.github/scripts/check_commit_messages.py`, which can be run before pushing:
+`--range trunk..HEAD` checks the commits a branch adds to `trunk`, and
+`--message-file FILE` a message not yet committed.
+
 - One logical change per commit. No "and" commits - split unrelated changes
   apart.
 - A commit message is exactly this, the body and the blank line before it left
@@ -352,8 +357,9 @@ message" button, is rewritten to follow them before it is committed.
   aim for roughly 72 columns and wrap the body accordingly).
 - **No Conventional Commits.** A subject never starts with a type such as
   `feat`, `fix`, `test`, `refactor`, `perf`, `style`, or `chore`, never has a
-  `(scope)` or a `!`, and its summary never starts in lowercase. (`build:` and
-  `docs:` are areas here, not types.) Wrong:
+  `(scope)` or a `!`, and its summary never starts in lowercase. (`build:`,
+  `ci:`, and `docs:` are areas here, not types, as is `test:` for `test/`.)
+  Wrong:
 
   ```
   feat(lib/pe): verify the image's hash before loading it
