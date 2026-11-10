@@ -63,7 +63,7 @@ of freestanding-lgrt, stb_image, and pdgzip, which keep their notices.
 
 - The `multiboot2.h` header of the
 [Multiboot2 Specification](https://www.gnu.org/software/grub/manual/multiboot2/)
-(MIT) is copied to `common/protos/multiboot2.h`.
+(MIT) is adapted in `common/protos/multiboot2.h`.
 
 - The [QOI reference decoder](https://github.com/phoboslab/qoi) (MIT) is
 adapted in `common/lib/qoi.c`, for wallpaper image loading.
@@ -310,7 +310,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ### Multiboot2 Specification
 
-`common/protos/multiboot2.h` is copied from the Multiboot2 Specification, and
+`common/protos/multiboot2.h` is adapted from the Multiboot2 Specification, and
 used to build Limine's BIOS and UEFI binaries.
 
 ```
