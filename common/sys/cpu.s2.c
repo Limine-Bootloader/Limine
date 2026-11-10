@@ -28,6 +28,7 @@ uint64_t tsc_freq = 0;
 #define PM_TIMER_FREQ 3579545
 #define PM_TIMER_CALIBRATION_TICKS (PM_TIMER_FREQ / 100)
 #define PM_TIMER_CALIBRATION_ROUNDS 3
+#define PM_TIMER_START_READS 8
 
 // A block that decodes to nothing reads a constant, so the count never
 // arrives. The poll bound is sized for the fastest port access; a timer that
@@ -80,6 +81,19 @@ static bool pm_timer_find(uint16_t *port, uint32_t *mask) {
     return true;
 }
 
+// A stall inside an access, for an SMI or a hypervisor, shows as a slow one,
+// which cannot be placed in time. A stall between accesses is counted by both
+// clocks and cancels out.
+static uint32_t pm_timer_read(uint16_t port, uint32_t mask, uint64_t *tsc, uint64_t *cost) {
+    uint64_t before = rdtsc();
+    uint32_t count = ind(port) & mask;
+    uint64_t after = rdtsc();
+
+    *tsc = before + (after - before) / 2;
+    *cost = after - before;
+    return count;
+}
+
 static uint64_t calibrate_tsc_pm_timer(void) {
     uint16_t port;
     uint32_t mask;
@@ -87,19 +101,49 @@ static uint64_t calibrate_tsc_pm_timer(void) {
         return 0;
     }
 
+    uint64_t quickest = UINT64_MAX;
     uint64_t best_delta = 0;
     uint32_t best_elapsed = 0;
 
     for (int round = 0; round < PM_TIMER_CALIBRATION_ROUNDS; round++) {
-        uint32_t start = ind(port) & mask;
-        uint64_t tsc_start = rdtsc();
+        uint32_t start = 0;
+        uint64_t tsc_start = 0;
+        uint64_t start_cost = UINT64_MAX;
+        for (int i = 0; i < PM_TIMER_START_READS; i++) {
+            uint64_t tsc, cost;
+            uint32_t count = pm_timer_read(port, mask, &tsc, &cost);
+            if (cost < start_cost) {
+                start = count;
+                tsc_start = tsc;
+                start_cost = cost;
+            }
+        }
+        if (start_cost < quickest) {
+            quickest = start_cost;
+        }
 
-        uint32_t elapsed = 0;
+        // The first read past the count that is itself quick ends the round,
+        // or failing one by twice the count, the quickest read past it.
+        uint32_t end_elapsed = 0;
+        uint64_t tsc_end = 0;
+        uint64_t end_cost = UINT64_MAX;
         uint32_t seen = 0;
         size_t stalled = 0;
         for (size_t polls = 0; polls < PM_TIMER_MAX_POLLS; polls++) {
-            elapsed = ((ind(port) & mask) - start) & mask;
-            if (elapsed >= PM_TIMER_CALIBRATION_TICKS) {
+            uint64_t tsc, cost;
+            uint32_t elapsed = (pm_timer_read(port, mask, &tsc, &cost) - start) & mask;
+            if (cost < quickest) {
+                quickest = cost;
+            }
+            if (elapsed >= PM_TIMER_CALIBRATION_TICKS && cost < end_cost) {
+                end_elapsed = elapsed;
+                tsc_end = tsc;
+                end_cost = cost;
+                if (cost <= quickest * 2) {
+                    break;
+                }
+            }
+            if (elapsed >= PM_TIMER_CALIBRATION_TICKS * 2) {
                 break;
             }
             if (elapsed != seen) {
@@ -109,9 +153,8 @@ static uint64_t calibrate_tsc_pm_timer(void) {
                 break;
             }
         }
-        uint64_t tsc_end = rdtsc();
 
-        if (elapsed < PM_TIMER_CALIBRATION_TICKS) {
+        if (end_cost == UINT64_MAX) {
             return 0;
         }
 
@@ -119,7 +162,7 @@ static uint64_t calibrate_tsc_pm_timer(void) {
             uint64_t delta = tsc_end - tsc_start;
             if (delta < best_delta || best_delta == 0) {
                 best_delta = delta;
-                best_elapsed = elapsed;
+                best_elapsed = end_elapsed;
             }
         }
     }
@@ -131,6 +174,100 @@ static uint64_t calibrate_tsc_pm_timer(void) {
     // The count reached rather than the count asked for: the poll that ends
     // the wait overshoots by however long a port access takes.
     return best_delta * PM_TIMER_FREQ / best_elapsed;
+}
+
+#define PIT_FREQ 1193182
+// About 10ms of channel 2 counting down.
+#define PIT_CALIBRATION_COUNT 11932
+#define PIT_CALIBRATION_MIN_ROUNDS 3
+#define PIT_CALIBRATION_MAX_ROUNDS 10
+
+// A gate that never asserts leaves OUT low, so the wait never ends. The
+// count is sized for the fastest port access, which is what decides how
+// many reads 10ms takes; on a slow one it is what the give-up costs.
+#define PIT_MAX_POLLS 1000000
+
+static uint64_t calibrate_tsc_pit(void) {
+    // Bits 7:4 are read-only, and written as 0. Intel ICH10 319973-003,
+    // 13.7.1.
+    uint8_t port61 = inb(0x61) & 0x0f;
+
+    uint64_t quickest = UINT64_MAX;
+    uint64_t best_delta = 0;
+    // From after the gate write to after the read that sees OUT high, for
+    // when no round is clean.
+    uint64_t best_plain_delta = 0;
+
+    for (int round = 0; round < PIT_CALIBRATION_MAX_ROUNDS; round++) {
+        if (round >= PIT_CALIBRATION_MIN_ROUNDS && best_delta != 0) {
+            break;
+        }
+
+        outb(0x61, port61 & 0x0c); // disable gate and speaker
+        outb(0x43, 0xb0); // channel 2, lobyte/hibyte, mode 0, binary
+        outb(0x42, PIT_CALIBRATION_COUNT & 0xff);
+        outb(0x42, (PIT_CALIBRATION_COUNT >> 8) & 0xff);
+
+        // Mode 0 drives OUT low on the control word and raises it only at
+        // terminal count, so a port already high is not a counting timer.
+        if ((inb(0x61) & 0x20) != 0) {
+            continue;
+        }
+
+        uint64_t gate_before = rdtsc();
+        outb(0x61, (port61 & 0x0c) | 0x01); // enable gate to start counting
+        uint64_t gate_after = rdtsc();
+        if (gate_after - gate_before < quickest) {
+            quickest = gate_after - gate_before;
+        }
+
+        // OUT went high within the last two reads.
+        uint64_t prev_before = gate_before;
+        uint64_t before = gate_before;
+        uint64_t after = gate_after;
+        bool counted = false;
+        for (size_t polls = 0; polls < PIT_MAX_POLLS; polls++) {
+            prev_before = before;
+            before = rdtsc();
+            uint8_t status = inb(0x61);
+            after = rdtsc();
+            if (after - before < quickest) {
+                quickest = after - before;
+            }
+            if ((status & 0x20) != 0) {
+                counted = true;
+                break;
+            }
+        }
+
+        if (!counted) {
+            break;
+        }
+
+        if (after > gate_after) {
+            uint64_t delta = after - gate_after;
+            if (delta < best_plain_delta || best_plain_delta == 0) {
+                best_plain_delta = delta;
+            }
+        }
+
+        // Unlike a PM timer read, the edge comes once a round, so a stall that
+        // widens either bracket costs the round.
+        uint64_t start = gate_before + (gate_after - gate_before) / 2;
+        uint64_t end = prev_before + (after - prev_before) / 2;
+        if (gate_after - gate_before <= quickest * 2 && after - prev_before <= quickest * 4
+         && end > start) {
+            uint64_t delta = end - start;
+            if (delta < best_delta || best_delta == 0) {
+                best_delta = delta;
+            }
+        }
+    }
+
+    outb(0x61, port61); // restore
+
+    uint64_t delta = best_delta != 0 ? best_delta : best_plain_delta;
+    return delta * PIT_FREQ / PIT_CALIBRATION_COUNT;
 }
 
 #endif
@@ -165,70 +302,11 @@ void calibrate_tsc(void) {
         tsc_freq = best_delta * (1000000ULL / EFI_CALIBRATION_STALL);
     }
 #elif defined(BIOS)
-    // Preferred over the PIT below: it needs no programming, and it is still
-    // there on a machine whose PIT is not.
+    // Preferred over the PIT: it needs no programming, and it is still there
+    // on a machine whose PIT is not.
     tsc_freq = calibrate_tsc_pm_timer();
-    if (tsc_freq != 0) {
-        return;
-    }
-
-    // Calibrate TSC using PIT channel 2.
-    // PIT oscillator frequency: 1193182 Hz
-    // Count of 11932 gives ~10ms calibration interval.
-    // Run multiple rounds and take the smallest (least SMI-disrupted) result.
-    #define PIT_CALIBRATION_COUNT 11932
-    #define PIT_CALIBRATION_ROUNDS 3
-
-    // A gate that never asserts leaves OUT low, so the wait never ends. The
-    // count is sized for the fastest port access, which is what decides how
-    // many reads 10ms takes; on a slow one it is what the give-up costs.
-    #define PIT_MAX_POLLS 1000000
-
-    // Bits 7:4 are read-only, and written as 0. Intel ICH10 319973-003,
-    // 13.7.1.
-    uint8_t port61 = inb(0x61) & 0x0f;
-
-    uint64_t best_delta = 0;
-    for (int round = 0; round < PIT_CALIBRATION_ROUNDS; round++) {
-        outb(0x61, port61 & 0x0c); // disable gate and speaker
-        outb(0x43, 0xb0); // channel 2, lobyte/hibyte, mode 0, binary
-        outb(0x42, PIT_CALIBRATION_COUNT & 0xff);
-        outb(0x42, (PIT_CALIBRATION_COUNT >> 8) & 0xff);
-
-        // Mode 0 drives OUT low on the control word and raises it only at
-        // terminal count, so a port already high is not a counting timer.
-        if ((inb(0x61) & 0x20) != 0) {
-            continue;
-        }
-
-        outb(0x61, (port61 & 0x0c) | 0x01); // enable gate to start counting
-        uint64_t tsc_start = rdtsc();
-
-        bool counted = false;
-        for (size_t polls = 0; polls < PIT_MAX_POLLS; polls++) {
-            if ((inb(0x61) & 0x20) != 0) {
-                counted = true;
-                break;
-            }
-        }
-        uint64_t tsc_end = rdtsc();
-
-        if (!counted) {
-            continue;
-        }
-
-        if (tsc_end > tsc_start) {
-            uint64_t delta = tsc_end - tsc_start;
-            if (delta < best_delta || best_delta == 0) {
-                best_delta = delta;
-            }
-        }
-    }
-
-    outb(0x61, port61); // restore
-
-    if (best_delta != 0) {
-        tsc_freq = best_delta * 1193182 / PIT_CALIBRATION_COUNT;
+    if (tsc_freq == 0) {
+        tsc_freq = calibrate_tsc_pit();
     }
 #endif
 
