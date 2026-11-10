@@ -184,13 +184,42 @@ def wait_panic(t, m, timeout=60, **decode):
         time.sleep(0.5)
 
 
-def panics_in_turn(t, m, count, timeout=60):
-    """Boot each of the menu's first count entries in turn, a key taking the
-    menu back after each panic; return the panic messages."""
+def entry_selected(scr, name):
+    """Whether the menu shows the entry name selected: in reverse video
+    [intent], its name on other than the screen's background."""
+    hits = scr.find(f' {name} ')
+    if not hits:
+        return False
+    x, y = hits[0]
+    return scr.cell(x + 1, y).bg != scr.cell(0, y).bg
+
+
+def select_entry(t, m, index, name, timeout=60):
+    """Select the menu's entry index, named name, pressing again where a
+    press went missing, as one sent faster than a slowed guest takes them in
+    can."""
+    deadline = time.monotonic() + timeout * t.port.timeout_scale
+    while True:
+        m.press('home', *['down'] * index, delay=0.05)
+        settled = time.monotonic() + 2 * t.port.timeout_scale
+        while time.monotonic() < settled:
+            try:
+                if entry_selected(t.screen(m, 'poll'), name):
+                    return
+            except Exception:
+                pass
+            time.sleep(0.2)
+        if m.exited() or time.monotonic() > deadline:
+            t.fail(f'the menu never showed {name} selected')
+
+
+def panics_in_turn(t, m, names, timeout=60):
+    """Boot each of the menu's first entries, named names, in turn, a key
+    taking the menu back after each panic; return the panic messages."""
     msgs = []
-    for i in range(count):
+    for i, name in enumerate(names):
         t.wait_text(m, 'ARROWS', timeout)
-        m.press('home', *['down'] * i, delay=0.05)
+        select_entry(t, m, i, name, timeout)
         m.press('ret')
         msgs.append(wait_panic(t, m, timeout)[0])
         m.press('ret')

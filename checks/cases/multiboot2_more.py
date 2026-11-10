@@ -56,7 +56,8 @@ def mb2_more_errors(t):
     ]
     files = {'/boot/elf': elf, '/boot/short': patched(elf, info + 4, '<I', 4), '/boot/wrapped': wrapped}
     m, _ = boot_entry(t, 'timeout: no\n' + ''.join(text for text, _ in cases), files=files, kernel_variant=None)
-    for (text, want), got in zip(cases, panics_in_turn(t, m, len(cases))):
+    msgs = panics_in_turn(t, m, [f'M{i}' for i in range(len(cases))])
+    for (text, want), got in zip(cases, msgs):
         t.check(got == want, f'{text.split()[0]}: {got!r}, want {want!r}')
 
 

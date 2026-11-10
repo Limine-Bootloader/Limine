@@ -102,7 +102,7 @@ def limine_reqs_hostile(t):
         files[f'/boot/r{i:02}.elf'] = image
         entries += entry(f'R{i:02}', path=f'boot():/boot/r{i:02}.elf')
     m, _ = boot_entry(t, 'timeout: no\n' + entries, files=files, kernel_variant=None)
-    msgs = panics_in_turn(t, m, len(cases))
+    msgs = panics_in_turn(t, m, [f'R{i:02}' for i in range(len(cases))])
     for (what, _, want), got in zip(cases, msgs):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')
 
