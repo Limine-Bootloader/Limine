@@ -1,5 +1,5 @@
-#ifndef DRIVERS__SERIAL_H__
-#define DRIVERS__SERIAL_H__
+#ifndef DRIVERS__SERIAL_H
+#define DRIVERS__SERIAL_H
 
 #if defined(BIOS)
 

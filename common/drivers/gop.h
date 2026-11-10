@@ -1,5 +1,5 @@
-#ifndef DRIVERS__GOP_H__
-#define DRIVERS__GOP_H__
+#ifndef DRIVERS__GOP_H
+#define DRIVERS__GOP_H
 
 #if defined(UEFI)
 

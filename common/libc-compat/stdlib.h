@@ -1,5 +1,5 @@
-#ifndef LIBC_COMPAT__STDLIB_H__
-#define LIBC_COMPAT__STDLIB_H__
+#ifndef STDLIB_H
+#define STDLIB_H
 
 unsigned long strtoul(const char *str, char **end, int base);
 

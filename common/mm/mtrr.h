@@ -1,5 +1,5 @@
-#ifndef MM__MTRR_H__
-#define MM__MTRR_H__
+#ifndef MM__MTRR_H
+#define MM__MTRR_H
 
 #include <stdint.h>
 #include <stdbool.h>

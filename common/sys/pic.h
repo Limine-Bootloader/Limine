@@ -1,5 +1,5 @@
-#ifndef SYS__PIC_H__
-#define SYS__PIC_H__
+#ifndef SYS__PIC_H
+#define SYS__PIC_H
 
 #include <stdbool.h>
 

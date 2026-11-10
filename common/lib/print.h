@@ -1,5 +1,5 @@
-#ifndef LIB__PRINT_H__
-#define LIB__PRINT_H__
+#ifndef LIB__PRINT_H
+#define LIB__PRINT_H
 
 #include <stdarg.h>
 #include <stdbool.h>

@@ -1,5 +1,5 @@
-#ifndef LIB__IMAGE_H__
-#define LIB__IMAGE_H__
+#ifndef LIB__IMAGE_H
+#define LIB__IMAGE_H
 
 #include <stdint.h>
 #include <fs/file.h>

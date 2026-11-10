@@ -1,5 +1,5 @@
-#ifndef LIB__MISC_H__
-#define LIB__MISC_H__
+#ifndef LIB__MISC_H
+#define LIB__MISC_H
 
 #include <stdbool.h>
 #include <stdnoreturn.h>

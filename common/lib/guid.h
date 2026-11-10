@@ -1,5 +1,5 @@
-#ifndef LIB__GUID_H__
-#define LIB__GUID_H__
+#ifndef LIB__GUID_H
+#define LIB__GUID_H
 
 #include <stdint.h>
 #include <stdbool.h>

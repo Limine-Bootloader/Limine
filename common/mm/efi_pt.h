@@ -1,5 +1,5 @@
-#ifndef MM__EFI_PT_H__
-#define MM__EFI_PT_H__
+#ifndef MM__EFI_PT_H
+#define MM__EFI_PT_H
 
 #include <stdint.h>
 

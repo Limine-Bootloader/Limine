@@ -1,5 +1,5 @@
-#ifndef PROTOS__LIMINE_H__
-#define PROTOS__LIMINE_H__
+#ifndef PROTOS__LIMINE_H
+#define PROTOS__LIMINE_H
 
 #include <stdnoreturn.h>
 

@@ -1,5 +1,5 @@
-#ifndef FS__FILE_H__
-#define FS__FILE_H__
+#ifndef FS__FILE_H
+#define FS__FILE_H
 
 #include <stdint.h>
 #include <stddef.h>

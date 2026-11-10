@@ -1,5 +1,5 @@
-#ifndef PROTOS__EFI_BOOT_ENTRY_H__
-#define PROTOS__EFI_BOOT_ENTRY_H__
+#ifndef PROTOS__EFI_BOOT_ENTRY_H
+#define PROTOS__EFI_BOOT_ENTRY_H
 
 #include <stdnoreturn.h>
 

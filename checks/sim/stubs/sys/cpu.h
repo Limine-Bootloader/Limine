@@ -1,5 +1,5 @@
-#ifndef SYS__CPU_H__
-#define SYS__CPU_H__
+#ifndef SYS__CPU_H
+#define SYS__CPU_H
 
 #include <stdbool.h>
 #include <stdint.h>

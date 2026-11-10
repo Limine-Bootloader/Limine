@@ -1,5 +1,5 @@
-#ifndef LIB__CONFIG_H__
-#define LIB__CONFIG_H__
+#ifndef LIB__CONFIG_H
+#define LIB__CONFIG_H
 
 #include <stddef.h>
 #include <stdbool.h>

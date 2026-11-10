@@ -1,5 +1,5 @@
-#ifndef SYS__A20_H__
-#define SYS__A20_H__
+#ifndef SYS__A20_H
+#define SYS__A20_H
 
 #include <stdbool.h>
 

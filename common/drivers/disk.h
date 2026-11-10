@@ -1,5 +1,5 @@
-#ifndef DRIVERS__DISK_H__
-#define DRIVERS__DISK_H__
+#ifndef DRIVERS__DISK_H
+#define DRIVERS__DISK_H
 
 #include <stdint.h>
 #include <stddef.h>

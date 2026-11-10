@@ -1,5 +1,5 @@
-#ifndef LIB__TIME_H__
-#define LIB__TIME_H__
+#ifndef LIB__TIME_H
+#define LIB__TIME_H
 
 #include <stdint.h>
 
