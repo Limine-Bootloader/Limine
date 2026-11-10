@@ -43,5 +43,6 @@ def uri_hostile(t):
     entries = ''.join(entry(f'U{i:02}', path='boot():/boot/kernel.elf', modules=[(uri, None)])
                       for i, (_, uri, _) in enumerate(CASES))
     m, _ = boot_entry(t, 'timeout: no\n' + entries, files={'/boot/m': b'module\n'})
-    for (what, _, want), got in zip(CASES, panics_in_turn(t, m, len(CASES))):
+    msgs = panics_in_turn(t, m, [f'U{i:02}' for i in range(len(CASES))])
+    for (what, _, want), got in zip(CASES, msgs):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')

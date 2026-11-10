@@ -59,7 +59,7 @@ def run_hostile(t, cases, proto):
         files[f'/boot/k{i:02}.elf'] = image
         entries += entry(f'K{i:02}', protocol=proto, path=f'boot():/boot/k{i:02}.elf')
     m, _ = boot_entry(t, 'timeout: no\n' + entries, files=files, kernel_variant=None)
-    msgs = panics_in_turn(t, m, len(cases))
+    msgs = panics_in_turn(t, m, [f'K{i:02}' for i in range(len(cases))])
     for (what, _, want), got in zip(cases, msgs):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')
 

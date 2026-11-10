@@ -109,7 +109,8 @@ def dtb_path_errors(t):
             files[f'/boot/d{i}.dtb'] = data
         entries += entry(f'D{i}', path='boot():/boot/kernel.elf', extra=f'dtb_path: {path}')
     m, _ = boot_entry(t, 'timeout: no\n' + entries, files=files)
-    for (what, _, want), got in zip(cases, panics_in_turn(t, m, len(cases))):
+    msgs = panics_in_turn(t, m, [f'D{i}' for i in range(len(cases))])
+    for (what, _, want), got in zip(cases, msgs):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')
 
 
@@ -235,7 +236,8 @@ def dtb_harts_riscv_errors(t):
         files[f'/boot/d{i}.dtb'] = data
         entries += entry(f'D{i}', path='boot():/boot/kernel.elf', extra=f'dtb_path: boot():/boot/d{i}.dtb')
     m, _ = boot_entry(t, 'timeout: no\n' + entries, files=files)
-    for (what, _, want), got in zip(cases, panics_in_turn(t, m, len(cases))):
+    msgs = panics_in_turn(t, m, [f'D{i}' for i in range(len(cases))])
+    for (what, _, want), got in zip(cases, msgs):
         t.check(got == want, f'{what}: {got!r}, want {want!r}')
 
 

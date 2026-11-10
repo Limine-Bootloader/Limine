@@ -205,6 +205,7 @@ def pxe_tftp_errors(t):
         for i, (path, _) in enumerate(cases))
     m = pxe_boot(t, {'/limine.conf': config}, {'/boot/kernel.elf': HostFile(kernel_file(t, 'full')),
                                                '/m.bin': b'module\n', long_name: b'long\n'})
-    for (path, want), got in zip(cases, panics_in_turn(t, m, len(cases), timeout=120)):
+    msgs = panics_in_turn(t, m, [f'E{i}' for i in range(len(cases))], timeout=120)
+    for (path, want), got in zip(cases, msgs):
         want = want or f'limine: Failed to open module with path `{path}`. Is the path correct?'
         t.expect_eq(got, want, path)
