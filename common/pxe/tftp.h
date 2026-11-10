@@ -1,5 +1,5 @@
-#ifndef TFTP_H
-#define TFTP_H
+#ifndef PXE__TFTP_H
+#define PXE__TFTP_H
 
 #include <stdint.h>
 #include <stddef.h>

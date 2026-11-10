@@ -1,5 +1,5 @@
-#ifndef LIB__PE_H__
-#define LIB__PE_H__
+#ifndef LIB__PE_H
+#define LIB__PE_H
 
 #include <stdint.h>
 #include <stdbool.h>

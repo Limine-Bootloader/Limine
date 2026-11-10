@@ -1,5 +1,5 @@
-#ifndef CRYPT__BLAKE3_H__
-#define CRYPT__BLAKE3_H__
+#ifndef CRYPT__BLAKE3_H
+#define CRYPT__BLAKE3_H
 
 #include <stddef.h>
 #include <stdbool.h>

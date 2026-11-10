@@ -1,5 +1,5 @@
-#ifndef LIB__CP437_H__
-#define LIB__CP437_H__
+#ifndef LIB__CP437_H
+#define LIB__CP437_H
 
 #include <stdint.h>
 

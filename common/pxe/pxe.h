@@ -1,5 +1,5 @@
-#ifndef PXE_H
-#define PXE_H
+#ifndef PXE__PXE_H
+#define PXE__PXE_H
 
 #include <stdint.h>
 #include <stddef.h>

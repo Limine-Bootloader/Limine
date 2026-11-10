@@ -1,5 +1,5 @@
-#ifndef FS__FAT32_H__
-#define FS__FAT32_H__
+#ifndef FS__FAT32_H
+#define FS__FAT32_H
 
 #include <lib/part.h>
 #include <fs/file.h>

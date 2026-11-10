@@ -1,5 +1,5 @@
-#ifndef PROTOS__CHAINLOAD_H__
-#define PROTOS__CHAINLOAD_H__
+#ifndef PROTOS__CHAINLOAD_H
+#define PROTOS__CHAINLOAD_H
 
 #include <stdnoreturn.h>
 

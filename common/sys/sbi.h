@@ -1,5 +1,5 @@
-#ifndef SYS__SBI_H__
-#define SYS__SBI_H__
+#ifndef SYS__SBI_H
+#define SYS__SBI_H
 
 #include <stddef.h>
 #include <stdint.h>

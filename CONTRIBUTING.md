@@ -295,7 +295,7 @@ the following.
 
 Some older code predates these rules: it has blockless constructs, unbraced
 `case` labels, left-aligned pointers, `asm volatile(` without the space,
-`_H__` include guards, `enum`s, and integer suffixes.
+`enum`s, and integer suffixes.
 New or modified code follows the rules regardless.
 
 ### Final style remarks

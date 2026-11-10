@@ -1,5 +1,5 @@
-#ifndef LIB__TERM_H__
-#define LIB__TERM_H__
+#ifndef LIB__TERM_H
+#define LIB__TERM_H
 
 #include <stddef.h>
 #include <stdint.h>

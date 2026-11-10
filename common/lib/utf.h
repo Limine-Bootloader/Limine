@@ -1,5 +1,5 @@
-#ifndef LIB__UTF_H__
-#define LIB__UTF_H__
+#ifndef LIB__UTF_H
+#define LIB__UTF_H
 
 #include <stddef.h>
 #include <stdint.h>

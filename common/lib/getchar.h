@@ -1,5 +1,5 @@
-#ifndef LIB__GETCHAR_H__
-#define LIB__GETCHAR_H__
+#ifndef LIB__GETCHAR_H
+#define LIB__GETCHAR_H
 
 #include <stddef.h>
 

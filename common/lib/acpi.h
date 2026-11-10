@@ -1,5 +1,5 @@
-#ifndef LIB__ACPI_H__
-#define LIB__ACPI_H__
+#ifndef LIB__ACPI_H
+#define LIB__ACPI_H
 
 #include <stdint.h>
 #include <stddef.h>

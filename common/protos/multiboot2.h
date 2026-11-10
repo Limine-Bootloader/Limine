@@ -19,8 +19,8 @@
  *  IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef PROTOS__MULTIBOOT2_H__
-#define PROTOS__MULTIBOOT2_H__
+#ifndef PROTOS__MULTIBOOT2_H
+#define PROTOS__MULTIBOOT2_H
 
 #include <stdint.h>
 #include <stdnoreturn.h>

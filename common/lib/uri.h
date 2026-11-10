@@ -1,5 +1,5 @@
-#ifndef LIB__URI_H__
-#define LIB__URI_H__
+#ifndef LIB__URI_H
+#define LIB__URI_H
 
 #include <stdbool.h>
 #include <fs/file.h>

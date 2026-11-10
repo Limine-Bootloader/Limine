@@ -1,5 +1,5 @@
-#ifndef LIB__TPM_H__
-#define LIB__TPM_H__
+#ifndef LIB__TPM_H
+#define LIB__TPM_H
 
 #include <stdint.h>
 #include <stddef.h>

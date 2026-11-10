@@ -1,5 +1,5 @@
-#ifndef DRIVERS__MOUSE_H__
-#define DRIVERS__MOUSE_H__
+#ifndef DRIVERS__MOUSE_H
+#define DRIVERS__MOUSE_H
 
 #include <stddef.h>
 #include <stdint.h>

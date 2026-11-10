@@ -1,5 +1,5 @@
-#ifndef CRYPT__HASH_H__
-#define CRYPT__HASH_H__
+#ifndef CRYPT__HASH_H
+#define CRYPT__HASH_H
 
 #include <stddef.h>
 #include <stdbool.h>

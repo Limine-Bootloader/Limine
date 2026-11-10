@@ -1,5 +1,5 @@
-#ifndef LIB__FDT_H__
-#define LIB__FDT_H__
+#ifndef LIB__FDT_H
+#define LIB__FDT_H
 
 #if !defined(__x86_64__) && !defined(__i386__)
 
@@ -12,4 +12,4 @@ int fdt_set_chosen_uint32(void *fdt, const char *name, uint32_t value);
 
 #endif
 
-#endif // LIB__FDT_H__
+#endif

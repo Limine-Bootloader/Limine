@@ -1,3 +1,6 @@
+#ifndef LIB__MACROS_AARCH64_ASM_H
+#define LIB__MACROS_AARCH64_ASM_H
+
 // Branch to \el1 if in EL1, or to \el2 if in EL2
 // Uses \reg, halts if not in EL1 or EL2
 .macro PICK_EL reg, el1, el2
@@ -165,3 +168,5 @@
     // HCR_EL2.{TGE, RW} before synchronising (D24.1.2.2, D1.4.4.2).
     isb
 .endm
+
+#endif

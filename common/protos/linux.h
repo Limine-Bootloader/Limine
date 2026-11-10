@@ -1,5 +1,5 @@
-#ifndef PROTOS__LINUX_H__
-#define PROTOS__LINUX_H__
+#ifndef PROTOS__LINUX_H
+#define PROTOS__LINUX_H
 
 #include <stddef.h>
 #include <stdint.h>

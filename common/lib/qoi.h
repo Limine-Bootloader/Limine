@@ -1,5 +1,5 @@
-#ifndef LIB__QOI_H__
-#define LIB__QOI_H__
+#ifndef LIB__QOI_H
+#define LIB__QOI_H
 
 #include <stdint.h>
 #include <stddef.h>

@@ -1,5 +1,5 @@
-#ifndef DRIVERS__VBE_H__
-#define DRIVERS__VBE_H__
+#ifndef DRIVERS__VBE_H
+#define DRIVERS__VBE_H
 
 #include <stdint.h>
 #include <stddef.h>

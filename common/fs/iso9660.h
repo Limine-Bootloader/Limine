@@ -1,5 +1,5 @@
-#ifndef FS__ISO9660_H__
-#define FS__ISO9660_H__
+#ifndef FS__ISO9660_H
+#define FS__ISO9660_H
 
 #include <stdint.h>
 #include <lib/part.h>

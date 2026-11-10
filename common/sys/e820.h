@@ -1,5 +1,5 @@
-#ifndef SYS__E820_H__
-#define SYS__E820_H__
+#ifndef SYS__E820_H
+#define SYS__E820_H
 
 #include <stdint.h>
 #include <stddef.h>

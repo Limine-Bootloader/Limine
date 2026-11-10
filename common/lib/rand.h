@@ -1,5 +1,5 @@
-#ifndef LIB__RAND_H__
-#define LIB__RAND_H__
+#ifndef LIB__RAND_H
+#define LIB__RAND_H
 
 #include <stdint.h>
 #include <stddef.h>

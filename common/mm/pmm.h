@@ -1,5 +1,5 @@
-#ifndef MM__PMM_H__
-#define MM__PMM_H__
+#ifndef MM__PMM_H
+#define MM__PMM_H
 
 #include <stdint.h>
 #include <stddef.h>

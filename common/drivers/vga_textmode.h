@@ -1,5 +1,5 @@
-#ifndef DRIVERS__VGA_TEXTMODE_H__
-#define DRIVERS__VGA_TEXTMODE_H__
+#ifndef DRIVERS__VGA_TEXTMODE_H
+#define DRIVERS__VGA_TEXTMODE_H
 
 #if defined(BIOS)
 
