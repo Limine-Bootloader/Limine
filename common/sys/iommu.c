@@ -94,6 +94,12 @@ static bool vtd_quiesce_queue(uintptr_t reg_base) {
 static void vtd_disable_unit(uintptr_t reg_base) {
     uint32_t sts = mmind(reg_base + VTD_GSTS_REG);
 
+    // Bits 22:0 read as 0. Intel VT-d 5.20 section 11.4.4.2.
+    if (sts == 0xffffffff) {
+        print("iommu: VT-d unit at %X does not answer, skipped\n", (uint64_t)reg_base);
+        return;
+    }
+
     // Disable DMA translation first (most urgent: prevents stale lookups)
     if (sts & VTD_GSTS_TES) {
         uint32_t gcmd = (sts & VTD_GCMD_ONESHOT_MASK) & ~VTD_GSTS_TES;
@@ -183,6 +189,13 @@ void vtd_disable_all(void) {
 static void amdvi_disable_unit(uintptr_t mmio_base) {
     // Read low 32 bits of the 64-bit control register
     uint32_t ctrl_lo = mmind(mmio_base + AMDVI_CONTROL_REG);
+
+    // Control bits 21:18 read as 0 and status bits 31:19 are reserved. AMD
+    // IOMMU 3.11 sections 3.4.1 and 3.4.16.
+    if (ctrl_lo == 0xffffffff && mmind(mmio_base + AMDVI_STATUS_REG) == 0xffffffff) {
+        print("iommu: AMD-Vi unit at %X does not answer, skipped\n", (uint64_t)mmio_base);
+        return;
+    }
 
     if (!(ctrl_lo & AMDVI_CONTROL_EN)) {
         return; // IOMMU not enabled

@@ -3,11 +3,17 @@ import struct
 
 from harness.api import check
 from harness.media import HostFile
-from cases._common import check_report_clean, entry, kernel_file
+from cases._common import boot_entry, check_report_clean, entry, kernel_file
 
 # Remapping units that Limine turns off at hand-off without the Keep IOMMU
 # request and that do not do as told: listed by a DMAR or IVRS table given to
-# QEMU, at registers that memory stands in for.
+# QEMU, at registers that do not answer or that memory stands in for.
+
+# Where SeaBIOS puts q35's ECAM window, bus 255's configuration space: with
+# nothing on that bus, every read there gives all ones. On UEFI the EFI probe
+# finds the window in the MCFG.
+NOT_ANSWERING = 0xbff00000
+
 
 def acpi_table(signature, revision, body):
     raw = bytearray(struct.pack('<4sIBB6s8sI4sI', signature, 36 + len(body), revision, 0, b'LIMINE',
@@ -34,6 +40,34 @@ def table_file(t, name, data):
     with open(path, 'wb') as f:
         f.write(data)
     return path
+
+
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'iommu'])
+def iommu_unit_not_answering(t):
+    """A remapping unit whose registers read all ones, which no working unit's
+    reserved bits do (Intel VT-d 5.20 section 11.4.4.2, AMD IOMMU 3.11
+    sections 3.4.1 and 3.4.16), is not answering, and is left alone rather
+    than waited for, with a message where one can be seen [intent]."""
+    from cases.chainload import probe_then_limine
+    config = 'timeout: 0\nserial: yes\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='x')
+    for name, label, table in (('vtd', 'VT-d', dmar(NOT_ANSWERING)), ('amdvi', 'AMD-Vi', ivrs(NOT_ANSWERING))):
+        machine = {'machine': 'q35', 'extra': ['-acpitable', f'file={table_file(t, name + ".bin", table)}']}
+        if t.port.is_uefi:
+            m = probe_then_limine(t, f'name:{name} deadiommu:{name}', config,
+                                  {'/boot/kernel.elf': HostFile(kernel_file(t, 'nokeepiommu'))}, **machine)
+        else:
+            m, _ = boot_entry(t, config, kernel_variant='nokeepiommu', **machine)
+        r = t.kernel_report(m)
+        check_report_clean(t, r)
+        if name == 'vtd':
+            t.expect_eq(r['x86.vtd.0.gsts'], 'ffffffff', 'VT-d: the unit reads all ones')
+        else:
+            t.expect_eq(r['x86.amdvi.0'].split()[3], 'ffffffffffffffff', 'AMD-Vi: the unit reads all ones')
+        # Past ExitBootServices(), UEFI Limine has nowhere to print to.
+        if not t.port.is_uefi:
+            t.check(f'iommu: {label} unit at {NOT_ANSWERING:#x} does not answer, skipped'
+                    in t.serial_plain(m), f'{label}: the message on the serial line')
+        m.stop()
 
 
 @check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'iommu'])

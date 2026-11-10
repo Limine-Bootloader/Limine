@@ -1225,6 +1225,24 @@ static void cmd_fakeiommu(char *arg) {
     out("K fakeiommu=%x\n", (uint64_t)regs);
 }
 
+// The first remapping unit of the DMAR, or of the IVRS, moved to the
+// configuration space of the last bus the MCFG covers, its base that of bus 0
+// (PCI Firmware 3.3 section 4.1.2): with nothing on that bus, every read there
+// gives all ones. deadiommu:vtd or deadiommu:amdvi.
+static void cmd_deadiommu(char *arg) {
+    uint8_t *table = (uint8_t *)acpi_table(sprefix(arg, "vtd") ? "DMAR" : "IVRS");
+    const uint8_t *mcfg = acpi_table("MCFG");
+    if (table == NULL || mcfg == NULL) {
+        out("K deadiommu=unavailable\n");
+        return;
+    }
+    uint64_t base;
+    memcpy(&base, mcfg + 44, 8);
+    base += (uint64_t)mcfg[55] << 20;
+    memcpy(table + 48 + 8, &base, 8);
+    acpi_checksum(table);
+    out("K deadiommu=%x\n", base);
+}
 #endif
 
 #if !defined (__x86_64__) && !defined (__i386__)
@@ -1500,6 +1518,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_amdvion();
         } else if (sprefix(tok, "fakeiommu:")) {
             cmd_fakeiommu(tok + 10);
+        } else if (sprefix(tok, "deadiommu:")) {
+            cmd_deadiommu(tok + 10);
 #else
         } else if (sprefix(tok, "svamfail")) {
             cmd_svamfail();
