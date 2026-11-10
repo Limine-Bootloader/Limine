@@ -147,3 +147,27 @@ def amd_apic_ids_past_15(t):
         if fields['ext'] != 'ffffffff':
             t.check(int(fields['ext'], 16) & 4 != 0, f'{who}: 8-bit APIC IDs not enabled ({fields["ext"]})')
 
+
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'smp'])
+def nmi_lvt_edge_triggered(t):
+    """The LVT entry a MADT NMI structure names takes the structure's
+    polarity, but never its trigger mode: NMIs are edge sensitive, and LINT1
+    takes no level-sensitive interrupts at all (Intel SDM 325462-093 Vol. 3A,
+    13.5.1) [spec]. QEMU's MADT connects LINT1 of every processor to NMI, the
+    EFI probe setting the flags first."""
+    from cases.chainload import probe_then_limine
+    config = 'timeout: 0\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='x')
+    files = {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))}
+    # MPS INTI flags (ACPI 6.6 Table 5.26): polarity in bits 1:0, 3 for active
+    # low, and trigger mode in bits 3:2, 3 for level.
+    for flags, want in ((0xd, 0x10400), (0xf, 0x12400), (0x7, 0x12400)):
+        m = probe_then_limine(t, f'name:nmi madtnmi:{flags:x}', config, files, smp=2)
+        r = t.kernel_report(m)
+        check_report_clean(t, r)
+        found = re.search(r'K madtnmi=(\d+)', m.stream('debugcon').text())
+        t.check(found is not None and int(found.group(1)) != 0, f'flags {flags:x}: NMI structures set')
+        lapics = {'BSP': r['x86.lapic'], **ap_lapics(r)}
+        t.expect_eq(len(lapics), 2, f'flags {flags:x}: local APIC states reported')
+        for who, value in lapics.items():
+            t.expect_eq(int(lapic_fields(value)['lint1'], 16), want, f'flags {flags:x}: {who} LINT1')
+        m.stop()

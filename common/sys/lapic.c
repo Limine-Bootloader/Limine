@@ -70,13 +70,8 @@ static uint32_t lapic_madt_nmi_flags_to_lvt(uint16_t flags) {
     }
     // 0b00 (conforms) and 0b01 (active high) leave bit 13 clear
 
-    // Trigger mode: bits 3:2 of flags
-    uint8_t trigger = (flags >> 2) & 0x3;
-    if (trigger == 0x3) {
-        lvt |= (1 << 15); // level triggered
-    }
-    // 0b00 (conforms) and 0b01 (edge) leave bit 15 clear
-
+    // NMIs are edge sensitive whatever the flags say. Intel SDM 325462-093
+    // Vol. 3A, 13.5.1.
     return lvt;
 }
 

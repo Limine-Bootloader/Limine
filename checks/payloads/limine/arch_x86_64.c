@@ -455,9 +455,9 @@ void arch_check_ap(int base_rev, unsigned slot, struct limine_mp_info *info) {
     check(memcmp(&st[ST_GDTR], &bsp_state[ST_GDTR], 10) == 0, "x86.ap.gdtr", "AP %u GDTR differs", slot);
     volatile uint32_t *l = ap_lapic[slot];
     if (ap_lapic_taken[slot]) {
-        kprintf("K x86.ap.%u.lapic=svr %x tpr %x timer %x thermal %x perf %x lint0 %x esr %x "
-                "ext %x\n", slot, l[0], l[1], l[2], l[3], l[4], l[5], l[SNAPSHOT_ESR],
-                l[SNAPSHOT_EXT]);
+        kprintf("K x86.ap.%u.lapic=svr %x tpr %x timer %x thermal %x perf %x lint0 %x lint1 %x "
+                "esr %x ext %x\n", slot, l[0], l[1], l[2], l[3], l[4], l[5], l[6],
+                l[SNAPSHOT_ESR], l[SNAPSHOT_EXT]);
         if (base_rev >= 5) {
             check(l[0] == 0x1ff && l[1] == 0, "x86.ap.lapic_svr_tpr", "AP %u SVR %x TPR %x", slot, l[0], l[1]);
             bool masked = true;
