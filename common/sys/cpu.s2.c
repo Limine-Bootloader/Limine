@@ -272,7 +272,7 @@ static uint64_t calibrate_tsc_pit(void) {
 
 #endif
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 // For where CPUID leaf 0x15 gives the TSC's ratio to the crystal clock but not
 // the clock, by family 6 model. Intel SDM 325462-093 Vol. 3B, 22.7.3, Table
 // 22-95. Xeon W processors share model 0x55 with Xeon Scalable but run at
@@ -356,7 +356,7 @@ void calibrate_tsc(void) {
     }
 #endif
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     uint64_t nominal = tsc_freq_nominal(tsc_freq);
     if (nominal != 0) {
         tsc_freq = nominal;

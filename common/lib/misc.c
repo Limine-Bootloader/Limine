@@ -16,7 +16,7 @@
 #include <mm/pmm.h>
 #include <libfdt.h>
 
-#if defined (UEFI)
+#if defined(UEFI)
 EFI_SYSTEM_TABLE *gST;
 EFI_BOOT_SERVICES *gBS;
 EFI_RUNTIME_SERVICES *gRT;
@@ -26,7 +26,7 @@ EFI_UINTN efi_mmap_size = 0, efi_desc_size = 0, efi_mmap_key = 0;
 EFI_UINT32 efi_desc_ver = 0;
 #endif
 
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
 // The handoff drops to 32-bit protected mode with paging off, so the code that
 // does it (spinup_go32 and the *_spinup_32 routines) and its stack must be
 // below 4GiB wherever the firmware loaded us. Copy them there.
@@ -124,7 +124,7 @@ bool secure_boot_active = false;
 
 uint64_t usec_at_bootloader_entry;
 
-#if defined (UEFI)
+#if defined(UEFI)
 bool is_efi_serial_present(void) {
     EFI_STATUS status;
     EFI_SERIAL_IO_PROTOCOL *serial_io = NULL;
@@ -235,7 +235,7 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
             // A URI the parser refuses panics whatever required says, since
             // ignoring one would silently drop a hash the config asked for.
             struct file_handle *dtb_file = uri_open(dtb_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
-#if defined (__i386__)
+#if defined(__i386__)
                 , NULL, NULL
 #endif
             );
@@ -261,7 +261,7 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
             }
 
             if (dtb != NULL) {
-#if defined (UEFI)
+#if defined(UEFI)
                 if (measure) {
                     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "dtb_path: ", dtb_path);
                     tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
@@ -274,7 +274,7 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
         }
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (!dtb) {
         EFI_GUID dtb_guid = EFI_DTB_TABLE_GUID;
         for (size_t i = 0; i < gST->NumberOfTableEntries; i++) {
@@ -350,9 +350,9 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
     return dtb;
 }
 
-#if defined (UEFI)
+#if defined(UEFI)
 
-#if defined (__riscv)
+#if defined(__riscv)
 
 EFI_RISCV_EFI_BOOT_PROTOCOL *get_riscv_boot_protocol(void) {
     EFI_GUID boot_proto_guid = EFI_RISCV_EFI_BOOT_PROTOCOL_GUID;
@@ -494,11 +494,11 @@ bool efi_exit_boot_services(void) {
 
 #if defined(__x86_64__) || defined(__i386__)
     asm volatile ("cli" ::: "memory");
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     asm volatile ("msr daifset, #15" ::: "memory");
-#elif defined (__riscv)
+#elif defined(__riscv)
     asm volatile ("csrci sstatus, 0x2" ::: "memory");
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     asm volatile ("csrxchg $r0, %0, 0x0" :: "r" (0x4) : "memory");
 #else
 #error Unknown architecture

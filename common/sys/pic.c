@@ -1,4 +1,4 @@
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #include <stddef.h>
 #include <stdint.h>

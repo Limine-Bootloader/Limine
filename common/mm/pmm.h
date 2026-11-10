@@ -30,12 +30,12 @@ struct meminfo {
 
 struct meminfo mmap_get_info(size_t mmap_count, struct memmap_entry *mmap);
 
-#if defined (BIOS)
+#if defined(BIOS)
 extern struct memmap_entry memmap[];
 extern size_t memmap_entries;
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 extern struct memmap_entry *memmap;
 extern size_t memmap_entries;
 
@@ -71,7 +71,7 @@ void pmm_free_size_t(void *ptr, size_t length);
 void pmm_free(void *ptr, uint64_t length);
 void *pmm_realloc(void *old_ptr, uint64_t old_size, uint64_t new_size);
 
-#if defined (UEFI)
+#if defined(UEFI)
 void pmm_release_uefi_mem(void);
 #endif
 

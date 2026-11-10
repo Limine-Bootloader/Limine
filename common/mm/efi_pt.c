@@ -1,4 +1,4 @@
-#if defined (__x86_64__) && defined (UEFI)
+#if defined(__x86_64__) && defined(UEFI)
 
 #include <stdint.h>
 #include <stddef.h>

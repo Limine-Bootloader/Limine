@@ -5,13 +5,13 @@
 #include <lib/misc.h>
 #include <lib/term.h>
 #include <lib/libc.h>
-#if defined (BIOS)
+#if defined(BIOS)
 #include <lib/real.h>
 #endif
 #include <sys/cpu.h>
 #include <drivers/serial.h>
 
-#if defined (BIOS)
+#if defined(BIOS)
 static void s2_print(const char *s, size_t len) {
     for (size_t i = 0; i < len; i++) {
         struct rm_regs r = {0};
@@ -208,11 +208,11 @@ void vprint(const char *fmt, va_list args) {
 
 out:
     if (!quiet) {
-#if defined (BIOS)
+#if defined(BIOS)
         if (stage3_loaded) {
 #endif
             FOR_TERM(flanterm_write(TERM, print_buf, print_buf_i));
-#if defined (BIOS)
+#if defined(BIOS)
         } else {
             s2_print(print_buf, print_buf_i);
         }
@@ -220,12 +220,12 @@ out:
     }
 
     for (size_t i = 0; i < print_buf_i; i++) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
         if (E9_OUTPUT) {
             outb(0xe9, print_buf[i]);
         }
 #endif
-#if defined (BIOS)
+#if defined(BIOS)
         if (stage3_loaded && ((!quiet && serial) || COM_OUTPUT)) {
             if (!isprint(print_buf[i])) {
                 switch (print_buf[i]) {

@@ -9,9 +9,9 @@
 #include <mm/pmm.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
-#if defined (BIOS)
+#if defined(BIOS)
 #  include <sys/cpu.h>
-#elif defined (UEFI)
+#elif defined(UEFI)
 #  include <efi.h>
 #endif
 
@@ -415,7 +415,7 @@ void mouse_render_pointer_overlay(void) {
     render_pointer(true);
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 #define I8042_DATA 0x60
 #define I8042_STATUS 0x64
@@ -708,7 +708,7 @@ void mouse_flush(void) {
     reset_transient_state();
 }
 
-#elif defined (UEFI)
+#elif defined(UEFI)
 
 #define MAX_POINTERS 8
 

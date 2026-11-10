@@ -445,7 +445,7 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
         }
     }
 
-#if defined (__loongarch__)
+#if defined(__loongarch__)
     // The kernel finds a device tree only in its own image or in this table.
     // With either key set, get_device_tree_blob() loaded the tree from it or
     // panicked.
@@ -475,7 +475,7 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
     efi_exit_boot_services();
 }
 
-#if !defined (__loongarch__)
+#if !defined(__loongarch__)
 // Kernels do without runtime services when the runtime descriptors they get
 // carry all-ones virtual addresses.
 static void mark_runtime_unmapped(EFI_MEMORY_DESCRIPTOR *map) {
@@ -493,7 +493,7 @@ static void mark_runtime_unmapped(EFI_MEMORY_DESCRIPTOR *map) {
 static void prepare_mmap(struct boot_param *p) {
     // The LoongArch kernel reads the map from its configuration table, and any
     // tree it gets was copied out before ExitBootServices().
-#if !defined (__loongarch__)
+#if !defined(__loongarch__)
     {
         void *dtb = p->dtb;
         int ret = fdt_set_chosen_uint64(dtb, "linux,uefi-mmap-start", (uint64_t)efi_mmap);
@@ -546,7 +546,7 @@ static void prepare_mmap(struct boot_param *p) {
 
     EFI_STATUS status = gRT->SetVirtualAddressMap(efi_mmap_size, efi_desc_size, efi_desc_ver, efi_mmap);
     if (status != EFI_SUCCESS) {
-#if defined (__loongarch__)
+#if defined(__loongarch__)
         // The kernel uses the runtime services table regardless of the
         // descriptors' virtual addresses, so it cannot do without the mapping.
         panic(false, "linux: failed to set UEFI virtual address map: '%X'", (uint64_t)status);
@@ -721,7 +721,7 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     size_t kernel_region_size = ALIGN_UP(CHECKED_ADD(text_offset, kernel_alloc_size, panic(true, "linux: Kernel size overflow")), 4096, panic(true, "linux: Alignment overflow"));
 
-#if defined (__aarch64__)
+#if defined(__aarch64__)
     // Without the flag, memory below the image's base is out of the kernel's
     // linear map. With it, the image need only end within 48-bit physical
     // addresses, and stays near the modules, which are allocated top down.
@@ -735,7 +735,7 @@ noreturn void linux_load(char *config, char *cmdline) {
         // window that the initrd must share with the image.
         p.module_limit = ALIGN_DOWN((uint64_t)(uintptr_t)p.kernel_base, (uint64_t)1 << 30) + ((uint64_t)32 << 30);
     }
-#elif defined (__loongarch__)
+#elif defined(__loongarch__)
     // A kernel that cannot relocate itself only runs at the physical address
     // it was linked for, which load_offset gives.
     if (memmap_alloc_range(tmp_hdr.load_offset, kernel_region_size,

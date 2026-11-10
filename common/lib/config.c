@@ -30,7 +30,7 @@ no_unwind bool bad_config = false;
 
 static char *config_addr;
 
-#if defined (UEFI)
+#if defined(UEFI)
 // Snapshot of the on-disk config bytes, kept across the in-place mutations
 // in init_config so the menu can measure them once measured_boot is known.
 static char *config_raw_addr;
@@ -42,7 +42,7 @@ const char *config_get_raw(size_t *size_out) {
 }
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 #define EFI_APP_PATH_LEN 128
 static char efi_app_path[128] = {0};
@@ -145,7 +145,7 @@ found:
 #endif
 
 int init_config_disk(struct volume *part) {
-#if defined (UEFI)
+#if defined(UEFI)
     bool use_default_efi_search_path = false;
 
     size_t len;
@@ -166,7 +166,7 @@ int init_config_disk(struct volume *part) {
     case_insensitive_fopen = true;
     if (
      false
-#if defined (UEFI)
+#if defined(UEFI)
      || (f = fopen(part, use_default_efi_search_path ? "/EFI/BOOT/limine.conf" : efi_app_path)) != NULL
 #endif
      || (f = fopen(part, "/boot/limine/limine.conf")) != NULL
@@ -534,7 +534,7 @@ int init_config(size_t config_size) {
         }
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     // Snapshot the raw bytes; the menu measures them once measured_boot
     // is final.
     config_raw_size = config_size - 2;

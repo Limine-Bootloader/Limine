@@ -9,7 +9,7 @@
 #include <lib/misc.h>
 #include <lib/libc.h>
 #include <lib/config.h>
-#if defined (UEFI)
+#if defined(UEFI)
 #  include <lib/tpm.h>
 #endif
 #include <lib/term.h>
@@ -30,7 +30,7 @@
 #include <sys/cpu.h>
 #include <lib/misc.h>
 
-#if defined (UEFI)
+#if defined(UEFI)
 EFI_GUID limine_efi_vendor_guid =
     { 0x03884334, 0x1756, 0x4978, { 0x9c, 0x8c, 0x86, 0xfb, 0x89, 0x98, 0xb4, 0xea } };
 #endif
@@ -943,10 +943,10 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
     }
     char *cur_entry_protocol = config_get_value(entry->body, 0, "PROTOCOL");
     if (cur_entry_protocol) {
-#if defined (UEFI)
+#if defined(UEFI)
         if (strcmp(cur_entry_protocol, "bios") == 0
          || strcmp(cur_entry_protocol, "bios_chainload") == 0) {
-#elif defined (BIOS)
+#elif defined(BIOS)
         if (strcmp(cur_entry_protocol, "efi") == 0
          || strcmp(cur_entry_protocol, "uefi") == 0
          || strcmp(cur_entry_protocol, "efi_chainload") == 0
@@ -1340,7 +1340,7 @@ static bool find_entry_by_path(const char *path, struct menu_entry *current_entr
     return ret;
 }
 
-#if defined (UEFI)
+#if defined(UEFI)
 // A LoaderEntries identifier names the entry; a path is also accepted, as
 // an older LoaderEntryDefault in NVRAM can hold one.
 static void find_entry_by_bli_id_or_path(const char *str,
@@ -1464,14 +1464,14 @@ skip_line:
 static struct memmap_entry *rewound_memmap = NULL;
 static size_t rewound_memmap_entries = 0;
 static no_unwind uint8_t *rewound_data;
-#if defined (BIOS)
+#if defined(BIOS)
 static no_unwind uint8_t *rewound_s2_data;
 static no_unwind uint8_t *rewound_bss;
 #endif
 
 extern symbol data_begin;
 extern symbol data_end;
-#if defined (BIOS)
+#if defined(BIOS)
 extern symbol s2_data_begin;
 extern symbol s2_data_end;
 extern symbol bss_begin;
@@ -1480,9 +1480,9 @@ extern symbol bss_end;
 
 static void menu_init_term(void) {
     // If there is GRAPHICS config key and the value is "yes", enable graphics
-#if defined (BIOS)
+#if defined(BIOS)
     char *graphics = config_get_value(NULL, 0, "GRAPHICS");
-#elif defined (UEFI)
+#elif defined(UEFI)
     char *graphics = "yes";
 #endif
     keyboard_layout_init();
@@ -1494,15 +1494,15 @@ static void menu_init_term(void) {
             parse_resolution(&req_width, &req_height, &req_bpp, menu_resolution);
 
         if (!quiet && !gterm_init(NULL, NULL, NULL, req_width, req_height)) {
-#if defined (BIOS)
+#if defined(BIOS)
             vga_textmode_init(true);
-#elif defined (UEFI)
+#elif defined(UEFI)
             serial = true;
             term_fallback();
 #endif
         }
     } else {
-#if defined (BIOS)
+#if defined(BIOS)
         if (!quiet) {
             vga_textmode_init(true);
         }
@@ -1512,9 +1512,9 @@ static void menu_init_term(void) {
     // Terminal too small for menu, fall back to text console. Checked here so
     // that a later re-init cannot re-establish a size the menu cannot draw.
     if (!quiet && (terms[0]->cols < 40 || terms[0]->rows < 16)) {
-#if defined (BIOS)
+#if defined(BIOS)
         vga_textmode_init(true);
-#elif defined (UEFI)
+#elif defined(UEFI)
         serial = true;
         term_fallback();
 #endif
@@ -1533,15 +1533,15 @@ static char *append_string(char *p, const char *s) {
 }
 
 static const char *uefi_shell_filename(void) {
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     return "shellx64.efi";
-#elif defined (__i386__)
+#elif defined(__i386__)
     return "shellia32.efi";
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     return "shellaa64.efi";
-#elif defined (__riscv)
+#elif defined(__riscv)
     return "shellriscv64.efi";
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     return "shellloongarch64.efi";
 #else
 #error Unknown UEFI architecture
@@ -1677,18 +1677,18 @@ static void print_entry_comment(const struct menu_entry *entry, size_t row) {
 
 noreturn void _menu(bool first_run) {
     size_t data_size = (uintptr_t)data_end - (uintptr_t)data_begin;
-#if defined (BIOS)
+#if defined(BIOS)
     size_t s2_data_size = (uintptr_t)s2_data_end - (uintptr_t)s2_data_begin;
     size_t bss_size = (uintptr_t)bss_end - (uintptr_t)bss_begin;
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
     uefi_shell_volume = boot_volume;
 #endif
 
     if (rewound_memmap != NULL) {
         memcpy(data_begin, rewound_data, data_size);
-#if defined (BIOS)
+#if defined(BIOS)
         memcpy(s2_data_begin, rewound_s2_data, s2_data_size);
         memcpy(bss_begin, rewound_bss, bss_size);
 #endif
@@ -1696,7 +1696,7 @@ noreturn void _menu(bool first_run) {
         memmap_entries = rewound_memmap_entries;
     } else {
         rewound_data = ext_mem_alloc(data_size);
-#if defined (BIOS)
+#if defined(BIOS)
         rewound_s2_data = ext_mem_alloc(s2_data_size);
         rewound_bss = ext_mem_alloc(bss_size);
 #endif
@@ -1705,7 +1705,7 @@ noreturn void _menu(bool first_run) {
         memcpy(rewound_memmap, memmap, memmap_entries * sizeof(struct memmap_entry));
         rewound_memmap_entries = memmap_entries;
         memcpy(rewound_data, data_begin, data_size);
-#if defined (BIOS)
+#if defined(BIOS)
         memcpy(rewound_s2_data, s2_data_begin, s2_data_size);
         memcpy(rewound_bss, bss_begin, bss_size);
 #endif
@@ -1716,7 +1716,7 @@ noreturn void _menu(bool first_run) {
     if (bad_config == false) {
         if (!init_config_smbios()) {
 
-#if defined (UEFI)
+#if defined(UEFI)
             if (init_config_disk(boot_volume)) {
 #endif
             volume_iterate_parts(boot_volume,
@@ -1725,13 +1725,13 @@ noreturn void _menu(bool first_run) {
                     break;
                 }
             );
-#if defined (UEFI)
+#if defined(UEFI)
             }
 #endif
         }
     }
 
-#if defined (__riscv)
+#if defined(__riscv)
     init_riscv(NULL);
 #endif
 
@@ -1749,12 +1749,12 @@ noreturn void _menu(bool first_run) {
 
     char *serial_str = config_get_value(NULL, 0, "SERIAL");
     serial =
-#if defined (UEFI)
+#if defined(UEFI)
         is_efi_serial_present() &&
 #endif
         serial_str != NULL && strcmp(serial_str, "yes") == 0;
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (!serial) {
         char *graphics_str = config_get_value(NULL, 0, "GRAPHICS");
         if (graphics_str != NULL && strcmp(graphics_str, "no") == 0) {
@@ -1763,7 +1763,7 @@ noreturn void _menu(bool first_run) {
     }
 #endif
 
-#if defined (BIOS)
+#if defined(BIOS)
     {
         // The driver also transmits for a COM_OUTPUT build, which never sets
         // serial, so the rate has to be read whatever selected the output.
@@ -1794,7 +1794,7 @@ noreturn void _menu(bool first_run) {
         editor_enabled = false;
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     char *measured_boot_str = config_get_value(NULL, 0, "MEASURED_BOOT");
     measured_boot = measured_boot_str != NULL && strcmp(measured_boot_str, "yes") == 0;
     if (secure_boot_active) {
@@ -1863,7 +1863,7 @@ noreturn void _menu(bool first_run) {
         }
     }
     if (menu_branding == NULL) {
-#if defined (BIOS)
+#if defined(BIOS)
         {
             uint32_t eax, ebx, ecx, edx;
             if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
@@ -1872,8 +1872,8 @@ noreturn void _menu(bool first_run) {
                 menu_branding = strdup("Limine " LIMINE_VERSION " (x86-64, BIOS)");
             }
         }
-#elif defined (UEFI)
-#if defined (__i386__)
+#elif defined(UEFI)
+#if defined(__i386__)
         {
             uint32_t eax, ebx, ecx, edx;
             if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
@@ -1884,13 +1884,13 @@ noreturn void _menu(bool first_run) {
         }
 #else
         menu_branding = strdup("Limine " LIMINE_VERSION " ("
-#if defined (__x86_64__)
+#if defined(__x86_64__)
             "x86-64"
-#elif defined (__riscv)
+#elif defined(__riscv)
             "riscv64"
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
             "aarch64"
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
             "loongarch64"
 #endif
             ", UEFI)");
@@ -1926,7 +1926,7 @@ noreturn void _menu(bool first_run) {
     bool has_entry = false;
     bool default_entry_unresolved = false;
 
-#if defined (UEFI)
+#if defined(UEFI)
     bli_entries_reset();
     bli_publish_entries_walk(menu_tree);
     bli_entries_publish();
@@ -1946,7 +1946,7 @@ noreturn void _menu(bool first_run) {
     }
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (!has_entry) {
         char *remember_last = config_get_value(NULL, 0, "REMEMBER_LAST_ENTRY");
         if (remember_last != NULL && strcasecmp(remember_last, "yes") == 0) {
@@ -2017,7 +2017,7 @@ noreturn void _menu(bool first_run) {
         }
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (!has_entry) {
         char path[MENU_PATH_MAX];
         if (bli_get_default_entry(path, MENU_PATH_MAX)) {
@@ -2044,7 +2044,7 @@ noreturn void _menu(bool first_run) {
 
     bool has_timeout = false;
 
-#if defined (UEFI)
+#if defined(UEFI)
     has_timeout = bli_update_oneshot_timeout(&timeout_ms, &skip_timeout);
 #endif
 
@@ -2059,7 +2059,7 @@ noreturn void _menu(bool first_run) {
         }
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (!has_timeout) {
         has_timeout = bli_update_timeout(&timeout_ms, &skip_timeout);
     }
@@ -2385,9 +2385,9 @@ timeout_aborted:
                 if (!quiet) {
                     if (term_backend == FALLBACK) {
                         if (!gterm_init(NULL, NULL, NULL, 0, 0)) {
-#if defined (BIOS)
+#if defined(BIOS)
                             vga_textmode_init(true);
-#elif defined (UEFI)
+#elif defined(UEFI)
                             serial = true;
                             term_fallback();
 #endif
@@ -2397,7 +2397,7 @@ timeout_aborted:
                     }
                 }
 
-#if defined (UEFI)
+#if defined(UEFI)
                 // Save the entry's path so it can persist between boots.
                 char entry_path[MENU_PATH_MAX];
                 size_t pos = 0;
@@ -2476,7 +2476,7 @@ noreturn void boot(char *config) {
     // Kill the mouse so no packets pile up.
     mouse_deinit();
 
-#if defined (__riscv)
+#if defined(__riscv)
     init_riscv(config);
 #endif
 
@@ -2505,30 +2505,30 @@ noreturn void boot(char *config) {
     } else if (!strcmp(proto, "linux")) {
         linux_load(config, cmdline);
     } else if (!strcmp(proto, "multiboot1") || !strcmp(proto, "multiboot")) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
         multiboot1_load(config, cmdline);
 #else
         quiet = false;
         print("Multiboot 1 is not available on non-x86 architectures.\n\n");
 #endif
     } else if (!strcmp(proto, "multiboot2")) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
         multiboot2_load(config, cmdline);
 #else
         quiet = false;
         print("Multiboot 2 is not available on non-x86 architectures.\n\n");
 #endif
-#if defined (BIOS)
+#if defined(BIOS)
     } else if (!strcmp(proto, "bios_chainload")
             || !strcmp(proto, "bios")) {
-#elif defined (UEFI)
+#elif defined(UEFI)
     } else if (!strcmp(proto, "efi_chainload")
             || !strcmp(proto, "efi")
             || !strcmp(proto, "uefi")) {
 #endif
         chainload(config, cmdline);
     }
-#if defined (UEFI)
+#if defined(UEFI)
     else if (!strcmp(proto, "efi_boot_entry")) {
         efi_boot_entry(config);
     }

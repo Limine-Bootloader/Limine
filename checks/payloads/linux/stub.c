@@ -13,17 +13,17 @@ __attribute__((section(".data"))) uint64_t stub_regs[16];
 extern char __bss_start[], __bss_end[];
 
 static void putc_(char c) {
-#if defined (__aarch64__)
+#if defined(__aarch64__)
     volatile uint32_t *uart = (volatile uint32_t *)0x09000000;
     while (uart[0x18 / 4] & (1 << 5)) {
     }
     uart[0] = (uint8_t)c;
-#elif defined (__riscv)
+#elif defined(__riscv)
     volatile uint8_t *uart = (volatile uint8_t *)0x10000000;
     while (!(uart[5] & 0x20)) {
     }
     uart[0] = (uint8_t)c;
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     // Through the uncached window DMW0 provides.
     volatile uint8_t *uart = (volatile uint8_t *)0x800000001fe001e0;
     while (!(uart[5] & 0x20)) {
@@ -215,7 +215,7 @@ static void put_guid(const struct guid *g) {
     }
 }
 
-#if defined (__loongarch64)
+#if defined(__loongarch64)
 // The device tree's configuration table, which LoongArch kernels read.
 static const uint8_t *efi_dtb;
 #endif
@@ -277,7 +277,7 @@ static void dump_efi(uint64_t systab) {
             puts_("K tpm_log.first_event=");
             escaped((const char *)t + 9 + 32, 16);
             putc_('\n');
-#if defined (__loongarch64)
+#if defined(__loongarch64)
         } else if (guid_is(g, 0xb1b621d5, 0xf19c, 0x41a5, 0x83, 0x0b)) {
             efi_dtb = t;
 #endif
@@ -295,7 +295,7 @@ void stub_main(void) {
         *(volatile char *)p = 0;
     }
     puts_("\nB LINUX-STUB\n");
-#if defined (__aarch64__)
+#if defined(__aarch64__)
     puts_("K arch=aarch64\n");
     fact_hex("x0", stub_regs[0]);
     fact_hex("x1", stub_regs[1]);
@@ -305,7 +305,7 @@ void stub_main(void) {
     fact_hex("mmu", stub_regs[5] & 1);
     fact_hex("daif", stub_regs[6]);
     uint64_t dtb = stub_regs[0];
-#elif defined (__riscv)
+#elif defined(__riscv)
     puts_("K arch=riscv64\n");
     fact_hex("a0", stub_regs[0]);
     fact_hex("a1", stub_regs[1]);
@@ -313,7 +313,7 @@ void stub_main(void) {
     fact_hex("sstatus_sie", (stub_regs[5] >> 1) & 1);
     fact_hex("sie", stub_regs[6]);
     uint64_t dtb = stub_regs[1];
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     puts_("K arch=loongarch64\n");
     fact_hex("a0", stub_regs[0]);
     fact_hex("a1", stub_regs[1]);
@@ -335,7 +335,7 @@ void stub_main(void) {
             fact_hex("initrd.hash", fnv1a((const uint8_t *)(uintptr_t)initrd_start, initrd_end - initrd_start));
         }
     }
-#if defined (__loongarch64)
+#if defined(__loongarch64)
     uint64_t systab = stub_regs[2];
 #else
     uint64_t systab = 0;
@@ -366,7 +366,7 @@ void stub_main(void) {
     if (systab != 0) {
         dump_efi(systab);
     }
-#if defined (__loongarch64)
+#if defined(__loongarch64)
     if (efi_dtb != NULL) {
         dump_dtb(efi_dtb);
     }

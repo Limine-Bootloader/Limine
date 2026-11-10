@@ -173,19 +173,19 @@ __attribute__((section(".limine_requests")))
 static volatile struct limine_paging_mode_request _pm_request = {
     .id = LIMINE_PAGING_MODE_REQUEST_ID,
     .revision = 1, .response = NULL,
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     .mode = LIMINE_PAGING_MODE_X86_64_5LVL,
     .max_mode = LIMINE_PAGING_MODE_X86_64_5LVL,
     .min_mode = LIMINE_PAGING_MODE_X86_64_MIN
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     .mode = LIMINE_PAGING_MODE_AARCH64_5LVL,
     .max_mode = LIMINE_PAGING_MODE_AARCH64_5LVL,
     .min_mode = LIMINE_PAGING_MODE_AARCH64_MIN
-#elif defined (__riscv)
+#elif defined(__riscv)
     .mode = LIMINE_PAGING_MODE_RISCV_SV57,
     .max_mode = LIMINE_PAGING_MODE_RISCV_SV57,
     .min_mode = LIMINE_PAGING_MODE_RISCV_MIN,
-#elif defined (__loongarch__)
+#elif defined(__loongarch__)
     .mode = LIMINE_PAGING_MODE_LOONGARCH_DEFAULT,
     .max_mode = LIMINE_PAGING_MODE_LOONGARCH_DEFAULT,
     .min_mode = LIMINE_PAGING_MODE_LOONGARCH_MIN
@@ -304,13 +304,13 @@ uint32_t ctr = 0;
 void ap_entry(struct limine_mp_info *info) {
     printf("Hello from AP!\n");
 
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     printf("My LAPIC ID: %#x\n", info->lapic_id);
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     printf("My MPIDR: %#lx\n", info->mpidr);
-#elif defined (__riscv)
+#elif defined(__riscv)
     printf("My Hart ID: %#lx\n", info->hartid);
-#elif defined (__loongarch__)
+#elif defined(__loongarch__)
     printf("My Phys ID: %#lx\n", info->phys_id);
 #endif
 
@@ -686,37 +686,37 @@ FEAT_START
     struct limine_mp_response *mp_response = _mp_request.response;
     printf("MP feature, revision %lu\n", mp_response->revision);
     printf("Flags: %#lx\n", (unsigned long)mp_response->flags);
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     printf("BSP LAPIC ID: %#x\n", mp_response->bsp_lapic_id);
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     printf("BSP MPIDR: %#lx\n", mp_response->bsp_mpidr);
-#elif defined (__riscv)
+#elif defined(__riscv)
     printf("BSP Hart ID: %#lx\n", mp_response->bsp_hartid);
-#elif defined (__loongarch__)
+#elif defined(__loongarch__)
     printf("BSP Phys ID: %#lx\n", mp_response->bsp_phys_id);
 #endif
     printf("CPU count: %lu\n", mp_response->cpu_count);
     for (size_t i = 0; i < mp_response->cpu_count; i++) {
         struct limine_mp_info *cpu = mp_response->cpus[i];
         printf("Processor ID: %#lx\n", (unsigned long)cpu->processor_id);
-#if defined (__x86_64__)
+#if defined(__x86_64__)
         printf("LAPIC ID: %#x\n", cpu->lapic_id);
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
         printf("MPIDR: %#lx\n", cpu->mpidr);
-#elif defined (__riscv)
+#elif defined(__riscv)
         printf("Hart ID: %#lx\n", cpu->hartid);
-#elif defined (__loongarch__)
+#elif defined(__loongarch__)
         printf("Phys ID: %#lx\n", cpu->phys_id);
 #endif
 
 
-#if defined (__x86_64__)
+#if defined(__x86_64__)
         if (cpu->lapic_id != mp_response->bsp_lapic_id) {
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
         if (cpu->mpidr != mp_response->bsp_mpidr) {
-#elif defined (__riscv)
+#elif defined(__riscv)
         if (cpu->hartid != mp_response->bsp_hartid) {
-#elif defined (__loongarch__)
+#elif defined(__loongarch__)
         if (cpu->phys_id != mp_response->bsp_phys_id) {
 #endif
             uint32_t old_ctr = __atomic_load_n(&ctr, __ATOMIC_SEQ_CST);
@@ -753,7 +753,7 @@ FEAT_START
     printf("  mode: %lu\n", pm_response->mode);
 FEAT_END
 
-#if defined (__riscv)
+#if defined(__riscv)
 FEAT_START
     printf("\n");
     struct limine_riscv_bsp_hartid_response *bsp_response = _bsp_request.response;

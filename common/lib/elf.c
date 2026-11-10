@@ -166,19 +166,19 @@ static bool elf64_validate(struct elf64_hdr *hdr) {
         panic(true, "elf: Not a Little-endian ELF file.");
     }
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     if (hdr->machine != ARCH_X86_64 || hdr->ident[EI_CLASS] != ELFCLASS64) {
         panic(true, "elf: Not an x86-64 ELF file.");
     }
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     if (hdr->machine != ARCH_AARCH64 || hdr->ident[EI_CLASS] != ELFCLASS64) {
         panic(true, "elf: Not an aarch64 ELF file.");
     }
-#elif defined (__riscv)
+#elif defined(__riscv)
     if (hdr->machine != ARCH_RISCV || hdr->ident[EI_CLASS] != ELFCLASS64) {
         panic(true, "elf: Not a riscv64 ELF file.");
     }
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     if (hdr->machine != ARCH_LOONGARCH || hdr->ident[EI_CLASS] != ELFCLASS64) {
         panic(true, "elf: Not a loongarch64 ELF file.");
     }
@@ -721,25 +721,25 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
         void *ptr = buffer + (relocation->r_addr - vaddr);
 
         switch (relocation->r_info) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
             case R_X86_64_NONE:
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
             case R_AARCH64_NONE:
-#elif defined (__riscv)
+#elif defined(__riscv)
             case R_RISCV_NONE:
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
             case R_LARCH_NONE:
 #endif
             {
                 break;
             }
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
             case R_X86_64_RELATIVE:
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
             case R_AARCH64_RELATIVE:
-#elif defined (__riscv)
+#elif defined(__riscv)
             case R_RISCV_RELATIVE:
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
             case R_LARCH_RELATIVE:
 #endif
             {
@@ -751,15 +751,15 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                 reloc_store(ptr, reloc_load(ptr) + slide);
                 break;
             }
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
             case R_X86_64_GLOB_DAT:
             case R_X86_64_JUMP_SLOT:
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
             case R_AARCH64_GLOB_DAT:
             case R_AARCH64_JUMP_SLOT:
-#elif defined (__riscv)
+#elif defined(__riscv)
             case R_RISCV_JUMP_SLOT:
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
             case R_LARCH_JUMP_SLOT:
 #endif
             {
@@ -779,7 +779,7 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                 struct elf64_sym *s = (void *)elf + symtab_offset + sym_offset;
                 if (s->st_shndx == SHN_UNDEF) {
                     if ((s->st_info >> 4) == STB_WEAK) {
-#if defined (__aarch64__)
+#if defined(__aarch64__)
                         reloc_store(ptr, relocation->r_addend);
 #else
                         reloc_store(ptr, 0);
@@ -799,19 +799,19 @@ static bool elf64_apply_relocations(const struct elf64_reloc_state *st, uint8_t 
                 if (s->st_shndx != SHN_ABS) {
                     value += slide;
                 }
-#if defined (__aarch64__)
+#if defined(__aarch64__)
                 value += relocation->r_addend;
 #endif
                 reloc_store(ptr, value);
                 break;
             }
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
             case R_X86_64_64:
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
             case R_AARCH64_ABS64:
-#elif defined (__riscv)
+#elif defined(__riscv)
             case R_RISCV_64:
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
             case R_LARCH_64:
 #endif
             {
@@ -958,7 +958,7 @@ static uint64_t elf64_max_align(uint8_t *elf) {
             panic(true, "elf: p_align is not a power of 2");
         }
 
-#if defined (__i386__)
+#if defined(__i386__)
         // The allocator takes the alignment as a size_t, so a wider value
         // truncates to zero and every base it computes comes out zero.
         if (phdr->p_align > SIZE_MAX) {

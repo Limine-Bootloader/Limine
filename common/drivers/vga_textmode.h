@@ -1,7 +1,7 @@
 #ifndef DRIVERS__VGA_TEXTMODE_H__
 #define DRIVERS__VGA_TEXTMODE_H__
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 #include <stdint.h>
 #include <stddef.h>

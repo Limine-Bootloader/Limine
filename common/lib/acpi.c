@@ -33,7 +33,7 @@ void *smbios_get_table(uint64_t address, uint64_t size) {
     return (void *)(uintptr_t)address;
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 /// Returns the RSDP v1 pointer if available or else NULL.
 void *acpi_get_rsdp_v1(void) {
@@ -79,7 +79,7 @@ void acpi_get_smbios(void **smbios32, void **smbios64) {
 
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 #include <efi.h>
 
@@ -189,7 +189,7 @@ static bool acpi_padding_is_safe(uint64_t base, uint64_t length) {
 }
 
 static void map_single_table(uint64_t addr, uint32_t len) {
-#if defined (__i386__)
+#if defined(__i386__)
     if (addr >= 0x100000000) {
         print("acpi: warning: Cannot get length of ACPI table above 4GiB\n");
         return;
@@ -344,7 +344,7 @@ void smbios_map_tables(void) {
     }
 }
 
-#if defined (UEFI)
+#if defined(UEFI)
 void efi_map_runtime_entries(void) {
     size_t entry_count = efi_mmap_size / efi_desc_size;
 

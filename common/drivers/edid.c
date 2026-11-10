@@ -31,7 +31,7 @@ static bool edid_is_valid(const struct edid_info_struct *edid) {
     return sum == 0;
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 #include <lib/real.h>
 
@@ -69,7 +69,7 @@ success:
 
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 #include <efi.h>
 

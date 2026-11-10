@@ -1,4 +1,4 @@
-#if defined (UEFI)
+#if defined(UEFI)
 
 #include <stdint.h>
 #include <stddef.h>

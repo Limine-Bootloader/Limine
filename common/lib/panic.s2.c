@@ -4,7 +4,7 @@
 #include <lib/print.h>
 #include <lib/real.h>
 #include <lib/trace.h>
-#if defined (UEFI)
+#if defined(UEFI)
 #   include <efi.h>
 #endif
 #include <lib/misc.h>
@@ -20,7 +20,7 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
 
     va_start(args, fmt);
 
-#if defined (UEFI)
+#if defined(UEFI)
     // Don't return to the menu under measured boot: a partial boot may
     // have already dirtied the TPM PCRs.
     if (measured_boot) {
@@ -32,7 +32,7 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
 
     // Lift the pointer sprite off the screen before printing over it.
     if (
-#if defined (BIOS)
+#if defined(BIOS)
       stage3_loaded == true
 #else
       true
@@ -42,7 +42,7 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
     }
 
     if (
-#if defined (BIOS)
+#if defined(BIOS)
       stage3_loaded == true &&
 #endif
       term_backend == _NOT_READY) {
@@ -52,7 +52,7 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
     // Set on what term_fallback() installed, not on what it replaced.
     FOR_TERM(TERM->autoflush = true);
 
-#if defined (UEFI)
+#if defined(UEFI)
     // The fallback draws over whatever the firmware left on its console,
     // which a message written from the top corner would run into.
     if (term_backend == FALLBACK && !efi_boot_services_exited) {
@@ -61,7 +61,7 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
 #endif
 
     if (
-#if defined (BIOS)
+#if defined(BIOS)
       stage3_loaded == true &&
 #endif
       term_backend != FALLBACK) {
@@ -77,9 +77,9 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
     print_stacktrace(NULL);
 
     if (
-#if defined (BIOS)
+#if defined(BIOS)
       stage3_loaded == true &&
-#elif defined (UEFI)
+#elif defined(UEFI)
       efi_boot_services_exited == false &&
 #endif
       allow_menu == true) {
@@ -99,17 +99,17 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
         gBS->Exit(efi_image_handle, EFI_ABORTED, 0, NULL);
 */
     } else {
-#if defined (BIOS)
+#if defined(BIOS)
         print("Press CTRL+ALT+DEL to reboot.");
         rm_hcf();
-#elif defined (UEFI)
+#elif defined(UEFI)
         print("System halted.");
         for (;;) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
             asm ("hlt");
-#elif defined (__aarch64__) || defined (__riscv)
+#elif defined(__aarch64__) || defined(__riscv)
             asm ("wfi");
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
             asm ("idle 0");
 #else
 #error Unknown architecture

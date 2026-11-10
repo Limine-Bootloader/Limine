@@ -810,7 +810,7 @@ struct file_handle *fat32_open(struct volume *part, const char *path) {
             handle->close = fat32_close;
             handle->size = ret->size_bytes;
             handle->vol = part;
-#if defined (UEFI)
+#if defined(UEFI)
             handle->efi_part_handle = part->efi_part_handle;
 #endif
 

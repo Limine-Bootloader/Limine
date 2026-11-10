@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#if defined (UEFI)
+#if defined(UEFI)
 #  include <efi.h>
 #endif
 
@@ -36,9 +36,9 @@ void mouse_render_pointer(void);
 void mouse_render_pointer_overlay(void);
 void mouse_erase_pointer(void);
 
-#if defined (BIOS)
+#if defined(BIOS)
 int mouse_process_pending(void);
-#elif defined (UEFI)
+#elif defined(UEFI)
 size_t mouse_get_efi_events(EFI_EVENT *events, size_t max);
 int mouse_handle_efi_event(size_t index);
 #endif

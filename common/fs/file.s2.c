@@ -91,7 +91,7 @@ uint64_t fread(struct file_handle *fd, void *buf, uint64_t loc, uint64_t count) 
     }
 
     if (fd->is_memfile) {
-#if defined (__i386__)
+#if defined(__i386__)
         if (fd->is_high_mem) {
             panic(false, "fread: memfile resides above 4 GiB; caller must use load_addr_64 directly");
         }

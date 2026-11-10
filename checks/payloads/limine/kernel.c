@@ -94,7 +94,7 @@ REQ static volatile struct limine_mp_request mp_request = {
 };
 #endif
 
-#if defined (__riscv)
+#if defined(__riscv)
 REQ static volatile struct limine_riscv_bsp_hartid_request bsp_hartid_request = {
     .id = LIMINE_RISCV_BSP_HARTID_REQUEST_ID, .revision = 0, .response = NULL
 };
@@ -224,7 +224,7 @@ static void *limine_reqs[] = {
     REQS_ENTRY(framebuffer_request)
     REQS_ENTRY(paging_mode_request)
     REQS_ENTRY(mp_request)
-#if defined (__riscv)
+#if defined(__riscv)
     REQS_ENTRY(bsp_hartid_request)
 #endif
     REQS_ENTRY(memmap_request)
@@ -669,15 +669,15 @@ __attribute__((unused)) static void check_hhdm_mappings(void) {
 __attribute__((unused)) static void check_stack(void) {
 #if !TEST_MINIMAL
     uint64_t sp;
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     sp = bsp_state[ST_RSP];
     // The pushed return address is not part of the stack it was pushed on.
     sp += 8;
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     sp = bsp_state[ST_SP];
-#elif defined (__riscv)
+#elif defined(__riscv)
     sp = bsp_state[ST_X0 + 2];
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     sp = bsp_state[ST_R0 + 3];
 #endif
     fact("stack.top", "%lx", sp);
@@ -1256,16 +1256,16 @@ static void check_mp(void) {
     fact("mp.revision", "%lu", r->revision);
     fact("mp.cpu_count", "%lu", r->cpu_count);
     fact("mp.flags", "%lx", (uint64_t)r->flags);
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     fact("mp.bsp_id", "%x", r->bsp_lapic_id);
     uint64_t bsp_id = r->bsp_lapic_id;
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     fact("mp.bsp_id", "%lx", r->bsp_mpidr);
     uint64_t bsp_id = r->bsp_mpidr;
-#elif defined (__riscv)
+#elif defined(__riscv)
     fact("mp.bsp_id", "%lx", r->bsp_hartid);
     uint64_t bsp_id = r->bsp_hartid;
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     fact("mp.bsp_id", "%lx", r->bsp_phys_id);
     uint64_t bsp_id = r->bsp_phys_id;
 #endif
@@ -1275,13 +1275,13 @@ static void check_mp(void) {
     for (uint64_t i = 0; i < r->cpu_count; i++) {
         struct limine_mp_info *info = r->cpus[i];
         check_resp_ptr("mp.info_ptr", info, sizeof(*info));
-#if defined (__x86_64__)
+#if defined(__x86_64__)
         uint64_t id = info->lapic_id;
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
         uint64_t id = info->mpidr;
-#elif defined (__riscv)
+#elif defined(__riscv)
         uint64_t id = info->hartid;
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
         uint64_t id = info->phys_id;
 #endif
         kprintf("K mp.cpu.%lu=id %lx processor_id %lx\n", i, id, (uint64_t)info->processor_id);
@@ -1299,19 +1299,19 @@ static void check_mp(void) {
     arch_prepare_aps();
     for (uint64_t i = 0; i < r->cpu_count && slot < MAX_APS; i++) {
         struct limine_mp_info *info = r->cpus[i];
-#if defined (__x86_64__)
+#if defined(__x86_64__)
         if (info->lapic_id == bsp_id) {
             continue;
         }
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
         if (info->mpidr == bsp_id) {
             continue;
         }
-#elif defined (__riscv)
+#elif defined(__riscv)
         if (info->hartid == bsp_id) {
             continue;
         }
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
         if (info->phys_id == bsp_id) {
             continue;
         }
@@ -1409,7 +1409,7 @@ void kmain(void) {
 #endif
     fact("paging_mode.hardware", "%lu", arch_paging_mode());
 
-#if defined (__riscv)
+#if defined(__riscv)
     struct limine_riscv_bsp_hartid_response *bh = bsp_hartid_request.response;
     fact("riscv_bsp_hartid.response", "%d", bh != NULL);
     if (bh != NULL) {

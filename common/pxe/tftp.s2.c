@@ -1,8 +1,8 @@
 #include <pxe/tftp.h>
 #include <pxe/pxe.h>
-#if defined (BIOS)
+#if defined(BIOS)
 #  include <lib/real.h>
-#elif defined (UEFI)
+#elif defined(UEFI)
 #  include <efi.h>
 #endif
 #include <lib/print.h>
@@ -17,7 +17,7 @@ uint8_t cached_dhcp_packet[DHCP_ACK_PACKET_LEN] = { 0 };
 size_t cached_dhcp_packet_len = 0;
 bool cached_dhcp_ack_valid = false;
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 static uint32_t get_boot_server_info(void) {
     // Leaving Buffer and BufferSize zero makes PXE report where its own copy of
@@ -205,7 +205,7 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
     return handle;
 }
 
-#elif defined (UEFI)
+#elif defined(UEFI)
 
 _Static_assert(sizeof(EFI_PXE_BASE_CODE_PACKET) <= DHCP_ACK_PACKET_LEN, "DHCP packet buffer too small");
 

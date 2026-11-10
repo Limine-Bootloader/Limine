@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <lib/part.h>
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 #include <efi.h>
 
@@ -20,11 +20,11 @@ enum {
     DISK_FAILURE
 };
 
-#if defined (BIOS)
+#if defined(BIOS)
 // `boot_drive` is the drive stage 1 booted from, or 0 where it booted from no
 // drive at all.
 void disk_create_index(uint8_t boot_drive);
-#elif defined (UEFI)
+#elif defined(UEFI)
 void disk_create_index(void);
 // Connect all storage controllers, also those a driver has bound, and index
 // the volumes that appear. Only the first call does so; returns whether there

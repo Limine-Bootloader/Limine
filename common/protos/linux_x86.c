@@ -1,4 +1,4 @@
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #include <stdint.h>
 #include <stddef.h>
@@ -25,7 +25,7 @@
 #include <drivers/gop.h>
 
 noreturn void linux_spinup(void *entry, void *boot_params);
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     noreturn void linux_spinup64(void *entry, void *boot_params);
 #endif
 
@@ -249,7 +249,7 @@ static uint32_t linux_version_of(struct file_handle *kernel_file,
 noreturn void linux_load(char *config, char *cmdline) {
     struct file_handle *kernel_file;
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (cmdline != NULL) {
         tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
                     cmdline, strlen(cmdline), "cmdline: ", cmdline);
@@ -269,7 +269,7 @@ noreturn void linux_load(char *config, char *cmdline) {
     }
 
     if ((kernel_file = uri_open(kernel_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
-#if defined (__i386__)
+#if defined(__i386__)
         false, NULL, NULL
 #else
         true
@@ -282,7 +282,7 @@ noreturn void linux_load(char *config, char *cmdline) {
         panic(true, "linux: Kernel file too small");
     }
 
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     bool use_64_bit_proto = false;
 #endif
 
@@ -392,7 +392,7 @@ noreturn void linux_load(char *config, char *cmdline) {
     // XLF_KERNEL_64 with XLF_CAN_BE_LOADED_ABOVE_4G is the kernel saying it has a
     // 64-bit entry point and may sit above 4GiB; otherwise the handoff is 32-bit.
     uint64_t kernel_addr_limit = 0xffffffff;
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     // xloadflags only exists from 2.12; below that the field is padding.
     bool xlf_64bit_entry = setup_header->version >= 0x20c
                         && (setup_header->xloadflags & 3) == 3;
@@ -442,7 +442,7 @@ noreturn void linux_load(char *config, char *cmdline) {
                 panic(true, "linux: Failed to allocate memory for kernel"));
     }
 
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     if (kernel_load_addr > 0xffffffff) {
         use_64_bit_proto = true;
     }
@@ -452,7 +452,7 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     // Boot protocol 2.15 has the loader point code32_start at wherever it put
     // the kernel. The 64-bit entry, the only one used above 4GiB, ignores it.
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     if (kernel_load_addr <= 0xffffffff) {
         setup_header->code32_start = (uint32_t)kernel_load_addr;
     }
@@ -460,7 +460,7 @@ noreturn void linux_load(char *config, char *cmdline) {
     setup_header->code32_start = (uint32_t)kernel_load_addr;
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
     tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
                 kernel_file->fd, kernel_file->size, "path: ", kernel_path);
@@ -497,7 +497,7 @@ noreturn void linux_load(char *config, char *cmdline) {
 
         struct file_handle *module;
         if ((module = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
-#if defined (__i386__)
+#if defined(__i386__)
             false, NULL, NULL
 #else
             true
@@ -532,7 +532,7 @@ noreturn void linux_load(char *config, char *cmdline) {
 
     for (;;) {
         if (modules_mem_base < 0x100000) {
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
             if (xlf_64bit_entry) {
                 modules_mem_base = (uintptr_t)ext_mem_alloc_type_aligned_mode(
                     size_of_all_modules,
@@ -568,7 +568,7 @@ noreturn void linux_load(char *config, char *cmdline) {
         memset((void *)(_modules_mem_base + module_size), 0,
                padded_size - module_size);
 
-#if defined (UEFI)
+#if defined(UEFI)
         tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
         tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
                     (void *)_modules_mem_base, module_size, "module_path: ", module_path);
@@ -582,11 +582,11 @@ noreturn void linux_load(char *config, char *cmdline) {
     pmm_free(modules, module_count * sizeof(struct file_handle *));
 
     setup_header->ramdisk_image = (uint32_t)modules_mem_base;
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     boot_params->ext_ramdisk_image = (uint32_t)(modules_mem_base >> 32);
 #endif
     setup_header->ramdisk_size = (uint32_t)size_of_all_modules;
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     boot_params->ext_ramdisk_size = (uint32_t)(size_of_all_modules >> 32);
 #endif
 
@@ -600,7 +600,7 @@ no_modules:;
 
     struct screen_info *screen_info = &boot_params->screen_info;
 
-#if defined (BIOS)
+#if defined(BIOS)
     {
     char *textmode_str = config_get_value(config, 0, "TEXTMODE");
     bool textmode = textmode_str != NULL && strcmp(textmode_str, "yes") == 0;
@@ -618,14 +618,14 @@ no_modules:;
 
     struct fb_info *fbs;
     size_t fbs_count;
-#if defined (UEFI)
+#if defined(UEFI)
     gop_force_16 = true;
 #endif
     fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
     if (fbs_count == 0) {
-#if defined (UEFI)
+#if defined(UEFI)
         goto no_fb;
-#elif defined (BIOS)
+#elif defined(BIOS)
 set_textmode:;
         vga_textmode_init(false);
 
@@ -658,15 +658,15 @@ set_textmode:;
             memcpy(&boot_params->edid_info, fbs[0].edid, sizeof(struct edid_info_struct));
         }
 
-#if defined (BIOS)
+#if defined(BIOS)
         screen_info->orig_video_isVGA = VIDEO_TYPE_VLFB;
         screen_info->lfb_size = DIV_ROUNDUP(screen_info->lfb_size, 65536, panic(true, "linux: Alignment overflow"));
-#elif defined (UEFI)
+#elif defined(UEFI)
         screen_info->orig_video_isVGA = VIDEO_TYPE_EFI;
 #endif
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
 no_fb:;
 #endif
     ///////////////////////////////////////
@@ -696,13 +696,13 @@ no_fb:;
     ///////////////////////////////////////
     // UEFI
     ///////////////////////////////////////
-#if defined (UEFI)
+#if defined(UEFI)
     linux_install_efi_tpm_event_log();
     efi_exit_boot_services();
 
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     memcpy(&boot_params->efi_info.efi_loader_signature, "EL64", 4);
-#elif defined (__i386__)
+#elif defined(__i386__)
     memcpy(&boot_params->efi_info.efi_loader_signature, "EL32", 4);
 #endif
 
@@ -785,14 +785,14 @@ no_fb:;
 
     irq_flush_type = IRQ_PIC_ONLY_FLUSH;
 
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     if (use_64_bit_proto == true && xlf_64bit_entry) {
         flush_irqs();
         linux_spinup64((void *)kernel_load_addr + 0x200, boot_params);
     }
 #endif
 
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     void *spinup_fn = spinup_tramp_low((void *)linux_spinup);
 #else
     void *spinup_fn = (void *)linux_spinup;

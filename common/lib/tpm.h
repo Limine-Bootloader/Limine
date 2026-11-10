@@ -14,7 +14,7 @@
 // TCG PC Client Platform Firmware Profile event types
 #define TPM_EV_IPL              0x0000000d
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 void tpm_init(void);
 

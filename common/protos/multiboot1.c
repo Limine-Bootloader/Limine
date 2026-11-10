@@ -1,4 +1,4 @@
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #include <stdint.h>
 #include <stddef.h>
@@ -56,7 +56,7 @@ static void *mb1_info_alloc(void **mb1_info_raw, size_t size) {
 noreturn void multiboot1_load(char *config, char *cmdline) {
     struct file_handle *kernel_file;
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (cmdline != NULL) {
         tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
                     cmdline, strlen(cmdline), "cmdline: ", cmdline);
@@ -76,7 +76,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     }
 
     if ((kernel_file = uri_open(kernel_path, MEMMAP_KERNEL_AND_MODULES, false
-#if defined (__i386__)
+#if defined(__i386__)
         , NULL, NULL
 #endif
     )) == NULL)
@@ -86,11 +86,11 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
     size_t kernel_file_size = kernel_file->size;
 
-#if defined (BIOS)
+#if defined(BIOS)
     struct volume *kernel_volume = kernel_file->pxe ? NULL : kernel_file->vol;
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
     tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
                 kernel, kernel_file_size, "path: ", kernel_path);
@@ -397,7 +397,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
             struct file_handle *f;
             if ((f = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
-#if defined (__i386__)
+#if defined(__i386__)
                 , NULL, NULL
 #endif
             )) == NULL)
@@ -413,7 +413,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
             void *module_addr = f->fd;
             uint64_t module_target = (uint64_t)-1; /* no target preference, use top */
 
-#if defined (UEFI)
+#if defined(UEFI)
             tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
             tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
                         module_addr, f->size, "module_path: ", module_path);
@@ -456,7 +456,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     multiboot1_info->bootloader_name = (uint32_t)(size_t)lowmem_bootname - mb1_info_slide;
     multiboot1_info->flags |= (1 << 9);
 
-#if defined (BIOS)
+#if defined(BIOS)
     // The drive, then the 0-based partitions, 0xff where unused (Multiboot
     // 0.6.96 section 3.3).
     if (kernel_volume != NULL) {
@@ -471,7 +471,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     size_t req_width = 0;
     size_t req_height = 0;
     size_t req_bpp = 0;
-#if defined (BIOS)
+#if defined(BIOS)
     {
         char *textmode_str = config_get_value(config, 0, "TEXTMODE");
         bool textmode = textmode_str != NULL && strcmp(textmode_str, "yes") == 0;
@@ -488,7 +488,7 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         req_bpp = header.fb_bpp;
 
         if (header.fb_mode == 0) {
-#if defined (UEFI)
+#if defined(UEFI)
 modeset:;
 #endif
             char *resolution = config_get_value(config, 0, "RESOLUTION");
@@ -499,11 +499,11 @@ modeset:;
             size_t fbs_count;
             fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
             if (fbs_count == 0) {
-#if defined (UEFI)
+#if defined(UEFI)
                 // GRUB warns and boots rather than refusing, and that is what
                 // Multiboot 1 images are written and tested against.
                 goto skip_modeset;
-#elif defined (BIOS)
+#elif defined(BIOS)
 textmode:
                 vga_textmode_init(false);
 
@@ -529,21 +529,21 @@ textmode:
                 multiboot1_info->fb_blue_mask_shift  = fbs[0].blue_mask_shift;
             }
         } else {
-#if defined (UEFI)
+#if defined(UEFI)
             print("multiboot1: Warning: Cannot use text mode with UEFI\n");
             goto modeset;
-#elif defined (BIOS)
+#elif defined(BIOS)
             goto textmode;
 #endif
         }
 
         multiboot1_info->flags |= (1 << 12);
 
-#if defined (UEFI)
+#if defined(UEFI)
 skip_modeset:;
 #endif
     } else {
-#if defined (BIOS)
+#if defined(BIOS)
         // Described as GRUB describes it, though not asked for.
         goto textmode;
 #endif
@@ -554,7 +554,7 @@ skip_modeset:;
     void *reloc_stub = ext_mem_alloc(reloc_stub_size);
     memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
 
-#if defined (UEFI)
+#if defined(UEFI)
     efi_exit_boot_services();
 #endif
 
@@ -599,7 +599,7 @@ skip_modeset:;
 
     irq_flush_type = IRQ_PIC_ONLY_FLUSH;
 
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     void *spinup_fn = spinup_tramp_low(multiboot_spinup_32);
 #else
     void *spinup_fn = multiboot_spinup_32;

@@ -1,7 +1,7 @@
 #ifndef DRIVERS__GOP_H__
 #define DRIVERS__GOP_H__
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 #include <stdint.h>
 #include <stddef.h>

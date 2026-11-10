@@ -24,7 +24,7 @@ static pt_entry_t *get_next_level(pagemap_t pagemap, pt_entry_t *current_level,
                                   uint64_t virt, enum page_size desired_sz,
                                   size_t level_idx, size_t entry);
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 // Being naturally aligned, only a large page based at 0 can span the fixed
 // MTRRs, which give the first MiB of physical memory several memory types.
 // Such a page has an undefined type on AMD and costs a split back to 4KiB TLB
@@ -58,7 +58,7 @@ void map_pages(pagemap_t pagemap, uint64_t virt, uint64_t phys, uint64_t flags, 
     }
 }
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #define PT_FLAG_VALID    ((uint64_t)1 << 0)
 #define PT_FLAG_WRITE    ((uint64_t)1 << 1)
@@ -174,7 +174,7 @@ level4:
     pml1[pml1_entry] = (pt_entry_t)(phys_addr | flags);
 }
 
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
 
 // Here we operate under the assumption that 4K pages are supported by the CPU.
 // This appears to be guaranteed by UEFI, as section 2.3.6 "AArch64 Platforms"
@@ -343,7 +343,7 @@ level4:
     pml1[pml1_entry] = pte_new(phys_addr, real_flags | PT_FLAG_4K_PAGE);
 }
 
-#elif defined (__riscv)
+#elif defined(__riscv)
 
 #define PT_FLAG_VALID       ((uint64_t)1 << 0)
 #define PT_FLAG_READ        ((uint64_t)1 << 1)
@@ -534,7 +534,7 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
     }
 }
 
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
 
 #define INVALID_PAGE    0
 

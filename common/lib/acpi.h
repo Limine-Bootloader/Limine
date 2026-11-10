@@ -7,7 +7,7 @@
 
 #define EBDA (ebda_get())
 
-#if defined (BIOS)
+#if defined(BIOS)
 static inline uintptr_t ebda_get(void) {
     uintptr_t ebda = (uintptr_t)mminw(0x40e) << 4;
 
@@ -215,7 +215,7 @@ void   *acpi_get_rsdp_v1(void);
 void   *acpi_get_rsdp_v2(void);
 
 void   *acpi_get_table(const char *signature, int index);
-#if defined (BIOS)
+#if defined(BIOS)
 void   *acpi_get_table_quiet(const char *signature, int index);
 #endif
 void    acpi_get_smbios(void **smbios32, void **smbios64);
@@ -224,7 +224,7 @@ void *smbios_get_table(uint64_t address, uint64_t size);
 void acpi_map_tables(void);
 void smbios_map_tables(void);
 
-#if defined (UEFI)
+#if defined(UEFI)
 void efi_map_runtime_entries(void);
 #endif
 

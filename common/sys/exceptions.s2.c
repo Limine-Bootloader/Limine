@@ -3,7 +3,7 @@
 #include <lib/trace.h>
 #include <lib/print.h>
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 static const char *exception_names[] = {
     "Division",

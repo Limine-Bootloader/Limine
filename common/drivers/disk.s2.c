@@ -4,9 +4,9 @@
 #include <drivers/disk.h>
 #include <fs/file.h>
 #include <lib/libc.h>
-#if defined (BIOS)
+#if defined(BIOS)
 #  include <lib/real.h>
-#elif defined (UEFI)
+#elif defined(UEFI)
 #  include <efi.h>
 #  include <crypt/blake2b.h>
 #endif
@@ -20,7 +20,7 @@
 #define DEFAULT_FASTEST_XFER_SIZE 64
 #define MAX_FASTEST_XFER_SIZE 512
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 struct dpte {
     uint16_t io_port;
@@ -358,7 +358,7 @@ void disk_create_index(uint8_t boot_drive) {
 
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 int disk_read_sectors(struct volume *volume, void *buf, uint64_t block, size_t count) {
     EFI_STATUS status;

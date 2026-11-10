@@ -17,7 +17,7 @@ bool check_usable_memory(uint64_t base, uint64_t top) {
 
     for (size_t i = 0; i < memmap_entries; i++) {
         if (memmap[i].type != MEMMAP_USABLE
-#if defined (UEFI)
+#if defined(UEFI)
          && memmap[i].type != MEMMAP_EFI_RECLAIMABLE
 #endif
          && memmap[i].type != MEMMAP_BOOTLOADER_RECLAIMABLE
@@ -57,7 +57,7 @@ void pmm_randomise_memory(void) {
 
         uint64_t top = memmap[i].base + memmap[i].length;
 
-#if defined (__i386__)
+#if defined(__i386__)
         // A 32-bit build cannot address it, and the casts below truncate
         // rather than failing.
         if (memmap[i].base >= 0x100000000) {

@@ -1,4 +1,4 @@
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #include <stdint.h>
 #include <sys/gdt.h>
@@ -73,18 +73,18 @@ static struct gdt_desc gdt_descs[] = {
     {0} // 0x40: TSS descriptor high (base upper = 0)
 };
 
-#if defined (BIOS)
+#if defined(BIOS)
 __attribute__((section(".realmode")))
 #endif
 struct gdtr gdt = {
     sizeof(gdt_descs) - 1,
     (uintptr_t)gdt_descs,
-#if defined (__i386__)
+#if defined(__i386__)
     0
 #endif
 };
 
-#if defined (UEFI)
+#if defined(UEFI)
 void init_gdt(void) {
     struct gdt_desc *gdt_copy = ext_mem_alloc(sizeof(gdt_descs));
     memcpy(gdt_copy, gdt_descs, sizeof(gdt_descs));

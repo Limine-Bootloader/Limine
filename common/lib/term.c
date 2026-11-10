@@ -13,7 +13,7 @@
 #include <lib/gterm.h>
 #include <flanterm_backends/fb.h>
 
-#if defined (BIOS)
+#if defined(BIOS)
 int current_video_mode = -1;
 #endif
 
@@ -26,7 +26,7 @@ size_t terms_i = 0;
 static struct flanterm_context fallback_ctx;
 static struct flanterm_context *fallback_terms[1];
 
-#if defined (UEFI)
+#if defined(UEFI)
 // Built while the allocator is live, for panic() to use once it is not.
 static struct flanterm_context *post_ebs_term = NULL;
 #endif
@@ -34,8 +34,8 @@ static struct flanterm_context *post_ebs_term = NULL;
 int term_backend = _NOT_READY;
 
 void term_notready(void) {
-#if defined (__i386__) || defined (__x86_64__)
-#if defined (__x86_64__) && defined (UEFI)
+#if defined(__i386__) || defined(__x86_64__)
+#if defined(__x86_64__) && defined(UEFI)
     efi_pt_restore();
 #else
     mtrr_restore();
@@ -45,7 +45,7 @@ void term_notready(void) {
     for (size_t i = 0; i < terms_i; i++) {
         struct flanterm_context *term = terms[i];
 
-#if defined (UEFI)
+#if defined(UEFI)
         // Never released: pmm_free panics once allocations are locked out,
         // which is the state this terminal exists to be usable in.
         if (term == post_ebs_term) {
@@ -68,7 +68,7 @@ void term_notready(void) {
 
 // --- fallback ---
 
-#if defined (BIOS)
+#if defined(BIOS)
 static void fallback_raw_putchar(struct flanterm_context *ctx, uint8_t c) {
     (void)ctx;
     struct rm_regs r = {0};
@@ -134,7 +134,7 @@ static void fallback_scroll(struct flanterm_context *ctx) {
     fallback_set_cursor_pos(NULL, x, y);
 }
 
-#elif defined (UEFI)
+#elif defined(UEFI)
 
 static size_t cursor_x = 0, cursor_y = 0;
 
@@ -305,7 +305,7 @@ static void dummy_handle_deinit(struct flanterm_context *ctx, void (*_free)(void
     (void)_free;
 }
 
-#if defined (UEFI)
+#if defined(UEFI)
 void term_prepare_post_ebs(void) {
     if (post_ebs_term != NULL) {
         return;
@@ -358,7 +358,7 @@ void term_prepare_post_ebs(void) {
 #endif
 
 void term_fallback(void) {
-#if defined (UEFI)
+#if defined(UEFI)
     int prev_backend = term_backend;
 #endif
 
@@ -370,7 +370,7 @@ void term_fallback(void) {
 
     struct flanterm_context *term = terms[0];
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (!efi_boot_services_exited) {
         if (prev_backend != FALLBACK && prev_backend != _NOT_READY) {
             gST->ConOut->Reset(gST->ConOut, true);
@@ -409,7 +409,7 @@ void term_fallback(void) {
         term->rows = 24;
         term_backend = FALLBACK;
         flanterm_context_reinit(term);
-#if defined (UEFI)
+#if defined(UEFI)
 
         cursor_x = 0;
         cursor_y = 0;
