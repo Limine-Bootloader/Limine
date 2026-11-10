@@ -312,7 +312,7 @@ given contexts.
 Any new code, or any other addition or change to Limine, must come with tests
 for it in the same commit, added to the test suite (the checks in `checks/`,
 run by `make check`), unless there is an extremely good justification for them
-not to exist.
+not to exist. CI runs the checks on every push and pull request.
 
 ## Commit conventions
 
