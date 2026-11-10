@@ -28,9 +28,11 @@ bool elf64_load_section(uint8_t *elf, size_t file_size, void *buffer, const char
 bool elf64_load(uint8_t *elf, size_t file_size, uint64_t *entry_point, uint64_t *_slide, uint32_t alloc_type, bool kaslr, struct mem_range **ranges, uint64_t *ranges_count, uint64_t *physical_base, uint64_t *virtual_base, uint64_t *image_size, uint64_t *image_size_before_bss, bool *is_reloc);
 
 bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_size,
-                          uint64_t *entry_point, struct elsewhere_range **ranges);
+                          uint64_t *entry_point, struct elsewhere_range **ranges,
+                          uint64_t *ranges_count);
 bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_size,
-                          uint64_t *entry_point, struct elsewhere_range **ranges);
+                          uint64_t *entry_point, struct elsewhere_range **ranges,
+                          uint64_t *ranges_count);
 
 struct elf64_hdr {
     uint8_t  ident[16];

@@ -415,18 +415,21 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         int bits = elf_bits(kernel, kernel_file_size);
 
         switch (bits) {
-            case 32:
+            case 32: {
                 if (!elf32_load_elsewhere(kernel, kernel_file_size, 0xffffffff,
-                                          &e, &ranges))
+                                          &e, &ranges, &ranges_count)) {
                     panic(true, "multiboot2: ELF32 load failure");
+                }
 
                 section_hdr_info = elf32_section_hdr_info(kernel, kernel_file_size);
                 section_hdr_info_valid = true;
                 break;
+            }
             case 64: {
                 if (!elf64_load_elsewhere(kernel, kernel_file_size, 0xffffffff,
-                                          &e, &ranges))
+                                          &e, &ranges, &ranges_count)) {
                     panic(true, "multiboot2: ELF64 load failure");
+                }
 
                 section_hdr_info = elf64_section_hdr_info(kernel, kernel_file_size);
                 section_hdr_info_valid = true;
@@ -441,9 +444,16 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         }
     }
 
+    uint64_t kernel_ranges_count = ranges_count;
+
     int64_t reloc_slide = 0;
 
     if (has_reloc_header) {
+        uint64_t orig_base = ranges[0].target;
+        uint64_t image_span = CHECKED_ADD(ranges[kernel_ranges_count - 1].target,
+                                          ranges[kernel_ranges_count - 1].length,
+                                          goto reloc_fail) - orig_base;
+
         // Multiboot 2 gives align 0 no meaning; take it as no constraint.
         if (reloc_tag.align == 0) {
             reloc_tag.align = 1;
@@ -463,16 +473,17 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
             case 0: case 1: // No preference / prefer lowest
                 reloc_ascend = true;
                 relocated_base = ALIGN_UP(reloc_tag.min_addr, reloc_tag.align, goto reloc_fail);
-                if (CHECKED_ADD(relocated_base, ranges->length, goto reloc_fail) > reloc_tag.max_addr) {
+                uint64_t relocated_top = CHECKED_ADD(relocated_base, image_span, goto reloc_fail);
+                if (relocated_top > reloc_tag.max_addr) {
                     goto reloc_fail;
                 }
                 break;
             case 2: // Prefer highest
                 reloc_ascend = false;
-                if (ranges->length > reloc_tag.max_addr) {
+                if (image_span > reloc_tag.max_addr) {
                     goto reloc_fail;
                 }
-                relocated_base = ALIGN_DOWN(reloc_tag.max_addr - ranges->length, reloc_tag.align);
+                relocated_base = ALIGN_DOWN(reloc_tag.max_addr - image_span, reloc_tag.align);
                 if (relocated_base < reloc_tag.min_addr) {
                     goto reloc_fail;
                 }
@@ -485,20 +496,26 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         uint64_t reloc_tries = 0;
 
         for (;;) {
-            uint64_t relocated_top = CHECKED_ADD(relocated_base, ranges->length, goto reloc_fail);
-
-            if (check_usable_memory(relocated_base, relocated_top)
-             && !overlaps_loader_memory(relocated_base, relocated_top)) {
-                break;
+            int64_t cand_slide = (int64_t)relocated_base - orig_base;
+            for (size_t i = 0; i < kernel_ranges_count; i++) {
+                uint64_t seg_target = ranges[i].target + cand_slide;
+                uint64_t seg_top = CHECKED_ADD(seg_target, ranges[i].length, goto cand_fail);
+                if (!check_usable_memory(seg_target, seg_top)
+                 || overlaps_loader_memory(seg_target, seg_top)) {
+                    goto cand_fail;
+                }
             }
+            break;
 
+cand_fail:
             if (++reloc_tries > 0x100000) {
                 goto reloc_fail;
             }
 
             if (reloc_ascend) {
                 relocated_base += reloc_tag.align;
-                if (CHECKED_ADD(relocated_base, ranges->length, goto reloc_fail) > reloc_tag.max_addr) {
+                uint64_t relocated_top = CHECKED_ADD(relocated_base, image_span, goto reloc_fail);
+                if (relocated_top > reloc_tag.max_addr) {
                     goto reloc_fail;
                 }
             } else {
@@ -509,37 +526,56 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
             }
         }
 
-        reloc_slide = (int64_t)relocated_base - ranges->target;
+        reloc_slide = (int64_t)relocated_base - orig_base;
 
         entry_point += reloc_slide;
 
-        ranges->target = relocated_base;
+        for (size_t i = 0; i < kernel_ranges_count; i++) {
+            ranges[i].target += reloc_slide;
+        }
     }
+
+    bool entry_point_valid = false;
 
     // multiboot_reloc_stub reads the range fields with 32-bit loads, so a
     // target or length it cannot hold is truncated rather than refused.
-    if (ranges->target > 0x100000000
-     || ranges->length > 0xffffffff
-     || ranges->length > 0x100000000 - ranges->target) {
-        panic(true, "multiboot2: Executable does not fit under 4GiB");
+    for (size_t i = 0; i < kernel_ranges_count; i++) {
+        if (ranges[i].target > 0x100000000
+         || ranges[i].length > 0xffffffff
+         || ranges[i].length > 0x100000000 - ranges[i].target) {
+            panic(true, "multiboot2: Executable does not fit under 4GiB");
+        }
+
+        if (!check_usable_memory(ranges[i].target, ranges[i].target + ranges[i].length)) {
+            goto reloc_fail;
+        }
     }
 
-    if (!check_usable_memory(ranges->target, ranges->target + ranges->length)) {
+    goto reloc_ok;
+
 reloc_fail:
-        panic(true, "multiboot2: Could not find viable load address for executable");
-    }
+    panic(true, "multiboot2: Could not find viable load address for executable");
 
-    if (entry_point < ranges->target
-     || entry_point >= ranges->target + ranges->length) {
+reloc_ok:
+    for (size_t i = 0; i < kernel_ranges_count; i++) {
+        if (entry_point >= ranges[i].target
+         && entry_point < ranges[i].target + ranges[i].length) {
+            entry_point_valid = true;
+            break;
+        }
+    }
+    if (!entry_point_valid) {
         panic(true, "multiboot2: Entry point is outside the executable");
     }
 
     // Reserve the kernel's target so later module/info sources can't be
     // allocated on top of it.
-    elsewhere_reserve_target(ranges->target, ranges->length);
+    for (size_t i = 0; i < kernel_ranges_count; i++) {
+        elsewhere_reserve_target(ranges[i].target, ranges[i].length);
+    }
 
     // Get the load base address (AKA the lowest target in the ranges)
-    uint64_t load_base_addr = ranges->target;
+    uint64_t load_base_addr = ranges[0].target;
 
     size_t modules_size = 0;
     size_t n_modules;

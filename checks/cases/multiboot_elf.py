@@ -2,7 +2,7 @@ from harness.api import check
 from harness.elf import ElfFile
 from harness.ports import X86_PORTS
 from cases._common import boot_entry, entry, panics_in_turn, read
-from cases.multiboot import mb1_kernel, mb2_kernel
+from cases.multiboot import (boot_mb1, boot_mb2, mb1_kernel, mb1_report, mb2_kernel, mb2_report)
 
 # Spoilt ELF kernels for Multiboot 1 and 2, each failing one check of
 # Limine's loader and no other first, in an ELF32 file and in the ELF64
@@ -34,6 +34,8 @@ def hostile_images(e, proto):
          'elf: p_filesz > p_memsz'),
         ('segment data past the end', e.patched(**{f'p_offset{first}': size}),
          'elf: p_offset + p_filesz exceeds file size'),
+        ('overlapping segments', e.patched(**{f'p_paddr{last}': e.phdrs[first]['p_paddr']}),
+         'elf: Overlapping loadable segments'),
         ('entry outside every segment', e.patched(e_entry=0x1000), f'{proto}: Entry point is outside the executable'),
         ('short section headers', e.patched(e_shentsize=20 if bits32 else 32),
          f'{proto}: ELF section entry size too small'),
@@ -80,3 +82,23 @@ def mb2_elf_hostile(t):
     """The same for Multiboot 2."""
     e = ElfFile(read(mb2_kernel(t)))
     run_hostile(t, hostile_images(e, 'multiboot2'), 'multiboot2')
+
+
+def distant_header(path):
+    e = ElfFile(read(path))
+    first = e.loads()[0]
+    return e.patched(**{f'p_paddr{first}': 0x10000000})
+
+
+@check(ports=X86_PORTS, tags=['multiboot1', 'elf'])
+def mb1_disjoint_elf(t):
+    """Load a kernel whose header segment is far from its other segments."""
+    m = boot_mb1(t, distant_header(mb1_kernel(t)))
+    mb1_report(t, m)
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf'])
+def mb2_disjoint_elf(t):
+    """Load a kernel whose header segment is far from its other segments."""
+    m = boot_mb2(t, distant_header(mb2_kernel(t)))
+    mb2_report(t, m)
