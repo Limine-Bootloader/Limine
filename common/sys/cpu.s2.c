@@ -184,11 +184,13 @@ void calibrate_tsc(void) {
     // many reads 10ms takes; on a slow one it is what the give-up costs.
     #define PIT_MAX_POLLS 1000000
 
-    uint8_t port61 = inb(0x61);
+    // Bits 7:4 are read-only, and written as 0. Intel ICH10 319973-003,
+    // 13.7.1.
+    uint8_t port61 = inb(0x61) & 0x0f;
 
     uint64_t best_delta = 0;
     for (int round = 0; round < PIT_CALIBRATION_ROUNDS; round++) {
-        outb(0x61, port61 & ~0x03); // disable gate and speaker
+        outb(0x61, port61 & 0x0c); // disable gate and speaker
         outb(0x43, 0xb0); // channel 2, lobyte/hibyte, mode 0, binary
         outb(0x42, PIT_CALIBRATION_COUNT & 0xff);
         outb(0x42, (PIT_CALIBRATION_COUNT >> 8) & 0xff);
@@ -199,7 +201,7 @@ void calibrate_tsc(void) {
             continue;
         }
 
-        outb(0x61, (inb(0x61) | 0x01)); // enable gate to start counting
+        outb(0x61, (port61 & 0x0c) | 0x01); // enable gate to start counting
         uint64_t tsc_start = rdtsc();
 
         bool counted = false;
