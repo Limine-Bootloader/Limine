@@ -203,18 +203,21 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         int bits = elf_bits(kernel, kernel_file_size);
 
         switch (bits) {
-            case 32:
+            case 32: {
                 if (!elf32_load_elsewhere(kernel, kernel_file_size, 0xffffffff,
-                                          &entry_point, &ranges))
+                                          &entry_point, &ranges, &ranges_count)) {
                     panic(true, "multiboot1: ELF32 load failure");
+                }
 
                 section_hdr_info = elf32_section_hdr_info(kernel, kernel_file_size);
                 section_hdr_info_valid = true;
                 break;
+            }
             case 64: {
                 if (!elf64_load_elsewhere(kernel, kernel_file_size, 0xffffffff,
-                                          &entry_point, &ranges))
+                                          &entry_point, &ranges, &ranges_count)) {
                     panic(true, "multiboot1: ELF64 load failure");
+                }
 
                 section_hdr_info = elf64_section_hdr_info(kernel, kernel_file_size);
                 section_hdr_info_valid = true;
@@ -225,20 +228,31 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         }
     }
 
+    uint64_t kernel_ranges_count = ranges_count;
+
     // multiboot_reloc_stub reads the range fields with 32-bit loads, so a
     // target or length it cannot hold is truncated rather than refused.
-    if (ranges->target > 0x100000000
-     || ranges->length > 0xffffffff
-     || ranges->length > 0x100000000 - ranges->target) {
-        panic(true, "multiboot1: Executable does not fit under 4GiB");
+    for (size_t i = 0; i < kernel_ranges_count; i++) {
+        if (ranges[i].target > 0x100000000
+         || ranges[i].length > 0xffffffff
+         || ranges[i].length > 0x100000000 - ranges[i].target) {
+            panic(true, "multiboot1: Executable does not fit under 4GiB");
+        }
+
+        if (!check_usable_memory(ranges[i].target, ranges[i].target + ranges[i].length)) {
+            panic(true, "multiboot1: Executable load address is not usable memory");
+        }
     }
 
-    if (!check_usable_memory(ranges->target, ranges->target + ranges->length)) {
-        panic(true, "multiboot1: Executable load address is not usable memory");
+    bool entry_point_valid = false;
+    for (size_t i = 0; i < kernel_ranges_count; i++) {
+        if (entry_point >= ranges[i].target
+         && entry_point < ranges[i].target + ranges[i].length) {
+            entry_point_valid = true;
+            break;
+        }
     }
-
-    if (entry_point < ranges->target
-     || entry_point >= ranges->target + ranges->length) {
+    if (!entry_point_valid) {
         panic(true, "multiboot1: Entry point is outside the executable");
     }
 
@@ -275,7 +289,9 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
 
     // Reserve the kernel's target so later module/info sources can't be
     // allocated on top of it.
-    elsewhere_reserve_target(ranges->target, ranges->length);
+    for (size_t i = 0; i < kernel_ranges_count; i++) {
+        elsewhere_reserve_target(ranges[i].target, ranges[i].length);
+    }
 
     // GRUB allocates boot info at 0x10000, *except* if the kernel happens
     // to overlap this region, then it gets moved to right after the
