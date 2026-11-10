@@ -434,6 +434,20 @@ static void pmm_spare_firmware_stack(void) {
     } while (carved);
 }
 
+// UEFI 2.11 section 7.2.3. No cacheability attribute at all says nothing about
+// write-back.
+static uint32_t conventional_memmap_type(uint64_t attribute) {
+    uint64_t cacheability = EFI_MEMORY_UC | EFI_MEMORY_WC | EFI_MEMORY_WT
+                          | EFI_MEMORY_WB | EFI_MEMORY_UCE;
+
+    if ((attribute & EFI_MEMORY_SP) != 0
+     || ((attribute & cacheability) != 0 && (attribute & EFI_MEMORY_WB) == 0)) {
+        return MEMMAP_RESERVED;
+    }
+
+    return MEMMAP_USABLE;
+}
+
 void init_memmap(void) {
     EFI_STATUS status;
 
@@ -514,7 +528,7 @@ void init_memmap(void) {
             case EfiACPIMemoryNVS:
                 our_type = MEMMAP_ACPI_NVS; break;
             case EfiConventionalMemory:
-                our_type = MEMMAP_USABLE; break;
+                our_type = conventional_memmap_type(entry->Attribute); break;
         }
 
         uint64_t base = entry->PhysicalStart;
@@ -644,7 +658,7 @@ static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool ra
                     }
                     break;
                 case EfiConventionalMemory:
-                    our_type = MEMMAP_USABLE; break;
+                    our_type = conventional_memmap_type(entry->Attribute); break;
                 case EfiACPIReclaimMemory:
                     our_type = MEMMAP_ACPI_RECLAIMABLE; break;
                 case EfiACPIMemoryNVS:
