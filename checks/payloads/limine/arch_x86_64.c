@@ -603,7 +603,8 @@ static void check_lapic(int base_rev) {
 
 // The global status of each VT-d unit the DMAR table lists (Intel VT-d 5.20
 // sections 8.3 and 11.4.4.2): whether DMA and interrupt remapping are on at
-// entry.
+// entry. Its command register, write-only, holds the last command only where
+// memory stands in for the unit.
 static void report_vtd(volatile struct acpi_sdt *dmar) {
     if (dmar == NULL) {
         return;
@@ -616,6 +617,7 @@ static void report_vtd(volatile struct acpi_sdt *dmar) {
             volatile uint32_t *regs = map_phys(*(volatile uint64_t *)(p + 8), 4096);
             if (regs != NULL) {
                 kprintf("K x86.vtd.%u.gsts=%x\n", n, regs[0x1c / 4]);
+                kprintf("K x86.vtd.%u.gcmd=%x\n", n, regs[0x18 / 4]);
             }
             n++;
         }
