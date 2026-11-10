@@ -43,6 +43,11 @@ struct machine {
     // or whose write opening the gate stalls for EDGE_STALL inside.
     size_t edge_rounds;
     size_t gate_rounds;
+    // CPUID leaves 1 and 0x15, the latter there only where its EAX is not 0.
+    uint32_t signature;
+    uint32_t crystal_eax;
+    uint32_t crystal_ebx;
+    uint32_t crystal_ecx;
 };
 
 #define EDGE_STALL ((uint64_t)8500000000)
@@ -208,16 +213,31 @@ void outb(uint16_t port, uint8_t value) {
     access_end(gate_opened && pit_round != 0 && pit_round <= m.gate_rounds);
 }
 
-// A processor whose CPUID leaves stop short of 0x15.
 bool cpuid(
     uint32_t leaf, uint32_t subleaf, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx
 ) {
     (void)subleaf;
-    if (leaf > 0xd) {
+    uint32_t max = m.crystal_eax != 0 ? 0x16 : 0xd;
+    if (leaf > max) {
         return false;
     }
-    *eax = leaf == 0 ? 0xd : 0;
-    *ebx = *ecx = *edx = 0;
+    *eax = *ebx = *ecx = *edx = 0;
+    switch (leaf) {
+        case 0: {
+            *eax = max;
+            break;
+        }
+        case 1: {
+            *eax = m.signature;
+            break;
+        }
+        case 0x15: {
+            *eax = m.crystal_eax;
+            *ebx = m.crystal_ebx;
+            *ecx = m.crystal_ecx;
+            break;
+        }
+    }
     return true;
 }
 
@@ -290,6 +310,12 @@ int main(void) {
     char name[64];
 
     printf("B TSC-SIM\n");
+#if defined (__x86_64__) || defined (__i386__)
+    printf("K crystal=1\n");
+#else
+    printf("K crystal=0\n");
+#endif
+
     run("pm.clean", (struct machine){ .tsc_hz = 2400000000, .pm_timer = true });
     run("pm.wrap", (struct machine){
         .tsc_hz = 3000000000, .pm_timer = true, .pm_offset = 0xffffff - 20000
@@ -312,6 +338,32 @@ int main(void) {
     run("pit.edges", (struct machine){ .tsc_hz = 3878400000, .edge_rounds = 9 });
     run("pit.gates", (struct machine){ .tsc_hz = 3878400000, .gate_rounds = 9 });
     run("pit.all_edges", (struct machine){ .tsc_hz = 3878400000, .edge_rounds = 10 });
+
+    // Family 6 models 0x5e, 0x55 and 0x5c, and one Table 22-95 leaves out.
+    run("crystal.skylake", (struct machine){
+        .tsc_hz = 3000000000, .pm_timer = true, .signature = 0x506e3, .crystal_eax = 2,
+        .crystal_ebx = 250
+    });
+    run("crystal.xeon_scalable", (struct machine){
+        .tsc_hz = 2100000000, .pm_timer = true, .signature = 0x50654, .crystal_eax = 2,
+        .crystal_ebx = 168
+    });
+    run("crystal.xeon_w", (struct machine){
+        .tsc_hz = 1800000000, .pm_timer = true, .signature = 0x50654, .crystal_eax = 2,
+        .crystal_ebx = 150
+    });
+    run("crystal.goldmont", (struct machine){
+        .tsc_hz = 1996800000, .pm_timer = true, .signature = 0x506c9, .crystal_eax = 1,
+        .crystal_ebx = 104
+    });
+    run("crystal.disagrees", (struct machine){
+        .tsc_hz = 3090000000, .pm_timer = true, .signature = 0x506e3, .crystal_eax = 2,
+        .crystal_ebx = 250
+    });
+    run("crystal.other_model", (struct machine){
+        .tsc_hz = 2400000000, .pm_timer = true, .signature = 0x90672, .crystal_eax = 2,
+        .crystal_ebx = 200
+    });
 
     printf("E DONE\n");
     return 0;

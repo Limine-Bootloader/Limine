@@ -272,6 +272,52 @@ static uint64_t calibrate_tsc_pit(void) {
 
 #endif
 
+#if defined (__x86_64__) || defined (__i386__)
+// For where CPUID leaf 0x15 gives the TSC's ratio to the crystal clock but not
+// the clock, by family 6 model. Intel SDM 325462-093 Vol. 3B, 22.7.3, Table
+// 22-95. Xeon W processors share model 0x55 with Xeon Scalable but run at
+// 24MHz, so a clock is taken only where it agrees with the measurement.
+static const struct {
+    uint8_t model;
+    uint32_t crystal_hz;
+} crystal_clocks[] = {
+    { 0x55, 25000000 },
+    { 0x55, 24000000 },
+    { 0x4e, 24000000 },
+    { 0x5e, 24000000 },
+    { 0x8e, 24000000 },
+    { 0x9e, 24000000 },
+    { 0x5c, 19200000 }
+};
+
+static uint64_t tsc_freq_nominal(uint64_t measured) {
+    uint32_t eax, ebx, ecx, edx;
+    if (!cpuid(0x15, 0, &eax, &ebx, &ecx, &edx) || eax == 0 || ebx == 0 || ecx != 0) {
+        return 0;
+    }
+    uint32_t denominator = eax;
+    uint32_t numerator = ebx;
+
+    if (!cpuid(1, 0, &eax, &ebx, &ecx, &edx) || ((eax >> 8) & 0xf) != 6) {
+        return 0;
+    }
+    uint8_t model = (uint8_t)(((eax >> 4) & 0xf) | ((eax >> 12) & 0xf0));
+
+    for (size_t i = 0; i < SIZEOF_ARRAY(crystal_clocks); i++) {
+        if (crystal_clocks[i].model != model) {
+            continue;
+        }
+        uint64_t nominal = (uint64_t)crystal_clocks[i].crystal_hz * numerator / denominator;
+        uint64_t error = nominal > measured ? nominal - measured : measured - nominal;
+        if (error <= measured / 100) {
+            return nominal;
+        }
+    }
+
+    return 0;
+}
+#endif
+
 void calibrate_tsc(void) {
     tsc_freq = tsc_freq_arch();
     if (tsc_freq != 0) {
@@ -307,6 +353,13 @@ void calibrate_tsc(void) {
     tsc_freq = calibrate_tsc_pm_timer();
     if (tsc_freq == 0) {
         tsc_freq = calibrate_tsc_pit();
+    }
+#endif
+
+#if defined (__x86_64__) || defined (__i386__)
+    uint64_t nominal = tsc_freq_nominal(tsc_freq);
+    if (nominal != 0) {
+        tsc_freq = nominal;
     }
 #endif
 
