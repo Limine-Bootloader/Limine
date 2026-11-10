@@ -94,6 +94,25 @@ def tsc_calibration_port61(t):
             t.expect_eq(last, '0d', f'{key}: the value left')
 
 
+@check(ports=['bios'], tags=['tsc'])
+def tsc_calibration_crystal(t):
+    """Where CPUID leaf 0x15 gives the TSC's ratio to the crystal clock but
+    not the clock, the frequency is exactly that of the clock Table 22-95 of
+    Intel SDM 325462-093 Vol. 3B gives the processor [spec], 24MHz for a Xeon
+    W and 25MHz for a Xeon Scalable of the same model, where it agrees with
+    the measurement to 1% [intent]."""
+    r = simulate(t)
+    if r['crystal'] != '1':
+        t.skip('the crystal clocks are looked up on x86 builds of Limine only')
+    for name in ('skylake', 'xeon_scalable', 'xeon_w', 'goldmont'):
+        (key, found, wanted), = frequencies(r, f'crystal.{name}')
+        t.expect_eq(found, wanted, key)
+    for name, nominal in (('disagrees', 3000000000), ('other_model', 2400000000)):
+        expect_close(t, r, f'crystal.{name}', 0.0002)
+        (key, found, _), = frequencies(r, f'crystal.{name}')
+        t.check(found != nominal, f'{key}: the nominal {nominal} Hz rather than the measured frequency')
+
+
 def boot_icount(t, machine_opts):
     """The check executable booted where the TSC counts the nanoseconds of the
     virtual clock that also drives the PM timer and the PIT: QEMU's icount,
