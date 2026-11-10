@@ -127,6 +127,12 @@ follows the rules regardless.
 
 As with anything, there are always exceptions to these style rules, under given contexts.
 
+## Tests
+
+Any new code, or any other addition or change to Limine, must come with tests for it in the
+same commit, added to the test suite (the checks in `checks/`, run by `make check`), unless
+there is an extremely good justification for them not to exist.
+
 ## Commit conventions
 
 - One logical change per commit. No "and" commits - split unrelated changes apart.
@@ -140,6 +146,9 @@ As with anything, there are always exceptions to these style rules, under given 
   `docs:`. Host tools use `host/<name>:`, build-time tools use `tools/<name>:`, BIOS stage 1
   uses `stage1/{cd,hdd,pxe,decompressor,gdt}:`, and for everything else just follow whatever
   established convention.
+  The `<area>` never mentions the tests or checks that come with a change: a fix to
+  `drivers/gop` with checks for it is `drivers/gop:`, not `drivers/gop, checks:`. A change
+  to the test suite and nothing else is `checks:`.
 
 ### Commit message bodies
 
