@@ -1191,6 +1191,32 @@ static void acpi_checksum(uint8_t *table) {
     table[9] = (uint8_t)-sum;
 }
 
+// The MPS INTI flags (hex) of every local APIC and local x2APIC NMI structure
+// of the MADT set to these: madtnmi:FLAGS. ACPI 6.6 sections 5.2.12.7 and
+// 5.2.12.13.
+static void cmd_madtnmi(char *arg) {
+    uint16_t flags = (uint16_t)parse_hex(arg, NULL);
+    uint8_t *madt = (uint8_t *)acpi_table("APIC");
+    if (madt == NULL) {
+        out("K madtnmi=unavailable\n");
+        return;
+    }
+    uint32_t len;
+    memcpy(&len, madt + 4, 4);
+    uint64_t count = 0;
+    for (uint32_t off = 44; off + 2 <= len && madt[off + 1] >= 2; off += madt[off + 1]) {
+        if (madt[off] == 4 && madt[off + 1] >= 6) {
+            memcpy(madt + off + 3, &flags, 2);
+            count++;
+        } else if (madt[off] == 0xa && madt[off + 1] >= 12) {
+            memcpy(madt + off + 2, &flags, 2);
+            count++;
+        }
+    }
+    acpi_checksum(madt);
+    out("K madtnmi=%u\n", count);
+}
+
 // The first remapping unit of the DMAR, or of the IVRS, moved to memory that
 // reads as a unit left on which never acts on being told to stop: VT-d with
 // translation, interrupt remapping and queued invalidation on, its queue a
@@ -1516,6 +1542,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_vtdon();
         } else if (sprefix(tok, "amdvion")) {
             cmd_amdvion();
+        } else if (sprefix(tok, "madtnmi:")) {
+            cmd_madtnmi(tok + 8);
         } else if (sprefix(tok, "fakeiommu:")) {
             cmd_fakeiommu(tok + 10);
         } else if (sprefix(tok, "deadiommu:")) {
