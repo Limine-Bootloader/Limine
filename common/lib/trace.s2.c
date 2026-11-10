@@ -8,7 +8,7 @@
 #include <fs/file.h>
 #include <mm/pmm.h>
 
-#if defined (BIOS)
+#if defined(BIOS)
 extern symbol stage2_map;
 #endif
 
@@ -17,12 +17,12 @@ extern symbol full_map;
 static char *trace_address(size_t *off, size_t addr) {
     char *limine_map;
 
-#if defined (BIOS)
+#if defined(BIOS)
     if (!stage3_loaded)
         limine_map = stage2_map;
     else
         limine_map = full_map;
-#elif defined (UEFI)
+#elif defined(UEFI)
     limine_map = full_map;
 
     addr -= (size_t)EfiLoadSlide;
@@ -48,15 +48,15 @@ static char *trace_address(size_t *off, size_t addr) {
 void print_stacktrace(size_t *base_ptr) {
     if (base_ptr == NULL) {
         asm volatile (
-#if defined (__i386__)
+#if defined(__i386__)
             "movl %%ebp, %0"
-#elif defined (__x86_64__)
+#elif defined(__x86_64__)
             "movq %%rbp, %0"
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
             "mov %0, x29"
-#elif defined (__riscv)
+#elif defined(__riscv)
             "mv %0, fp;  addi %0, %0, -16"
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
             "move %0, $fp;  addi.d %0, %0, -16"
 #endif
             : "=r"(base_ptr)
@@ -77,7 +77,7 @@ void print_stacktrace(size_t *base_ptr) {
             print("  [%p]\n", ret_addr);
         if (!old_bp)
             break;
-#if defined (__riscv) || defined (__loongarch64)
+#if defined(__riscv) || defined(__loongarch64)
         base_ptr = (void *)(old_bp - 16);
 #else
         base_ptr = (void*)old_bp;

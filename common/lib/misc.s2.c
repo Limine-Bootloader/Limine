@@ -16,7 +16,7 @@ noreturn void __stack_chk_fail(void) {
     panic(false, "Stack smashing detected");
 }
 
-#if defined (__i386__)
+#if defined(__i386__)
 // GCC routes the check in 32-bit PIC code through a hidden alias so the call
 // does not have to go through the PLT. Nothing provides it here.
 noreturn void __stack_chk_fail_local(void) {

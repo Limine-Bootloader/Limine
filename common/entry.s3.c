@@ -29,7 +29,7 @@
 
 void stage3_common(void);
 
-#if defined (UEFI)
+#if defined(UEFI)
 noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     gST = SystemTable;
     gBS = SystemTable->BootServices;
@@ -54,10 +54,10 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
         print("WARNING: Failed to disable watchdog timer!\n");
     }
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     init_gdt();
 #endif
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     // Stage the below-4GiB handoff stub while allocations are still permitted.
     prepare_spinup_tramp();
 #endif
@@ -107,7 +107,7 @@ could_not_match:
                 case_insensitive_fopen = true;
                 if (
                  false
-#if defined (UEFI)
+#if defined(UEFI)
                  || (f = fopen(volume_index[i], "/EFI/limine/limine.conf")) != NULL
                  || (f = fopen(volume_index[i], "/EFI/BOOT/limine.conf")) != NULL
 #endif
@@ -166,7 +166,7 @@ opened:
 }
 #endif
 
-#if defined (__riscv) && defined (UEFI)
+#if defined(__riscv) && defined(UEFI)
 // Firmware predating RISCV_EFI_BOOT_PROTOCOL passes the boot hart in the
 // device tree it publishes instead.
 static bool get_dtb_boot_hartid(size_t *hartid) {
@@ -208,13 +208,13 @@ static bool get_dtb_boot_hartid(size_t *hartid) {
 #endif
 
 noreturn void stage3_common(void) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     init_flush_irqs();
     init_io_apics();
 #endif
 
-#if defined (__riscv)
-#if defined (UEFI)
+#if defined(__riscv)
+#if defined(UEFI)
     EFI_RISCV_EFI_BOOT_PROTOCOL *rv_proto = get_riscv_boot_protocol();
     if (rv_proto == NULL || rv_proto->GetBootHartId(rv_proto, &bsp_hartid) != EFI_SUCCESS) {
         if (!get_dtb_boot_hartid(&bsp_hartid)) {
@@ -228,7 +228,7 @@ noreturn void stage3_common(void) {
 
     term_notready();
 
-#if defined (UEFI)
+#if defined(UEFI)
     init_bli();
 #endif
 

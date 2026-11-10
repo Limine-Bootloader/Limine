@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <fs/file.h>
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 #define UNDI_GET_INFORMATION 0xC
 

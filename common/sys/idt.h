@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#if defined (__i386__)
+#if defined(__i386__)
 
 struct idtr {
     uint16_t limit;
@@ -18,7 +18,7 @@ struct idt_entry {
     uint16_t offset_hi;
 } __attribute__((packed));
 
-#elif defined (__x86_64__)
+#elif defined(__x86_64__)
 
 struct idtr {
     uint16_t limit;
@@ -37,7 +37,7 @@ struct idt_entry {
 
 #endif
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 extern struct idtr idt;
 

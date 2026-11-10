@@ -107,7 +107,7 @@ struct file_handle * gzip_open(struct file_handle * compressed) {
     memcpy(ret->path, compressed->path, compressed->path_len);
     ret->path_len = compressed->path_len;
   }
-#if defined (UEFI)
+#if defined(UEFI)
   ret->efi_part_handle = compressed->efi_part_handle;
 #endif
   ret->pxe = compressed->pxe;

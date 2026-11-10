@@ -625,7 +625,7 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
             } else {
                 struct file_handle *bg_file;
                 if ((bg_file = uri_open_optional(background_path, MEMMAP_BOOTLOADER_RECLAIMABLE,
-#if defined (__i386__)
+#if defined(__i386__)
                     false, NULL, NULL
 #else
                     true
@@ -706,7 +706,7 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
         }
         struct file_handle *f;
         if ((f = uri_open_optional(menu_font, MEMMAP_BOOTLOADER_RECLAIMABLE,
-#if defined (__i386__)
+#if defined(__i386__)
             false, NULL, NULL
 #else
             true
@@ -831,7 +831,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
         return false;
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (serial || COM_OUTPUT || !fb_flush_reliable()) {
         return false;
     }

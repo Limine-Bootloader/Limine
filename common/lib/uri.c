@@ -146,7 +146,7 @@ static bool parse_bios_partition(char *loc, int *drive, int *partition) {
 // volume not found may be on one of its other disks, so all are connected and
 // the search is had again.
 static bool connect_all(void) {
-#if defined (UEFI)
+#if defined(UEFI)
     return disk_connect_all();
 #else
     return false;
@@ -289,7 +289,7 @@ static void uri_release_range(uint64_t addr, uint64_t count) {
 static void uri_alloc(uint64_t count, uint32_t type, bool allow_high_mem,
                       void **out_low, uint64_t *out_addr) {
     void *ret = ext_mem_alloc_type_aligned_mode(count, type, 4096, allow_high_mem);
-#if defined (__i386__)
+#if defined(__i386__)
     if (allow_high_mem) {
         uint64_t addr = *(uint64_t *)ret;
         if (addr >= 0x100000000) {
@@ -306,7 +306,7 @@ static void uri_alloc(uint64_t count, uint32_t type, bool allow_high_mem,
     *out_addr = (uintptr_t)ret;
 }
 
-#if defined (__i386__)
+#if defined(__i386__)
 // Lets the decoder read a buffer that ia32 cannot address directly.
 struct uri_high_source {
     uint64_t addr;
@@ -349,12 +349,12 @@ static bool uri_hash_mismatch(const char *uri) {
 }
 
 struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
-#if defined (__i386__)
+#if defined(__i386__)
     , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
 #endif
 ) {
-#if defined (__i386__)
+#if defined(__i386__)
     if (memcpy_to_64 == NULL || memcpy_from_64 == NULL) {
         allow_high_mem = false;
     }
@@ -416,7 +416,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         raw_path_copy = ext_mem_alloc(raw_path_len);
         memcpy(raw_path_copy, raw->path, raw_path_len);
     }
-#if defined (UEFI)
+#if defined(UEFI)
     EFI_HANDLE raw_efi_part = raw->efi_part_handle;
 #endif
     bool raw_pxe = raw->pxe;
@@ -447,7 +447,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         uri_alloc(compressed_size, MEMMAP_BOOTLOADER_RECLAIMABLE, allow_high_mem,
                   &compressed_low, &compressed_addr);
 
-#if defined (__i386__)
+#if defined(__i386__)
         if (compressed_low == NULL) {
             // Above 4 GiB, which fread() cannot reach on ia32. Bounce through
             // low memory, hashing each chunk on the way up so that the digest
@@ -530,7 +530,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         uri_alloc(sz, type, allow_high_mem, &buf_low, &buf_addr);
         is_high = (buf_low == NULL);
 
-#if defined (__i386__)
+#if defined(__i386__)
         if (is_high) {
             // 1 MiB bounce loop, same as the old freadall_mode high path.
             void *pool = ext_mem_alloc(0x100000);
@@ -562,7 +562,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         uri_alloc(buf_cap, type, allow_high_mem, &buf_low, &buf_addr);
         is_high = (buf_low == NULL);
 
-#if defined (__i386__)
+#if defined(__i386__)
         // High-path uses a 1 MiB bounce pool for both the read side and
         // the grow-copy; reused across iterations.
         void *pool = is_high ? ext_mem_alloc(0x100000) : NULL;
@@ -587,7 +587,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
                                        MEMMAP_USABLE, false, false, false)) {
                     uint64_t base = buf_addr - delta;
                     // Move existing data down. dest < src, forward-safe.
-#if defined (__i386__)
+#if defined(__i386__)
                     if (is_high) {
                         for (uint64_t off = 0; off < buf_len; off += 0x100000) {
                             size_t chunk = buf_len - off < 0x100000 ? (size_t)(buf_len - off) : 0x100000;
@@ -610,7 +610,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
                 uri_alloc(new_cap, type, allow_high_mem, &new_low, &new_addr);
                 bool new_is_high = (new_low == NULL);
 
-#if defined (__i386__)
+#if defined(__i386__)
                 if (is_high && new_is_high) {
                     // 64-to-64: bounce via low pool in 1 MiB strides.
                     for (uint64_t off = 0; off < buf_len; off += 0x100000) {
@@ -644,7 +644,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
                 buf_low = new_low;
                 buf_addr = new_addr;
                 buf_cap = new_cap;
-#if defined (__i386__)
+#if defined(__i386__)
                 if (is_high != new_is_high && new_is_high && pool == NULL) {
                     pool = ext_mem_alloc(0x100000);
                 }
@@ -657,7 +657,7 @@ grew:;
             if (want > 65536) want = 65536;
 
             uint64_t got;
-#if defined (__i386__)
+#if defined(__i386__)
             if (is_high) {
                 got = fread(top, pool, buf_len, want);
                 if (got > 0) memcpy_to_64(buf_addr + buf_len, pool, got);
@@ -680,7 +680,7 @@ grew:;
             buf_cap = kept;
         }
 
-#if defined (__i386__)
+#if defined(__i386__)
         if (pool != NULL) pmm_free(pool, 0x100000);
 #endif
     }
@@ -709,7 +709,7 @@ grew:;
     out->vol = raw_vol;
     out->path = raw_path_copy;
     out->path_len = raw_path_copy != NULL ? raw_path_len : 0;
-#if defined (UEFI)
+#if defined(UEFI)
     out->efi_part_handle = raw_efi_part;
 #endif
     out->pxe = raw_pxe;
@@ -720,14 +720,14 @@ grew:;
 }
 
 struct file_handle *uri_open_optional(char *uri, uint32_t type, bool allow_high_mem
-#if defined (__i386__)
+#if defined(__i386__)
     , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
 #endif
 ) {
     optional_resource = true;
     struct file_handle *ret = uri_open(uri, type, allow_high_mem
-#if defined (__i386__)
+#if defined(__i386__)
         , memcpy_to_64, memcpy_from_64
 #endif
     );

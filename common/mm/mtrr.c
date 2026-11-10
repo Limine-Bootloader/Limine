@@ -1,4 +1,4 @@
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #include <stdint.h>
 #include <stddef.h>
@@ -238,7 +238,7 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
 
     mtrr_save();
 
-#if defined (UEFI)
+#if defined(UEFI)
     asm volatile ("cli");
 #endif
 
@@ -261,7 +261,7 @@ bool mtrr_wc_add_fb_range(uint64_t base, uint64_t size) {
     asm volatile ("wbinvd" ::: "memory");
     asm volatile ("mov %0, %%cr0" :: "r"(old_cr0) : "memory");
 
-#if defined (UEFI)
+#if defined(UEFI)
     asm volatile ("sti");
 #endif
 

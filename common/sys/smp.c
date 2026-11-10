@@ -14,22 +14,22 @@
 #include <mm/mtrr.h>
 #define LIMINE_NO_POINTERS
 #include <limine.h>
-#if defined (__riscv)
+#if defined(__riscv)
 #include <sys/sbi.h>
 #endif
-#if defined (__aarch64__) || defined(__loongarch__)
+#if defined(__aarch64__) || defined(__loongarch__)
 #include <libfdt.h>
 #endif
 
 extern symbol smp_trampoline_start;
 extern size_t smp_trampoline_size;
 
-#if !defined (__x86_64__) && !defined (__i386__)
+#if !defined(__x86_64__) && !defined(__i386__)
 #define AP_START_TIMEOUT_US 5000000
 #define AP_START_STALL_US 100
 #endif
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 struct trampoline_passed_info {
     uint8_t  smp_tpl_booted_flag;
@@ -416,7 +416,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
     return ret;
 }
 
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
 
 struct trampoline_passed_info {
     uint64_t smp_tpl_drop_to_el1;
@@ -965,7 +965,7 @@ struct limine_mp_info *init_smp(void     *dtb,
     return NULL;
 }
 
-#elif defined (__riscv)
+#elif defined(__riscv)
 
 struct trampoline_passed_info {
     uint64_t smp_tpl_booted_flag;
@@ -1046,7 +1046,7 @@ struct limine_mp_info *init_smp(size_t *cpu_count, pagemap_t pagemap, uint64_t h
     return ret;
 }
 
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
 
 enum {
     LOONGARCH_CSR_CPUID = 0x20,

@@ -6,7 +6,7 @@
 #include <lib/libc.h>
 #include <lib/misc.h>
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 void bgrt_restore(uint64_t fb_width, uint64_t fb_height) {
     if (!firmware_logo) {

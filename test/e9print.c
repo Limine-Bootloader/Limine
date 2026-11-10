@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#if defined (_LIMINE_PROTO)
+#if defined(_LIMINE_PROTO)
 #include <flanterm.h>
 extern struct flanterm_context *ft_ctx;
 #endif
@@ -11,10 +11,10 @@ extern struct flanterm_context *ft_ctx;
 static const char CONVERSION_TABLE[] = "0123456789abcdef";
 
 void putchar(char c) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     __asm__ __volatile__ ("outb %0, %1" :: "a" (c), "Nd" (0xe9) : "memory");
 #endif
-#if defined (_LIMINE_PROTO)
+#if defined(_LIMINE_PROTO)
     if (ft_ctx != NULL) {
         if (c == '\n') {
             flanterm_write(ft_ctx, "\r", 1);

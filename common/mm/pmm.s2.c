@@ -7,13 +7,13 @@
 #include <lib/misc.h>
 #include <lib/libc.h>
 #include <lib/print.h>
-#if defined (UEFI)
+#if defined(UEFI)
 #  include <efi.h>
 #endif
 
 #define PAGE_SIZE   4096
 
-#if defined (BIOS)
+#if defined(BIOS)
 extern symbol bss_end;
 #endif
 
@@ -50,14 +50,14 @@ void *conv_mem_alloc(uint64_t count) {
     }
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 #define memmap_max_entries ((size_t)512)
 
 struct memmap_entry memmap[memmap_max_entries];
 size_t memmap_entries = 0;
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 static size_t memmap_max_entries;
 
 struct memmap_entry *memmap;
@@ -121,7 +121,7 @@ static bool align_entry(uint64_t *base, uint64_t *length) {
     return true;
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 bool pmm_sanitiser_keep_first_page = false;
 #else
 bool pmm_sanitiser_keep_first_page = true;
@@ -261,12 +261,12 @@ del_mm1:
     *_count = count;
 }
 
-#if defined (UEFI)
+#if defined(UEFI)
 static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool raw);
 #endif
 
 struct memmap_entry *get_memmap(size_t *entries) {
-#if defined (UEFI)
+#if defined(UEFI)
     if (efi_boot_services_exited == false) {
         panic(true, "get_memmap called whilst in boot services");
     }
@@ -283,7 +283,7 @@ struct memmap_entry *get_memmap(size_t *entries) {
     return memmap;
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 void init_memmap(void) {
     for (size_t i = 0; i < e820_entries; i++) {
         if (memmap_entries == memmap_max_entries) {
@@ -323,7 +323,7 @@ void init_memmap(void) {
 }
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 static struct memmap_entry *recl;
 
 // Some UEFI implementations cannot handle allocations spanning a large
@@ -570,7 +570,7 @@ void init_memmap(void) {
 
         EFI_PHYSICAL_ADDRESS base = untouched_memmap[i].base;
 
-#if defined (__i386__)
+#if defined(__i386__)
         if (CHECKED_ADD(untouched_memmap[i].base, untouched_memmap[i].length, continue) > 0x100000000) {
             continue;
         }
@@ -698,7 +698,7 @@ void pmm_release_uefi_mem(void) {
 }
 #endif
 
-#if defined (BIOS)
+#if defined(BIOS)
 struct memmap_entry *get_raw_memmap(size_t *entry_count) {
     *entry_count = e820_entries;
     return e820_map;
@@ -709,7 +709,7 @@ size_t get_raw_memmap_max_entries(void) {
 }
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 struct memmap_entry *get_raw_memmap(size_t *entry_count) {
     if (efi_boot_services_exited == false) {
         panic(true, "get_raw_memmap called whilst in boot services");
@@ -786,7 +786,7 @@ void *ext_mem_alloc_type_aligned(uint64_t count, uint32_t type, size_t alignment
 
 // Allocate memory top down.
 static void *ext_mem_alloc_impl(uint64_t count, uint32_t type, size_t alignment, bool allow_high_allocs, bool do_panic) {
-#if !defined (__x86_64__) && !defined (__i386__)
+#if !defined(__x86_64__) && !defined(__i386__)
     (void)allow_high_allocs;
 #endif
 
@@ -842,14 +842,14 @@ again:
 
         void *ret;
 
-#if defined (__i386__)
+#if defined(__i386__)
         if (!allow_high_allocs) {
 #endif
         ret = (void *)(size_t)alloc_base;
 
         // Zero out allocated space
         memset(ret, 0, count);
-#if defined (__i386__)
+#if defined(__i386__)
         } else {
             static uint64_t above64_ret;
             above64_ret = alloc_base;

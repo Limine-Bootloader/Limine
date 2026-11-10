@@ -268,7 +268,7 @@ struct file_handle *blake2b_open(struct file_handle *source) {
         memcpy(ret->path, source->path, source->path_len);
         ret->path_len = source->path_len;
     }
-#if defined (UEFI)
+#if defined(UEFI)
     ret->efi_part_handle = source->efi_part_handle;
 #endif
     ret->pxe = source->pxe;

@@ -14,7 +14,7 @@ uint8_t acpi_checksum(void *ptr, size_t size) {
     return sum;
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 static void *acpi_get_rsdp_impl(bool log) {
     size_t ebda = EBDA;
@@ -42,7 +42,7 @@ void *acpi_get_rsdp(void) {
 
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 
 #include <efi.h>
 
@@ -91,7 +91,7 @@ void *acpi_get_rsdp(void) {
 static void *acpi_get_table_impl(const char *signature, int index, bool log) {
     int cnt = 0;
 
-#if defined (BIOS)
+#if defined(BIOS)
     struct rsdp *rsdp = acpi_get_rsdp_impl(log);
 #else
     struct rsdp *rsdp = acpi_get_rsdp();
@@ -165,7 +165,7 @@ void *acpi_get_table(const char *signature, int index) {
     return acpi_get_table_impl(signature, index, true);
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 void *acpi_get_table_quiet(const char *signature, int index) {
     return acpi_get_table_impl(signature, index, false);
 }

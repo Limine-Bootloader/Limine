@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <lib/part.h>
 #include <drivers/disk.h>
-#if defined (BIOS)
+#if defined(BIOS)
 #  include <lib/real.h>
 #endif
 #include <lib/libc.h>
@@ -24,7 +24,7 @@ static bool cache_block(struct volume *volume, uint64_t block) {
 
     if (volume->cache == NULL) {
         size_t alignment = 4096;
-#if defined (UEFI)
+#if defined(UEFI)
         // ReadBlocks fills the cache directly, so it must be aligned to IoAlign,
         // which UEFI 2.11 13.9 limits to 0, 1, or a power of two: any other
         // value is taken as 1, as for the unique sector pool in drivers/disk.
@@ -563,10 +563,10 @@ static int gpt_get_part(struct volume *ret, struct volume *volume, int partition
         return NO_PARTITION;
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     ret->efi_handle  = volume->efi_handle;
     ret->block_io    = volume->block_io;
-#elif defined (BIOS)
+#elif defined(BIOS)
     ret->drive       = volume->drive;
 #endif
     ret->fastest_xfer_size = volume->fastest_xfer_size;
@@ -869,10 +869,10 @@ static int mbr_get_logical_part(struct volume *ret, struct volume *extended_part
         }
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     ret->efi_handle  = extended_part->efi_handle;
     ret->block_io    = extended_part->block_io;
-#elif defined (BIOS)
+#elif defined(BIOS)
     ret->drive       = extended_part->drive;
 #endif
     ret->fastest_xfer_size = extended_part->fastest_xfer_size;
@@ -960,10 +960,10 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
 
             extended_part = ext_mem_alloc(sizeof(struct volume));
 
-#if defined (UEFI)
+#if defined(UEFI)
             extended_part->efi_handle  = volume->efi_handle;
             extended_part->block_io    = volume->block_io;
-#elif defined (BIOS)
+#elif defined(BIOS)
             extended_part->drive       = volume->drive;
 #endif
             extended_part->fastest_xfer_size = volume->fastest_xfer_size;
@@ -1015,10 +1015,10 @@ static int mbr_get_part(struct volume *ret, struct volume *volume, int partition
         return NO_PARTITION;
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     ret->efi_handle  = volume->efi_handle;
     ret->block_io    = volume->block_io;
-#elif defined (BIOS)
+#elif defined(BIOS)
     ret->drive       = volume->drive;
 #endif
     ret->fastest_xfer_size = volume->fastest_xfer_size;
@@ -1115,7 +1115,7 @@ struct volume *volume_get_by_coord(bool optical, int drive, int partition) {
     return NULL;
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 struct volume *volume_get_by_bios_drive(int drive) {
     for (size_t i = 0; i < volume_index_i; i++) {
         if (volume_index[i]->drive == drive) {

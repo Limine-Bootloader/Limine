@@ -80,7 +80,7 @@ static inline void mmoutd(uintptr_t addr, uint32_t value) {
     );
 }
 
-#if defined (__x86_64__)
+#if defined(__x86_64__)
 static inline void mmoutq(uintptr_t addr, uint64_t value) {
     asm volatile (
         "movq %1, (%0)"
@@ -124,7 +124,7 @@ static inline uint32_t mmind(uintptr_t addr) {
     return ret;
 }
 
-#if defined (__x86_64__)
+#if defined(__x86_64__)
 static inline uint64_t mminq(uintptr_t addr) {
     uint64_t ret;
     asm volatile (
@@ -257,7 +257,7 @@ static inline void sync_icache_range(uintptr_t start, uintptr_t end) {
     (void)start; (void)end;
 }
 
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
 
 static inline uint64_t rdtsc(void) {
     uint64_t v;
@@ -349,7 +349,7 @@ static inline void sync_icache_range(uintptr_t start, uintptr_t end) {
     inval_icache_pou(start, end);
 }
 
-#elif defined (__riscv)
+#elif defined(__riscv)
 
 static inline uint64_t rdtsc(void) {
     uint64_t v;
@@ -425,7 +425,7 @@ static inline void sync_icache_range(uintptr_t start, uintptr_t end) {
     asm volatile ("fence.i" ::: "memory");
 }
 
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
 
 #define csr_read64(reg) ({ \
     uint64_t csr_read64__ret; \
@@ -591,20 +591,20 @@ static inline void stall(uint64_t us) {
 }
 
 static inline const char *current_arch(void) {
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     return "x86-64";
-#elif defined (__i386__)
+#elif defined(__i386__)
     uint32_t eax, ebx, ecx, edx;
     if (!cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx) || !(edx & (1 << 29))) {
         return "ia-32";
     } else {
         return "x86-64";
     }
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     return "aarch64";
-#elif defined (__riscv)
+#elif defined(__riscv)
     return "riscv64";
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     return "loongarch64";
 #else
 #error "Unspecified architecture"
@@ -612,15 +612,15 @@ static inline const char *current_arch(void) {
 }
 
 static inline const char *loader_arch(void) {
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     return "x86-64";
-#elif defined (__i386__)
+#elif defined(__i386__)
     return "ia-32";
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     return "aarch64";
-#elif defined (__riscv)
+#elif defined(__riscv)
     return "riscv64";
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     return "loongarch64";
 #else
 #error "Unspecified architecture"

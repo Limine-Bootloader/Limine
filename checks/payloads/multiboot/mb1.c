@@ -7,7 +7,7 @@
 extern volatile uint32_t mb_regs[16];
 extern volatile uint8_t mb_gdtr[8], mb_idtr[8];
 
-#if defined (PIC_TEST)
+#if defined(PIC_TEST)
 extern volatile uint32_t mb_irq_vector, mb_irq_count;
 void mb_idt_install(void);
 #endif
@@ -232,7 +232,7 @@ static void report_mbi(const volatile uint8_t *mbi) {
     }
 }
 
-#if defined (PIC_TEST)
+#if defined(PIC_TEST)
 static void wait_irq(uint32_t before) {
     for (uint32_t i = 0; i < 0x10000000 && mb_irq_count == before; i++) {
         asm volatile ("pause");
@@ -285,7 +285,7 @@ void mb1_main(void) {
     fact("bss.probe", (uintptr_t)bss_probe);
     report_state();
     report_mbi((const volatile uint8_t *)(uintptr_t)mb_regs[1]);
-#if defined (PIC_TEST)
+#if defined(PIC_TEST)
     report_pic();
 #endif
     puts_("E DONE\n");

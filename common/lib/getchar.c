@@ -7,9 +7,9 @@
 #include <lib/term.h>
 #include <lib/print.h>
 #include <menu.h>
-#if defined (BIOS)
+#if defined(BIOS)
 #  include <lib/real.h>
-#elif defined (UEFI)
+#elif defined(UEFI)
 #  include <efi.h>
 #endif
 #include <drivers/mouse.h>
@@ -141,7 +141,7 @@ int getchar(void) {
 
 int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
     switch (scancode) {
-#if defined (BIOS)
+#if defined(BIOS)
         case 0x44:
             return GETCHAR_F10;
         case 0x4b:
@@ -164,7 +164,7 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
             return GETCHAR_PGDOWN;
         case 0x01:
             return GETCHAR_ESCAPE;
-#elif defined (UEFI)
+#elif defined(UEFI)
         case EFI_SCAN_F10: {
             return GETCHAR_F10;
         }
@@ -243,7 +243,7 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
     return ascii;
 }
 
-#if defined (BIOS)
+#if defined(BIOS)
 int _pit_sleep_and_quit_on_keypress(uint32_t ticks, uint32_t aux_poll,
                                     uint64_t tsc_deadline);
 
@@ -389,7 +389,7 @@ int pit_sleep_and_quit_on_keypress(int seconds) {
 }
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
 // The firmware's console can pass on what a terminal sent as one sequence over
 // several of its polls of the serial line, so the next key of a sequence is
 // waited for rather than taken to be missing. EFI_TIMEOUT if none comes.

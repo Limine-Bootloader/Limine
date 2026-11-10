@@ -21,7 +21,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
         preserve_screen = true;
     }
 
-#if defined (BIOS)
+#if defined(BIOS)
     *ret = ext_mem_alloc(sizeof(struct fb_info));
     if (init_vbe(*ret, target_width, target_height, target_bpp)) {
         *_fbs_count = 1;
@@ -35,7 +35,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
         pmm_free(*ret, sizeof(struct fb_info));
         *ret = NULL;
     }
-#elif defined (UEFI)
+#elif defined(UEFI)
     init_gop(ret, _fbs_count, target_width, target_height, target_bpp);
 #endif
 
@@ -46,7 +46,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
     // terminal rendering) is fast. keep_wc leaves it active for the caller.
     bool want_wc = keep_wc || !preserve_screen;
 
-#if defined (__i386__) || defined (__x86_64__)
+#if defined(__i386__) || defined(__x86_64__)
     if (want_wc) {
         for (size_t i = 0; i < *_fbs_count; i++) {
             uint64_t fb_size = CHECKED_MUL((uint64_t)(*ret)[i].framebuffer_pitch,
@@ -54,7 +54,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
             if (fb_size == 0) {
                 continue;
             }
-#if defined (__x86_64__) && defined (UEFI)
+#if defined(__x86_64__) && defined(UEFI)
             efi_pt_set_fb_wc((*ret)[i].framebuffer_addr, fb_size);
 #else
             mtrr_wc_add_fb_range((*ret)[i].framebuffer_addr, fb_size);
@@ -69,9 +69,9 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
         }
     }
 
-#if defined (__i386__) || defined (__x86_64__)
+#if defined(__i386__) || defined(__x86_64__)
     if (want_wc && !keep_wc) {
-#if defined (__x86_64__) && defined (UEFI)
+#if defined(__x86_64__) && defined(UEFI)
         efi_pt_restore();
 #else
         mtrr_restore();
@@ -81,7 +81,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
     (void)want_wc;
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (!preserve_screen && *_fbs_count > 0) {
         bgrt_restore((*ret)[0].framebuffer_width, (*ret)[0].framebuffer_height);
     }
@@ -123,12 +123,12 @@ void fb_clear(struct fb_info *fb) {
              (size_t)fb->framebuffer_pitch * fb->framebuffer_height);
 }
 
-#if defined (__aarch64__)
+#if defined(__aarch64__)
 static bool fb_flush_aarch64(volatile void *base, size_t length) {
     clean_dcache_poc((uintptr_t)base, CHECKED_ADD((uintptr_t)base, length, return false));
     return true;
 }
-#elif defined (__riscv)
+#elif defined(__riscv)
 __attribute__((target("arch=+zicbom")))
 static bool fb_flush_riscv(volatile void *base, size_t length) {
     const size_t cbom_block_size = riscv_cbom_block_size();
@@ -141,7 +141,7 @@ static bool fb_flush_riscv(volatile void *base, size_t length) {
     return true;
 }
 
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
 // cacop's code[2:0] names a cache in the order CPUCFG 0x10 lists them, one leaf
 // per present bit (manual section 4.2.3.1), so the numbering is a property of
 // the part rather than of the architecture.
@@ -331,9 +331,9 @@ bool fb_flush_reliable(void) {
     static bool reliable = true;
 
     if (!probed) {
-#if defined (__riscv)
+#if defined(__riscv)
         reliable = riscv_check_isa_extension("zicbom", NULL, NULL);
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
         reliable = loongarch_leaves() != 0;
 #endif
         probed = true;
@@ -349,13 +349,13 @@ bool fb_flush(volatile void *base, size_t length) {
 
     if (!probed) {
         probed = true;
-#if defined (__aarch64__)
+#if defined(__aarch64__)
         fn = fb_flush_aarch64;
-#elif defined (__riscv)
+#elif defined(__riscv)
         if (riscv_check_isa_extension("zicbom", NULL, NULL)) {
             fn = fb_flush_riscv;
         }
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
         fn = fb_flush_loongarch64;
 #endif
     }

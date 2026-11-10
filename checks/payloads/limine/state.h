@@ -4,7 +4,7 @@
 // Slots of the register snapshot each entry stub takes, shared with the
 // assembly, which is why they are plain numbers rather than a structure.
 
-#if defined (__x86_64__)
+#if defined(__x86_64__)
 #define ST_RAX 0
 #define ST_RBX 1
 #define ST_RCX 2
@@ -39,7 +39,7 @@
 #define ST_LDTR 39
 #define ST_RET 40
 #define ST_COUNT 48
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
 #define ST_X0 0
 #define ST_X30 30
 #define ST_SP 31
@@ -59,7 +59,7 @@
 #define ST_CNTHCTL_EL2 45
 #define ST_HSTR_EL2 46
 #define ST_COUNT 48
-#elif defined (__riscv)
+#elif defined(__riscv)
 #define ST_X0 0
 #define ST_SSTATUS 32
 #define ST_SIE 33
@@ -67,7 +67,7 @@
 #define ST_SATP 35
 #define ST_SIP 36
 #define ST_COUNT 40
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
 #define ST_R0 0
 #define ST_CRMD 32
 #define ST_PRMD 33

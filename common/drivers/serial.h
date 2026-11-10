@@ -1,7 +1,7 @@
 #ifndef DRIVERS__SERIAL_H__
 #define DRIVERS__SERIAL_H__
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 #include <stdint.h>
 

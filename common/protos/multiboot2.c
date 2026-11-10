@@ -1,4 +1,4 @@
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #include <stdint.h>
 #include <stddef.h>
@@ -54,14 +54,14 @@ static size_t get_multiboot2_info_size(
         ALIGN_UP(smbios_tag_size, MULTIBOOT_TAG_ALIGN, OVERFLOW) +
         ALIGN_UP(sizeof(struct multiboot_tag_basic_meminfo), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
         ALIGN_UP(sizeof(struct multiboot_tag_mmap) + sizeof(struct multiboot_mmap_entry) * MEMMAP_MAX, MULTIBOOT_TAG_ALIGN, OVERFLOW) +
-        #if defined (UEFI)
+        #if defined(UEFI)
             ALIGN_UP(sizeof(struct multiboot_tag_efi_mmap) + (efi_desc_size * EFI_MEMMAP_MAX), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
-            #if defined (__i386__)
+            #if defined(__i386__)
                 ALIGN_UP(sizeof(struct multiboot_tag_efi32), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
-            #elif defined (__x86_64__)
+            #elif defined(__x86_64__)
                 ALIGN_UP(sizeof(struct multiboot_tag_efi64), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
             #endif
-        #elif defined (BIOS)
+        #elif defined(BIOS)
             ALIGN_UP(sizeof(struct multiboot_tag_bootdev), MULTIBOOT_TAG_ALIGN, OVERFLOW) +
         #endif
         ALIGN_UP(sizeof(struct multiboot_tag_network) + DHCP_ACK_PACKET_LEN, MULTIBOOT_TAG_ALIGN, OVERFLOW) +
@@ -96,7 +96,7 @@ static bool overlaps_loader_memory(uint64_t base, uint64_t top) {
 noreturn void multiboot2_load(char *config, char* cmdline) {
     struct file_handle *kernel_file;
 
-#if defined (UEFI)
+#if defined(UEFI)
     if (cmdline != NULL) {
         tpm_measure(TPM_PCR_BOOT_AUTH, TPM_EV_IPL,
                     cmdline, strlen(cmdline), "cmdline: ", cmdline);
@@ -116,7 +116,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
     }
 
     if ((kernel_file = uri_open(kernel_path, MEMMAP_KERNEL_AND_MODULES, false
-#if defined (__i386__)
+#if defined(__i386__)
         , NULL, NULL
 #endif
     )) == NULL)
@@ -126,11 +126,11 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
     size_t kernel_file_size = kernel_file->size;
 
-#if defined (BIOS)
+#if defined(BIOS)
     struct volume *kernel_volume = kernel_file->pxe ? NULL : kernel_file->vol;
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
     tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
                 kernel, kernel_file_size, "path: ", kernel_path);
@@ -182,7 +182,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
     bool has_reloc_header = false;
     struct multiboot_header_tag_relocatable reloc_tag = {0};
 
-#if defined (UEFI)
+#if defined(UEFI)
     bool is_framebuffer_declared = false;
     uint32_t console_flags = 0;
 #endif
@@ -236,7 +236,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                         case MULTIBOOT_TAG_TYPE_EFI64_IH:
                             break;
                         case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
-                        #if defined (UEFI)
+                        #if defined(UEFI)
                             is_framebuffer_declared = true;
                         #endif
                             break;
@@ -260,7 +260,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                 break;
             }
             case MULTIBOOT_HEADER_TAG_CONSOLE_FLAGS: {
-#if defined (UEFI)
+#if defined(UEFI)
                 if (tag->size < sizeof(struct multiboot_header_tag_console_flags))
                     break;
                 struct multiboot_header_tag_console_flags *flags = (void *)tag;
@@ -328,7 +328,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         tag = (struct multiboot_header_tag *)((uintptr_t)tag + tag_stride);
     }
 
-#if defined (UEFI)
+#if defined(UEFI)
     // Neither declaration of framebuffer support, so text is all that is left
     // and UEFI has none. After the loop: either may follow the console tag.
     if ((console_flags & 1) && fbtag == NULL && !is_framebuffer_declared) {
@@ -739,7 +739,7 @@ reloc_fail:
 
         struct file_handle *f;
         if ((f = uri_open(module_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false
-#if defined (__i386__)
+#if defined(__i386__)
             , NULL, NULL
 #endif
         )) == NULL)
@@ -753,7 +753,7 @@ reloc_fail:
         void *module_addr = f->fd;
         uint64_t module_target = (uint64_t)-1;
 
-#if defined (UEFI)
+#if defined(UEFI)
         tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "module_path: ", module_path);
         tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
                     module_addr, f->size, "module_path: ", module_path);
@@ -817,7 +817,7 @@ reloc_fail:
     //////////////////////////////////////////////
     // Create BIOS boot device tag
     //////////////////////////////////////////////
-#if defined (BIOS)
+#if defined(BIOS)
     // The 0-based partition, all ones where unused (Multiboot2 2.0 section
     // 3.6.4).
     if (kernel_volume != NULL) {
@@ -846,7 +846,7 @@ reloc_fail:
         size_t req_width = 0;
         size_t req_height = 0;
         size_t req_bpp = 0;
-#if defined (BIOS)
+#if defined(BIOS)
         {
             char *textmode_str = config_get_value(config, 0, "TEXTMODE");
             bool textmode = textmode_str != NULL && strcmp(textmode_str, "yes") == 0;
@@ -861,7 +861,7 @@ reloc_fail:
             req_height = fbtag->height;
             req_bpp = fbtag->depth;
 
-#if defined (UEFI)
+#if defined(UEFI)
 modeset:;
 #endif
             char *resolution = config_get_value(config, 0, "RESOLUTION");
@@ -872,7 +872,7 @@ modeset:;
             size_t fbs_count;
             fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
             if (fbs_count == 0) {
-#if defined (BIOS)
+#if defined(BIOS)
 textmode:
                 vga_textmode_init(false);
 
@@ -883,7 +883,7 @@ textmode:
                 tag->common.framebuffer_bpp = 16;
                 tag->common.framebuffer_type = MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT;
                 tag->common.size = sizeof(struct multiboot_tag_framebuffer_common);
-#elif defined (UEFI)
+#elif defined(UEFI)
                 // Bit 0 makes a console mandatory, and none can be provided here.
                 if (console_flags & 1) {
                     panic(true, "multiboot2: Failed to set video mode");
@@ -909,21 +909,21 @@ textmode:
                 tag->framebuffer_blue_mask_size = fbs[0].blue_mask_size;
             }
         } else {
-#if defined (UEFI)
+#if defined(UEFI)
             // As GRUB does, set no mode nobody asked for. Only a required
             // console, which can only be a framebuffer here, asks for one.
             if ((console_flags & 1) && is_framebuffer_declared) {
                 goto modeset;
             }
             goto skip_modeset;
-#elif defined (BIOS)
+#elif defined(BIOS)
             goto textmode;
 #endif
         }
 
         append_tag(info_idx, &tag->common);
 
-#if defined (UEFI)
+#if defined(UEFI)
 skip_modeset:;
 #endif
     }
@@ -1006,14 +1006,14 @@ skip_modeset:;
     //////////////////////////////////////////////
     // Create EFI system table info tag
     //////////////////////////////////////////////
-#if defined (UEFI)
+#if defined(UEFI)
     {
-    #if defined (__i386__)
+    #if defined(__i386__)
         uint32_t size = sizeof(struct multiboot_tag_efi32);
         struct multiboot_tag_efi32 *tag = (void *)(mb2_info + info_idx);
 
         tag->type = MULTIBOOT_TAG_TYPE_EFI32;
-    #elif defined (__x86_64__)
+    #elif defined(__x86_64__)
         uint32_t size = sizeof(struct multiboot_tag_efi64);
         struct multiboot_tag_efi64 *tag = (void *)(mb2_info + info_idx);
 
@@ -1032,7 +1032,7 @@ skip_modeset:;
     void *reloc_stub = ext_mem_alloc(reloc_stub_size);
     memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
 
-#if defined (UEFI)
+#if defined(UEFI)
     efi_exit_boot_services();
 #endif
 
@@ -1088,7 +1088,7 @@ skip_modeset:;
     //////////////////////////////////////////////
     // Create EFI memory map tag
     //////////////////////////////////////////////
-#if defined (UEFI)
+#if defined(UEFI)
     {
         if ((efi_mmap_size / efi_desc_size) > EFI_MEMMAP_MAX) {
             panic(false, "multiboot2: too many EFI memory map entries");
@@ -1151,7 +1151,7 @@ skip_modeset:;
 
     irq_flush_type = IRQ_PIC_ONLY_FLUSH;
 
-#if defined (UEFI) && defined (__x86_64__)
+#if defined(UEFI) && defined(__x86_64__)
     void *spinup_fn = spinup_tramp_low(multiboot_spinup_32);
 #else
     void *spinup_fn = multiboot_spinup_32;

@@ -711,7 +711,7 @@ setup_handle:;
     handle->close = iso9660_close;
     handle->size = ret->total_size;
     handle->vol = vol;
-#if defined (UEFI)
+#if defined(UEFI)
     handle->efi_part_handle = vol->efi_part_handle;
 #endif
 

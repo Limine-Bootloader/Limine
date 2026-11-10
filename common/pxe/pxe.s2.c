@@ -3,13 +3,13 @@
 #include <lib/libc.h>
 #include <lib/misc.h>
 #include <mm/pmm.h>
-#if defined (BIOS)
+#if defined(BIOS)
 #include <lib/real.h>
-#elif defined (UEFI)
+#elif defined(UEFI)
 #include <efi.h>
 #endif
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 void set_pxe_fp(uint32_t fp);
 
@@ -72,7 +72,7 @@ void pxe_init(void) {
     set_pxe_fp(((uint32_t)pxe->entry_point_sp.segment << 16) | pxe->entry_point_sp.offset);
 }
 
-#elif defined (UEFI)
+#elif defined(UEFI)
 
 struct volume *pxe_bind_volume(EFI_HANDLE efi_handle, EFI_PXE_BASE_CODE_PROTOCOL *pxe_base_code) {
     struct volume *volume = ext_mem_alloc(sizeof(struct volume));

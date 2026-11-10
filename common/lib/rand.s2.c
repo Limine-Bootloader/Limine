@@ -39,7 +39,7 @@ size_t hw_entropy(void *buf, size_t size) {
     uint8_t *out = buf;
     size_t filled = 0;
 
-#if defined (__x86_64__) || defined(__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     uint32_t eax, ebx, ecx, edx;
     bool have_rdseed = cpuid(0x07, 0, &eax, &ebx, &ecx, &edx) && (ebx & (1 << 18));
     bool have_rdrand = cpuid(0x01, 0, &eax, &ebx, &ecx, &edx) && (ecx & (1 << 30));
@@ -49,11 +49,11 @@ size_t hw_entropy(void *buf, size_t size) {
         bool ok = false;
 
         if (have_rdseed) {
-#if defined (__x86_64__)
+#if defined(__x86_64__)
             uint64_t wide;
             ok = rdseed(uint64_t, &wide); // Always do a 64-bit op on 64-bit to work around CPU bugs.
             val = (uint32_t)wide;
-#elif defined (__i386__)
+#elif defined(__i386__)
             // Zen 5 parts without fixed microcode return 0 with CF set from
             // this form, so a zero is retried, then taken as a failure.
             for (int i = 0; i < 10; i++) {
@@ -69,11 +69,11 @@ size_t hw_entropy(void *buf, size_t size) {
         // RDSEED draws on the entropy source itself and underflows under load
         // while RDRAND, served by the conditioned DRBG, keeps delivering.
         if (!ok && have_rdrand) {
-#if defined (__x86_64__)
+#if defined(__x86_64__)
             uint64_t wide;
             ok = rdrand(uint64_t, &wide); // As above.
             val = (uint32_t)wide;
-#elif defined (__i386__)
+#elif defined(__i386__)
             ok = rdrand(uint32_t, &val);
 #endif
         }
@@ -88,7 +88,7 @@ size_t hw_entropy(void *buf, size_t size) {
         memcpy(out + filled, &val, chunk);
         filled += chunk;
     }
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
     // ARMv8.5-RNG: check ID_AA64ISAR0_EL1 RNDR field (bits [63:60])
     uint64_t isar0;
     asm volatile ("mrs %0, id_aa64isar0_el1" : "=r" (isar0));
@@ -115,7 +115,7 @@ size_t hw_entropy(void *buf, size_t size) {
     }
 #endif
 
-#if defined (UEFI)
+#if defined(UEFI)
     // Try the EFI RNG protocol as a fallback for any bytes still missing.
     if (filled < size) {
         EFI_GUID rng_guid = EFI_RNG_PROTOCOL_GUID;

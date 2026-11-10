@@ -1,4 +1,4 @@
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #include <stdint.h>
 #include <stddef.h>
@@ -20,10 +20,10 @@ void init_flush_irqs(void) {
     for (size_t i = 0; i < 256; i++) {
         dummy_idt[i].offset_lo = (uint16_t)(uintptr_t)dummy_isr;
         dummy_idt[i].type_attr = 0x8e;
-#if defined (__i386__)
+#if defined(__i386__)
         dummy_idt[i].selector = 0x18;
         dummy_idt[i].offset_hi = (uint16_t)((uintptr_t)dummy_isr >> 16);
-#elif defined (__x86_64__)
+#elif defined(__x86_64__)
         dummy_idt[i].selector = 0x28;
         dummy_idt[i].offset_mid = (uint16_t)((uintptr_t)dummy_isr >> 16);
         dummy_idt[i].offset_hi = (uint32_t)((uintptr_t)dummy_isr >> 32);

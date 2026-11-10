@@ -122,7 +122,7 @@ static void dump_efi_tables(uint64_t bp) {
     }
 }
 
-#if defined (__x86_64__)
+#if defined(__x86_64__)
 // Where va maps to, or ~0 if it does not. 4-level or 5-level paging, with
 // large pages at the PDPT and PD levels (Intel SDM 325462-093 vol. 3A,
 // tables 5-15 to 5-20).
@@ -160,7 +160,7 @@ static uint64_t first_unmapped(uint64_t base, uint64_t len) {
 
 void stub_main(void) {
     puts_("\nB LINUX-X86-STUB\n");
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     puts_("K mode=64\n");
 #else
     puts_("K mode=32\n");
@@ -212,7 +212,7 @@ void stub_main(void) {
             cmdline_len++;
         }
     }
-#if defined (__x86_64__)
+#if defined(__x86_64__)
     // The 64-bit protocol identity maps the init_size window from the load
     // address, the zero page, and the command line.
     fact("idmap.kernel", first_unmapped(x86_regs[20], rd32(bp + 0x260)));

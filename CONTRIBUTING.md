@@ -294,8 +294,8 @@ the following.
   the file they are in.
 
 Some older code predates these rules: it has blockless constructs, unbraced
-`case` labels, left-aligned pointers, `asm volatile(` without the space and
-`defined (` with one, `_H__` include guards, `enum`s, and integer suffixes.
+`case` labels, left-aligned pointers, `asm volatile(` without the space,
+`_H__` include guards, `enum`s, and integer suffixes.
 New or modified code follows the rules regardless.
 
 ### Final style remarks

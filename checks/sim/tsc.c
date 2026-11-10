@@ -310,7 +310,7 @@ int main(void) {
     char name[64];
 
     printf("B TSC-SIM\n");
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     printf("K crystal=1\n");
 #else
     printf("K crystal=0\n");

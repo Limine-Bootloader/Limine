@@ -32,7 +32,7 @@ int init_config_disk(struct volume *part);
 bool init_config_smbios(void);
 int init_config(size_t config_size);
 
-#if defined (UEFI)
+#if defined(UEFI)
 const char *config_get_raw(size_t *size_out);
 #endif
 

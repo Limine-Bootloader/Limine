@@ -205,11 +205,11 @@ static void pe64_validate(uint8_t *image, size_t file_size) {
     if (nt_hdrs->FileHeader.Machine != IMAGE_FILE_MACHINE_ARM64) {
         panic(true, "pe: Not an ARM64 PE file");
     }
-#elif defined (__riscv) && (__riscv_xlen == 64)
+#elif defined(__riscv) && (__riscv_xlen == 64)
     if (nt_hdrs->FileHeader.Machine != IMAGE_FILE_MACHINE_RISCV64) {
         panic(true, "pe: Not a RISC-V PE file");
     }
-#elif defined (__loongarch__) && (__loongarch_grlen == 64)
+#elif defined(__loongarch__) && (__loongarch_grlen == 64)
     if (nt_hdrs->FileHeader.Machine != IMAGE_FILE_MACHINE_LOONGARCH64) {
         panic(true, "pe: Not a loongarch64 PE file");
     }

@@ -1,4 +1,4 @@
-#if defined (BIOS)
+#if defined(BIOS)
 
 #include <stdint.h>
 #include <stdbool.h>

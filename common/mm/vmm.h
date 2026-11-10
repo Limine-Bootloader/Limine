@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 
 #define VMM_FLAG_WRITE   ((uint64_t)1 << 1)
 #define VMM_FLAG_NOEXEC  ((uint64_t)1 << 63)
@@ -42,7 +42,7 @@ enum page_size {
 pagemap_t new_pagemap(int lv);
 void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size page_size);
 
-#elif defined (__aarch64__)
+#elif defined(__aarch64__)
 
 // We use fake flags here because these don't properly map onto the
 // aarch64 flags.
@@ -96,7 +96,7 @@ int vmm_max_paging_mode(void);
 pagemap_t new_pagemap(int lv);
 void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size page_size);
 
-#elif defined (__riscv)
+#elif defined(__riscv)
 
 // We use fake flags here because these don't properly map onto the
 // RISC-V flags.
@@ -134,7 +134,7 @@ int vmm_max_paging_mode(void);
 pagemap_t new_pagemap(int paging_mode);
 void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size page_size);
 
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
 
 static inline uint32_t read_cpucfg(uint32_t reg) {
     uint32_t val = 0;

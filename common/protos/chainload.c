@@ -19,11 +19,11 @@
 #include <lib/utf.h>
 #include <drivers/vga_textmode.h>
 #include <mm/pmm.h>
-#if defined (UEFI)
+#if defined(UEFI)
 #  include <efi.h>
 #endif
 
-#if defined (BIOS)
+#if defined(BIOS)
 
 __attribute__((noinline, section(".realmode")))
 noreturn static void spinup(uint8_t drive, void *buf, uint16_t part_entry) {
@@ -361,7 +361,7 @@ load:
     spinup(p->drive, buf, part_entry);
 }
 
-#elif defined (UEFI)
+#elif defined(UEFI)
 
 static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle *image) {
     // The file path stored in EFI_LOADED_IMAGE_PROTOCOL::FilePath is
@@ -443,7 +443,7 @@ noreturn void chainload(char *config, char *cmdline) {
 
     struct file_handle *image;
     if ((image = uri_open(image_path, MEMMAP_RESERVED, false
-#if defined (__i386__)
+#if defined(__i386__)
         , NULL, NULL
 #endif
     )) == NULL)

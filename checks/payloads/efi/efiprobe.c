@@ -18,7 +18,7 @@ static EFI_BOOT_SERVICES *bs;
 static EFI_RUNTIME_SERVICES *rt;
 static EFI_HANDLE self;
 static EFI_LOADED_IMAGE_PROTOCOL *loaded;
-#if !defined (__x86_64__) && !defined (__i386__)
+#if !defined(__x86_64__) && !defined(__i386__)
 static EFI_SERIAL_IO_PROTOCOL *serial;
 #endif
 
@@ -40,7 +40,7 @@ static bool sprefix(const char *s, const char *p) {
 }
 
 static void putch(char c) {
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
     asm volatile ("outb %0, $0xe9" :: "a"(c));
 #else
     // ConOut's terminal can drop what runs past its last column, so the
@@ -1038,7 +1038,7 @@ static void cmd_dtb(char *arg) {
     out("K dtb=%x\n", (uint64_t)bs->InstallConfigurationTable(&g, blob));
 }
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
 static const uint8_t *acpi_table(const char *sig) {
     EFI_GUID acpi20 = { 0x8868e871, 0xe4f1, 0x11d3, { 0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81 } };
     const uint8_t *rsdp = NULL;
@@ -1271,15 +1271,15 @@ static void cmd_deadiommu(char *arg) {
 }
 #endif
 
-#if !defined (__x86_64__) && !defined (__i386__)
+#if !defined(__x86_64__) && !defined(__i386__)
 // SetVirtualAddressMap() replaced by code that returns EFI_UNSUPPORTED, in
 // runtime services memory so that it outlives boot services.
 static void cmd_svamfail(void) {
-#if defined (__aarch64__)
+#if defined(__aarch64__)
     static const uint32_t code[] = { 0xd2800060, 0xf2f00000, 0xd65f03c0 };
-#elif defined (__riscv)
+#elif defined(__riscv)
     static const uint32_t code[] = { 0xfff00513, 0x03f51513, 0x00350513, 0x00008067 };
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     static const uint32_t code[] = { 0x03200004, 0x03800c84, 0x4c000020 };
 #endif
     EFI_PHYSICAL_ADDRESS page = 0;
@@ -1292,11 +1292,11 @@ static void cmd_svamfail(void) {
     for (size_t i = 0; i < sizeof(code) / sizeof(code[0]); i++) {
         dst[i] = code[i];
     }
-#if defined (__aarch64__)
+#if defined(__aarch64__)
     asm volatile ("dc cvau, %0\n\tdsb ish\n\tic ivau, %0\n\tdsb ish\n\tisb" :: "r"(dst) : "memory");
-#elif defined (__riscv)
+#elif defined(__riscv)
     asm volatile ("fence.i" ::: "memory");
-#elif defined (__loongarch64)
+#elif defined(__loongarch64)
     asm volatile ("ibar 0" ::: "memory");
 #endif
     rt->SetVirtualAddressMap = (EFI_SET_VIRTUAL_ADDRESS_MAP)(uintptr_t)dst;
@@ -1461,7 +1461,7 @@ static void cmd_smbios3(char *arg) {
     out("K smbios3=%x\n", (uint64_t)bs->InstallConfigurationTable(&g, ep));
 }
 
-#if defined (__riscv)
+#if defined(__riscv)
 // Translation off, as some RISC-V firmware runs: the firmware's identity map
 // leaves every address the same without it.
 static void cmd_satpoff(void) {
@@ -1501,7 +1501,7 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
     self = image;
     EFI_GUID lig = EFI_LOADED_IMAGE_PROTOCOL_GUID;
     bs->HandleProtocol(image, &lig, (void **)&loaded);
-#if !defined (__x86_64__) && !defined (__i386__)
+#if !defined(__x86_64__) && !defined(__i386__)
     EFI_GUID sg = EFI_SERIAL_IO_PROTOCOL_GUID;
     if (bs->LocateProtocol(&sg, NULL, (void **)&serial) != EFI_SUCCESS) {
         serial = NULL;
@@ -1580,11 +1580,11 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_fakecc(tok + 7);
         } else if (sprefix(tok, "faketcg2:")) {
             cmd_faketcg2(tok + 9);
-#if defined (__riscv)
+#if defined(__riscv)
         } else if (sprefix(tok, "satpoff")) {
             cmd_satpoff();
 #endif
-#if defined (__x86_64__) || defined (__i386__)
+#if defined(__x86_64__) || defined(__i386__)
         } else if (sprefix(tok, "msr:")) {
             cmd_msr(tok + 4);
         } else if (sprefix(tok, "vtdon")) {
