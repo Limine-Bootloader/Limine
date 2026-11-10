@@ -11,7 +11,8 @@ from cases._common import boot_entry, check_report_clean, entry
 
 # BIOS Limine's TSC calibration, the C of common/sys/cpu.s2.c, built for the
 # build machine and run on the machine checks/sim/tsc.c simulates: a TSC, an
-# ACPI PM timer, PIT channel 2 and port 0x61.
+# ACPI PM timer, PIT channel 2 and port 0x61, with stalls put where QEMU cannot
+# put them, inside a port access once the device has answered.
 
 SIM = os.path.join(SRCDIR, 'checks', 'sim')
 
@@ -44,6 +45,40 @@ def simulate(t):
     return r
 
 
+def frequencies(r, prefix):
+    """(scenario, found, wanted) for each scenario named prefix or under it."""
+    out = []
+    for key, value in r.facts.items():
+        if (key == prefix or key.startswith(prefix + '.')) and not key.endswith('.port61'):
+            found, wanted = value.split()
+            out.append((key, int(found), int(wanted)))
+    return out
+
+
+def expect_close(t, r, prefix, tolerance):
+    runs = frequencies(r, prefix)
+    t.require(runs, f'no {prefix} scenario ran')
+    for key, found, wanted in runs:
+        t.check(abs(found - wanted) <= wanted * tolerance,
+                f'{key}: {found} Hz, {(found - wanted) / wanted:+.4%} off {wanted} Hz')
+
+
+@check(ports=['bios'], tags=['tsc'])
+def tsc_calibration_stalls(t):
+    """However the CPU stalls, inside the PM timer's reads or between them,
+    the TSC frequency comes out within 0.02%, whether the timer's 24-bit count
+    wraps or not. Against the PIT, with no PM timer, it comes out within
+    0.05%, a round whose gate opened or whose OUT went high in a stall being
+    run again, up to 10 rounds, and with every round stalled so, a frequency
+    is still found [intent]."""
+    r = simulate(t)
+    expect_close(t, r, 'pm', 0.0002)
+    for prefix in ('pit.clean', 'pit.stalls', 'pit.edges', 'pit.gates'):
+        expect_close(t, r, prefix, 0.0005)
+    (_, found, _), = frequencies(r, 'pit.all_edges')
+    t.check(found != 0, 'with every PIT round stalled: no frequency')
+
+
 @check(ports=['bios'], tags=['tsc'])
 def tsc_calibration_port61(t):
     """The PIT calibration writes port 0x61 with bits 7:4, read-only status,
@@ -57,6 +92,29 @@ def tsc_calibration_port61(t):
             writes, reserved, last = value.split()
             t.expect_eq(int(reserved), 0, f'{key}: writes of {writes} with bits 7:4 set')
             t.expect_eq(last, '0d', f'{key}: the value left')
+
+
+def boot_icount(t, machine_opts):
+    """The check executable booted where the TSC counts the nanoseconds of the
+    virtual clock that also drives the PM timer and the PIT: QEMU's icount,
+    here 16ns an instruction, which leaves a port access still quicker than
+    any real one."""
+    m, _ = boot_entry(t, 'timeout: 0\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='x'),
+                      machine_opts=machine_opts, extra=['-icount', 'shift=4,sleep=off'])
+    r = t.kernel_report(m)
+    check_report_clean(t, r)
+    return m, r
+
+
+@check(ports=['bios'], tags=['limine-protocol', 'tsc'])
+def tsc_frequency_exact(t):
+    """With the TSC at exactly 1GHz, the frequency given is 1GHz to 0.02%
+    against the PM timer and to 0.05% against the PIT, with no ACPI [intent]."""
+    for opts, tolerance in (([], 0.0002), (['acpi=off'], 0.0005)):
+        m, r = boot_icount(t, opts)
+        freq = r.int('tsc_frequency')
+        t.check(abs(freq - 10**9) <= 10**9 * tolerance, f'machine {opts}: {freq} Hz')
+        m.stop()
 
 
 # QEMU's trace of a write to a device's registers, of the PIT's and of port
