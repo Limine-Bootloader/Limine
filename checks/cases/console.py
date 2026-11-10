@@ -81,13 +81,14 @@ def console_quiet(t):
     t.expect_eq(booted_cmdline(t, m), 'first', 'the default entry booted when the timeout ran out')
     m.stop()
     # Pressed until it lands, as however long the firmware takes, one press
-    # comes within the timeout; Right does nothing in the menu itself.
+    # comes within the timeout; Left does nothing in the menu itself, where
+    # Right would boot the entry selected.
     m = boot_menu(t, tree_menu('timeout: 6\nquiet: yes\n'))
     deadline = time.monotonic() + 120 * t.port.timeout_scale
     while not limine_shown(t, m):
         t.require('B LIMINE-TEST' not in m.stream(t.kernel_channel).text() and time.monotonic() < deadline,
                   'a key pressed during the timeout stopped it')
-        m.press('right')
+        m.press('left')
         time.sleep(0.5)
     scr = t.wait_text(m, 'ARROWS')
     t.check('the first comment' in screen_text(scr), 'the menu shown, the default entry selected')
