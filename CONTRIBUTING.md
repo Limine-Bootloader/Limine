@@ -298,6 +298,10 @@ Some older code predates these rules: it has blockless constructs, unbraced
 and integer suffixes.
 New or modified code follows the rules regardless.
 
+The checks hold all code to the rules that no older code breaks: `defined(X)`,
+include guards, and no `enum`s. `checks/check-style` checks just these, without
+building anything.
+
 ### Final style remarks
 
 As with anything, there are always exceptions to these style rules, under

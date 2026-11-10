@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Check code for the style rules of CONTRIBUTING.md that no older code breaks.
+
+These are `defined(X)` with no space before its parenthesis, include guards
+shaped after their headers' paths, and no `enum`s. The files git tracks in the
+work tree DIR are checked as they are on disk. The exit status is 1 when a
+file breaks a rule.
+"""
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+
+# Where headers are included from but for their own directories, most
+# specific first.
+INCLUDE_ROOTS = ('checks/sim/stubs', 'common/libc-compat', 'common')
+
+C_FILE = re.compile(r'.*\.(c|h|h\.in)')
+HEADER = re.compile(r'.*\.(h|h\.in)')
+PREPROCESSED = re.compile(r'.*\.(c|h|h\.in|S|ld\.in|asm_(uefi_)?(aarch64|loongarch64|riscv64))')
+
+COMMENT_OR_LITERAL = re.compile(
+    r'//[^\n]*|/\*.*?(\*/|\Z)|"(\\.|[^"\\\n])*"?|\'(\\.|[^\'\\\n])*\'?', re.S)
+DEFINED_SPACE = re.compile(r'\bdefined\s+\(')
+ENUM = re.compile(r'\benum\b')
+PRAGMA_ONCE = re.compile(r'#\s*pragma\s+once\b')
+
+
+def blank(text):
+    """text with its comments and literals blanked out, its lines kept."""
+    return COMMENT_OR_LITERAL.sub(lambda m: re.sub(r'[^\n]', ' ', m.group()), text)
+
+
+def guard_name(path):
+    """The include guard of the header at path, shaped after how it is included."""
+    if path.endswith('.in'):
+        path = path[:-len('.in')]
+    root = next((r for r in INCLUDE_ROOTS if path.startswith(r + '/')), os.path.dirname(path))
+    return '__'.join(re.sub(r'[^A-Za-z0-9]', '_', part).upper()
+                     for part in os.path.relpath(path, root or '.').split('/'))
+
+
+def check_guard(path, text, code, errors):
+    name = guard_name(path)
+    lines = [(i, line.strip()) for i, line in enumerate(code.split('\n')) if line.strip() != '']
+    if any(PRAGMA_ONCE.match(line) for _, line in lines):
+        errors.append((path, 0, '`#pragma once`, where an include guard is used'))
+    opening = [line for _, line in lines[:2]]
+    if len(lines) < 3 or opening != [f'#ifndef {name}', f'#define {name}']:
+        errors.append((path, 0, f'the include guard is not `#ifndef {name}` and '
+                                f'`#define {name}`, first in the file'))
+        return
+    last, line = lines[-1]
+    if line != '#endif' or text.split('\n')[last].strip() != '#endif':
+        errors.append((path, last + 1, 'the include guard does not end with a bare `#endif`'))
+
+
+def check_file(path, text):
+    """The errors of one file, as (path, line, message), line 0 for none."""
+    errors = []
+    code = blank(text)
+    if PREPROCESSED.fullmatch(path):
+        for m in DEFINED_SPACE.finditer(code):
+            errors.append((path, code.count('\n', 0, m.start()) + 1,
+                           '`defined (`, where `defined(` has no space'))
+    if C_FILE.fullmatch(path):
+        for m in ENUM.finditer(code):
+            errors.append((path, code.count('\n', 0, m.start()) + 1,
+                           'an `enum`, where macros and integers are used'))
+    if HEADER.fullmatch(path):
+        check_guard(path, text, code, errors)
+    return errors
+
+
+def read_tree(root):
+    """The files git tracks in the work tree root that a rule covers, as they
+    are on disk."""
+    names = subprocess.run(['git', '-C', root, 'ls-files', '-z'], stdout=subprocess.PIPE,
+                           check=True).stdout.decode().split('\0')
+    files = {}
+    for name in names:
+        path = os.path.join(root, name)
+        if (PREPROCESSED.fullmatch(name) or HEADER.fullmatch(name)) and os.path.isfile(path):
+            with open(path, 'rb') as f:
+                files[name] = f.read().decode('utf-8', 'replace')
+    return files
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    parser.add_argument('dir', nargs='?', default='.', help='the work tree, by default .')
+    args = parser.parse_args()
+
+    try:
+        files = read_tree(args.dir)
+    except (OSError, subprocess.CalledProcessError) as e:
+        print(f'cannot read the files to check: {e}', file=sys.stderr)
+        return 2
+
+    errors = sorted(e for name in files for e in check_file(name, files[name]))
+    for path, line, msg in errors:
+        print(f'{path}:{line}: {msg}' if line != 0 else f'{path}: {msg}')
+
+    noun = 'file' if len(files) == 1 else 'files'
+    if errors:
+        print(f'\nFailed: {len(errors)} problems in {len({e[0] for e in errors})} of '
+              f'{len(files)} {noun}. See "Style" in CONTRIBUTING.md.')
+        return 1
+    print(f'Passed: {len(files)} {noun}.')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
