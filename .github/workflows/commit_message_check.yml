@@ -1,0 +1,30 @@
+name: Check the commit messages of the PR
+
+# pull_request_target runs the checker of the base branch, so that a PR cannot
+# loosen what judges it. The PR's commits are only read, never run.
+on: [ pull_request_target ]
+
+permissions:
+  contents: read
+
+jobs:
+  commit_message_check:
+    name: Check the commit messages of the PR
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.user.login != 'dependabot[bot]' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the commits of the PR
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/$PR_NUMBER/head:refs/remotes/pull/head"
+
+      - name: Check the commit messages against CONTRIBUTING.md
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: python3 .github/scripts/check_commit_messages.py --range "origin/$BASE_REF..pull/head"

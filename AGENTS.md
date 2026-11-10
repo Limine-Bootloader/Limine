@@ -54,7 +54,9 @@ Breaking any of these gets a contribution rejected.
    recurring failure is composing a message from a half-remembered version of
    the rules, or from habit, rather than from the rules. Rewrite a message
    your tool writes by itself, such as with a "Generate commit message"
-   button, to these rules before committing it.
+   button, to these rules before committing it. Then check it with
+   `python3 .github/scripts/check_commit_messages.py --message-file FILE`,
+   or a branch with `--range trunk..HEAD`, as CI does for a pull request.
 
 ## Including CONTRIBUTING.md
 
