@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import traceback
 
@@ -20,6 +21,12 @@ EFI_NAMES = ['BOOTX64.EFI', 'BOOTIA32.EFI', 'BOOTAA64.EFI', 'BOOTRISCV64.EFI', '
 # Seconds between a screenshot that shows what is waited for and the one that
 # confirms it.
 SETTLE_INTERVAL = 0.1
+
+
+def settled(first, second):
+    """Whether two screens read the same but for their digits, which a
+    countdown changes as it runs."""
+    return re.sub(r'[0-9]', '#', first.text()) == re.sub(r'[0-9]', '#', second.text())
 
 
 class CheckFailure(AssertionError):
@@ -315,7 +322,7 @@ class Context:
                 # drawn, so the screen counts once the next reads the same.
                 time.sleep(SETTLE_INTERVAL)
                 again = poll()
-                if again is not None and again.text() == last.text():
+                if again is not None and settled(last, again):
                     return again
             if m.exited():
                 raise CheckTimeout(f'QEMU exited while waiting for {desc}')
