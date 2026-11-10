@@ -49,7 +49,8 @@ bool smp_configure_apic = false;
 static bool smp_start_ap(uint32_t lapic_id, struct gdtr *gdtr,
                          struct limine_mp_info *info_struct,
                          int paging_mode, uint32_t pagemap,
-                         bool x2apic, bool nx, uint64_t hhdm, bool wp) {
+                         bool x2apic, bool nx, uint64_t hhdm, bool wp,
+                         bool ext_apic_id) {
     // Prepare the trampoline
     static void *trampoline = NULL;
     if (trampoline == NULL) {
@@ -74,7 +75,8 @@ static bool smp_start_ap(uint32_t lapic_id, struct gdtr *gdtr,
     passed_info->smp_tpl_pagemap     = pagemap;
     passed_info->smp_tpl_target_mode = ((uint32_t)(paging_mode == PAGING_MODE_X86_64_5LVL) << 1)
                                      | ((uint32_t)nx << 3)
-                                     | ((uint32_t)wp << 4);
+                                     | ((uint32_t)wp << 4)
+                                     | ((uint32_t)ext_apic_id << 5);
     passed_info->smp_tpl_gdt = *gdtr;
     passed_info->smp_tpl_hhdm = hhdm;
     passed_info->smp_tpl_bsp_apic_addr_msr = rdmsr(0x1b);
@@ -215,6 +217,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
 
     // Count the MAX of startable APs and allocate accordingly
     size_t max_cpus = 0;
+    uint32_t max_apic_id = 0;
 
     for (uint8_t *madt_ptr = (uint8_t *)madt->madt_entries_begin;
       (uintptr_t)madt_ptr + 1 < (uintptr_t)madt + madt->header.length;
@@ -231,6 +234,10 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                     continue;
 
                 struct madt_lapic *lapic = (void *)madt_ptr;
+
+                if (lapic->lapic_id != 0xff && lapic->lapic_id > max_apic_id) {
+                    max_apic_id = lapic->lapic_id;
+                }
 
                 // Check if we can actually try to start the AP
                 if (lapic->flags & MADT_LAPIC_ENABLED)
@@ -249,6 +256,10 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                     continue;
                 }
 
+                if (x2lapic->x2apic_id > max_apic_id) {
+                    max_apic_id = x2lapic->x2apic_id;
+                }
+
                 // Check if we can actually try to start the AP
                 if (x2lapic->flags & MADT_LAPIC_ENABLED)
                     max_cpus++;
@@ -264,6 +275,12 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
 
     struct limine_mp_info *ret = ext_mem_alloc_counted(max_cpus, sizeof(struct limine_mp_info));
     *cpu_count = 0;
+
+    // Without 8-bit IDs, AMD local APICs match the low 4 bits of a physical
+    // destination and take 0xf there for a broadcast. AMD PPR 56569 rev.
+    // 3.03, APICx410. APs set theirs with paging off, so below 4GiB.
+    bool ext_apic_id = !x2apic && max_apic_id >= 0xf && (rdmsr(0x1b) >> 32) == 0
+                    && lapic_enable_ext_apic_id();
 
     // Try to start all APs
     mtrr_save();
@@ -320,7 +337,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                 // Try to start the AP
                 if (!smp_start_ap(lapic->lapic_id, &gdtr, info_struct,
                                   paging_mode, (uintptr_t)pagemap.top_level,
-                                  x2apic, nx, hhdm, wp)) {
+                                  x2apic, nx, hhdm, wp, ext_apic_id)) {
                     print("smp: FAILED to bring-up AP\n");
                     continue;
                 }
@@ -378,7 +395,7 @@ struct limine_mp_info *init_smp(size_t   *cpu_count,
                 // Try to start the AP
                 if (!smp_start_ap(x2lapic->x2apic_id, &gdtr, info_struct,
                                   paging_mode, (uintptr_t)pagemap.top_level,
-                                  x2apic, nx, hhdm, wp)) {
+                                  x2apic, nx, hhdm, wp, ext_apic_id)) {
                     print("smp: FAILED to bring-up AP\n");
                     continue;
                 }
