@@ -110,3 +110,40 @@ def x2apic_opt_out(t):
         t.expect_eq(r.int('mp.flags', 16), int(mode == 'x2apic'), f'DMAR flags {flags}: x2APIC flag in the response')
         t.expect_eq(r.int('mp.aps_started'), 1, f'DMAR flags {flags}: the AP started')
         m.stop()
+
+
+def lapic_fields(value):
+    """A reported local APIC state's fields, by name."""
+    words = value.split()
+    return dict(zip(words[::2], words[1::2]))
+
+
+def ap_lapics(r):
+    return {k: v for k, v in r.facts.items() if re.fullmatch(r'x86\.ap\.\d+\.lapic', k)}
+
+
+@check(ports=['bios', 'uefi-ia32', 'uefi-x86-64'], tags=['limine-protocol', 'smp'])
+def amd_apic_ids_past_15(t):
+    """On an AMD processor whose APIC IDs run past 0xf, in xAPIC mode, every
+    AP is started [intent], each CPU entered with 8-bit APIC IDs enabled
+    where its local APIC has the extended space to enable them in, so that
+    none takes the INIT and SIPIs meant for another (AMD PPR 56569 rev. 3.03,
+    APICx410) [spec]. QEMU's local APICs have no extended space, and an
+    access to it would be logged as an illegal register (Intel SDM 325462-093
+    Vol. 3A, 13.5.3) [spec]."""
+    m, _ = boot_entry(t, 'timeout: 0\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='x'),
+                      smp='17,sockets=1,cores=17,threads=1', cpu='EPYC', machine='q35')
+    r = t.kernel_report(m, timeout=120)
+    check_report_clean(t, r)
+    t.expect_eq(r['x86.apic_mode'], 'xapic', 'xAPIC mode')
+    t.expect_eq((r.int('mp.cpu_count'), r.int('mp.aps_started')), (17, 16), 'every CPU up')
+    ids = sorted(int(cpu.split()[1], 16) for cpu in r.indexed('mp.cpu'))
+    t.expect_eq(ids, list(range(17)), 'APIC IDs 0 to 0x10')
+    lapics = {'BSP': r['x86.lapic'], **ap_lapics(r)}
+    t.expect_eq(len(lapics), 17, 'local APIC states reported')
+    for who, value in lapics.items():
+        fields = lapic_fields(value)
+        t.check(int(fields['esr'], 16) & 0x80 == 0, f'{who}: an illegal register access ({fields["esr"]})')
+        if fields['ext'] != 'ffffffff':
+            t.check(int(fields['ext'], 16) & 4 != 0, f'{who}: 8-bit APIC IDs not enabled ({fields["ext"]})')
+

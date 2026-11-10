@@ -23,6 +23,10 @@ static inline uint64_t rdmsr(uint32_t msr) {
     return ((uint64_t)hi << 32) | lo;
 }
 
+static inline void wrmsr(uint32_t msr, uint64_t value) {
+    asm volatile ("wrmsr" :: "a"((uint32_t)value), "d"((uint32_t)(value >> 32)), "c"(msr));
+}
+
 static inline void cpuid(uint32_t leaf, uint32_t sub, uint32_t r[4]) {
     asm volatile ("cpuid" : "=a"(r[0]), "=b"(r[1]), "=c"(r[2]), "=d"(r[3]) : "a"(leaf), "c"(sub));
 }
@@ -373,8 +377,15 @@ void arch_check_entry(int base_rev, uint64_t entry_point) {
     check_gdt(base_rev);
 }
 
+// SVR, TPR, the LVT entries of lvt_regs but CMCI, the error status, and AMD's
+// extended APIC control, or UINT32_MAX where there is none.
+#define SNAPSHOT_ESR 8
+#define SNAPSHOT_EXT 9
+#define SNAPSHOT_SIZE 10
+
 // What an AP saw of its local APIC, read by the AP itself.
-static volatile uint32_t ap_lapic[MAX_APS][8];
+static volatile uint32_t ap_lapic[MAX_APS][SNAPSHOT_SIZE];
+static volatile bool ap_lapic_taken[MAX_APS];
 
 static bool x2apic_mode(void) {
     return (rdmsr(0x1b) >> 10) & 1;
@@ -389,6 +400,14 @@ static uint32_t lapic_read(uint32_t reg) {
     return xapic[reg / 4];
 }
 
+static void lapic_write(uint32_t reg, uint32_t value) {
+    if (x2apic_mode()) {
+        wrmsr(0x800 + reg / 16, value);
+    } else {
+        xapic[reg / 4] = value;
+    }
+}
+
 static const uint32_t lvt_regs[] = { 0x320, 0x330, 0x340, 0x350, 0x360, 0x370, 0x2f0 };
 static const char *lvt_names[] = { "timer", "thermal", "perf", "lint0", "lint1", "error", "cmci" };
 
@@ -399,6 +418,16 @@ static void lapic_snapshot(volatile uint32_t *out) {
         out[2 + i] = lapic_read(lvt_regs[i]);
     }
     out[7] = lapic_read(lvt_regs[5]);
+    // A write latches the errors since the last one, an access to a register
+    // the APIC lacks among them. Intel SDM 325462-093 Vol. 3A, 13.5.3.
+    lapic_write(0x280, 0);
+    out[SNAPSHOT_ESR] = lapic_read(0x280);
+    // The extended space exists where the version register says so, in xAPIC
+    // mode. AMD APM 40332 rev. 4.11, 16.3.4.
+    out[SNAPSHOT_EXT] = UINT32_MAX;
+    if (!x2apic_mode() && (lapic_read(0x30) & ((uint32_t)1 << 31)) != 0) {
+        out[SNAPSHOT_EXT] = lapic_read(0x410);
+    }
 }
 
 void arch_prepare_aps(void) {
@@ -410,7 +439,7 @@ void arch_prepare_aps(void) {
 void arch_ap_hook(unsigned slot) {
     if (slot < MAX_APS && (x2apic_mode() || xapic != NULL)) {
         lapic_snapshot(ap_lapic[slot]);
-        ap_lapic[slot][7] = 1;
+        ap_lapic_taken[slot] = true;
     }
 }
 
@@ -425,9 +454,10 @@ void arch_check_ap(int base_rev, unsigned slot, struct limine_mp_info *info) {
           st[ST_CR3], bsp_state[ST_CR3]);
     check(memcmp(&st[ST_GDTR], &bsp_state[ST_GDTR], 10) == 0, "x86.ap.gdtr", "AP %u GDTR differs", slot);
     volatile uint32_t *l = ap_lapic[slot];
-    if (l[7] == 1) {
-        kprintf("K x86.ap.%u.lapic=svr %x tpr %x timer %x thermal %x perf %x lint0 %x\n", slot,
-                l[0], l[1], l[2], l[3], l[4], l[5]);
+    if (ap_lapic_taken[slot]) {
+        kprintf("K x86.ap.%u.lapic=svr %x tpr %x timer %x thermal %x perf %x lint0 %x esr %x "
+                "ext %x\n", slot, l[0], l[1], l[2], l[3], l[4], l[5], l[SNAPSHOT_ESR],
+                l[SNAPSHOT_EXT]);
         if (base_rev >= 5) {
             check(l[0] == 0x1ff && l[1] == 0, "x86.ap.lapic_svr_tpr", "AP %u SVR %x TPR %x", slot, l[0], l[1]);
             bool masked = true;
@@ -537,10 +567,11 @@ static void check_lapic(int base_rev) {
             return;
         }
     }
-    uint32_t snap[8];
+    uint32_t snap[SNAPSHOT_SIZE];
     lapic_snapshot(snap);
-    fact("x86.lapic", "svr %x tpr %x timer %x thermal %x perf %x lint0 %x lint1 %x error %x",
-         snap[0], snap[1], snap[2], snap[3], snap[4], snap[5], snap[6], snap[7]);
+    fact("x86.lapic", "svr %x tpr %x timer %x thermal %x perf %x lint0 %x lint1 %x error %x "
+         "esr %x ext %x", snap[0], snap[1], snap[2], snap[3], snap[4], snap[5], snap[6], snap[7],
+         snap[SNAPSHOT_ESR], snap[SNAPSHOT_EXT]);
     if (base_rev < 5) {
         return;
     }

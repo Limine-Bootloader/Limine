@@ -18,6 +18,7 @@ void lapic_eoi(void);
 uint32_t lapic_read(uint32_t reg);
 void lapic_write(uint32_t reg, uint32_t data);
 void lapic_icr_wait(void);
+bool lapic_enable_ext_apic_id(void);
 
 bool x2apic_check(void);
 bool x2apic_enable(void);

@@ -74,6 +74,13 @@ smp_trampoline_start:
     wrmsr
     mov esp, [ebx + (passed_info.temp_stack - smp_trampoline_start)]
 
+    ; 8-bit APIC IDs before the next AP's INIT and SIPIs.
+    test dword [ebx + (passed_info.target_mode - smp_trampoline_start)], (1 << 5)
+    jz .no_ext_apic_id
+    and eax, 0xfffff000
+    or dword [eax + 0x410], (1 << 2)
+  .no_ext_apic_id:
+
     mov eax, cr4
     bts eax, 5
     mov cr4, eax
