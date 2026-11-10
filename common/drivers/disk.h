@@ -14,11 +14,9 @@ struct volume *disk_volume_from_efi_handle(EFI_HANDLE efi_handle);
 
 #endif
 
-enum {
-    DISK_SUCCESS,
-    DISK_NO_MEDIA,
-    DISK_FAILURE
-};
+#define DISK_SUCCESS 0
+#define DISK_NO_MEDIA 1
+#define DISK_FAILURE 2
 
 #if defined(BIOS)
 // `boot_drive` is the drive stage 1 booted from, or 0 where it booted from no

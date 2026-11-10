@@ -437,12 +437,10 @@ struct trampoline_passed_info {
     uint64_t smp_tpl_info_struct;
 };
 
-enum {
-    BOOT_WITH_SPIN_TBL,
-    BOOT_WITH_PSCI_SMC,
-    BOOT_WITH_PSCI_HVC,
-    BOOT_WITH_ACPI_PARK
-};
+#define BOOT_WITH_SPIN_TBL 0
+#define BOOT_WITH_PSCI_SMC 1
+#define BOOT_WITH_PSCI_HVC 2
+#define BOOT_WITH_ACPI_PARK 3
 
 // PROTOCOL.md promises both mpidr fields as the affinity bits alone, which is
 // also the form ACPI table 5.36 gives the MADT's own field.
@@ -1048,11 +1046,9 @@ struct limine_mp_info *init_smp(size_t *cpu_count, pagemap_t pagemap, uint64_t h
 
 #elif defined(__loongarch64)
 
-enum {
-    LOONGARCH_CSR_CPUID = 0x20,
+#define LOONGARCH_CSR_CPUID ((uint16_t)0x20)
 
-    MADT_ENTRY_CORE_PIC = 17
-};
+#define MADT_ENTRY_CORE_PIC 17
 
 struct trampoline_passed_info {
     uint64_t smp_tpl_booted_flag;

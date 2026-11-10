@@ -37,12 +37,10 @@
 #include <protos/limine.h>
 #include <limine.h>
 
-enum executable_format {
-    EXECUTABLE_FORMAT_ELF,
-    EXECUTABLE_FORMAT_PE,
-};
+#define EXECUTABLE_FORMAT_ELF 0
+#define EXECUTABLE_FORMAT_PE 1
 
-static enum executable_format detect_kernel_format(uint8_t *kernel, size_t kernel_size) {
+static int detect_kernel_format(uint8_t *kernel, size_t kernel_size) {
     if (elf_bits(kernel, kernel_size) != -1) {
         return EXECUTABLE_FORMAT_ELF;
     } else if (pe_bits(kernel, kernel_size) != -1) {
@@ -677,7 +675,7 @@ noreturn void limine_load(char *config, char *cmdline) {
     uint64_t image_size_before_bss;
     bool is_reloc;
 
-    enum executable_format kernel_format = detect_kernel_format(kernel, kernel_file->size);
+    int kernel_format = detect_kernel_format(kernel, kernel_file->size);
     switch (kernel_format) {
         case EXECUTABLE_FORMAT_ELF:
             if (!elf64_load(kernel, kernel_file->size, &entry_point, &slide,

@@ -20,9 +20,10 @@ static uint64_t page_sizes[5] = {
     0x1000000000000,
 };
 
-static pt_entry_t *get_next_level(pagemap_t pagemap, pt_entry_t *current_level,
-                                  uint64_t virt, enum page_size desired_sz,
-                                  size_t level_idx, size_t entry);
+static pt_entry_t *get_next_level(
+    pagemap_t pagemap, pt_entry_t *current_level, uint64_t virt, size_t desired_sz,
+    size_t level_idx, size_t entry
+);
 
 #if defined(__x86_64__) || defined(__i386__)
 // Being naturally aligned, only a large page based at 0 can span the fixed
@@ -43,17 +44,17 @@ void map_pages(pagemap_t pagemap, uint64_t virt, uint64_t phys, uint64_t flags, 
     for (uint64_t i = 0; i < count; ) {
         if (LARGE_PAGE_PHYS_OK(phys + i)
          && ((phys + i) & (0x40000000 - 1)) == 0 && ((virt + i) & (0x40000000 - 1)) == 0 && count - i >= 0x40000000) {
-            map_page(pagemap, virt + i, phys + i, flags, Size1GiB);
+            map_page(pagemap, virt + i, phys + i, flags, VMM_PAGE_SIZE_1GIB);
             i += 0x40000000;
             continue;
         }
         if (LARGE_PAGE_PHYS_OK(phys + i)
          && ((phys + i) & (0x200000 - 1)) == 0 && ((virt + i) & (0x200000 - 1)) == 0 && count - i >= 0x200000) {
-            map_page(pagemap, virt + i, phys + i, flags, Size2MiB);
+            map_page(pagemap, virt + i, phys + i, flags, VMM_PAGE_SIZE_2MIB);
             i += 0x200000;
             continue;
         }
-        map_page(pagemap, virt + i, phys + i, flags, Size4KiB);
+        map_page(pagemap, virt + i, phys + i, flags, VMM_PAGE_SIZE_4KIB);
         i += 0x1000;
     }
 }
@@ -100,7 +101,9 @@ static bool is_1gib_page_supported(void) {
     return CACHE;
 }
 
-void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size pg_size) {
+void map_page(
+    pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, size_t pg_size
+) {
     // Calculate the indices in the various tables using the virtual address
     size_t pml5_entry = (virt_addr & ((uint64_t)0x1ff << 48)) >> 48;
     size_t pml4_entry = (virt_addr & ((uint64_t)0x1ff << 39)) >> 39;
@@ -141,7 +144,7 @@ level5:
 level4:
     pml3 = get_next_level(pagemap, pml4, virt_addr, pg_size, 3, pml4_entry);
 
-    if (pg_size == Size1GiB) {
+    if (pg_size == VMM_PAGE_SIZE_1GIB) {
         // Check if 1GiB pages are available.
         if (is_1gib_page_supported()) {
             pml3[pml3_entry] = (pt_entry_t)(phys_addr | flags | PT_FLAG_LARGE);
@@ -149,7 +152,7 @@ level4:
             // If 1GiB pages are not supported then emulate it by splitting them into
             // 2MiB pages.
             for (uint64_t i = 0; i < 0x40000000; i += 0x200000) {
-                map_page(pagemap, virt_addr + i, phys_addr + i, flags, Size2MiB);
+                map_page(pagemap, virt_addr + i, phys_addr + i, flags, VMM_PAGE_SIZE_2MIB);
             }
         }
 
@@ -158,7 +161,7 @@ level4:
 
     pml2 = get_next_level(pagemap, pml3, virt_addr, pg_size, 2, pml3_entry);
 
-    if (pg_size == Size2MiB) {
+    if (pg_size == VMM_PAGE_SIZE_2MIB) {
         pml2[pml2_entry] = (pt_entry_t)(phys_addr | flags | PT_FLAG_LARGE);
         return;
     }
@@ -282,7 +285,9 @@ pagemap_t new_pagemap(int paging_mode) {
     return pagemap;
 }
 
-void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size pg_size) {
+void map_page(
+    pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, size_t pg_size
+) {
     // Calculate the indices in the various tables using the virtual address
     size_t pml5_entry = (virt_addr & ((uint64_t)0xf << 48)) >> 48;
     size_t pml4_entry = (virt_addr & ((uint64_t)0x1ff << 39)) >> 39;
@@ -326,14 +331,14 @@ level5:
 level4:
     pml3 = get_next_level(pagemap, pml4, virt_addr, pg_size, 3, pml4_entry);
 
-    if (pg_size == Size1GiB) {
+    if (pg_size == VMM_PAGE_SIZE_1GIB) {
         pml3[pml3_entry] = pte_new(phys_addr, real_flags | PT_FLAG_BLOCK);
         return;
     }
 
     pml2 = get_next_level(pagemap, pml3, virt_addr, pg_size, 2, pml3_entry);
 
-    if (pg_size == Size2MiB) {
+    if (pg_size == VMM_PAGE_SIZE_2MIB) {
         pml2[pml2_entry] = pte_new(phys_addr, real_flags | PT_FLAG_BLOCK);
         return;
     }
@@ -501,7 +506,9 @@ pagemap_t new_pagemap(int paging_mode) {
     return pagemap;
 }
 
-void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size page_size) {
+void map_page(
+    pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, size_t page_size
+) {
     // Truncate the requested page size to the maximum supported.
     if (page_size > pagemap.max_page_size)
         page_size = pagemap.max_page_size;
@@ -517,7 +524,7 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
         ptflags |= pbmt_nc;
 
     // Start at the highest level.
-    // The values of `enum page_size` map to the level index at which that size is mapped.
+    // Each VMM_PAGE_SIZE_* value is the index of the level that maps that size.
     int level = pagemap.max_page_size;
     pt_entry_t *table = pagemap.top_level;
     for (;;) {
@@ -608,9 +615,9 @@ pagemap_t new_pagemap(int paging_mode) {
 // The page walk fills a huge entry into the TLB as two half-size pages, so a
 // 2MiB entry needs 1MiB TLB pages and a 1GiB entry 512MiB ones. Bit n of
 // PSAVL is set when 2^n byte TLB pages are supported.
-static enum page_size largest_page_size(void) {
+static size_t largest_page_size(void) {
     static bool probed = false;
-    static enum page_size largest = Size4KiB;
+    static size_t largest = VMM_PAGE_SIZE_4KIB;
 
     if (!probed) {
         uint64_t psavl = csr_read64(LOONGARCH_CSR_PRCFG2);
@@ -618,10 +625,10 @@ static enum page_size largest_page_size(void) {
         if ((read_cpucfg(1) & LOONGARCH_CPUCFG1_HP)
          && (read_cpucfg(3) & LOONGARCH_CPUCFG3_SPW_HP_HF)
          && (psavl & ((uint64_t)1 << 20))) {
-            largest = Size2MiB;
+            largest = VMM_PAGE_SIZE_2MIB;
 
             if (psavl & ((uint64_t)1 << 29)) {
-                largest = Size1GiB;
+                largest = VMM_PAGE_SIZE_1GIB;
             }
         }
 
@@ -631,9 +638,11 @@ static enum page_size largest_page_size(void) {
     return largest;
 }
 
-void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, enum page_size pg_size) {
+void map_page(
+    pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, size_t pg_size
+) {
     if (pg_size > largest_page_size()) {
-        enum page_size smaller = pg_size - 1;
+        size_t smaller = pg_size - 1;
 
         for (uint64_t i = 0; i < page_sizes[pg_size]; i += page_sizes[smaller]) {
             map_page(pagemap, virt_addr + i, phys_addr + i, flags, smaller);
@@ -666,14 +675,14 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 
     pml3 = get_next_level(pagemap, pml4, virt_addr, pg_size, 3, pml4_entry);
 
-    if (pg_size == Size1GiB) {
+    if (pg_size == VMM_PAGE_SIZE_1GIB) {
         pml3[pml3_entry] = pte_new(phys_addr, real_flags | PT_FLAG_HUGE);
         return;
     }
 
     pml2 = get_next_level(pagemap, pml3, virt_addr, pg_size, 2, pml3_entry);
 
-    if (pg_size == Size2MiB) {
+    if (pg_size == VMM_PAGE_SIZE_2MIB) {
         pml2[pml2_entry] = pte_new(phys_addr, real_flags | PT_FLAG_HUGE);
         return;
     }
@@ -687,9 +696,10 @@ void map_page(pagemap_t pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_
 #error Unknown architecture
 #endif
 
-static pt_entry_t *get_next_level(pagemap_t pagemap, pt_entry_t *current_level,
-                                  uint64_t virt, enum page_size desired_sz,
-                                  size_t level_idx, size_t entry) {
+static pt_entry_t *get_next_level(
+    pagemap_t pagemap, pt_entry_t *current_level, uint64_t virt, size_t desired_sz,
+    size_t level_idx, size_t entry
+) {
     pt_entry_t *ret;
 
     if (PT_IS_TABLE(current_level[entry])) {

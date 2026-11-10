@@ -56,13 +56,11 @@ struct iso9660_directory_entry {
 
 // --- Volume descriptors ---
 // VDT = Volume Descriptor Type
-enum {
-    ISO9660_VDT_BOOT_RECORD,
-    ISO9660_VDT_PRIMARY,
-    ISO9660_VDT_SUPPLEMENTARY,
-    ISO9660_VDT_PARTITION_DESCRIPTOR,
-    ISO9660_VDT_TERMINATOR = 255
-};
+#define ISO9660_VDT_BOOT_RECORD 0
+#define ISO9660_VDT_PRIMARY 1
+#define ISO9660_VDT_SUPPLEMENTARY 2
+#define ISO9660_VDT_PARTITION_DESCRIPTOR 3
+#define ISO9660_VDT_TERMINATOR 255
 
 struct iso9660_volume_descriptor {
     uint8_t type;
