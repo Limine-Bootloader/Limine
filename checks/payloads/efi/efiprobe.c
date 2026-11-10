@@ -1360,6 +1360,53 @@ static void cmd_ebsfail(char *arg) {
     out("K ebsfail=0\n");
 }
 
+// An OS loader's own memory type, UEFI 2.11 section 7.2.1, which no firmware
+// allocation shares.
+#define MEMATTR_TYPE 0x80000000
+#define MEMATTR_PAGES 64
+
+static EFI_GET_MEMORY_MAP real_get_memory_map;
+static uint64_t memattr_attribute;
+
+static EFI_STATUS EFI_API memattr_get_memory_map(
+    EFI_UINTN *size, EFI_MEMORY_DESCRIPTOR *map, EFI_UINTN *key, EFI_UINTN *desc_size,
+    EFI_UINT32 *desc_version
+) {
+    EFI_STATUS s = real_get_memory_map(size, map, key, desc_size, desc_version);
+    if (s != EFI_SUCCESS) {
+        return s;
+    }
+    for (EFI_UINTN off = 0; off + *desc_size <= *size; off += *desc_size) {
+        EFI_MEMORY_DESCRIPTOR *d = (EFI_MEMORY_DESCRIPTOR *)((uint8_t *)map + off);
+        if (d->Type == MEMATTR_TYPE) {
+            d->Type = EfiConventionalMemory;
+            d->Attribute = memattr_attribute;
+        }
+    }
+    return s;
+}
+
+// Pages the probe holds that GetMemoryMap() reports as conventional memory
+// with these attributes (hex): memattr:ATTRIBUTES.
+static void cmd_memattr(char *arg) {
+    memattr_attribute = parse_hex(arg, NULL);
+    EFI_PHYSICAL_ADDRESS base = 0xffffffff;
+    EFI_STATUS s = bs->AllocatePages(
+        EfiAllocateMaxAddress, (EFI_MEMORY_TYPE)MEMATTR_TYPE, MEMATTR_PAGES, &base
+    );
+    if (s != EFI_SUCCESS) {
+        out("K memattr=%x\n", (uint64_t)s);
+        return;
+    }
+    real_get_memory_map = bs->GetMemoryMap;
+    bs->GetMemoryMap = memattr_get_memory_map;
+    bs->Hdr.CRC32 = 0;
+    EFI_UINT32 crc = 0;
+    bs->CalculateCrc32(bs, bs->Hdr.HeaderSize, &crc);
+    bs->Hdr.CRC32 = crc;
+    out("K memattr=%x %x\n", (uint64_t)base, (uint64_t)MEMATTR_PAGES * 4096);
+}
+
 // A Linux random seed table of n (hex) bytes, as an earlier stage would
 // leave one.
 static void cmd_seedtable(char *arg) {
@@ -1521,6 +1568,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_dtb(tok + 4);
         } else if (sprefix(tok, "seedtable:")) {
             cmd_seedtable(tok + 10);
+        } else if (sprefix(tok, "memattr:")) {
+            cmd_memattr(tok + 8);
         } else if (sprefix(tok, "smbios3:")) {
             cmd_smbios3(tok + 8);
         } else if (sprefix(tok, "wdfail")) {
