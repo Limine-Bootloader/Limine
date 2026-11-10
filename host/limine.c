@@ -223,10 +223,10 @@ static bool bigendian = false;
     sizeof(VALUE) == 8 ? endswap64(VALUE) : (abort(), 1) \
 ) : (VALUE))
 
-static enum {
-    CACHE_CLEAN,
-    CACHE_DIRTY
-} cache_state;
+#define CACHE_CLEAN 0
+#define CACHE_DIRTY 1
+
+static int cache_state;
 static uint64_t cached_block;
 static uint8_t *cache  = NULL;
 static FILE    *device = NULL;

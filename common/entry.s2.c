@@ -76,11 +76,9 @@ static bool stage3_init(struct volume *part) {
     return true;
 }
 
-enum {
-    BOOTED_FROM_HDD = 0,
-    BOOTED_FROM_PXE = 1,
-    BOOTED_FROM_CD = 2
-};
+#define BOOTED_FROM_HDD 0
+#define BOOTED_FROM_PXE 1
+#define BOOTED_FROM_CD 2
 
 noreturn void entry(uint8_t boot_drive, int boot_from) {
     // XXX DO NOT MOVE A20 ENABLE CALL

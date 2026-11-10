@@ -19,13 +19,11 @@ char *config_entry_editor(const char *title, const char *orig_entry);
 
 extern bool booting_from_editor;
 
-enum keyboard_layout {
-    KEYBOARD_LAYOUT_UNKNOWN = -1,
-    KEYBOARD_LAYOUT_QWERTY,
-    KEYBOARD_LAYOUT_DVORAK,
-    KEYBOARD_LAYOUT_AZERTY,
-};
+#define KEYBOARD_LAYOUT_UNKNOWN (-1)
+#define KEYBOARD_LAYOUT_QWERTY 0
+#define KEYBOARD_LAYOUT_DVORAK 1
+#define KEYBOARD_LAYOUT_AZERTY 2
 
-extern enum keyboard_layout current_keyboard_layout;
+extern int current_keyboard_layout;
 
 #endif

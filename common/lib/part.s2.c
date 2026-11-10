@@ -11,10 +11,8 @@
 #include <mm/pmm.h>
 #include <fs/file.h>
 
-enum {
-    CACHE_NOT_READY = 0,
-    CACHE_READY
-};
+#define CACHE_NOT_READY 0
+#define CACHE_READY 1
 
 static bool cache_block(struct volume *volume, uint64_t block) {
     if (volume->cache_status == CACHE_READY && block == volume->cached_block)

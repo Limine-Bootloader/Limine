@@ -5,7 +5,7 @@
 #include <lib/misc.h>
 #include <lib/libc.h>
 
-bool hash_type_from_hex_length(enum hash_type *type, size_t *digest_size, size_t hex_len) {
+bool hash_type_from_hex_length(int *type, size_t *digest_size, size_t hex_len) {
     switch (hex_len) {
         case HASH_BLAKE3_HEX_CHARS:
             if (type != NULL) {
@@ -81,7 +81,7 @@ bool hash_reference_from_enrolled(struct hash_reference *ref, const char *hex) {
     return hash_reference_from_hex(ref, hex, HASH_BLAKE2B_HEX_CHARS);
 }
 
-const char *hash_type_name(enum hash_type type) {
+const char *hash_type_name(int type) {
     switch (type) {
         case HASH_BLAKE2B:
             return "BLAKE2b";
@@ -93,7 +93,7 @@ const char *hash_type_name(enum hash_type type) {
     }
 }
 
-void hash_buffer(enum hash_type type, void *out, size_t out_len, const void *in, size_t in_len) {
+void hash_buffer(int type, void *out, size_t out_len, const void *in, size_t in_len) {
     switch (type) {
         case HASH_BLAKE2B:
             blake2b(out, in, in_len);
@@ -107,7 +107,7 @@ void hash_buffer(enum hash_type type, void *out, size_t out_len, const void *in,
     }
 }
 
-struct file_handle *hash_open(enum hash_type type, struct file_handle *source) {
+struct file_handle *hash_open(int type, struct file_handle *source) {
     switch (type) {
         case HASH_BLAKE2B:
             return blake2b_open(source);

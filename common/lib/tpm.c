@@ -485,13 +485,11 @@ static bool tcg2_get_event_log(uint32_t *format, EFI_PHYSICAL_ADDRESS *location,
     return false;
 }
 
-enum event_log_state {
-    EVENT_LOG_UNCAPTURED,
-    EVENT_LOG_CAPTURED,
-    EVENT_LOG_UNAVAILABLE,
-};
+#define EVENT_LOG_UNCAPTURED 0
+#define EVENT_LOG_CAPTURED 1
+#define EVENT_LOG_UNAVAILABLE 2
 
-static enum event_log_state event_log_state = EVENT_LOG_UNCAPTURED;
+static int event_log_state = EVENT_LOG_UNCAPTURED;
 static uint32_t event_log_format;
 static void *event_log_copy;
 static size_t event_log_size;

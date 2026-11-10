@@ -7,12 +7,10 @@
 #include <lib/print.h>
 #include <flanterm.h>
 
-enum {
-    _NOT_READY,
-    GTERM,
-    TEXTMODE,
-    FALLBACK
-};
+#define _NOT_READY 0
+#define GTERM 1
+#define TEXTMODE 2
+#define FALLBACK 3
 
 #if defined(BIOS)
 extern int current_video_mode;

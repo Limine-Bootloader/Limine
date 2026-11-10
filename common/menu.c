@@ -49,7 +49,7 @@ static char menu_branding_colour[24] = "\e[38;2;0;170;170m";
 
 static char *menu_branding = NULL;
 
-enum keyboard_layout current_keyboard_layout = KEYBOARD_LAYOUT_UNKNOWN;
+int current_keyboard_layout = KEYBOARD_LAYOUT_UNKNOWN;
 
 static void keyboard_layout_init(void) {
     char *layout = config_get_value(NULL, 0, "keyboard_layout");
