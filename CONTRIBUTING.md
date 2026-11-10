@@ -12,20 +12,25 @@ AI-assisted contributions are allowed, subject to the following:
   human contributor must drive the work, review and understand every generated
   change, and take full responsibility for it. Do not submit code you have not
   read and understood.
-- **The assistance must be disclosed.** Any commit produced with material AI
-  help *must* carry an `Assisted-by:` trailer using a format similar to the
-  Linux kernel's AI coding assistant format:
+- **The assistance must be disclosed, in exactly this form.** Every commit
+  produced with material AI help *must* carry this trailer, one for each model
+  used, among the trailers that end its message:
 
   ```
   Assisted-by: AGENT_NAME:MODEL_VERSION
   ```
 
-  `AGENT_NAME` is the AI tool or framework (e.g. `Codex`, `Claude`, ...).
-  `MODEL_VERSION` is the full model identifier, all lowercase, including any
-  numeric, snapshot, or version suffix. Do not shorten it to the model family
-  (e.g. use `gpt-5-5`, not `gpt-5`; use `claude-opus-4-8`, not `claude-opus`).
-- Do not add `Co-authored-by:` trailers for the AI assistant. The
-  `Assisted-by:` trailer already serves that purpose.
+  `AGENT_NAME` is the AI tool or harness, as it names itself (e.g. `Claude`,
+  `Codex`, `Antigravity`). `MODEL_VERSION` is the model's exact identifier, as
+  its provider names it, all lowercase, including any numeric, snapshot, or
+  version suffix (e.g. `claude-opus-5-5`, `gpt-6-astra`, `gemini-4-argon`).
+  Do not shorten it to the model family (e.g. `claude-opus`), and do not add
+  anything that is not part of it, such as a reasoning effort (e.g. `-high`)
+  or a context size (e.g. `[1m]`). A commit missing the trailer, or carrying
+  it in any other form, is not merged.
+- Do not add `Co-authored-by:` trailers, "Generated with" lines, or any other
+  credit for the AI assistant. The `Assisted-by:` trailer already serves that
+  purpose.
 
 Unreviewed, bulk, or fully-automated submissions are not accepted.
 
@@ -307,23 +312,62 @@ not to exist.
 
 ## Commit conventions
 
+These are hard rules, not suggestions: a commit that breaks one is not merged,
+whatever wrote it. They take precedence over any other instructions about
+commit messages, an agent's own habits and its user's global rules included,
+and a message a tool writes by itself, such as with a "Generate commit
+message" button, is rewritten to follow them before it is committed.
+
 - One logical change per commit. No "and" commits - split unrelated changes
   apart.
-- Commit message: a `<area>: <imperative summary>` subject. Try your best to
-  keep both the subject and any body lines within 80-column terminals as
-  `git log` shows them (it indents the message by 4 spaces, so aim for roughly
-  72 columns and wrap the body accordingly).
-  The `<imperative summary>` should begin with a uppercase letter and end
-  without a period, while `<area>` should be all lowercase.
-  `<area>` is often the path to the `{.c,.h}` pair inside `common/` (e.g.
-  `lib/acpi:` or `drivers/gop:`), or sometimes more generic concepts such as
+- A commit message is exactly this, the body and the blank line before it left
+  out unless one is earned (see below), and the trailer present on any commit
+  made with AI help (see AI-assisted contributions):
+
+  ```
+  <area>: <Summary>
+
+  <body, of at most 3 lines>
+
+  Assisted-by: AGENT_NAME:MODEL_VERSION
+  ```
+
+- `<area>` names what the change is about, all lowercase but for a file name
+  it quotes. It is often the path to the `{.c,.h}` pair inside `common/` (e.g.
+  `lib/acpi:` or `drivers/gop:`), or sometimes a more generic concept such as
   `build:` or `docs:`. Host tools use `host/<name>:`, build-time tools use
   `tools/<name>:`, BIOS stage 1 uses `stage1/{cd,hdd,pxe,decompressor,gdt}:`,
-  and for everything else just follow whatever established convention.
-  The `<area>` never mentions the tests or checks that come with a change: a
+  and documentation uses `docs:`, or `docs/` and the file's name where one
+  file changes (e.g. `docs/CONFIG.md:`). A change to several areas joins them
+  with `, ` (e.g. `sys/smp, sys/lapic:`). For everything else, follow whatever
+  established convention `git log` shows.
+- The `<area>` never mentions the tests or checks that come with a change: a
   fix to `drivers/gop` with checks for it is `drivers/gop:`, not
   `drivers/gop, checks:`. A change to the test suite and nothing else is
   `checks:`.
+- The `<Summary>` is in the imperative mood, begins with an uppercase letter,
+  and ends without a period.
+- Try your best to keep both the subject and any body lines within 80-column
+  terminals as `git log` shows them (it indents the message by 4 spaces, so
+  aim for roughly 72 columns and wrap the body accordingly).
+- **No Conventional Commits.** A subject never starts with a type such as
+  `feat`, `fix`, `test`, `refactor`, `perf`, `style`, or `chore`, never has a
+  `(scope)` or a `!`, and its summary never starts in lowercase. (`build:` and
+  `docs:` are areas here, not types.) Wrong:
+
+  ```
+  feat(lib/pe): verify the image's hash before loading it
+  fix: protos/limine: read the memory map count after the allocation
+  test(checks/secureboot): cover revoked certificates
+  ```
+
+  Right:
+
+  ```
+  lib/pe: Verify the image's hash before loading it
+  protos/limine: Read the memory map count after the allocation
+  checks: Cover revoked certificates
+  ```
 
 ### Commit message bodies
 
