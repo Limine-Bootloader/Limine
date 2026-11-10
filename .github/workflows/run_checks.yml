@@ -1,0 +1,36 @@
+name: Run the checks
+
+on: [ push, pull_request ]
+
+jobs:
+  run_checks:
+    name: Run the checks (${{ matrix.port }})
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        port: [ bios, uefi-ia32, uefi-x86-64, uefi-aarch64, uefi-riscv64, uefi-loongarch64 ]
+
+    steps:
+      - name: Install dependencies
+        run: pacman --noconfirm -Syu && pacman --needed --noconfirm -S base-devel git autoconf automake nasm curl mtools llvm clang lld python b3sum libisoburn sbsigntools swtpm qemu-system-x86 qemu-system-x86-firmware qemu-system-aarch64 qemu-system-riscv qemu-system-riscv-firmware qemu-system-loongarch64
+
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Build the bootloader
+        run: ./bootstrap && ./configure --enable-werror --enable-all && make all -j$(nproc)
+
+      # The checks' timeouts are set for machines faster than GitHub's runners.
+      - name: Run the checks for ${{ matrix.port }}
+        env:
+          LIMINE_CHECK_SLOWDOWN: 3
+        run: make check -j$(nproc) CHECKFLAGS='-p ${{ matrix.port }}'
+
+      - name: Keep the results of the checks that failed
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: checks-results-${{ matrix.port }}
+          path: checks-results
