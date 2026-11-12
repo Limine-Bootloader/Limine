@@ -49,9 +49,9 @@ conforming C99 with no extensions must be used.
 
 - Use British spelling, in prose, comments, and identifiers alike, C's own
   terms included (e.g. "initialiser", "behaviour"), except for "license",
-  which is conventionally spelled that way even as a noun, and "center". What
-  a specification or an interface names keeps its spelling (e.g. `COLOR_SELECT`
-  for a register a datasheet calls Color Select).
+  which is conventionally spelled that way even as a noun, "center", and
+  "artifact". What a specification or an interface names keeps its spelling
+  (e.g. `COLOR_SELECT` for a register a datasheet calls Color Select).
 - Use the Oxford comma whenever possible: before the conjunction of a list's
   last item.
 - No hard tabs. Spaces for indentation and alignment, 4 per indentation level.
