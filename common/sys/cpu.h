@@ -261,7 +261,7 @@ static inline void sync_icache_range(uintptr_t start, uintptr_t end) {
 
 static inline uint64_t rdtsc(void) {
     uint64_t v;
-    asm volatile ("mrs %0, cntpct_el0" : "=r" (v));
+    asm volatile ("mrs %0, cntvct_el0" : "=r"(v));
     return v;
 }
 
