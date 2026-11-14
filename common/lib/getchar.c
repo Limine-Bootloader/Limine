@@ -68,6 +68,32 @@ static const unsigned char qwerty_to_azerty[128] = {
     ['_']='\xB0', ['+']='+',
 };
 
+static const unsigned char qwerty_to_qwertz[128] = {
+    ['q']='q', ['w']='w', ['e']='e', ['r']='r', ['t']='t',
+    ['y']='z', ['u']='u', ['i']='i', ['o']='o', ['p']='p',
+    ['[']='\xFC', [']']='+', ['\\']='#', ['a']='a', ['s']='s',
+    ['d']='d', ['f']='f', ['g']='g', ['h']='h', ['j']='j',
+    ['k']='k', ['l']='l', [';']='\xF6', ['\'']='\xE4', ['z']='y', ['x']='x',
+    ['c']='c', ['v']='v', ['b']='b', ['n']='n', ['m']='m',
+    [',']=',', ['.']='.', ['/']='-',
+
+    ['Q']='Q', ['W']='W', ['E']='E', ['R']='R', ['T']='T',
+    ['Y']='Z', ['U']='U', ['I']='I', ['O']='O', ['P']='P',
+    ['{']='\xDC', ['}']='*', ['|']='\'', ['A']='A', ['S']='S',
+    ['D']='D', ['F']='F', ['G']='G', ['H']='H', ['J']='J',
+    ['K']='K', ['L']='L', [':']='\xD6', ['"']='\xC4', ['Z']='Y', ['X']='X',
+    ['C']='C', ['V']='V', ['B']='B', ['N']='N', ['M']='M',
+    ['<']=';', ['>']=':', ['?']='_',
+
+    ['`']='^', ['1']='1', ['2']='2', ['3']='3', ['4']='4',
+    ['5']='5', ['6']='6', ['7']='7', ['8']='8', ['9']='9',
+    ['0']='0', ['-']='\xDF', ['=']='\xB4',
+
+    ['~']='\xB0', ['!']='!', ['@']='"', ['#']='\xA7', ['$']='$',
+    ['%']='%', ['^']='&', ['&']='/', ['*']='(', ['(']=')',
+    [')']='=', ['_']='?', ['+']='`',
+};
+
 static void append_input_sequence_digit(int *value, int digit) {
     if (*value >= 0 && *value <= (INT_MAX - digit) / 10) {
         *value = *value * 10 + digit;
@@ -238,6 +264,8 @@ int getchar_internal(uint8_t scancode, uint8_t ascii, uint32_t shift_state) {
         return qwerty_to_dvorak[(uint8_t)ascii];
     } else if (current_keyboard_layout == KEYBOARD_LAYOUT_AZERTY && qwerty_to_azerty[(uint8_t)ascii] != 0) {
         return qwerty_to_azerty[(uint8_t)ascii];
+    } else if (current_keyboard_layout == KEYBOARD_LAYOUT_QWERTZ && qwerty_to_qwertz[(uint8_t)ascii] != 0) {
+        return qwerty_to_qwertz[(uint8_t)ascii];
     }
 
     return ascii;

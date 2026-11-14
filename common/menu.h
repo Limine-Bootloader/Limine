@@ -23,6 +23,7 @@ extern bool booting_from_editor;
 #define KEYBOARD_LAYOUT_QWERTY 0
 #define KEYBOARD_LAYOUT_DVORAK 1
 #define KEYBOARD_LAYOUT_AZERTY 2
+#define KEYBOARD_LAYOUT_QWERTZ 3
 
 extern int current_keyboard_layout;
 

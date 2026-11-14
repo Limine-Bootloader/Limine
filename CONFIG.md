@@ -165,7 +165,7 @@ Miscellaneous:
   defaults to `no`.
 * `keyboard_layout` - Specifies a keyboard layout to remap printable
   keystrokes to before they reach the menu and editor. Currently only
-  `dvorak` and `azerty` are supported. If unset, no remapping is applied
+  `dvorak`, `azerty` and `qwertz` are supported. If unset, no remapping is applied
   and keystrokes are used as-is. This assumes the underlying firmware
   resolves keystrokes as US-QWERTY; on firmware/keyboard combinations that
   already resolve a different layout natively, this option may produce
