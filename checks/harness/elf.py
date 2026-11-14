@@ -149,6 +149,22 @@ class ElfFile(ElfImage):
         out[offset:offset + len(data)] = data
         return bytes(out)
 
+    def with_phdrs(self, phdrs):
+        """The file with phdrs, dicts as in self.phdrs, for program headers,
+        in a table appended to it."""
+        layout = LAYOUTS[self.field('ei_class')]['phdr']
+        size = self.field('e_phentsize')
+        out = bytearray(self.data) + bytes(-len(self.data) % 8)
+        phoff = len(out)
+        out += bytes(size * len(phdrs))
+        for i, p in enumerate(phdrs):
+            for name, off, fmt in layout:
+                struct.pack_into('<' + fmt, out, phoff + i * size + off, p[name])
+        for name, value in (('e_phoff', phoff), ('e_phnum', len(phdrs))):
+            off, fmt = self.fields[name]
+            struct.pack_into('<' + fmt, out, off, value)
+        return bytes(out)
+
     def symbols(self):
         """{name: (value, size)} from the symbol table, for ELF64 files."""
         i = self.sections['.symtab']

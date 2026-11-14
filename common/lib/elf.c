@@ -1317,6 +1317,8 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
         panic(true, "elf: No loadable segments");
     }
     uint64_t image_size_64 = max_paddr - min_paddr;
+    // ext_mem_alloc() panics unrecoverably and the extent comes from the file,
+    // so the caller's ceiling applies before any buffer is taken.
     if (image_size_64 > max_image_size) {
         panic(true, "elf: Image extent exceeds the load limit");
     }
@@ -1344,10 +1346,7 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
             panic(true, "elf: p_offset + p_filesz exceeds file size");
         }
 
-        void *elsewhere = ext_mem_alloc(phdr->p_memsz);
-        memcpy(elsewhere, elf + phdr->p_offset, phdr->p_filesz);
-
-        (*ranges)[loadable_idx].elsewhere = (uintptr_t)elsewhere;
+        (*ranges)[loadable_idx].elsewhere = i;
         (*ranges)[loadable_idx].target = phdr->p_paddr;
         (*ranges)[loadable_idx].length = phdr->p_memsz;
         loadable_idx++;
@@ -1374,18 +1373,6 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
     for (size_t i = 1; i < num_loadable; i++) {
         if ((*ranges)[i].target < (*ranges)[i - 1].target + (*ranges)[i - 1].length) {
             panic(true, "elf: Overlapping loadable segments");
-        }
-    }
-
-    for (size_t i = 0; i < num_loadable; i++) {
-        for (size_t j = 0; j < num_loadable; j++) {
-            if (i == j) {
-                continue;
-            }
-            if ((*ranges)[i].target < (*ranges)[j].elsewhere + (*ranges)[j].length
-             && (*ranges)[j].elsewhere < (*ranges)[i].target + (*ranges)[i].length) {
-                panic(true, "elf: Loadable target overlaps another staging buffer");
-            }
         }
     }
 
@@ -1440,6 +1427,8 @@ bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
         panic(true, "elf: No loadable segments");
     }
     uint64_t image_size = max_paddr - min_paddr;
+    // ext_mem_alloc() panics unrecoverably and the extent comes from the file,
+    // so the caller's ceiling applies before any buffer is taken.
     if (image_size > max_image_size) {
         panic(true, "elf: Image extent exceeds the load limit");
     }
@@ -1467,10 +1456,7 @@ bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
             panic(true, "elf: p_offset + p_filesz exceeds file size");
         }
 
-        void *elsewhere = ext_mem_alloc(phdr->p_memsz);
-        memcpy(elsewhere, elf + phdr->p_offset, phdr->p_filesz);
-
-        (*ranges)[loadable_idx].elsewhere = (uintptr_t)elsewhere;
+        (*ranges)[loadable_idx].elsewhere = i;
         (*ranges)[loadable_idx].target = phdr->p_paddr;
         (*ranges)[loadable_idx].length = phdr->p_memsz;
         loadable_idx++;
@@ -1500,17 +1486,28 @@ bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
         }
     }
 
-    for (size_t i = 0; i < num_loadable; i++) {
-        for (size_t j = 0; j < num_loadable; j++) {
-            if (i == j) {
-                continue;
-            }
-            if ((*ranges)[i].target < (*ranges)[j].elsewhere + (*ranges)[j].length
-             && (*ranges)[j].elsewhere < (*ranges)[i].target + (*ranges)[i].length) {
-                panic(true, "elf: Loadable target overlaps another staging buffer");
-            }
-        }
-    }
-
     return true;
+}
+
+void elf_stage_elsewhere(uint8_t *elf, struct elsewhere_range *ranges, uint64_t ranges_count) {
+    struct elf64_hdr *hdr64 = (void *)elf;
+    struct elf32_hdr *hdr32 = (void *)elf;
+
+    for (size_t i = 0; i < ranges_count; i++) {
+        uint64_t index = ranges[i].elsewhere;
+        uint64_t offset, filesz;
+        if (hdr64->ident[EI_CLASS] == ELFCLASS64) {
+            struct elf64_phdr *phdr = (void *)elf + hdr64->phoff + index * hdr64->phdr_size;
+            offset = phdr->p_offset;
+            filesz = phdr->p_filesz;
+        } else {
+            struct elf32_phdr *phdr = (void *)elf + hdr32->phoff + index * hdr32->phdr_size;
+            offset = phdr->p_offset;
+            filesz = phdr->p_filesz;
+        }
+
+        void *elsewhere = ext_mem_alloc(ranges[i].length);
+        memcpy(elsewhere, elf + offset, filesz);
+        ranges[i].elsewhere = (uintptr_t)elsewhere;
+    }
 }

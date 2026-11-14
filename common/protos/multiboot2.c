@@ -568,10 +568,14 @@ reloc_ok:
         panic(true, "multiboot2: Entry point is outside the executable");
     }
 
-    // Reserve the kernel's target so later module/info sources can't be
+    // Reserve the kernel's target so later sources, its own included, can't be
     // allocated on top of it.
     for (size_t i = 0; i < kernel_ranges_count; i++) {
         elsewhere_reserve_target(ranges[i].target, ranges[i].length);
+    }
+
+    if (addresstag == NULL) {
+        elf_stage_elsewhere(kernel, ranges, kernel_ranges_count);
     }
 
     // Get the load base address (AKA the lowest target in the ranges)

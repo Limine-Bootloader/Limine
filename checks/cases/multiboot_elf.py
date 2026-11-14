@@ -1,5 +1,5 @@
 from harness.api import check
-from harness.elf import ElfFile
+from harness.elf import PT_LOAD, ElfFile
 from harness.ports import X86_PORTS
 from cases._common import boot_entry, entry, panics_in_turn, read
 from cases.multiboot import (boot_mb1, boot_mb2, mb1_kernel, mb1_report, mb2_kernel, mb2_report)
@@ -35,6 +35,10 @@ def hostile_images(e, proto):
         ('segment data past the end', e.patched(**{f'p_offset{first}': size}),
          'elf: p_offset + p_filesz exceeds file size'),
         ('overlapping segments', e.patched(**{f'p_paddr{last}': e.phdrs[first]['p_paddr']}),
+         'elf: Overlapping loadable segments'),
+        ('overlapping segments larger together than memory',
+         e.patched(**{f'p_paddr{i}': e.phdrs[first]['p_paddr'] for i in loads},
+                   **{f'p_memsz{i}': 0xa000000 for i in loads}),
          'elf: Overlapping loadable segments'),
         ('entry outside every segment', e.patched(e_entry=0x1000), f'{proto}: Entry point is outside the executable'),
         ('short section headers', e.patched(e_shentsize=20 if bits32 else 32),
@@ -101,4 +105,22 @@ def mb1_disjoint_elf(t):
 def mb2_disjoint_elf(t):
     """Load a kernel whose header segment is far from its other segments."""
     m = boot_mb2(t, distant_header(mb2_kernel(t)))
+    mb2_report(t, m)
+
+
+def target_over_staging(path):
+    """The kernel moved to 256MiB, behind a first segment of 128MiB at 260MiB,
+    over where the staging buffers of the others would otherwise go."""
+    e = ElfFile(read(path))
+    moved = [dict(p, p_paddr=p['p_paddr'] + 0xfd00000) if p['p_type'] == PT_LOAD else p for p in e.phdrs]
+    big = {'p_type': PT_LOAD, 'p_offset': 0, 'p_vaddr': 0x10400000, 'p_paddr': 0x10400000, 'p_filesz': 0,
+           'p_memsz': 0x8000000, 'p_flags': 4, 'p_align': 0x1000}
+    return e.with_phdrs([big] + moved)
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf'])
+def mb2_target_over_staging(t):
+    """Load a kernel, position independent, with a segment over where the
+    loader would otherwise stage the others [intent]."""
+    m = boot_mb2(t, target_over_staging(mb2_kernel(t)))
     mb2_report(t, m)
