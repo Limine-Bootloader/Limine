@@ -1591,7 +1591,7 @@ FEAT_END
 
     term_notready();
 
-    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, preserve_screen, false);
+    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, preserve_screen, false, true);
     if (fbs_count == 0) {
         goto no_fb;
     }

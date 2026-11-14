@@ -366,8 +366,10 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
 
         term_notready();
 
+        // Linux corrects what the firmware is known to misreport itself, so
+        // width and height exchanged here would be exchanged back.
         fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp,
-                !fb_flush_reliable(), false);
+                !fb_flush_reliable(), false, false);
 
         // TODO(qookie): Let the user pick a framebuffer if there's > 1
         if (fbs_count > 0) {

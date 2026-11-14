@@ -40,6 +40,34 @@ struct key {
 #define EQ(F, T) { (F), true, (T) }
 #define HAS(F, T) { (F), false, (T) }
 
+struct portrait_panel {
+    struct key keys[MAX_KEYS];
+    // Only a mode reported as 1280x800, which the firmware turns in software
+    // while the memory keeps the panel's own layout.
+    bool fixed;
+};
+
+#if defined(UEFI)
+// Panels laid out portrait whose modes GOP reports with width and height
+// exchanged. From Linux v7.3.4, drivers/firmware/efi/sysfb_efi.c.
+static const struct portrait_panel portrait_panels[] = {
+    // Lenovo IdeaPad Miix 310-10ICR
+    { { EQ(SM, "LENOVO"), EQ(SV, "MIIX 310-10ICR"), EQ(FV, "1HCN44WW") }, .fixed = false },
+    // Lenovo IdeaPad Miix 320-10ICR
+    { { EQ(SM, "LENOVO"), EQ(SV, "Lenovo MIIX 320-10ICR") }, .fixed = false },
+    // Lenovo IdeaPad D330-10IGM
+    { { EQ(SM, "LENOVO"), EQ(SV, "Lenovo ideapad D330-10IGM") }, .fixed = false },
+    // Lenovo IdeaPad Duet 3 10IGL5, LTE variant included
+    { { EQ(SM, "LENOVO"), HAS(SV, "IdeaPad Duet 3 10IGL5") }, .fixed = false },
+    // Lenovo Yoga Book X91F / X91L
+    { { EQ(SM, "LENOVO"), HAS(SP, "Lenovo YB1-X91") }, .fixed = false },
+    // Valve Steam Deck (Jupiter)
+    { { EQ(SM, "Valve"), EQ(SP, "Jupiter"), EQ(SV, "1") }, .fixed = true },
+    // Valve Steam Deck (Galileo)
+    { { EQ(SM, "Valve"), EQ(SP, "Galileo"), EQ(SV, "1") }, .fixed = true }
+};
+#endif
+
 struct turned_panel {
     struct key keys[MAX_KEYS];
     uint16_t width;
@@ -309,6 +337,40 @@ static bool keys_match(const struct key *keys, const char *const fields[FIELD_CO
     return true;
 }
 
+#if defined(UEFI)
+static const struct portrait_panel *find_portrait(const char *const fields[FIELD_COUNT]) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(portrait_panels); i++) {
+        if (keys_match(portrait_panels[i].keys, fields)) {
+            return &portrait_panels[i];
+        }
+    }
+    return NULL;
+}
+#endif
+
+static void correct_portrait(struct fb_info *mode, const struct portrait_panel *portrait) {
+    if (portrait->fixed) {
+        // The panel's own layout: 800x1280, in rows of 832 pixels.
+        if (mode->framebuffer_width == 1280 && mode->framebuffer_height == 800) {
+            mode->framebuffer_width = 800;
+            mode->framebuffer_height = 1280;
+            mode->framebuffer_pitch = 3328;
+        }
+        return;
+    }
+
+    // Some firmware releases for these machines already report the mode as
+    // it is laid out, portrait.
+    if (mode->framebuffer_width > mode->framebuffer_height) {
+        uint64_t width = mode->framebuffer_height;
+        mode->framebuffer_height = mode->framebuffer_width;
+        mode->framebuffer_width = width;
+        // The pitch reported goes with the exchanged layout, so whatever
+        // padding the real rows have is unknown.
+        mode->framebuffer_pitch = width * mode->framebuffer_bpp / 8;
+    }
+}
+
 static bool date_listed(const char *const *dates, const char *date) {
     if (date == NULL) {
         return false;
@@ -344,8 +406,24 @@ void fb_quirks_apply(struct fb_info *fbs, size_t fbs_count) {
     const char *fields[FIELD_COUNT];
     read_fields(fields);
 
+#if defined(UEFI)
+    // Only GOP is known to report these modes exchanged.
+    const struct portrait_panel *portrait = find_portrait(fields);
+#else
+    const struct portrait_panel *portrait = NULL;
+#endif
+
     // The first framebuffer alone, the one the Linux protocol hands Linux, so
     // that Limine goes by these tables exactly where Linux does.
     struct fb_info *fb = &fbs[0];
+
+    if (portrait != NULL) {
+        // Each mode as the framebuffer would be in it.
+        correct_portrait(fb, portrait);
+        for (size_t i = 0; i < fb->mode_count; i++) {
+            correct_portrait(&fb->mode_list[i], portrait);
+        }
+    }
+
     fb->upright_rotation = upright_rotation(fb, fields);
 }

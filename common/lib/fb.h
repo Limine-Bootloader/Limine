@@ -37,12 +37,16 @@ struct fb_info {
     int upright_rotation;
 };
 
+// The framebuffers as they are laid out, whatever fb_init() handed its caller.
 extern struct fb_info *fb_fbs;
 extern size_t fb_fbs_count;
 
+// Without corrected, *ret describes the framebuffers as the firmware reports
+// them, for a kernel that corrects what the firmware is known to misreport
+// itself.
 void fb_init(struct fb_info **ret, size_t *_fbs_count,
              uint64_t target_width, uint64_t target_height, uint16_t target_bpp,
-             bool preserve_screen, bool keep_wc);
+             bool preserve_screen, bool keep_wc, bool corrected);
 
 void fb_clear(struct fb_info *fb);
 
