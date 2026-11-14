@@ -53,6 +53,10 @@ def protocol_report(t, smbios_, extra='', globals_=''):
     return r
 
 
+def upright(r):
+    return r.int('framebuffer.0.upright_rotation')
+
+
 def interface_rotation(r):
     """The rotation Limine's terminal had, as the parameters given to the
     kernel to set one up alike say."""
@@ -110,6 +114,7 @@ def fb_quirks_first_framebuffer_only(t):
     t.expect_eq(r['framebuffer.1'].split()[0], '800x1280x32', 'the probe\'s framebuffer, of the panel\'s size')
     rotation = int(re.search(r'rotation=(\d+)', r['flanterm.1.font']).group(1))
     t.expect_eq(rotation, ROTATE_0, 'the interface on it unturned')
+    t.expect_eq(r.int('framebuffer.1.upright_rotation'), ROTATE_0, 'no turn given for it')
 
 
 @check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop', 'gterm'])
@@ -158,6 +163,20 @@ def fb_quirks_interface_rotation(t):
                   {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))})
     wait_fake_text(t, m, 'ARROWS', 800, 1280, 3200)
     m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop'])
+def fb_quirks_upright_rotation(t):
+    """The Limine protocol's upright_rotation gives the clockwise turn that
+    rights what is drawn on a panel mounted turned in its casing, whatever
+    interface_rotation says, and 0 where none is known."""
+    portrait = 'resolution: 800x1280x32'
+    t.expect_eq(upright(protocol_report(t, STEAM_DECK, portrait)), ROTATE_90, 'right edge up')
+    t.expect_eq(upright(protocol_report(t, DYNABOOK_K50, portrait)), ROTATE_270, 'left edge up')
+    t.expect_eq(upright(protocol_report(t, STEAM_DECK)), ROTATE_0, 'a mode not the panel\'s size')
+    for degrees in (0, 180):
+        r = protocol_report(t, STEAM_DECK, portrait, globals_=f'interface_rotation: {degrees}\n')
+        t.expect_eq(upright(r), ROTATE_90, f'right edge up, interface_rotation: {degrees}')
 
 
 @check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['fb-quirks', 'multiboot1', 'gop'])
