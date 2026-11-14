@@ -256,6 +256,15 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
         panic(true, "multiboot1: Entry point is outside the executable");
     }
 
+    // Reserve the whole span, not each segment, which could fill the memory
+    // map, so that nothing allocated later, staging included, can go on top.
+    struct elsewhere_range *last = &ranges[kernel_ranges_count - 1];
+    elsewhere_reserve_target(ranges[0].target, last->target + last->length - ranges[0].target);
+
+    if ((header.flags & (1 << 16)) == 0) {
+        elf_stage_elsewhere(kernel, ranges, kernel_ranges_count);
+    }
+
     size_t n_modules;
     size_t modules_cmdlines_size = 0;
 
@@ -283,18 +292,10 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
        + (section_hdr_info_valid ? section_hdr_info.num : 0);
     struct elsewhere_range *new_ranges = ext_mem_alloc_counted(ranges_max, sizeof(struct elsewhere_range));
 
+    // The old array is not freed: taken before the reservation, it may lie in
+    // the kernel's span, where anything reusing it would be copied over.
     memcpy(new_ranges, ranges, sizeof(struct elsewhere_range) * ranges_count);
-    pmm_free(ranges, sizeof(struct elsewhere_range) * ranges_count);
     ranges = new_ranges;
-
-    // Reserve the whole span, not each segment, which could fill the memory
-    // map, so later sources, the kernel's own included, can't go on top.
-    struct elsewhere_range *last = &ranges[kernel_ranges_count - 1];
-    elsewhere_reserve_target(ranges[0].target, last->target + last->length - ranges[0].target);
-
-    if ((header.flags & (1 << 16)) == 0) {
-        elf_stage_elsewhere(kernel, ranges, kernel_ranges_count);
-    }
 
     // GRUB allocates boot info at 0x10000, *except* if the kernel happens
     // to overlap this region, then it gets moved to right after the
@@ -485,6 +486,12 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     }
 #endif
 
+    // Load relocation stub where it won't get overwritten: before the
+    // terminal frees memory that may lie in the kernel's span.
+    size_t reloc_stub_size = (size_t)multiboot_reloc_stub_end - (size_t)multiboot_reloc_stub;
+    void *reloc_stub = ext_mem_alloc(reloc_stub_size);
+    memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
+
     term_notready();
 
     size_t req_width = 0;
@@ -567,11 +574,6 @@ skip_modeset:;
         goto textmode;
 #endif
     }
-
-    // Load relocation stub where it won't get overwritten (hopefully)
-    size_t reloc_stub_size = (size_t)multiboot_reloc_stub_end - (size_t)multiboot_reloc_stub;
-    void *reloc_stub = ext_mem_alloc(reloc_stub_size);
-    memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
 
 #if defined(UEFI)
     efi_exit_boot_services();

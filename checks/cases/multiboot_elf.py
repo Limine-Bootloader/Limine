@@ -1,7 +1,7 @@
 import time
 
 from harness.api import check
-from harness.elf import PT_LOAD, ElfFile
+from harness.elf import PT_LOAD, ElfFile, ElfImage
 from harness.ports import X86_PORTS
 from cases._common import boot_entry, entry, panics_in_turn, read, select_entry, wait_panic
 from cases.multiboot import (boot_mb1, boot_mb2, mb1_kernel, mb1_report, mb2_kernel, mb2_report)
@@ -184,3 +184,25 @@ def mb2_elf_segments_sorted(t):
         m.press('ret')
     t.check(taken[1] < 4 * taken[0] + 2 * t.port.timeout_scale,
             f'descending in {taken[1]:.1f}s, ascending in {taken[0]:.1f}s')
+
+
+def under_loader_memory(path, pages=0):
+    """The kernel moved to 416MiB, below a segment of 64MiB up to where RAM
+    ends on the BIOS machines, over the loader's own allocations there, with
+    pages more one-page segments between and no section headers, which would
+    have to go above."""
+    e = ElfFile(read(path))
+    moved = [dict(p, p_paddr=p['p_paddr'] + 0x19d00000) if p['p_type'] == PT_LOAD else p for p in e.phdrs]
+    page = {'p_type': PT_LOAD, 'p_offset': 0, 'p_filesz': 0, 'p_memsz': 0x1000, 'p_flags': 4, 'p_align': 0x1000}
+    extra = [dict(page, p_vaddr=0x1a100000 + i * 0x1000, p_paddr=0x1a100000 + i * 0x1000) for i in range(pages)]
+    top = dict(page, p_vaddr=0x1bfe0000, p_paddr=0x1bfe0000, p_memsz=0x4000000)
+    return ElfImage(e.with_phdrs(moved + extra + [top]), e.fields).patched(e_shoff=0, e_shnum=0, e_shstrndx=0)
+
+
+@check(ports=['bios'], tags=['multiboot1', 'elf'])
+def mb1_segment_over_loader_memory(t):
+    """A kernel, position independent, with a segment over the loader's own
+    allocations gets its information structure whole [intent]."""
+    m = boot_mb1(t, under_loader_memory(mb1_kernel(t, 'probe')))
+    m.wait_for('debugcon', 'E DONE', 60)
+    t.expect_eq(m.stream('debugcon').text(), 'mb1 command line\nE DONE\n', 'the command line from it')

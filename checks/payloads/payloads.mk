@@ -372,6 +372,15 @@ $(foreach v,$(MB1_VARIANTS),$(eval $(call mb1_kernel,$(word 1,$(subst :, ,$(v)))
 $(OUT)/multiboot/mb1/elf/kernel64.elf: $(OUT)/multiboot/mb1/elf/kernel.elf
 	$(OBJCOPY) -O elf64-x86-64 $< $@
 
+$(OUT)/multiboot/mb1/probe/kernel.elf: $(PAYLOADS)/multiboot/mb1_probe.asm $(PAYLOADS)/multiboot/mb.ld \
+		$(PAYLOADS)/payloads.mk
+	mkdir -p $(@D)
+	nasm -f elf32 -Wall -w-reloc -Werror $(PAYLOADS)/multiboot/mb1_probe.asm -o $(@D)/probe.o
+	$(LD) -m elf_i386 -nostdlib -static -z max-page-size=0x1000 -z noexecstack -T $(PAYLOADS)/multiboot/mb.ld \
+		$(@D)/probe.o -o $@
+
+override MB_KERNELS += $(OUT)/multiboot/mb1/probe/kernel.elf
+
 override MB1_HEADER_OFFSETS := 8160 8164 8180 8184 8192
 
 $(OUT)/multiboot/mb1/hdr%.bin: $(PAYLOADS)/multiboot/mb1_flat.asm
