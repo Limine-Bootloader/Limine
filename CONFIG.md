@@ -152,12 +152,12 @@ Miscellaneous:
 * `hash_mismatch_panic` - If set to `no`, do not panic if there is a hash
   mismatch for a file. A warning is printed and Limine then waits for a
   keypress: `Y` continues the boot, any other key returns to the menu. Forced
-  to `yes` when Secure Boot is active and a config hash is enrolled. A
-  wallpaper or font whose hash does not match is skipped either way.
+  to `yes` when UEFI Secure Boot is active. A wallpaper or font whose hash
+  does not match is skipped either way.
 * `measured_boot` - If set to `yes`, opt in to measured boot. Forced to `yes`
-  when Secure Boot is active and a config hash is enrolled, and forced back to
-  `no` if the firmware does not expose a TPM 2.0/CC measurement interface. See
-  [USAGE.md](USAGE.md#measured-boot).
+  when UEFI Secure Boot is active, and forced back to `no` if the firmware
+  does not expose the required measurement interface. See
+  [Secure Boot](USAGE.md#secure-boot) and [Measured Boot](USAGE.md#measured-boot).
 * `firmware_logo` - If set to `yes`, restore the OEM firmware boot logo upon
   handoff to the OS, instead of leaving a blank screen, by clearing the
   "displayed" status bit in the ACPI BGRT table so the OS redraws the logo
@@ -258,7 +258,7 @@ Editor control options:
 
 * `editor_enabled` - If set to `no`, the editor will not be accessible.
   Defaults to `yes` unless a config hash is enrolled. Unconditionally
-  disabled when Secure Boot is active and a config hash is enrolled.
+  disabled when UEFI Secure Boot is active.
 * `editor_highlighting` - If set to `no`, syntax highlighting in the editor
   will be disabled. Defaults to `yes`.
 * `editor_validation` - If set to `no`, the editor will not alert you about
@@ -271,6 +271,11 @@ Editor control options:
 * `protocol` - The boot protocol that will be used to boot the
   kernel/executable. Valid protocols are: `linux`, `limine`, `multiboot`
   (or `multiboot1`), `multiboot2`, `efi`, `efi_boot_entry` and `bios`.
+  Under UEFI Secure Boot without an enrolled config, only `linux`, `efi`
+  (and its aliases), and `efi_boot_entry` are available. An enrolled config
+  also permits `limine` and, on x86, `multiboot` (or `multiboot1`) and
+  `multiboot2`. Native executables, modules, and external DTBs must carry
+  matching hashes; `linux` still requires a firmware-verified EFI image.
 * `cmdline` - The command line string to be passed to the kernel/executable.
   Can be omitted. The `bios` and `efi_boot_entry` protocols take no command
   line, and ignore it.
@@ -304,6 +309,14 @@ Editor control options:
   * `dtb_path` - A device tree blob to pass instead of the one provided by the
     firmware.
 
+  Under [UEFI Secure Boot](USAGE.md#secure-boot), `path` must point to a
+  signed EFI-stub kernel or UKI loaded via firmware image verification, and
+  `module_path` entries supply initramfs images via `EFI_LOAD_FILE2_PROTOCOL`.
+  Image and initramfs paths must reside on an EFI filesystem without `$` URI
+  decompression. `dtb_path`, `global_dtb`, `module_string`, `module_cmdline`,
+  and the `initrd=`, `initrdmem=`, `noinitrd`, and `dtb=` kernel command-line
+  options (including `initrd=` and `dtb=` substrings) are rejected.
+
 * Limine protocol:
   * `path` - The path of the executable.
   * `kernel_path` - Alias of `path`.
@@ -332,7 +345,7 @@ Editor control options:
   * `dtb_path` - A device tree blob to pass instead of the one provided by the
     firmware.
 
-* multiboot1 and multiboot2 protocols:
+* `multiboot` (or `multiboot1`) and `multiboot2` protocols:
   * `path` - The path of the executable.
   * `kernel_path` - Alias of `path`.
   * `module_path` - The path to a module. This option can be specified multiple
@@ -354,10 +367,13 @@ Editor control options:
     `<width>x<height>x<bpp>`. If the resolution is not available, Limine will
     pick another one automatically. Omitting `<bpp>` will default to 32.
 
-  If the chainloaded application returns, as a UEFI Shell does when exited,
-  Limine does not go back to its menu: it exits in turn, passing the status and
-  exit data the application returned on to whatever started Limine, usually the
-  firmware's boot manager.
+  If the chainloaded application returns, Limine exits in turn (or halts after
+  cleanup when UEFI Secure Boot is active, preventing further boot attempts in
+  the same measurement chain).
+
+  Under UEFI Secure Boot, this protocol requires a signed image on an EFI
+  filesystem without `$` decompression, and rejects `module_path`, module
+  command lines, and the restricted Linux command-line options.
 
 * EFI Boot Entry protocol:
   * `entry` - The name of the EFI boot entry to reboot into.
@@ -453,9 +469,11 @@ BLAKE3, 128 is BLAKE2b, and 256 is extended-output BLAKE3.
 When Secure Boot is active and a config hash is enrolled, all file paths
 **must** have a hash appended or Limine will panic (except for wallpapers and
 fonts, which are silently skipped instead, falling back to defaults, and for
-images chainloaded with the `efi` protocol, whose signature the firmware
-verifies instead). Without an enrolled hash Limine treats Secure Boot as
-inactive; see [USAGE.md](USAGE.md#secure-boot).
+EFI executable images loaded through the `linux` or `efi` protocol, whose
+signature the firmware verifies instead; if a path hash is also supplied, both
+are checked). Without an enrolled config hash, file hashes are optional and
+external wallpapers and fonts are skipped under [UEFI Secure Boot](USAGE.md#secure-boot).
+Wallpaper and font hashes are trusted only when a config checksum is enrolled.
 
 A gzip-compressed resource is indicated by inserting a dollar character (`$`)
 before the resource string. This allows for transparent decompression. For

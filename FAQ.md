@@ -29,12 +29,17 @@ The EFI executable can then get signed with a key added to the firmware's
 keychain. This prevents modifications to the config file (and in turn the
 checksums contained there) from going unnoticed.
 
-Additionally, when UEFI Secure Boot is active **and** a config checksum has
-been enrolled, Limine enforces that all loaded files have hashes in their
-paths (except for images chainloaded with the `efi` protocol, whose signature
-the firmware verifies instead), and disables the config editor. Enrolling a
-checksum is the explicit opt-in to this hardening; without one, Secure Boot
-enforcement is not applied. See [USAGE.md](USAGE.md) for details.
+When UEFI Secure Boot is active in User Mode, Limine enforces authenticated
+boot even without an enrolled config checksum: the config editor, UEFI Shell,
+and native boot protocols are disabled, EFI images loaded via the `linux` or
+`efi` protocols are verified by firmware `LoadImage`, and `limine.conf` and
+non-empty load options are measured into the TPM when available. Enrolling a
+config checksum also permits `limine` entries and, on x86, `multiboot` (or
+`multiboot1`) and `multiboot2` entries.
+Their executables, modules, and external DTBs must match the `#<hash>` values
+in the verified `limine.conf`. An enrolled `linux` entry still boots a signed
+EFI image and requires a hash on each external initramfs. See
+[Secure Boot](USAGE.md#secure-boot) for details.
 
 ### I do not want to have a separate FAT boot partition! What can I do?
 
