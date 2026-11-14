@@ -771,3 +771,18 @@ char *config_get_value(const char *config, size_t index, const char *key) {
 
     return NULL;
 }
+
+char *config_get_value_next(const char **cursor, const char *key) {
+    if (cursor == NULL || *cursor == NULL) {
+        return NULL;
+    }
+    char *value = config_get_value(*cursor, 0, key);
+    if (value != NULL) {
+        const char *next = lastkey;
+        while (*next != 0 && *next != SEPARATOR) {
+            next++;
+        }
+        *cursor = *next == SEPARATOR ? next + 1 : next;
+    }
+    return value;
+}

@@ -152,3 +152,31 @@ def authenticated_tpm_measurement_failure(t):
                 f'failed or unlogged measurement refused: {message}')
         t.check(CC_PROMPT not in screen_text(screen), 'no prompt permits unmeasured boot')
         m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_enrolled_config(t):
+    config = 'timeout: 0\n' + entry('EFI', protocol='efi', path='boot():/kernel.efi',
+                                    cmdline='name:enrolled info')
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)}, enrolled=True, tpm=False)
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'enrolled', 'enrolled config verified and booted cleanly')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_efi_entry(t):
+    config = 'timeout: 0\n' + entry('EFI', protocol='efi', path='boot():/kernel.efi', cmdline='name:efi info')
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)})
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'efi', 'generic signed EFI entry started')
+    t.expect_eq(report['options'], 'name:efi info', 'EFI entry receives its command line')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_efi_entry_ignores_global_dtb(t):
+    """global_dtb in config does not block generic protocol: efi entries under Secure Boot."""
+    config = ('timeout: 0\nglobal_dtb: boot():/missing.dtb\n'
+              + entry('EFI', protocol='efi', path='boot():/kernel.efi', cmdline='name:efidtb info'))
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)}, tpm=False)
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'efidtb', 'protocol: efi ignores global_dtb')
