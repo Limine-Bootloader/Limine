@@ -152,12 +152,61 @@ def authenticated_optional_resource_unauthenticated_config(t):
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_empty_options_incomplete_log(t):
+    config = linux_config('')
+    child = signed_probe(t)
+    for flags in (0x208, 0x4000200):
+        m = authenticated_boot(t, config, {'/kernel.efi': child},
+                               tpm=False, commands=f'faketcg2:{flags:x}')
+        message, _ = wait_panic(t, m)
+        t.expect_eq(message, 'tpm: authenticated boot requires a complete event log',
+                    'truncation before LoadImage is fatal')
+        t.expect_eq([p for p, k, *_ in tcg2_extends(m.stream(t.kernel_channel).text()) if k == 6],
+                    [] if flags == 0x208 else [5], 'truncation at init or after config measurement')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_invalid_sha3_logs(t):
+    for flags in (0x3200, 0x21200, 0x41200, 0x5200, 0x9200, 0x11200, 0x81200):
+        m = authenticated_boot(t, linux_config(), tpm=False, commands=f'faketcg2:{flags:x}')
+        message, _ = wait_panic(t, m)
+        t.check('event log is malformed' in message or 'missing active PCR banks' in message,
+                f'invalid SHA3 log {flags:x} refused: {message}')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_measurement_failure(t):
+    for flags in (0x0, 0x202, 0x208, 0x600, 0xa00):
+        m = authenticated_boot(t, linux_config(), tpm=False, commands=f'faketcg2:{flags:x}')
+        message, screen = wait_panic(t, m)
+        t.check(message.startswith('tpm: authenticated boot measurement failed')
+                or message == 'tpm: authenticated boot requires a complete event log'
+                or message == 'tpm: authenticated boot event log is malformed'
+                or message.startswith('tpm: Measurement'),
+                f'failed or unlogged measurement refused: {message}')
+        t.check(CC_PROMPT not in screen_text(screen), 'no prompt permits unmeasured boot')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_efi_entry(t):
     config = 'timeout: 0\n' + entry('EFI', protocol='efi', path='boot():/kernel.efi', cmdline='name:efi info')
     m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)})
     report = probe_report(t, m, timeout=120)
     t.expect_eq(report['name'], 'efi', 'generic signed EFI entry started')
     t.expect_eq(report['options'], 'name:efi info', 'EFI entry receives its command line')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_without_tpm(t):
+    m = authenticated_boot(t, linux_config('name:notpm info'),
+                           {'/kernel.efi': signed_probe(t)}, tpm=False)
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'notpm', 'signed EFI image runs without a TPM')
+    t.check('Secure Boot is active without TPM 2.0 measurements.' in
+            ESCAPES.sub('', m.stream('serial').text()), 'unmeasured state is reported')
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
@@ -416,6 +465,42 @@ def authenticated_rejects_inherited_initrd(t):
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_capabilities(t):
+    for flags in (0x210, 0x220, 0x240):
+        m = authenticated_boot(t, linux_config('name:capability info'),
+                               {'/kernel.efi': signed_probe(t)}, tpm=False,
+                               commands=f'faketcg2:{flags:x}')
+        report = probe_report(t, m, timeout=120)
+        t.expect_eq(report['name'], 'capability', f'optional TPM capability {flags:x}')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_sha3_banks(t):
+    for flags in (0x1200, 0x101200):
+        m = authenticated_boot(t, linux_config('name:sha3 info'), {'/kernel.efi': signed_probe(t)},
+                               tpm=False, commands=f'faketcg2:{flags:x}')
+        report = probe_report(t, m, timeout=120)
+        t.expect_eq(report['name'], 'sha3', f'SHA3 log with capabilities {flags:x} boots')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_load_options_measurement(t):
+    """Measure the UTF-16 load options including their terminal NUL in PCR12."""
+    command = 'name:options info'
+    m = authenticated_boot(t, linux_config(command), {'/kernel.efi': signed_probe(t)},
+                           tpm=False, commands='faketcg2:200')
+    m.wait_for(t.kernel_channel, 'K name=options', 120)
+    m.wait_for(t.kernel_channel, 'K options_last_unit=0', 30)
+    data = command.encode('utf-16-le') + b'\0\0'
+    measurements = tcg2_extends(m.stream(t.kernel_channel).text())
+    t.check(any((pcr, kind, digest, size) == (12, 0xd, int(fnv1a(data), 16), len(data))
+                for pcr, kind, digest, size, _ in measurements),
+            f'PCR12 received the final LoadOptions: {measurements}')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_empty_initrd(t):
     for modules, files in (([], {}), ([('boot():/empty', None)], {'/empty': b''})):
         config = linux_config('name:empty readinitrd', modules)
@@ -456,6 +541,155 @@ def authenticated_rejects_config_overrides(t):
         message, _ = wait_panic(t, m)
         t.expect_eq(message, expected, config)
         t.check('K name=authenticated' not in m.stream(t.kernel_channel).text(), 'child was not entered')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_options_and_config_measurement(t):
+    for command in ('', 'name:unicode info text:\u017c\U0001f642'):
+        config = 'measured_boot: no\n' + linux_config(command)
+        m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)},
+                               tpm=False, commands='faketcg2:200 info')
+        if command:
+            m.wait_for(t.kernel_channel, 'K name=unicode', 120)
+        else:
+            start = m.wait_for(t.kernel_channel, 'B CHAIN-RETURN-PENDING', 120)
+            m.wait_for(t.kernel_channel, 'K options_is_null=1', 120, start=start)
+        measurements = tcg2_extends(m.stream(t.kernel_channel).text())
+        if command:
+            data = command.encode('utf-16-le') + b'\0\0'
+            t.check(any((pcr, kind, digest, size) == (12, 0xd, int(fnv1a(data), 16), len(data))
+                        for pcr, kind, digest, size, _ in measurements),
+                    f'PCR12 contains exact UTF-16 options: {measurements}')
+        else:
+            t.check(not any(pcr == 12 for pcr, _, _, _, _ in measurements),
+                    f'empty options do not extend PCR12: {measurements}')
+        data = config.encode()
+        t.check(any((pcr, kind, digest, size) == (5, 0x6, int(fnv1a(data), 16), len(data))
+                    for pcr, kind, digest, size, _ in measurements),
+                f'measured_boot: no cannot disable PCR5 config measurement: {measurements}')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_volume_full(t):
+    """EFI_VOLUME_FULL during HashLogExtendEvent warns once and boots since PCRs were extended."""
+    m = authenticated_boot(t, linux_config('name:volfull info'), {'/kernel.efi': signed_probe(t)},
+                           tpm=False, commands='faketcg2:200200')
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'volfull', 'boot proceeds after EFI_VOLUME_FULL')
+    serial = ESCAPES.sub('', m.stream('serial').text())
+    t.expect_eq(serial.count('WARNING: tpm: The event log is full'), 1, 'log full warning shown once')
+    t.check(CC_PROMPT not in serial, 'no prompt on EFI_VOLUME_FULL')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_full_on_load_image(t):
+    config = linux_config('name:full-on-load info')
+    child = signed_probe(t)
+    for flags in (0x2000200, 0x2000a00):
+        m = authenticated_boot(t, config, {'/kernel.efi': child},
+                               tpm=False, commands=f'faketcg2:{flags:x}')
+        if flags & 0x800:
+            message, _ = wait_panic(t, m)
+            t.expect_eq(message, 'tpm: authenticated boot event log is malformed',
+                        'a full log still requires a valid Spec ID header')
+        else:
+            m.wait_for(t.kernel_channel, 'K name=full-on-load', 120)
+            serial = ESCAPES.sub('', m.stream('serial').text())
+            t.expect_eq(serial.count('WARNING: tpm: The event log is full'), 1,
+                        'boot proceeds with one warning when LoadImage fills the log')
+        text = m.stream(t.kernel_channel).text()
+        t.check('K faketcg2.load_notify=0' in text, 'image load notification registered')
+        t.expect_eq([p for p, k, *_ in tcg2_extends(text) if k in (6, 0xd)], [5, 12],
+                    'config and options measured before the log fills')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_new_events(t):
+    """A firmware event after ours does not hide it; a full log does not cause a retry."""
+    config = linux_config('name:new-events info')
+    child = signed_probe(t)
+    for flags in (0x800200, 0x1000200):
+        m = authenticated_boot(t, config, {'/kernel.efi': child}, tpm=False,
+                               commands=f'faketcg2:{flags:x}')
+        m.wait_for(t.kernel_channel, 'K name=new-events', 120)
+        text = m.stream(t.kernel_channel).text()
+        t.expect_eq([p for p, k, *_ in tcg2_extends(text) if k in (6, 0xd)], [5, 12],
+                    'exactly one extend per component')
+        m.stop()
+
+    m = authenticated_boot(t, config, {'/kernel.efi': child}, tpm=False,
+                           commands='faketcg2:1000600')
+    message, _ = wait_panic(t, m)
+    t.expect_eq(message, 'tpm: Measurement has no event-log evidence',
+                'a later successful extend must have a new log entry')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_unknown_algorithm(t):
+    """An unknown active bank does not disable measurements in the recognised banks."""
+    m = authenticated_boot(t, linux_config('name:unknownalg info'), {'/kernel.efi': signed_probe(t)},
+                           tpm=False, commands='faketcg2:400200')
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'unknownalg', 'unknown Spec ID algorithm tolerated')
+    text = m.stream(t.kernel_channel).text()
+    t.expect_eq([p for p, k, *_ in tcg2_extends(text) if k in (6, 0xd)], [5, 12],
+                'TPM measurements stay enabled alongside an unknown active bank')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_cc_measurements(t):
+    """Confidential computing platforms measure config and LoadOptions without interactive bypass."""
+    from cases.tpm import cc_extends
+    command = 'name:ccauth info'
+    config = 'measured_boot: no\n' + linux_config(command)
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)},
+                           tpm=False, commands='fakecc:0')
+    m.wait_for(t.kernel_channel, 'K name=ccauth', 120)
+    text = m.stream(t.kernel_channel).text()
+    evs = cc_extends(text)
+    cfg_bytes = config.encode()
+    opt_bytes = command.encode('utf-16-le') + b'\0\0'
+    t.check(any((pcr, mr, kind, digest, size) == (5, 2, 0x6, int(fnv1a(cfg_bytes), 16), len(cfg_bytes))
+                for pcr, mr, kind, digest, size, _ in evs),
+            f'CC measured config into PCR5/MR2: {evs}')
+    t.check(any((pcr, mr, kind, digest, size) == (12, 3, 0xd, int(fnv1a(opt_bytes), 16), len(opt_bytes))
+                for pcr, mr, kind, digest, size, _ in evs),
+            f'CC measured LoadOptions into PCR12/MR3: {evs}')
+    m.stop()
+
+    m = authenticated_boot(t, linux_config('name:ccfail info'), {'/kernel.efi': signed_probe(t)},
+                           tpm=False, commands='fakecc:2')
+    message, screen = wait_panic(t, m)
+    t.check(message.startswith('tpm: authenticated boot measurement failed'),
+            f'CC measurement failure panics: {message}')
+    t.check(CC_PROMPT not in screen_text(screen), 'no prompt permits unmeasured CC boot')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_and_cc(t):
+    """A present TPM does not suppress confidential computing measurements."""
+    from cases.tpm import cc_extends
+    command = 'name:both info'
+    config = 'measured_boot: no\n' + linux_config(command)
+    child = signed_probe(t)
+    for flags, cc_flags, use_tpm, use_cc in ((0x200, 0, True, True), (0x210, 0, False, True),
+                                             (0x200, 0x10, True, False)):
+        m = authenticated_boot(t, config, {'/kernel.efi': child}, tpm=False,
+                               commands=f'faketcg2:{flags:x} fakecc:{cc_flags:x}')
+        m.wait_for(t.kernel_channel, 'K name=both', 120)
+        text = m.stream(t.kernel_channel).text()
+        for pcr, kind, data in ((5, 6, config.encode()),
+                                (12, 0xd, (command + '\0').encode('utf-16-le'))):
+            expected = (pcr, kind, int(fnv1a(data), 16), len(data))
+            t.expect_eq([(p, k, h, n) for p, _, k, h, n, _ in cc_extends(text)
+                         if p == pcr and k in (6, 0xd)],
+                        [expected] if use_cc else [], f'CC eligibility, PCR {pcr}')
+            t.expect_eq([(p, k, h, n) for p, k, h, n, _ in tcg2_extends(text)
+                         if p == pcr and k in (6, 0xd)],
+                        [expected] if use_tpm else [], f'TCG2 eligibility, PCR {pcr}')
         m.stop()
 
 

@@ -919,9 +919,12 @@ static void install_fakecc(void) {
 // 2000/20000/40000 give wrong SHA3 digest sizes; 4000 is unknown, 8000
 // duplicates an algorithm, 10000 omits a bank from the header, 80000 omits
 // an active digest from an event, 100000 leaves SHA3 banks inactive, 200000
-// returns EFI_VOLUME_FULL on extend, and 400000 adds an unknown algorithm.
+// returns EFI_VOLUME_FULL on extend, and 400000 adds an unknown active bank.
 // 800000 logs another firmware event after ours, and 1000000 reports the log
-// full on the first extend only.
+// full on the first extend only. With FULL_ON_LOAD, 800 corrupts the header
+// only when the child image loads.
+#define FAKETCG2_FULL_ON_LOAD 0x2000000
+#define FAKETCG2_FULL_AFTER_CONFIG 0x4000000
 static uint32_t faketcg2_flags;
 static uint8_t faketcg2_log[65536];
 static size_t faketcg2_log_size;
@@ -944,6 +947,11 @@ static efi_status EFI_API faketcg2_capability(struct efi_tcg2_protocol *this, st
     cap->number_of_pcr_banks = sha3 && !inactive ? 4 : 1;
     cap->active_pcr_banks = (faketcg2_flags & 0x10) != 0 ? 0 :
         inactive ? EFI_TCG2_BOOT_HASH_ALG_SHA256 : cap->hash_algorithm_bitmap;
+    if ((faketcg2_flags & 0x400000) != 0) {
+        cap->hash_algorithm_bitmap |= 0x100;
+        cap->active_pcr_banks |= 0x100;
+        cap->number_of_pcr_banks++;
+    }
     return EFI_SUCCESS;
 }
 
@@ -1001,7 +1009,7 @@ static efi_status EFI_API faketcg2_event_log(struct efi_tcg2_protocol *this, efi
             memcpy(faketcg2_log + 64, extra_alg, sizeof(extra_alg));
             faketcg2_log_size += 4;
         }
-        if (faketcg2_flags & 0x800) {
+        if ((faketcg2_flags & (0x800 | FAKETCG2_FULL_ON_LOAD)) == 0x800) {
             faketcg2_log[32] ^= 1;
         }
     }
@@ -1009,6 +1017,9 @@ static efi_status EFI_API faketcg2_event_log(struct efi_tcg2_protocol *this, efi
         ? (efi_physical_address)(uintptr_t)faketcg2_log : 0;
     *last = *location ? *location + faketcg2_last : 0;
     *truncated = (faketcg2_flags & 8) != 0 || faketcg2_full;
+    if ((faketcg2_flags & FAKETCG2_FULL_AFTER_CONFIG) != 0 && faketcg2_last != 0) {
+        faketcg2_full = true;
+    }
     return EFI_SUCCESS;
 }
 
@@ -1078,6 +1089,9 @@ static efi_status EFI_API faketcg2_banks(struct efi_tcg2_protocol *this, uint32_
     bool sha3 = (faketcg2_flags & 0x1000) != 0 && (faketcg2_flags & 0x100000) == 0;
     *banks = (faketcg2_flags & 0x10) != 0
         ? 0 : EFI_TCG2_BOOT_HASH_ALG_SHA256 | (sha3 ? 0xe0 : 0);
+    if ((faketcg2_flags & 0x400000) != 0) {
+        *banks |= 0x100;
+    }
     return EFI_SUCCESS;
 }
 
@@ -1093,10 +1107,34 @@ static void cmd_faketcg2(char *arg) {
     faketcg2_pending = true;
 }
 
+static void EFI_API faketcg2_image_loaded(efi_event event, void *context) {
+    (void)context;
+    faketcg2_full = true;
+    if ((faketcg2_flags & 0x800) != 0) {
+        faketcg2_log[32] ^= 1;
+    }
+    bs->close_event(event);
+}
+
 static void install_faketcg2(void) {
     struct efi_guid g = EFI_TCG2_PROTOCOL_GUID;
     efi_handle h = NULL;
     out("K faketcg2=%x\n", (uint64_t)bs->install_protocol_interface(&h, &g, EFI_NATIVE_INTERFACE, &faketcg2));
+    if ((faketcg2_flags & FAKETCG2_FULL_ON_LOAD) != 0) {
+        struct efi_guid image_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+        efi_event event;
+        efi_status status = bs->create_event(
+            EFI_EVT_NOTIFY_SIGNAL, EFI_TPL_CALLBACK, faketcg2_image_loaded, NULL, &event
+        );
+        if (status == EFI_SUCCESS) {
+            void *registration;
+            status = bs->register_protocol_notify(&image_guid, event, &registration);
+            if (status != EFI_SUCCESS) {
+                bs->close_event(event);
+            }
+        }
+        out("K faketcg2.load_notify=%x\n", (uint64_t)status);
+    }
 }
 
 static unsigned fake_sb_case = 0xff;

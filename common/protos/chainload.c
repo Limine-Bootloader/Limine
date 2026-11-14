@@ -16,6 +16,7 @@
 #include <sys/idt.h>
 #include <sys/cpu.h>
 #include <lib/bli.h>
+#include <lib/tpm.h>
 #include <lib/utf.h>
 #include <protos/linux_efi.h>
 #include <drivers/vga_textmode.h>
@@ -568,6 +569,14 @@ noreturn void efi_load(char *config, char *cmdline, bool linux_protocol) {
         pmm_free(cmdline_utf16, cmdline_utf16_alloc_len);
     }
 
+    if (firmware_secure_boot) {
+        if (new_cmdline != NULL) {
+            tpm_measure_load_options(new_cmdline, new_cmdline_size);
+        } else {
+            tpm_validate_log(false);
+        }
+    }
+
     pmm_release_uefi_mem();
 
     struct efi_memmap_device_path memdev_path[2];
@@ -654,6 +663,7 @@ noreturn void efi_load(char *config, char *cmdline, bool linux_protocol) {
 
     if (firmware_secure_boot) {
         linux_efi_register();
+        tpm_validate_log(true);
     }
 
     bli_on_boot();
