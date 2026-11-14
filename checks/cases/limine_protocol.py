@@ -60,7 +60,8 @@ def full_conformance(t):
 
     t.expect_eq(report.int('paging_mode'), 0, 'paging mode the executable asked for')
     t.expect_eq(report.int('entropy.count'), 16, 'entropy values')
-    t.expect_eq(report.int('framebuffer.revision'), 1, 'framebuffer response revision')
+    t.expect_eq(report.int('framebuffer.revision'), 2, 'framebuffer response revision')
+    t.expect_eq(report.int('framebuffer.0.upright_rotation'), 0, 'no turn known for QEMU\'s display')
 
     if t.port.arch == 'riscv64' and 'riscv64.timebase_frequency' in report:
         t.expect_eq(report.int('tsc_frequency'), report.int('riscv64.timebase_frequency'),

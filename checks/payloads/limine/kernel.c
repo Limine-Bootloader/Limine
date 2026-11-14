@@ -787,6 +787,11 @@ static void check_framebuffers(void) {
             check(modes_ok, "framebuffer.modes", "a mode has a bad memory model or pitch");
             fact("framebuffer.current_mode_listed", "%d", current_listed);
         }
+        if (r->revision >= 2) {
+            uint64_t turn = fb->upright_rotation;
+            kprintf("K framebuffer.%lu.upright_rotation=%lu\n", i, turn);
+            check(turn <= LIMINE_FRAMEBUFFER_ROTATE_270, "framebuffer.upright", "%lu", turn);
+        }
 #if TEST_DRAW
         // A pattern the harness can find on screen: proof the address, pitch
         // and masks describe what is actually displayed.
