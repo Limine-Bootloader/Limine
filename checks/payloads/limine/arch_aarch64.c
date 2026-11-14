@@ -80,7 +80,7 @@ void arch_cpu_relax(void) {
 
 uint64_t arch_counter(void) {
     asm volatile ("isb" ::: "memory");
-    return READ_SYSREG(cntpct_el0);
+    return READ_SYSREG(cntvct_el0);
 }
 
 uint64_t arch_counter_hw_freq(void) {
