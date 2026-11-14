@@ -1212,11 +1212,34 @@ static efi_status EFI_API fake_image_free_pool(void *ptr) {
 static uint32_t fake_image_mode;
 static efi_image_load real_load_image;
 static efi_image_start real_start_image;
+static efi_image_unload real_unload_image;
+static efi_handle_protocol real_image_handle_protocol;
 static efi_handle fake_image_handle;
 static struct efi_loaded_image_protocol *fake_loaded_image;
 static struct efi_device_path_protocol *fake_image_path;
 static efi_handle fake_image_device;
 static efi_handle fake_alternate_device;
+
+static efi_status EFI_API fake_unload_image(efi_handle handle) {
+    if (handle == fake_image_handle && (fake_image_mode == 3 || fake_image_mode == 4)) {
+        return EFI_ACCESS_DENIED;
+    }
+    return real_unload_image(handle);
+}
+
+static efi_status EFI_API fake_image_protocol(efi_handle handle, struct efi_guid *guid, void **out) {
+    struct efi_guid image = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    struct efi_guid fs = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    if (fake_image_mode == 4 && handle == fake_image_handle
+     && memcmp(guid, &image, sizeof(struct efi_guid)) == 0) {
+        return EFI_DEVICE_ERROR;
+    }
+    if (fake_image_mode == 5 && handle == loaded->device_handle
+     && memcmp(guid, &fs, sizeof(struct efi_guid)) == 0) {
+        return EFI_UNSUPPORTED;
+    }
+    return real_image_handle_protocol(handle, guid, out);
+}
 
 static efi_status EFI_API fake_load_image(
     bool policy, efi_handle parent, struct efi_device_path_protocol *path,
@@ -1228,6 +1251,10 @@ static efi_status EFI_API fake_load_image(
         out("K fakeimage.full_alive=%u\n", (uint64_t)(path != NULL && path != fake_relative_pool));
     }
     efi_status status = real_load_image(policy, parent, path, buffer, size, handle);
+    if (status == EFI_SUCCESS && buffer != NULL && (fake_image_mode == 3 || fake_image_mode == 4)) {
+        fake_image_handle = *handle;
+        return fake_image_mode == 3 ? EFI_SECURITY_VIOLATION : EFI_SUCCESS;
+    }
     if (status == EFI_SUCCESS && buffer != NULL) {
         struct efi_guid guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
         status = bs->handle_protocol(*handle, &guid, (void **)&fake_loaded_image);
@@ -1291,6 +1318,10 @@ static void cmd_chain(char *arg) {
             && dp_status == EFI_SUCCESS && fake_alternate_device != NULL));
     }
     if (fake_image_mode != 0) {
+        real_unload_image = bs->unload_image;
+        real_image_handle_protocol = bs->handle_protocol;
+        bs->unload_image = fake_unload_image;
+        bs->handle_protocol = fake_image_protocol;
         real_load_image = bs->load_image;
         real_start_image = bs->start_image;
         real_image_allocate_pool = bs->allocate_pool;

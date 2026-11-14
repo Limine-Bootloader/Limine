@@ -2513,6 +2513,14 @@ noreturn void boot(char *config) {
         panic(true, "Boot protocol not specified for this entry");
     }
 
+#if defined(UEFI)
+    if (firmware_secure_boot) {
+        if (strcmp(proto, "linux") == 0) {
+            efi_load(config, cmdline, true);
+        }
+    }
+#endif
+
     if (!strcmp(proto, "limine")) {
         limine_load(config, cmdline);
     } else if (!strcmp(proto, "linux")) {

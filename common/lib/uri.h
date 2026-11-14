@@ -2,6 +2,8 @@
 #define LIB__URI_H
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <fs/file.h>
 
 bool uri_resolve(char *uri, char **resource, char **root, char **path, char **hash);
@@ -24,8 +26,12 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
 );
 
 #if defined(UEFI)
-// EFI images are authorised by LoadImage; external initrds are measured data.
-struct file_handle *uri_open_uefi(char *uri, uint32_t type);
+// Write a relative UTF-16 path into a buffer of at least len + 1 units.
+size_t uri_efi_path(uint16_t *dest, const char *path, size_t len);
+
+// Firmware Secure Boot confines these opens to EFI filesystems. LoadImage
+// authorises images; initrds retain the enrolled configuration's hash policy.
+struct file_handle *uri_open_uefi(char *uri, uint32_t type, bool require_hash);
 #endif
 
 // Same as uri_open, for a resource the boot can do without: a problem that

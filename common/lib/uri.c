@@ -1,6 +1,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <lib/uri.h>
+#if defined(UEFI)
+#  include <efi.h>
+#  include <lib/utf.h>
+#endif
 #include <lib/misc.h>
 #include <lib/part.h>
 #include <drivers/disk.h>
@@ -18,10 +22,16 @@
 
 static bool optional_resource = false;
 
+#if defined(UEFI)
+#   define URI_ALLOW_MENU (!firmware_secure_boot)
+#else
+#   define URI_ALLOW_MENU true
+#endif
+
 // Only returns for an optional resource, which the caller then backs out of.
 #define URI_ERROR(FMT, ...) do { \
     if (!optional_resource) { \
-        panic(true, FMT, ##__VA_ARGS__); \
+        panic(URI_ALLOW_MENU, FMT, ##__VA_ARGS__); \
     } \
     print(FMT "\n", ##__VA_ARGS__); \
 } while (0)
@@ -161,34 +171,6 @@ static struct volume *volume_by_coord(bool optical, int drive, int partition) {
     return volume;
 }
 
-static struct file_handle *uri_hdd_dispatch(char *loc, char *path) {
-    int drive, partition;
-
-    if (!parse_bios_partition(loc, &drive, &partition))
-        return NULL;
-
-    struct volume *volume = volume_by_coord(false, drive, partition);
-
-    if (volume == NULL)
-        return NULL;
-
-    return fopen(volume, path);
-}
-
-static struct file_handle *uri_odd_dispatch(char *loc, char *path) {
-    int drive, partition;
-
-    if (!parse_bios_partition(loc, &drive, &partition))
-        return NULL;
-
-    struct volume *volume = volume_by_coord(true, drive, partition);
-
-    if (volume == NULL)
-        return NULL;
-
-    return fopen(volume, path);
-}
-
 static struct volume *volume_by_guid_str(char *guid_str) {
     struct guid guid;
     if (!string_to_guid_mixed(&guid, guid_str)) {
@@ -201,32 +183,6 @@ static struct volume *volume_by_guid_str(char *guid_str) {
     }
 
     return volume;
-}
-
-static struct file_handle *uri_guid_dispatch(char *guid_str, char *path) {
-    struct volume *volume = volume_by_guid_str(guid_str);
-    if (volume == NULL && connect_all()) {
-        volume = volume_by_guid_str(guid_str);
-    }
-
-    if (volume == NULL) {
-        return NULL;
-    }
-
-    return fopen(volume, path);
-}
-
-static struct file_handle *uri_fslabel_dispatch(char *fslabel, char *path) {
-    struct volume *volume = volume_get_by_fslabel(fslabel);
-    if (volume == NULL && connect_all()) {
-        volume = volume_get_by_fslabel(fslabel);
-    }
-
-    if (volume == NULL) {
-        return NULL;
-    }
-
-    return fopen(volume, path);
 }
 
 static struct file_handle *uri_tftp_dispatch(char *root, char *path) {
@@ -248,28 +204,149 @@ static struct file_handle *uri_tftp_dispatch(char *root, char *path) {
     return ret;
 }
 
-static struct file_handle *uri_boot_dispatch(char *s_part, char *path) {
-    if (boot_volume->pxe)
-        return uri_tftp_dispatch(s_part, path);
+#if defined(UEFI)
+size_t uri_efi_path(uint16_t *dest, const char *path, size_t len) {
+    size_t chars;
+    utf8_to_utf16(dest, len + 1, path, len, &chars);
+    size_t out = 0;
+    for (size_t i = 0; i < chars; i++) {
+        if (dest[i] == '/' || dest[i] == '\\') {
+            if (out == 0 || dest[out - 1] == '\\') {
+                continue;
+            }
+            dest[out++] = '\\';
+        } else {
+            dest[out++] = dest[i];
+        }
+    }
+    dest[out] = 0;
+    return out;
+}
 
-    int partition;
+static uint64_t read_efi_file(struct file_handle *handle, void *buf, uint64_t loc, uint64_t count) {
+    struct efi_file_protocol *file = handle->fd;
+    if (count > SIZE_MAX || file->set_position(file, loc) != EFI_SUCCESS) {
+        return 0;
+    }
+    size_t total = 0;
+    while (total < count) {
+        size_t chunk = count - total;
+        efi_status status = file->read(file, &chunk, (uint8_t *)buf + total);
+        if (status != EFI_SUCCESS || chunk > count - total) {
+            return 0;
+        }
+        if (chunk == 0) {
+            break;
+        }
+        total += chunk;
+    }
+    return total;
+}
 
-    if (s_part[0] != '\0') {
-        uint64_t val = strtoui(s_part, NULL, 10);
-        if (val > 256) {
-            URI_ERROR("Partition number outside range 0-256");
+static void close_efi_file(struct file_handle *handle) {
+    struct efi_file_protocol *file = handle->fd;
+    file->close(file);
+}
+
+static struct file_handle *open_efi_file(struct volume *volume, const char *path) {
+    struct efi_guid guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    struct efi_simple_file_system_protocol *fs = NULL;
+    if (volume->pxe || volume->efi_part_handle == NULL
+     || gBS->handle_protocol(volume->efi_part_handle, &guid, (void **)&fs) != EFI_SUCCESS
+     || fs == NULL) {
+        URI_ERROR("uri: An EFI filesystem is required");
+        return NULL;
+    }
+    struct efi_file_protocol *root = NULL;
+    if (fs->open_volume(fs, &root) != EFI_SUCCESS || root == NULL) {
+        return NULL;
+    }
+    size_t len = strlen(path);
+    size_t bytes = (len + 1) * sizeof(uint16_t);
+    uint16_t *name = ext_mem_alloc(bytes);
+    if (uri_efi_path(name, path, len) == 0) {
+        pmm_free(name, bytes);
+        root->close(root);
+        return NULL;
+    }
+    struct efi_file_protocol *file = NULL;
+    efi_status status = root->open(root, &file, name, EFI_FILE_MODE_READ, 0);
+    pmm_free(name, bytes);
+    root->close(root);
+    if (status != EFI_SUCCESS || file == NULL) {
+        return NULL;
+    }
+    uint64_t end;
+    if (file->set_position(file, UINT64_MAX) != EFI_SUCCESS
+     || file->get_position(file, &end) != EFI_SUCCESS || end > SIZE_MAX) {
+        file->close(file);
+        return NULL;
+    }
+    struct file_handle *handle = ext_mem_alloc(sizeof(struct file_handle));
+    handle->vol = volume;
+    handle->efi_part_handle = volume->efi_part_handle;
+    handle->fd = file;
+    handle->size = end;
+    handle->read = read_efi_file;
+    handle->close = close_efi_file;
+    handle->path_len = len + 1;
+    handle->path = ext_mem_alloc(handle->path_len);
+    memcpy(handle->path, path, handle->path_len);
+    return handle;
+}
+#endif // defined(UEFI)
+
+static struct file_handle *open_resource(char *resource, char *root, char *path, bool efi_only) {
+    bool boot = strcmp(resource, "boot") == 0;
+    if (strcmp(resource, "tftp") == 0 || (boot && boot_volume->pxe)) {
+        if (efi_only) {
+            URI_ERROR("uri: An EFI filesystem is required");
             return NULL;
         }
-        partition = val;
-    } else {
-        partition = boot_volume->partition;
+        return uri_tftp_dispatch(root, path);
     }
 
-    struct volume *volume = volume_get_by_coord(boot_volume->is_optical,
-                                                boot_volume->index, partition);
-    if (volume == NULL)
+    struct volume *volume;
+    if (boot) {
+        int partition = boot_volume->partition;
+        if (*root != 0) {
+            uint64_t val = strtoui(root, NULL, 10);
+            if (val > 256) {
+                URI_ERROR("Partition number outside range 0-256");
+                return NULL;
+            }
+            partition = val;
+        }
+        volume = volume_get_by_coord(boot_volume->is_optical, boot_volume->index, partition);
+    } else if (strcmp(resource, "hdd") == 0 || strcmp(resource, "odd") == 0) {
+        int drive, partition;
+        if (!parse_bios_partition(root, &drive, &partition)) {
+            return NULL;
+        }
+        volume = volume_by_coord(strcmp(resource, "odd") == 0, drive, partition);
+    } else if (strcmp(resource, "guid") == 0 || strcmp(resource, "uuid") == 0) {
+        volume = volume_by_guid_str(root);
+        if (volume == NULL && connect_all()) {
+            volume = volume_by_guid_str(root);
+        }
+    } else if (strcmp(resource, "fslabel") == 0) {
+        volume = volume_get_by_fslabel(root);
+        if (volume == NULL && connect_all()) {
+            volume = volume_get_by_fslabel(root);
+        }
+    } else {
+        URI_ERROR("Resource `%s` not valid.", resource);
         return NULL;
+    }
 
+    if (volume == NULL) {
+        return NULL;
+    }
+#if defined(UEFI)
+    if (efi_only) {
+        return open_efi_file(volume, path);
+    }
+#endif
     return fopen(volume, path);
 }
 
@@ -351,7 +428,7 @@ static bool uri_hash_mismatch(const struct hash_reference *hash_ref, const char 
 }
 
 static struct file_handle *uri_open_internal(char *uri, uint32_t type,
-                                             bool allow_high_mem, bool require_hash
+                                             bool allow_high_mem, bool require_hash, bool efi_only
 #if defined(__i386__)
     , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
@@ -363,8 +440,6 @@ static struct file_handle *uri_open_internal(char *uri, uint32_t type,
     }
 #endif
 
-    struct file_handle *raw;
-
     char *resource = NULL, *root = NULL, *path = NULL, *hash = NULL;
     if (!uri_resolve(uri, &resource, &root, &path, &hash)) {
         return NULL;
@@ -375,25 +450,7 @@ static struct file_handle *uri_open_internal(char *uri, uint32_t type,
         resource++;
     }
 
-    if (!strcmp(resource, "hdd")) {
-        raw = uri_hdd_dispatch(root, path);
-    } else if (!strcmp(resource, "odd")) {
-        raw = uri_odd_dispatch(root, path);
-    } else if (!strcmp(resource, "boot")) {
-        raw = uri_boot_dispatch(root, path);
-    } else if (!strcmp(resource, "guid")) {
-        raw = uri_guid_dispatch(root, path);
-    } else if (!strcmp(resource, "uuid")) {
-        raw = uri_guid_dispatch(root, path);
-    } else if (!strcmp(resource, "fslabel")) {
-        raw = uri_fslabel_dispatch(root, path);
-    } else if (!strcmp(resource, "tftp")) {
-        raw = uri_tftp_dispatch(root, path);
-    } else {
-        URI_ERROR("Resource `%s` not valid.", resource);
-        return NULL;
-    }
-
+    struct file_handle *raw = open_resource(resource, root, path, efi_only);
     if (raw == NULL) {
         return NULL;
     }
@@ -728,7 +785,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
 #endif
 ) {
-    return uri_open_internal(uri, type, allow_high_mem, secure_boot_active
+    return uri_open_internal(uri, type, allow_high_mem, secure_boot_active, false
 #if defined(__i386__)
         , memcpy_to_64, memcpy_from_64
 #endif
@@ -736,12 +793,12 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
 }
 
 #if defined(UEFI)
-struct file_handle *uri_open_uefi(char *uri, uint32_t type) {
+struct file_handle *uri_open_uefi(char *uri, uint32_t type, bool require_hash) {
     bool allow_high = true;
 #if defined(__i386__)
     allow_high = false;
 #endif
-    return uri_open_internal(uri, type, allow_high, false
+    return uri_open_internal(uri, type, allow_high, require_hash, firmware_secure_boot
 #if defined(__i386__)
         , NULL, NULL
 #endif
