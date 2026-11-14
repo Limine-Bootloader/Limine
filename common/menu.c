@@ -2520,6 +2520,18 @@ noreturn void boot(char *config) {
         panic(true, "Boot protocol not specified for this entry");
     }
 
+#if defined(UEFI)
+    if (firmware_secure_boot) {
+        if (strcmp(proto, "linux") == 0) {
+            efi_load(config, cmdline, true);
+        }
+        if (strcmp(proto, "efi") != 0 && strcmp(proto, "uefi") != 0
+         && strcmp(proto, "efi_chainload") != 0 && strcmp(proto, "efi_boot_entry") != 0) {
+            panic(false, "boot: Protocol is unavailable with firmware Secure Boot");
+        }
+    }
+#endif
+
     if (!strcmp(proto, "limine")) {
         limine_load(config, cmdline);
     } else if (!strcmp(proto, "linux")) {
