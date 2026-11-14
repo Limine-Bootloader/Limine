@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <lib/fb.h>
+#include <lib/fb_quirks.h>
 #include <lib/misc.h>
 #include <drivers/vbe.h>
 #include <drivers/gop.h>
@@ -38,6 +39,8 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
 #elif defined(UEFI)
     init_gop(ret, _fbs_count, target_width, target_height, target_bpp);
 #endif
+
+    fb_quirks_apply(*ret, *_fbs_count);
 
     fb_fbs = *ret;
     fb_fbs_count = *_fbs_count;

@@ -329,7 +329,8 @@ static void cmd_gop(void) {
 }
 
 // A graphics output protocol over reserved memory, with modes in the formats
-// QEMU's display devices never offer, and an EDID that prefers 800x600.
+// QEMU's display devices never offer, portrait ones, and an EDID that prefers
+// 800x600.
 struct fake_mode {
     uint32_t width, height, format, pitch;
     EFI_PIXEL_BITMASK masks;
@@ -342,6 +343,8 @@ static const struct fake_mode fake_modes[] = {
     { 1280, 1024, EfiPixelBltOnly, 1280, { 0, 0, 0, 0 } },
     { 640, 480, EfiPixelBlueGreenRedReserved8BitPerColor, 600, { 0, 0, 0, 0 } },
     { 320, 200, EfiPixelBitMask, 320, { 0x7c00, 0x03e0, 0x001f, 0x8000 } },
+    { 800, 1280, EfiPixelBlueGreenRedReserved8BitPerColor, 800, { 0, 0, 0, 0 } },
+    { 720, 1280, EfiPixelBlueGreenRedReserved8BitPerColor, 720, { 0, 0, 0, 0 } }
 };
 #define FAKE_MODES (sizeof(fake_modes) / sizeof(fake_modes[0]))
 
@@ -1493,6 +1496,19 @@ static void cmd_memattr(char *arg) {
     out("K memattr=%x %x\n", (uint64_t)base, (uint64_t)MEMATTR_PAGES * 4096);
 }
 
+// n (hex) single pages, of types that stay apart once boot services are gone
+// and so leave a memory map of as many entries: fragment:n.
+static void cmd_fragment(char *arg) {
+    uint64_t pages = parse_hex(arg, NULL);
+    EFI_STATUS s = EFI_SUCCESS;
+    for (uint64_t i = 0; i < pages && s == EFI_SUCCESS; i++) {
+        EFI_MEMORY_TYPE type = i % 2 == 0 ? EfiLoaderData : EfiACPIReclaimMemory;
+        EFI_PHYSICAL_ADDRESS page = 0;
+        s = bs->AllocatePages(EfiAllocateAnyPages, type, 1, &page);
+    }
+    out("K fragment=%x\n", (uint64_t)s);
+}
+
 // A Linux random seed table of n (hex) bytes, as an earlier stage would
 // leave one.
 static void cmd_seedtable(char *arg) {
@@ -1656,6 +1672,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_seedtable(tok + 10);
         } else if (sprefix(tok, "memattr:")) {
             cmd_memattr(tok + 8);
+        } else if (sprefix(tok, "fragment:")) {
+            cmd_fragment(tok + 9);
         } else if (sprefix(tok, "smbios3:")) {
             cmd_smbios3(tok + 8);
         } else if (sprefix(tok, "wdfail")) {

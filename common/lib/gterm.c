@@ -525,7 +525,6 @@ static void parse_palette(const char *str, uint32_t *colours) {
 }
 
 struct gterm_config {
-    int fb_rotation;
     uint32_t ansi_colours[8];
     uint32_t ansi_bright_colours[8];
     char *theme_background;
@@ -539,7 +538,7 @@ struct gterm_config {
     bool font_scale_is_default;
 };
 
-int gterm_get_rotation(char *config) {
+int gterm_get_rotation(char *config, struct fb_info *fb) {
     char *rotation_str = config_get_value(config, 0, "INTERFACE_ROTATION");
     if (rotation_str != NULL) {
         int rotation_val = strtoui(rotation_str, NULL, 10);
@@ -548,14 +547,13 @@ int gterm_get_rotation(char *config) {
             case 180: return FLANTERM_FB_ROTATE_180;
             case 270: return FLANTERM_FB_ROTATE_270;
         }
+        return FLANTERM_FB_ROTATE_0;
     }
 
-    return FLANTERM_FB_ROTATE_0;
+    return fb->upright_rotation;
 }
 
 static void gterm_parse_config(char *config, struct gterm_config *cfg) {
-    cfg->fb_rotation = gterm_get_rotation(config);
-
     cfg->ansi_colours[0] = 0x00000000;
     cfg->ansi_colours[1] = 0x00aa0000;
     cfg->ansi_colours[2] = 0x0000aa00;
@@ -759,8 +757,9 @@ config_no_load_font:;
 
 static void gterm_fb_setup(struct fb_info *fb, char *config,
                            struct gterm_config *cfg,
+                           int rotation,
                            size_t *out_scale_x, size_t *out_scale_y) {
-    if (cfg->fb_rotation == FLANTERM_FB_ROTATE_90 || cfg->fb_rotation == FLANTERM_FB_ROTATE_270) {
+    if (rotation == FLANTERM_FB_ROTATE_90 || rotation == FLANTERM_FB_ROTATE_270) {
         uint64_t tmp = fb->framebuffer_width;
         fb->framebuffer_width = fb->framebuffer_height;
         fb->framebuffer_height = tmp;
@@ -797,7 +796,7 @@ static void gterm_fb_setup(struct fb_info *fb, char *config,
         }
     }
 
-    if (cfg->fb_rotation == FLANTERM_FB_ROTATE_90 || cfg->fb_rotation == FLANTERM_FB_ROTATE_270) {
+    if (rotation == FLANTERM_FB_ROTATE_90 || rotation == FLANTERM_FB_ROTATE_270) {
         uint64_t tmp = fb->framebuffer_width;
         fb->framebuffer_width = fb->framebuffer_height;
         fb->framebuffer_height = tmp;
@@ -870,7 +869,8 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
         }
 
         size_t font_scale_x, font_scale_y;
-        gterm_fb_setup(fb, config, &cfg, &font_scale_x, &font_scale_y);
+        int rotation = gterm_get_rotation(config, fb);
+        gterm_fb_setup(fb, config, &cfg, rotation, &font_scale_x, &font_scale_y);
 
         terms[terms_i] = flanterm_fb_init(ext_mem_alloc_size_t,
                             pmm_free_size_t,
@@ -885,7 +885,7 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
                             &default_bg_bright, &default_fg_bright,
                             cfg.font, cfg.font_width, cfg.font_height, cfg.font_spacing,
                             font_scale_x, font_scale_y,
-                            margin, cfg.fb_rotation, true);
+                            margin, rotation, true);
 
         if (terms[terms_i] != NULL) {
             terms_i++;
@@ -974,7 +974,8 @@ size_t gterm_prepare_flanterm_params(struct fb_info *fbs, size_t fbs_count,
         }
 
         size_t font_scale_x, font_scale_y;
-        gterm_fb_setup(fb, NULL, &cfg, &font_scale_x, &font_scale_y);
+        int rotation = gterm_get_rotation(NULL, fb);
+        gterm_fb_setup(fb, NULL, &cfg, rotation, &font_scale_x, &font_scale_y);
 
         struct flanterm_params *p = &out[count];
 
@@ -996,7 +997,7 @@ size_t gterm_prepare_flanterm_params(struct fb_info *fbs, size_t fbs_count,
         p->font_scale_x = font_scale_x;
         p->font_scale_y = font_scale_y;
         p->margin = margin;
-        p->rotation = cfg.fb_rotation;
+        p->rotation = rotation;
 
         count++;
     }
