@@ -33,6 +33,9 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
 bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_size,
                           uint64_t *entry_point, struct elsewhere_range **ranges,
                           uint64_t *ranges_count);
+// Replaces the program header indices elf*_load_elsewhere() leaves as each
+// range's elsewhere with staging buffers, once the targets are reserved.
+void elf_stage_elsewhere(uint8_t *elf, struct elsewhere_range *ranges, uint64_t ranges_count);
 
 struct elf64_hdr {
     uint8_t  ident[16];

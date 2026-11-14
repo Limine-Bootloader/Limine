@@ -287,10 +287,14 @@ noreturn void multiboot1_load(char *config, char *cmdline) {
     pmm_free(ranges, sizeof(struct elsewhere_range) * ranges_count);
     ranges = new_ranges;
 
-    // Reserve the kernel's target so later module/info sources can't be
+    // Reserve the kernel's target so later sources, its own included, can't be
     // allocated on top of it.
     for (size_t i = 0; i < kernel_ranges_count; i++) {
         elsewhere_reserve_target(ranges[i].target, ranges[i].length);
+    }
+
+    if ((header.flags & (1 << 16)) == 0) {
+        elf_stage_elsewhere(kernel, ranges, kernel_ranges_count);
     }
 
     // GRUB allocates boot info at 0x10000, *except* if the kernel happens
