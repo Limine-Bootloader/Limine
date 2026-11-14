@@ -33,6 +33,8 @@ MIIX_320 = [smbios(1, manufacturer='LENOVO', version='Lenovo MIIX 320-10ICR')]
 STEAM_DECK = [smbios(1, manufacturer='Valve', product='Jupiter', version='1')]
 # Its left edge.
 DYNABOOK_K50 = [smbios(1, manufacturer='Dynabook Inc.', product='dynabook K50/FR')]
+# The early Intel Mac whose firmware gives its framebuffer a wrong pitch.
+MACBOOK_AIR_3_1 = [smbios(0, vendor='Apple Inc.'), smbios(1, product='MacBookAir3,1')]
 
 
 def default_strings(date):
@@ -47,14 +49,19 @@ def boot_fake(t, smbios_, config, files):
     return probe_then_limine(t, 'fakegop:2', config, files, display=False, smbios=smbios_)
 
 
-def protocol_report(t, smbios_, extra='', globals_=''):
-    """The Limine protocol test kernel's report, booted on the probe's GOPs
-    on UEFI, on VBE on BIOS."""
-    config = 'timeout: 0\n' + globals_ + entry('Test', path='boot():/boot/kernel.elf', cmdline='x', extra=extra)
+def boot_machine(t, smbios_, config, files):
+    """Booted on the probe's GOPs on UEFI, on the machine's VBE adapter on
+    BIOS."""
     if t.port.is_uefi:
-        m = boot_fake(t, smbios_, config, {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))})
-    else:
-        m, _ = boot_entry(t, config, smbios=smbios_)
+        return boot_fake(t, smbios_, config, files)
+    m, _ = boot_entry(t, config, files=files, kernel_variant=None, smbios=smbios_)
+    return m
+
+
+def protocol_report(t, smbios_, extra='', globals_=''):
+    """The Limine protocol test kernel's report."""
+    config = 'timeout: 0\n' + globals_ + entry('Test', path='boot():/boot/kernel.elf', cmdline='x', extra=extra)
+    m = boot_machine(t, smbios_, config, {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))})
     r = t.kernel_report(m)
     check_report_clean(t, r)
     m.stop()
@@ -138,6 +145,13 @@ def fb_quirks_first_framebuffer_only(t):
                 ['640x480x16 pitch=1280', '800x600x32 pitch=3200', '320x200x16 pitch=640',
                  '800x1280x32 pitch=3200', '720x1280x32 pitch=2880', '1280x800x32 pitch=5376'],
                 'and its modes')
+
+    # Elsewhere QEMU's display is a ramfb, in memory sized for its own pitch.
+    if t.port.is_x86:
+        r = report(MACBOOK_AIR_3_1)
+        t.check(r['framebuffer.0'].split()[1] == 'pitch=8192',
+                f'an early Intel Mac\'s: the firmware\'s framebuffer\'s pitch forced: {r["framebuffer.0"]}')
+        t.expect_eq(geometry(r['framebuffer.1']), '800x600x32 pitch=3200', 'the probe\'s as reported')
 
 
 @check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop', 'gterm'])
@@ -312,21 +326,27 @@ def fb_quirks_portrait_after_boot_services(t):
     wait_fake_text(t, m, 'Too many memory map entries', 600, 800, 2400)
 
 
-@check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'linux', 'multiboot1', 'multiboot2', 'gop'])
+@check(ports=ALL_PORTS, tags=['fb-quirks', 'limine-protocol', 'linux', 'multiboot1', 'multiboot2', 'gop', 'vbe'])
 def fb_quirks_for_limine_only(t):
     """The firmware's own description of a framebuffer is corrected for the
     Limine protocol's kernels alone. Linux corrects it itself, and is given
     it as the firmware reports it, as are Multiboot 1 and 2 kernels
-    [intent]."""
+    [intent]. Here an 800x600 mode, a portrait panel's on UEFI and an early
+    Intel Mac's on BIOS."""
     from cases.linux import bzimage, hexint, stub, stub_report, x86_report
-    t.expect_eq(geometry(protocol_report(t, MIIX_320)['framebuffer.0']), '600x800x32 pitch=2400',
+    if t.port.is_uefi:
+        machine, corrected = MIIX_320, '600x800x32 pitch=2400'
+    else:
+        machine, corrected = MACBOOK_AIR_3_1, '800x600x32 pitch=8192'
+    mode = 'resolution: 800x600x32'
+    t.expect_eq(geometry(protocol_report(t, machine, mode)['framebuffer.0']), corrected,
                 'the Limine protocol: the mode corrected')
     if t.port.is_x86:
         path, image, report, prefix = '/bzImage', bzimage(t), x86_report, 'si.'
     else:
         path, image, report, prefix = '/Image', stub(t), stub_report, 'screen_info.'
-    config = 'timeout: 0\n' + entry('Linux', protocol='linux', path=f'boot():{path}', cmdline='x')
-    m = boot_fake(t, MIIX_320, config, {path: image})
+    config = 'timeout: 0\n' + entry('Linux', protocol='linux', path=f'boot():{path}', cmdline='x', extra=mode)
+    m = boot_machine(t, machine, config, {path: image})
     r = report(t, m)
     t.expect_eq(tuple(hexint(r, prefix + k) for k in ('width', 'height', 'linelength')), (800, 600, 3200),
                 'Linux: the mode as reported')
@@ -336,8 +356,33 @@ def fb_quirks_for_limine_only(t):
     for protocol, kernel, mb_report in (('multiboot1', mb1_kernel(t, 'video'), mb1_report),
                                         ('multiboot2', mb2_kernel(t, 'fb'), mb2_report)):
         config = 'timeout: 0\n' + entry('MB', protocol=protocol, path='boot():/kernel', cmdline='x')
-        m = boot_fake(t, MIIX_320, config, {'/kernel': HostFile(kernel)})
+        m = boot_machine(t, machine, config, {'/kernel': HostFile(kernel)})
         r = mb_report(t, m)
         t.expect_eq(tuple(hexint(r, 'fb.' + k) for k in ('width', 'height', 'pitch')), (800, 600, 3200),
                     f'{protocol}: the mode as reported')
         m.stop()
+
+
+def mac_pitch(mode):
+    """A mode with the pitch the Mac's framebuffer has, where its rows fit in
+    it [intent]."""
+    size, _ = mode.split()
+    width, _, bpp = (int(v) for v in size.split('x'))
+    return f'{size} pitch=8192' if width * ((bpp + 7) // 8) <= 8192 else mode
+
+
+@check(ports=ALL_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop', 'vbe'])
+def fb_quirks_mac_pitch(t):
+    """On the early Intel Mac SMBIOS names as one whose firmware gives its
+    framebuffer a wrong pitch, the kernel gets the pitch it has, from GOP and
+    VBE alike, for the current mode and every other whose rows it holds
+    [intent]. The first entry matching the machine decides, here one that
+    gives nothing the firmware leaves out."""
+    plain = protocol_report(t, [])
+    r = protocol_report(t, MACBOOK_AIR_3_1)
+    t.expect_eq(geometry(r['framebuffer.0']), mac_pitch(geometry(plain['framebuffer.0'])), 'the current mode')
+    t.expect_eq(r.indexed('framebuffer.0.mode'), [mac_pitch(m) for m in plain.indexed('framebuffer.0.mode')],
+                'the modes')
+    earlier = [smbios(0, vendor='Apple Inc.'), smbios(1, product='MacBookAir1,1 MacBookAir3,1')]
+    t.expect_eq(protocol_report(t, earlier)['framebuffer.0'], plain['framebuffer.0'],
+                'an entry for MacBookAir1,1 matching first')
