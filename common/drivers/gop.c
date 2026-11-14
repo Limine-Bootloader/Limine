@@ -56,6 +56,20 @@ static bool validate_pitch(struct fb_info *ret, size_t mode) {
 
 // Most of this code taken from https://wiki.osdev.org/GOP
 
+static bool is_firmware_apple(void) {
+    __auto_type vendor = gST->firmware_vendor;
+    if (vendor == NULL) {
+        return false;
+    }
+    const char *apple = "Apple";
+    for (size_t i = 0; apple[i] != 0; i++) {
+        if (vendor[i] != apple[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool mode_to_fb_info(
     struct fb_info *ret,
     struct efi_graphics_output_protocol *gop,
@@ -74,7 +88,15 @@ static bool mode_to_fb_info(
 
     bool ok = false;
 
-    switch (mode_info->pixel_format) {
+    // Apple's GOP reports RGB from both QueryMode and Mode->Info on at least
+    // the MacBook Air 2,1, but its framebuffer is actually BGR.
+    __auto_type pixel_format = mode_info->pixel_format;
+    if (pixel_format == EFI_PIXEL_RED_GREEN_BLUE_RESERVED_8_BIT_PER_COLOR
+     && is_firmware_apple()) {
+        pixel_format = EFI_PIXEL_BLUE_GREEN_RED_RESERVED_8_BIT_PER_COLOR;
+    }
+
+    switch (pixel_format) {
         case EFI_PIXEL_BLUE_GREEN_RED_RESERVED_8_BIT_PER_COLOR: {
             ret->framebuffer_bpp = 32;
             ret->red_mask_size = 8;
