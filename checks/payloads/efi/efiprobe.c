@@ -1120,7 +1120,8 @@ static efi_status EFI_API fake_sb_get_variable(uint16_t *name, struct efi_guid *
      || memcmp(guid, &global_variable, sizeof(struct efi_guid)) != 0) {
         return real_get_variable(name, guid, attributes, size, data);
     }
-    if (fake_sb_case == 0 || (sb && fake_sb_case == 1) || (sm && fake_sb_case == 2)) {
+    if (fake_sb_case == 0 || (sb && fake_sb_case == 1)
+     || (sm && (fake_sb_case == 2 || fake_sb_case == 18 || fake_sb_case == 22))) {
         return EFI_NOT_FOUND;
     }
     if ((sb && fake_sb_case == 3) || (sm && fake_sb_case == 4)) {
@@ -1128,10 +1129,12 @@ static efi_status EFI_API fake_sb_get_variable(uint16_t *name, struct efi_guid *
     }
     if (attributes != NULL) {
         uint32_t attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS;
-        if (sb && fake_sb_case == 15) {
+        if ((sb && fake_sb_case == 15) || (sm && fake_sb_case == 17)) {
             attrs |= EFI_VARIABLE_NON_VOLATILE;
-        } else if (sm && fake_sb_case == 16) {
+        } else if ((sm && fake_sb_case == 16) || (sb && fake_sb_case == 20)) {
             attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS;
+        } else if ((sb && fake_sb_case == 19) || (sm && fake_sb_case == 21)) {
+            attrs = EFI_VARIABLE_RUNTIME_ACCESS;
         }
         *attributes = attrs;
     }
@@ -1145,10 +1148,13 @@ static efi_status EFI_API fake_sb_get_variable(uint16_t *name, struct efi_guid *
     }
     *size = 1;
     uint8_t value = 0;
-    if (sb && (fake_sb_case == 7 || fake_sb_case == 9 || fake_sb_case == 12
-            || fake_sb_case == 15 || fake_sb_case == 16)) {
-        value = fake_sb_case == 7 ? 2 : 1;
-    } else if (sm && (fake_sb_case == 8 || fake_sb_case == 9 || fake_sb_case == 11)) {
+    if (sb && (fake_sb_case == 7 || fake_sb_case == 22)) {
+        value = 2;
+    } else if (sb && (fake_sb_case == 9 || fake_sb_case == 12 || fake_sb_case == 15
+                   || fake_sb_case == 16 || fake_sb_case == 18)) {
+        value = 1;
+    } else if (sm && (fake_sb_case == 8 || fake_sb_case == 9 || fake_sb_case == 11
+                   || fake_sb_case == 17)) {
         value = fake_sb_case == 8 ? 2 : 1;
     }
     if (data != NULL) {

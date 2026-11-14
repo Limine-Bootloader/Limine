@@ -26,6 +26,7 @@ const char *config_b2sum = CONFIG_B2SUM_SIGNATURE CONFIG_B2SUM_EMPTY;
 #define SEPARATOR '\n'
 
 bool config_ready = false;
+bool config_authenticated = false;
 no_unwind bool bad_config = false;
 
 static char *config_addr;
@@ -444,9 +445,7 @@ static bool has_macro_references(const char *config, size_t config_size) {
 int init_config(size_t config_size) {
     config_b2sum += sizeof(CONFIG_B2SUM_SIGNATURE) - 1;
 
-    if (hash_enrolled_empty(config_b2sum)) {
-        secure_boot_active = false;
-    } else {
+    if (!hash_enrolled_empty(config_b2sum)) {
         editor_enabled = false;
 
         struct hash_reference ref;
@@ -461,6 +460,10 @@ int init_config(size_t config_size) {
         if (memcmp(ref.digest, out_buf, ref.digest_size) != 0) {
             panic(false, "!!! CHECKSUM MISMATCH FOR CONFIG FILE !!!");
         }
+        config_authenticated = true;
+#if defined(UEFI)
+        secure_boot_active = firmware_secure_boot;
+#endif
     }
 
 #if defined(UEFI)

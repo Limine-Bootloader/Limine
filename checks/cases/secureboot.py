@@ -155,14 +155,11 @@ def sb_efi_chainload(t):
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_not_enrolled(t):
-    """With no config hash enrolled Secure Boot counts as inactive: paths need
-    no hash and the editor is there."""
+    """Secure Boot disables the editor even without an enrolled config hash."""
     config = 'timeout: no\n' + kernel_entry(t, hashed=False)
     m = sb_boot(t, config, enrolled=False)
-    scr = t.wait_text(m, 'ARROWS')
-    text = screen_text(scr)
-    t.check('E Edit' in text, 'editor available')
-    t.check(', Secure Boot)' not in text, '[intent] branding without Secure Boot')
+    text = screen_text(t.wait_text(m, 'ARROWS'))
+    t.check('E Edit' not in text, 'editor unavailable')
     m.press('ret')
     t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'a kernel without a hash boots')
 

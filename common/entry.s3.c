@@ -64,22 +64,7 @@ noreturn void uefi_entry(efi_handle image_handle, struct efi_system_table *syste
 
     disk_create_index();
 
-    // Detect UEFI Secure Boot
-    {
-        struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
-        uint8_t secure_boot = 0;
-        size_t sb_size = sizeof(secure_boot);
-        efi_status sb_status = gRT->get_variable(L"SecureBoot", &global_variable, NULL, &sb_size, &secure_boot);
-        if (sb_status == EFI_SUCCESS && secure_boot == 1) {
-            uint8_t setup_mode = 0;
-            size_t sm_size = sizeof(setup_mode);
-            efi_status sm_status = gRT->get_variable(L"SetupMode", &global_variable, NULL, &sm_size, &setup_mode);
-            if (sm_status != EFI_SUCCESS || setup_mode == 0) {
-                secure_boot_active = true;
-            }
-        }
-    }
-
+    efi_init_secure_boot();
     tpm_init();
 
     boot_volume = NULL;
