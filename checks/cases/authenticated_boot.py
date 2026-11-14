@@ -400,6 +400,53 @@ def authenticated_loaded_image_device_and_path(t):
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_rejects_native_protocols(t):
+    for protocol in ('limine', 'multiboot', 'multiboot1', 'multiboot2'):
+        config = 'timeout: 0\n' + entry('Forbidden', protocol=protocol, path='boot():/missing')
+        m = authenticated_boot(t, config, enrolled=False)
+        message, _ = wait_panic(t, m)
+        t.expect_eq(message, 'boot: Protocol is unavailable with firmware Secure Boot', protocol)
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_enrolled_protocol_whitelist(t):
+    # BIOS entries are hidden by the UEFI menu before protocol dispatch.
+    config = ('timeout: no\n' + entry('BIOS only', protocol='bios')
+              + entry('Visible', protocol='unknown'))
+    m = authenticated_boot(t, config, enrolled=True, tpm=False)
+    text = screen_text(t.wait_text(m, 'Visible'))
+    t.check('BIOS only' not in text, 'BIOS entry unavailable on UEFI')
+    m.stop()
+
+    forbidden = ['unknown']
+    if not t.port.is_x86:
+        forbidden.extend(['multiboot', 'multiboot1', 'multiboot2'])
+    for protocol in forbidden:
+        config = 'timeout: 0\n' + entry('Forbidden', protocol=protocol, path='boot():/missing')
+        m = authenticated_boot(t, config, enrolled=True, tpm=False)
+        message, _ = wait_panic(t, m)
+        t.expect_eq(message, 'boot: Protocol is unavailable with firmware Secure Boot', protocol)
+        m.stop()
+
+
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=TAGS)
+def authenticated_enrolled_multiboot(t):
+    from cases.multiboot import mb1_kernel, mb1_report, mb2_kernel, mb2_report
+    data = b'multiboot module'
+    for protocol, kernel_file_, report_fn in (('multiboot', mb1_kernel, mb1_report),
+                                              ('multiboot1', mb1_kernel, mb1_report),
+                                              ('multiboot2', mb2_kernel, mb2_report)):
+        kernel = read(kernel_file_(t))
+        config = 'timeout: 0\n' + entry('Native', protocol=protocol, path=f'boot():/kernel#{b2(kernel)}',
+                                        modules=[(f'boot():/mod#{b2(data)}', None)])
+        m = authenticated_boot(t, config, {'/kernel': kernel, '/mod': data}, enrolled=True, tpm=False)
+        report = report_fn(t, m)
+        t.expect_eq(int(report['mod'].split()[-1], 16), int(fnv1a(data), 16), f'{protocol} module handed off')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_rejects_linux_overrides(t):
     overrides = [('dtb_path: boot():/missing.dtb', '',
                   'linux: External device trees are unavailable in authenticated boot')]

@@ -2523,6 +2523,17 @@ noreturn void boot(char *config) {
         if (strcmp(proto, "linux") == 0) {
             efi_load(config, cmdline, true);
         }
+        bool enrolled_native = config_authenticated && (
+            strcmp(proto, "limine") == 0
+#if defined(__x86_64__) || defined(__i386__)
+            || strcmp(proto, "multiboot") == 0 || strcmp(proto, "multiboot1") == 0
+            || strcmp(proto, "multiboot2") == 0
+#endif
+        );
+        if (!enrolled_native && strcmp(proto, "efi") != 0 && strcmp(proto, "uefi") != 0
+         && strcmp(proto, "efi_chainload") != 0 && strcmp(proto, "efi_boot_entry") != 0) {
+            panic(false, "boot: Protocol is unavailable with firmware Secure Boot");
+        }
     }
 #endif
 
