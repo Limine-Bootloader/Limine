@@ -186,7 +186,9 @@ Limine interface control options:
   available, Limine will pick another one automatically. Ignored if using text
   mode.
 * `interface_rotation` - Specifies the rotation of the Limine interface.
-  It can be any of the following values: `0`, `90`, `180`, `270`. Default is `0`.
+  It can be any of the following values: `0`, `90`, `180`, `270`. Default is
+  `0`, but on a panel Limine knows to be mounted turned in its casing it is the
+  turn that shows the interface upright.
 * `interface_branding` - A string that will be displayed on top of the Limine
   interface.
 * `interface_branding_colour` - An `RRGGBB` hexadecimal value specifying the

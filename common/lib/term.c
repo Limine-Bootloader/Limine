@@ -347,7 +347,7 @@ void term_prepare_post_ebs(void) {
         NULL, 0, 0, 1,
         0, 0,
         0,
-        gterm_get_rotation(NULL),
+        gterm_get_rotation(NULL, fb),
         false
     );
 

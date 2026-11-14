@@ -9,7 +9,9 @@
 bool gterm_init(struct fb_info **ret, size_t *_fbs_count,
                 char *config, size_t width, size_t height);
 
-int gterm_get_rotation(char *config);
+// The interface's rotation on fb: the config's interface_rotation where it is
+// set, else the turn that what is drawn on fb needs to look upright.
+int gterm_get_rotation(char *config, struct fb_info *fb);
 
 struct flanterm_params {
     uint32_t *canvas;

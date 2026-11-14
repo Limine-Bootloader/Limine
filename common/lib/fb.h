@@ -31,6 +31,10 @@ struct fb_info {
 
     uint64_t mode_count;
     struct fb_info *mode_list;
+
+    // The clockwise turn, one of FLANTERM_FB_ROTATE_*, that what is drawn
+    // needs to look upright.
+    int upright_rotation;
 };
 
 extern struct fb_info *fb_fbs;
