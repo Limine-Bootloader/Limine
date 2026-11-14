@@ -57,6 +57,8 @@ static void keyboard_layout_init(void) {
         current_keyboard_layout = KEYBOARD_LAYOUT_DVORAK;
     } else if (layout != NULL && strcasecmp(layout, "azerty") == 0) {
         current_keyboard_layout = KEYBOARD_LAYOUT_AZERTY;
+    } else if (layout != NULL && strcasecmp(layout, "qwertz") == 0) {
+        current_keyboard_layout = KEYBOARD_LAYOUT_QWERTZ;
     } else {
         current_keyboard_layout = KEYBOARD_LAYOUT_QWERTY;
     }
