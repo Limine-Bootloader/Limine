@@ -1591,7 +1591,7 @@ FEAT_END
 
     term_notready();
 
-    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, preserve_screen, false);
+    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, preserve_screen, false, true);
     if (fbs_count == 0) {
         goto no_fb;
     }
@@ -1680,7 +1680,7 @@ FEAT_START
     struct limine_framebuffer_response *framebuffer_response =
         ext_mem_alloc(sizeof(struct limine_framebuffer_response));
 
-    framebuffer_response->revision = 1;
+    framebuffer_response->revision = 2;
 
     uint64_t *fb_list = ext_mem_alloc_counted(fbs_count, sizeof(uint64_t));
 
@@ -1710,6 +1710,8 @@ FEAT_START
         fbp[i].green_mask_shift = fbs[i].green_mask_shift;
         fbp[i].blue_mask_size   = fbs[i].blue_mask_size;
         fbp[i].blue_mask_shift  = fbs[i].blue_mask_shift;
+        // Flanterm numbers turns as the protocol does.
+        fbp[i].upright_rotation = fbs[i].upright_rotation;
 
         fb_list[i] = reported_addr(&fbp[i]);
     }
@@ -1985,7 +1987,7 @@ FEAT_END
     }
 #endif
 
-    efi_exit_boot_services();
+    efi_leave_boot_services();
 
     // ExitBootServices() measures into PCR 5, and only the final events table
     // records those events.

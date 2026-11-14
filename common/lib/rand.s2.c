@@ -118,10 +118,10 @@ size_t hw_entropy(void *buf, size_t size) {
 #if defined(UEFI)
     // Try the EFI RNG protocol as a fallback for any bytes still missing.
     if (filled < size) {
-        EFI_GUID rng_guid = EFI_RNG_PROTOCOL_GUID;
-        EFI_RNG_PROTOCOL *rng = NULL;
-        if (gBS->LocateProtocol(&rng_guid, NULL, (void **)&rng) == EFI_SUCCESS && rng != NULL) {
-            if (rng->GetRNG(rng, NULL, size - filled, out + filled) == EFI_SUCCESS) {
+        struct efi_guid rng_guid = EFI_RNG_PROTOCOL_GUID;
+        struct efi_rng_protocol *rng = NULL;
+        if (gBS->locate_protocol(&rng_guid, NULL, (void **)&rng) == EFI_SUCCESS && rng != NULL) {
+            if (rng->get_rng(rng, NULL, size - filled, out + filled) == EFI_SUCCESS) {
                 filled = size;
             }
         }

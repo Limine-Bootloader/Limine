@@ -140,47 +140,47 @@ static size_t cursor_x = 0, cursor_y = 0;
 
 static void fallback_scroll(struct flanterm_context *ctx) {
     (void)ctx;
-    EFI_UINTN uefi_x_size, uefi_y_size;
-    gST->ConOut->QueryMode(gST->ConOut, gST->ConOut->Mode->Mode, &uefi_x_size, &uefi_y_size);
-    gST->ConOut->SetCursorPosition(gST->ConOut, uefi_x_size - 1, uefi_y_size - 1);
-    EFI_CHAR16 string[2];
+    size_t uefi_x_size, uefi_y_size;
+    gST->con_out->query_mode(gST->con_out, gST->con_out->mode->mode, &uefi_x_size, &uefi_y_size);
+    gST->con_out->set_cursor_position(gST->con_out, uefi_x_size - 1, uefi_y_size - 1);
+    uint16_t string[2];
     string[0] = ' ';
     string[1] = 0;
-    gST->ConOut->OutputString(gST->ConOut, string);
-    gST->ConOut->SetCursorPosition(gST->ConOut, cursor_x, cursor_y);
+    gST->con_out->output_string(gST->con_out, string);
+    gST->con_out->set_cursor_position(gST->con_out, cursor_x, cursor_y);
 }
 
 static void fallback_raw_putchar(struct flanterm_context *ctx, uint8_t c) {
     if (!ctx->scroll_enabled && cursor_x == ctx->cols - 1 && cursor_y == ctx->rows - 1) {
         return;
     }
-    gST->ConOut->EnableCursor(gST->ConOut, true);
-    EFI_CHAR16 string[2];
+    gST->con_out->enable_cursor(gST->con_out, true);
+    uint16_t string[2];
     // Flanterm maps several code points to some codes; this gives back the
     // one standard CP437 assigns.
     string[0] = cp437_to_unicode[c];
     string[1] = 0;
     // '?' is ASCII too, so only non-ASCII is worth testing.
-    if (string[0] >= 0x80 && gST->ConOut->TestString(gST->ConOut, string) != EFI_SUCCESS) {
+    if (string[0] >= 0x80 && gST->con_out->test_string(gST->con_out, string) != EFI_SUCCESS) {
         string[0] = '?';
     }
-    gST->ConOut->OutputString(gST->ConOut, string);
+    gST->con_out->output_string(gST->con_out, string);
     if (++cursor_x >= ctx->cols) {
         cursor_x = 0;
         if (++cursor_y >= ctx->rows) {
             cursor_y--;
         }
     }
-    gST->ConOut->SetCursorPosition(gST->ConOut, cursor_x, cursor_y);
+    gST->con_out->set_cursor_position(gST->con_out, cursor_x, cursor_y);
 }
 
 static void fallback_clear(struct flanterm_context *ctx, bool move) {
     (void)ctx;
-    gST->ConOut->ClearScreen(gST->ConOut);
+    gST->con_out->clear_screen(gST->con_out);
     if (move) {
         cursor_x = cursor_y = 0;
     }
-    gST->ConOut->SetCursorPosition(gST->ConOut, cursor_x, cursor_y);
+    gST->con_out->set_cursor_position(gST->con_out, cursor_x, cursor_y);
 }
 
 static void fallback_set_cursor_pos(struct flanterm_context *ctx, size_t x, size_t y) {
@@ -188,7 +188,7 @@ static void fallback_set_cursor_pos(struct flanterm_context *ctx, size_t x, size
     if (x >= ctx->cols || y >= ctx->rows) {
         return;
     }
-    gST->ConOut->SetCursorPosition(gST->ConOut, x, y);
+    gST->con_out->set_cursor_position(gST->con_out, x, y);
     cursor_x = x;
     cursor_y = y;
 }
@@ -199,7 +199,7 @@ static void fallback_get_cursor_pos(struct flanterm_context *ctx, size_t *x, siz
     *y = cursor_y;
 }
 
-static EFI_UINTN ansi_colours[] = {
+static size_t ansi_colours[] = {
     EFI_BLACK,
     EFI_RED,
     EFI_GREEN,
@@ -210,12 +210,12 @@ static EFI_UINTN ansi_colours[] = {
     EFI_LIGHTGRAY
 };
 
-static EFI_UINTN conout_current_fg, conout_current_bg;
+static size_t conout_current_fg, conout_current_bg;
 
 // SetAttribute rejects any background above EFI_LIGHTGRAY. The stored one
 // keeps its bright bit, which reverse video swaps back into the foreground.
 static void fallback_set_attribute(void) {
-    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(conout_current_fg, conout_current_bg & 0x07));
+    gST->con_out->set_attribute(gST->con_out, EFI_TEXT_ATTR(conout_current_fg, conout_current_bg & 0x07));
 }
 
 static void fallback_set_text_fg(struct flanterm_context *ctx, size_t fg) {
@@ -270,7 +270,7 @@ static void fallback_set_text_bg_default_bright(struct flanterm_context *ctx) {
 
 static void fallback_swap_palette(struct flanterm_context *ctx) {
     (void)ctx;
-    EFI_UINTN tmp = conout_current_bg;
+    size_t tmp = conout_current_bg;
     conout_current_bg = conout_current_fg;
     conout_current_fg = tmp;
     fallback_set_attribute();
@@ -347,7 +347,7 @@ void term_prepare_post_ebs(void) {
         NULL, 0, 0, 1,
         0, 0,
         0,
-        gterm_get_rotation(NULL),
+        gterm_get_rotation(NULL, fb),
         false
     );
 
@@ -373,7 +373,7 @@ void term_fallback(void) {
 #if defined(UEFI)
     if (!efi_boot_services_exited) {
         if (prev_backend != FALLBACK && prev_backend != _NOT_READY) {
-            gST->ConOut->Reset(gST->ConOut, true);
+            gST->con_out->reset(gST->con_out, true);
         }
 #endif
 
@@ -413,7 +413,7 @@ void term_fallback(void) {
 
         cursor_x = 0;
         cursor_y = 0;
-        gST->ConOut->SetCursorPosition(gST->ConOut, 0, 0);
+        gST->con_out->set_cursor_position(gST->con_out, 0, 0);
 
         term->set_text_fg = fallback_set_text_fg;
         term->set_text_bg = fallback_set_text_bg;

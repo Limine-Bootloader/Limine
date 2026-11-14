@@ -31,14 +31,22 @@ struct fb_info {
 
     uint64_t mode_count;
     struct fb_info *mode_list;
+
+    // The clockwise turn, one of FLANTERM_FB_ROTATE_*, that what is drawn
+    // needs to look upright.
+    int upright_rotation;
 };
 
+// The framebuffers as they are laid out, whatever fb_init() handed its caller.
 extern struct fb_info *fb_fbs;
 extern size_t fb_fbs_count;
 
+// Without corrected, *ret describes the framebuffers as the firmware reports
+// them, for a kernel that corrects what the firmware is known to misreport
+// itself.
 void fb_init(struct fb_info **ret, size_t *_fbs_count,
              uint64_t target_width, uint64_t target_height, uint16_t target_bpp,
-             bool preserve_screen, bool keep_wc);
+             bool preserve_screen, bool keep_wc, bool corrected);
 
 void fb_clear(struct fb_info *fb);
 

@@ -470,7 +470,8 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
         switch (reloc_tag.preference) {
             default:
-            case 0: case 1: // No preference / prefer lowest
+            case 0:
+            case 1: { // No preference / prefer lowest
                 reloc_ascend = true;
                 relocated_base = ALIGN_UP(reloc_tag.min_addr, reloc_tag.align, goto reloc_fail);
                 uint64_t relocated_top = CHECKED_ADD(relocated_base, image_span, goto reloc_fail);
@@ -478,6 +479,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                     goto reloc_fail;
                 }
                 break;
+            }
             case 2: // Prefer highest
                 reloc_ascend = false;
                 if (image_span > reloc_tag.max_addr) {
@@ -491,13 +493,16 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         }
 
         // A small align turns this into a byte-by-byte walk, each step scanning
-        // the memory map. The cap bounds that work, and below page alignment it
-        // bounds the reach with it.
-        uint64_t reloc_tries = 0;
+        // the memory map per segment. The cap counts the scans, so it bounds
+        // that work, and below page alignment the reach with it.
+        uint64_t reloc_checks = 0;
 
         for (;;) {
             int64_t cand_slide = (int64_t)relocated_base - orig_base;
             for (size_t i = 0; i < kernel_ranges_count; i++) {
+                if (++reloc_checks > 0x100000) {
+                    goto reloc_fail;
+                }
                 uint64_t seg_target = ranges[i].target + cand_slide;
                 uint64_t seg_top = CHECKED_ADD(seg_target, ranges[i].length, goto cand_fail);
                 if (!check_usable_memory(seg_target, seg_top)
@@ -508,10 +513,6 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
             break;
 
 cand_fail:
-            if (++reloc_tries > 0x100000) {
-                goto reloc_fail;
-            }
-
             if (reloc_ascend) {
                 relocated_base += reloc_tag.align;
                 uint64_t relocated_top = CHECKED_ADD(relocated_base, image_span, goto reloc_fail);
@@ -547,16 +548,11 @@ cand_fail:
         }
 
         if (!check_usable_memory(ranges[i].target, ranges[i].target + ranges[i].length)) {
-            goto reloc_fail;
+reloc_fail:
+            panic(true, "multiboot2: Could not find viable load address for executable");
         }
     }
 
-    goto reloc_ok;
-
-reloc_fail:
-    panic(true, "multiboot2: Could not find viable load address for executable");
-
-reloc_ok:
     for (size_t i = 0; i < kernel_ranges_count; i++) {
         if (entry_point >= ranges[i].target
          && entry_point < ranges[i].target + ranges[i].length) {
@@ -568,10 +564,13 @@ reloc_ok:
         panic(true, "multiboot2: Entry point is outside the executable");
     }
 
-    // Reserve the kernel's target so later module/info sources can't be
-    // allocated on top of it.
-    for (size_t i = 0; i < kernel_ranges_count; i++) {
-        elsewhere_reserve_target(ranges[i].target, ranges[i].length);
+    // Reserve the whole span, not each segment, which could fill the memory
+    // map, so that nothing allocated later, staging included, can go on top.
+    struct elsewhere_range *last = &ranges[kernel_ranges_count - 1];
+    elsewhere_reserve_target(ranges[0].target, last->target + last->length - ranges[0].target);
+
+    if (addresstag == NULL) {
+        elf_stage_elsewhere(kernel, ranges, kernel_ranges_count);
     }
 
     // Get the load base address (AKA the lowest target in the ranges)
@@ -630,8 +629,9 @@ reloc_ok:
        + (section_hdr_info_valid ? section_hdr_info.num : 0);
     struct elsewhere_range *new_ranges = ext_mem_alloc_counted(ranges_max, sizeof(struct elsewhere_range));
 
+    // The old array is not freed: taken before the reservation, it may lie in
+    // the kernel's span, where anything reusing it would be copied over.
     memcpy(new_ranges, ranges, sizeof(struct elsewhere_range) * ranges_count);
-    pmm_free(ranges, sizeof(struct elsewhere_range) * ranges_count);
     ranges = new_ranges;
 
     // GRUB allocates boot info at 0x10000, *except* if the kernel happens
@@ -869,6 +869,12 @@ reloc_ok:
     }
 #endif
 
+    // Load relocation stub where it won't get overwritten: before the
+    // terminal frees memory that may lie in the kernel's span.
+    size_t reloc_stub_size = (size_t)multiboot_reloc_stub_end - (size_t)multiboot_reloc_stub;
+    void *reloc_stub = ext_mem_alloc(reloc_stub_size);
+    memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
+
     //////////////////////////////////////////////
     // Create framebuffer tag
     //////////////////////////////////////////////
@@ -906,7 +912,7 @@ modeset:;
 
             struct fb_info *fbs;
             size_t fbs_count;
-            fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
+            fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false, false);
             if (fbs_count == 0) {
 #if defined(BIOS)
 textmode:
@@ -1063,13 +1069,8 @@ skip_modeset:;
     }
 #endif
 
-    // Load relocation stub where it won't get overwritten (hopefully)
-    size_t reloc_stub_size = (size_t)multiboot_reloc_stub_end - (size_t)multiboot_reloc_stub;
-    void *reloc_stub = ext_mem_alloc(reloc_stub_size);
-    memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
-
 #if defined(UEFI)
-    efi_exit_boot_services();
+    efi_leave_boot_services();
 #endif
 
     size_t mb_mmap_count;

@@ -621,7 +621,9 @@ no_modules:;
 #if defined(UEFI)
     gop_force_16 = true;
 #endif
-    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
+    // Linux corrects what the firmware is known to misreport itself, so
+    // width and height exchanged here would be exchanged back.
+    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false, false);
     if (fbs_count == 0) {
 #if defined(UEFI)
         goto no_fb;
@@ -698,7 +700,7 @@ no_fb:;
     ///////////////////////////////////////
 #if defined(UEFI)
     linux_install_efi_tpm_event_log();
-    efi_exit_boot_services();
+    efi_leave_boot_services();
 
 #if defined(__x86_64__)
     memcpy(&boot_params->efi_info.efi_loader_signature, "EL64", 4);

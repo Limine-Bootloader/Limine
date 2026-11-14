@@ -49,11 +49,12 @@ conforming C99 with no extensions must be used.
 
 - Use British spelling, in prose, comments, and identifiers alike, C's own
   terms included (e.g. "initialiser", "behaviour"), except for "license",
-  which is conventionally spelled that way even as a noun, and "center". What
-  a specification or an interface names keeps its spelling (e.g. `COLOR_SELECT`
-  for a register a datasheet calls Color Select).
+  which is conventionally spelled that way even as a noun, "center", and
+  "artifact". What a specification or an interface defines keeps its spelling
+  (e.g. `COLOR_SELECT` for a register a datasheet calls Color Select), but its
+  general terms do not (e.g. a signalling NaN).
 - Use the Oxford comma whenever possible: before the conjunction of a list's
-  last item.
+  last item, where it has one.
 - No hard tabs. Spaces for indentation and alignment, 4 per indentation level.
 - Never align separate lines into columns, whether statements, declarations,
   macro values, trailing comments, or line-continuation backslashes, so that a
@@ -62,10 +63,12 @@ conforming C99 with no extensions must be used.
 - Comments are sparse: explain a non-obvious *why*, never restate the *what*.
   Don't narrate; avoid useless comments. Be as terse as possible, in full
   sentences, with a capital letter and a full stop. A comment that labels a
-  table entry, a field, or a group of definitions need not be a sentence.
+  table entry, a field, a section, or a group of definitions, that gives what
+  bytes encode, or that sits inside a line of code need not be a sentence.
 - Comments describe the code as it is, never its history: they *must never*
   reference code that no longer exists in the codebase (i.e. a bug that was
-  just fixed by removing/changing some code). Saying why an obvious
+  just fixed by removing/changing some code). No "previously", "now",
+  "fixed", or "changed to" about the code's past. Saying why an obvious
   alternative is not used is fine.
 - Stick to ASCII: avoid em-dashes and other non-ASCII characters in code,
   comments, commit messages, and documentation, unless the non-ASCII character
@@ -113,23 +116,28 @@ the following.
   }
   ```
 
-- A block's body goes on lines of its own. An empty block is `{}`, but one
-  holding only a comment is not empty.
+- A block's body goes on lines of its own, but in a one-line macro (i.e.
+  `do { ... } while (0)`). An empty block is `{}`, but one holding only a
+  comment is not empty.
 - No trailing whitespace, a newline at the end of every file, no runs of blank
   lines, and one blank line between functions.
 
 #### Line length and wrapping
 
 - Lines of code are at most 99 columns, and comments end by column 79, their
-  markers and indentation included. A trailing comment that would run past it
-  goes on its own line above the code.
-- A function signature or call wraps only when it does not fit, breaking after
-  its `(`, with as many arguments as fit on each line, one level in, and its
-  `)` on a line of its own, followed by ` {` in a definition.
+  markers and indentation included, but for what cannot be broken, such as a
+  URL or the condition an `#else` or `#endif` names. A trailing comment that
+  would run past it goes on its own line above the code.
+- A call wraps only when it does not fit, breaking after its `(`, with as many
+  arguments as fit on each line, one level in, and its `)` on a line of its
+  own. A function signature wraps alike, but with one parameter to a line,
+  and also where it fits if that reads better, its `)` followed by ` {` in a
+  definition.
 - An expression breaks before an operator, first at the one that binds
-  loosest. The operator starts the continuation line, hanging so that what
-  follows it lines up with the start of the expression, which in the condition
-  of an `if` or `while` is just inside the `(`:
+  loosest, and may break before it overflows where that reads better. The
+  operator starts the continuation line, hanging so that what follows it
+  lines up with the start of the expression, which in the condition of an
+  `if` or `while` is just inside the `(`:
 
   ```c
   if (whatever && whatever_else
@@ -150,10 +158,12 @@ the following.
 - **Never** do things such as `if()`, `while()`, ... - **Always** put a space
   between keywords (i.e. not functions/function pointers) and parentheses. The
   exceptions are `sizeof`, `alignof`, `alignas`, `typeof`, `static_assert`,
-  `_Generic`, `__attribute__`, and the preprocessor's `defined`, in all their
-  spellings, which are written without the space (i.e. `sizeof(x)`,
-  `_Static_assert(...)`, `defined(X)`). `asm` is not among them
-  (i.e. `asm volatile ("nop");`).
+  `_Generic`, `_Atomic` as a type specifier, `__attribute__`, and the
+  preprocessor's `defined`, in all their spellings, which are written without
+  the space and always with parentheses (i.e. `sizeof(x)`, `_Atomic(int)`,
+  `_Static_assert(...)`, `defined(X)`). `asm` is not among them, in
+  statements and declarations alike (i.e. `asm volatile ("nop");`,
+  `void f(void) asm ("g");`).
 - Binary and ternary operators have a space on each side, and unary ones
   none. A comma takes a space after it and none before, and nothing goes
   inside parentheses or brackets, or around `.` and `->`.
@@ -166,7 +176,8 @@ the following.
 #### Naming
 
 - Snake-case for identifiers and file names, and uppercase snake-case for
-  macros.
+  macros, though a macro's parameter may be a single capital letter, and a
+  macro standing in for a standard function keeps its name.
 - What a file shares with other files starts with the file's name (e.g.
   `lapic_read()` in `sys/lapic.c`), but for names a specification gives (e.g.
   `MSR_IA32_PAT`), standard and idiomatic ones (e.g. `memcpy()`, `rdmsr()`),
@@ -177,9 +188,11 @@ the following.
 #### Declarations
 
 - No pointless `typedef`s, especially for `struct`s and `union`s. Always use
-  the full `struct name var;` declaration style for those. Accepted exceptions
-  are typedefs mirroring the names of an external specification, such as the
-  PE/COFF structures in `common/lib/pe.c`, and the `pagemap_t` struct that
+  the full `struct name var;` declaration style for those. One that earns its
+  place, such as a function pointer type's, takes no suffix (i.e.
+  `typedef void (*irq_handler)(void);`). Accepted exceptions are typedefs
+  mirroring the names of an external specification, such as the PE/COFF
+  structures in `common/lib/pe.c`, and the `pagemap_t` struct that
   `common/mm/vmm.h` defines for each architecture.
 - Local variables are declared at their first use or at the top of their
   block.
@@ -193,22 +206,32 @@ the following.
 
 #### Types and literals
 
-- Fixed-width types are for values with a fixed size. Counts, sizes in bytes,
-  and indices are `size_t`, loop iterators included (a loop counting down is
-  `for (size_t i = n; i-- > 0; )`), and addresses kept in integers are
-  `uintptr_t`, but a hardware register's value, or a number that hardware
-  defines, keeps the width the hardware gives it. Never bare `unsigned`.
-- Truth values are `bool`, and a function that only succeeds or fails returns
+- Fixed-width types are for values with a fixed size, and plain `int` or
+  `unsigned int` will do for the rest. Counts, sizes in bytes, and indices are
+  `size_t` unless there is good reason otherwise, loop iterators included (a
+  loop counting down is `for (size_t i = n; i-- > 0; )`), and addresses kept
+  in integers are `uintptr_t` (`intptr_t` if signed, `ptrdiff_t` for a
+  difference), but a hardware register's value, or a number that hardware
+  defines, keeps the width the hardware gives it, and a value in a
+  fixed-layout structure, or passed through an interface, the type given
+  there. Never bare `unsigned`.
+- Truth values are `bool`, but in fixed-layout structures, where they are
+  compared with `!= 0`, and a function that only succeeds or fails returns
   `true` for success.
-- Only truth values are used as truth values. Anything else is compared
-  (i.e. `p != NULL`, `(flags & FLAG) != 0`, `count == 0`, never `if (p)` or
-  `if (!count)`), though `!!x` is a truth value.
+- Only truth values are used as truth values: `bool`s, and what comparisons,
+  `&&`, `||`, `!`, and a `?:` between truth values give. Anything else is
+  compared (i.e. `p != NULL`, `(flags & FLAG) != 0`, `count == 0`, never
+  `if (p)` or `if (!count)`), though `!!x` is a truth value, and
+  `do { ... } while (0)` keeps its `0`.
 - No `enum`s: use macros and integers instead.
 - Hex literals are lowercase (i.e. `0xff`).
 - No integer literal suffixes (`u`, `ull`, ...): cast to the fixed-width type
   instead (i.e. `(uint64_t)1 << 32`), and parenthesise a macro whose whole
-  body is such a cast (i.e. `#define PAGE_SIZE ((size_t)0x1000)`). Constants
-  `#if` or assembly also use are plain literals.
+  body is such a cast (i.e. `#define PAGE_SIZE ((size_t)0x1000)`). Values the
+  C standard writes with a suffix keep it (i.e. `__STDC_VERSION__ >= 201112L`).
+  A cast narrower than `int` does not survive integer promotion (i.e.
+  `~(uint8_t)0x80` is `0xffffff7f`). Constants `#if` or assembly also use are
+  plain literals.
 - `sizeof` takes the type, not the variable (i.e. `sizeof(struct something)`),
   but for arrays, anonymous types, and generic macros.
 - No bit-fields, and no variable-length arrays.
@@ -246,11 +269,12 @@ the following.
 
 #### Preprocessor and headers
 
-- Includes come in one block of groups, each sorted by path: the standard
-  headers, then those of the libraries used, then the `.c` file's own header,
-  then the rest of Limine's. All are included with `<>`.
+- Includes come in one block of groups, each sorted by path as `LC_ALL=C sort`
+  does: the standard headers, then those of the libraries used, then the `.c`
+  file's own header, then the rest of Limine's. All are included with `<>`.
 - Every file includes each header that declares or defines something it uses,
-  and no other.
+  unless an umbrella header over it does, and no other but a `.c` file's own.
+  A `struct` used only through pointers may be declared instead.
 - Include guards are `#ifndef` macros shaped after the header's path, its
   directories and file name separated with `__` (i.e. `SYS__CPU_H` for
   `<sys/cpu.h>`), never `#pragma once`.
@@ -258,10 +282,12 @@ the following.
   indented after the `#`, 4 columns a level (i.e. `#   define`). A block
   holding code, an include guard included, counts as no level.
 - The `#else` and `#endif` of a conditional block longer than 20 lines name
-  its condition in a comment (i.e. `#endif // defined(__x86_64__)`), but for
-  an include guard's.
+  its whole condition in a comment (i.e. `#endif // defined(__x86_64__)`),
+  but for an include guard's.
 - A macro parenthesises each use of its parameters, and its body where that is
-  an expression. A macro of statements is `do { ... } while (0)`, and one
+  an expression, but where C takes none or they change nothing, as in a use
+  stringised, pasted, or passed on whole as an argument, or a type or name
+  the macro declares. A macro of statements is `do { ... } while (0)`, and one
   giving a value may be `({ ... })`; such a macro first copies each argument
   into a local named after it and the macro (i.e. `MIN_a`), declared with
   `__auto_type`, so that each argument is evaluated once.
@@ -269,10 +295,12 @@ the following.
 #### Assembly
 
 - `asm` takes a space before its parenthesis, and a constraint none before
-  its operand (i.e. `"r"(value)`). An `asm` of one instruction stays on one
-  line (i.e. `asm volatile ("cli" ::: "memory");`). Any other is laid out like
-  a call, one instruction to each literal and line, each but the last ending
-  in `\n\t`, and each operand section on a line of its own:
+  its operand (i.e. `"r"(value)`). An `asm` of one instruction, not a macro of
+  several, stays on one line where it fits, adjacent colons together (i.e.
+  `asm volatile ("cli" ::: "memory");`). Any other is laid out like a call,
+  one instruction to each literal and line, each but the last ending in
+  `\n\t`, and each operand section on a line of its own, wrapping lined up
+  just past its `: `:
 
   ```c
   asm volatile (

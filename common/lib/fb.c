@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <lib/fb.h>
+#include <lib/fb_quirks.h>
 #include <lib/misc.h>
 #include <drivers/vbe.h>
 #include <drivers/gop.h>
@@ -16,7 +17,7 @@ size_t fb_fbs_count = 0;
 
 void fb_init(struct fb_info **ret, size_t *_fbs_count,
              uint64_t target_width, uint64_t target_height, uint16_t target_bpp,
-             bool preserve_screen, bool keep_wc) {
+             bool preserve_screen, bool keep_wc, bool corrected) {
     if (quiet) {
         preserve_screen = true;
     }
@@ -42,6 +43,19 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
     fb_fbs = *ret;
     fb_fbs_count = *_fbs_count;
 
+    // Limine draws by a corrected copy, the caller keeping the firmware's
+    // description. The copy goes without the modes, whose list it would share.
+    if (!corrected && fb_fbs_count != 0) {
+        fb_fbs = ext_mem_alloc_counted(fb_fbs_count, sizeof(struct fb_info));
+        for (size_t i = 0; i < fb_fbs_count; i++) {
+            fb_fbs[i] = (*ret)[i];
+            fb_fbs[i].mode_count = 0;
+            fb_fbs[i].mode_list = NULL;
+        }
+    }
+
+    fb_quirks_apply(fb_fbs, fb_fbs_count);
+
     // Map the framebuffers as write-combining so the clear (and, when kept,
     // terminal rendering) is fast. keep_wc leaves it active for the caller.
     bool want_wc = keep_wc || !preserve_screen;
@@ -49,15 +63,15 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
 #if defined(__i386__) || defined(__x86_64__)
     if (want_wc) {
         for (size_t i = 0; i < *_fbs_count; i++) {
-            uint64_t fb_size = CHECKED_MUL((uint64_t)(*ret)[i].framebuffer_pitch,
-                                           (uint64_t)(*ret)[i].framebuffer_height, continue);
+            uint64_t fb_size = CHECKED_MUL((uint64_t)fb_fbs[i].framebuffer_pitch,
+                                           (uint64_t)fb_fbs[i].framebuffer_height, continue);
             if (fb_size == 0) {
                 continue;
             }
 #if defined(__x86_64__) && defined(UEFI)
-            efi_pt_set_fb_wc((*ret)[i].framebuffer_addr, fb_size);
+            efi_pt_set_fb_wc(fb_fbs[i].framebuffer_addr, fb_size);
 #else
-            mtrr_wc_add_fb_range((*ret)[i].framebuffer_addr, fb_size);
+            mtrr_wc_add_fb_range(fb_fbs[i].framebuffer_addr, fb_size);
 #endif
         }
     }
@@ -65,7 +79,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
 
     if (!preserve_screen) {
         for (size_t i = 0; i < *_fbs_count; i++) {
-            fb_clear(&(*ret)[i]);
+            fb_clear(&fb_fbs[i]);
         }
     }
 
@@ -83,7 +97,7 @@ void fb_init(struct fb_info **ret, size_t *_fbs_count,
 
 #if defined(UEFI)
     if (!preserve_screen && *_fbs_count > 0) {
-        bgrt_restore((*ret)[0].framebuffer_width, (*ret)[0].framebuffer_height);
+        bgrt_restore(fb_fbs[0].framebuffer_width, fb_fbs[0].framebuffer_height);
     }
 #endif
 }

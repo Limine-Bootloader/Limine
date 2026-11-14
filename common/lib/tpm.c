@@ -68,39 +68,39 @@ struct tcg_digest_sizes {
 // At most one of these is non-NULL after tpm_init. tcg2 takes precedence
 // since it's the more common case (real TPMs); the cc fallback is for
 // confidential-computing platforms (TDX, SEV-SNP) without a discrete TPM.
-static EFI_TCG2_PROTOCOL *tcg2 = NULL;
-static EFI_CC_MEASUREMENT_PROTOCOL *cc = NULL;
+static struct efi_tcg2_protocol *tcg2 = NULL;
+static struct efi_cc_measurement_protocol *cc = NULL;
 
 void tpm_init(void) {
-    EFI_GUID tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
-    EFI_TCG2_PROTOCOL *tcg2_proto = NULL;
-    EFI_STATUS status = gBS->LocateProtocol(&tcg2_guid, NULL, (void **)&tcg2_proto);
+    struct efi_guid tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
+    struct efi_tcg2_protocol *tcg2_proto = NULL;
+    efi_status status = gBS->locate_protocol(&tcg2_guid, NULL, (void **)&tcg2_proto);
     if (status == EFI_SUCCESS && tcg2_proto != NULL) {
-        EFI_TCG2_BOOT_SERVICE_CAPABILITY cap;
+        struct efi_tcg2_boot_service_capability cap;
         memset(&cap, 0, sizeof(cap));
-        cap.Size = sizeof(cap);
-        status = tcg2_proto->GetCapability(tcg2_proto, &cap);
-        if (status == EFI_SUCCESS && cap.TPMPresentFlag) {
+        cap.size = sizeof(cap);
+        status = tcg2_proto->get_capability(tcg2_proto, &cap);
+        if (status == EFI_SUCCESS && cap.tpm_present_flag) {
             tcg2 = tcg2_proto;
             printv("tpm: TCG2 protocol located, TPM present (active PCR banks: %x)\n",
-                   (uint32_t)cap.ActivePcrBanks);
+                   (uint32_t)cap.active_pcr_banks);
             return;
         }
     }
 
     // No TCG2/TPM 2.0; fall back to the CC measurement protocol.
-    EFI_GUID cc_guid = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
-    EFI_CC_MEASUREMENT_PROTOCOL *cc_proto = NULL;
-    status = gBS->LocateProtocol(&cc_guid, NULL, (void **)&cc_proto);
+    struct efi_guid cc_guid = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
+    struct efi_cc_measurement_protocol *cc_proto = NULL;
+    status = gBS->locate_protocol(&cc_guid, NULL, (void **)&cc_proto);
     if (status == EFI_SUCCESS && cc_proto != NULL) {
-        EFI_CC_BOOT_SERVICE_CAPABILITY cap;
+        struct efi_cc_boot_service_capability cap;
         memset(&cap, 0, sizeof(cap));
-        cap.Size = sizeof(cap);
-        status = cc_proto->GetCapability(cc_proto, &cap);
+        cap.size = sizeof(cap);
+        status = cc_proto->get_capability(cc_proto, &cap);
         if (status == EFI_SUCCESS) {
             cc = cc_proto;
             const char *cc_name = "unknown";
-            switch (cap.CcType.Type) {
+            switch (cap.cc_type.type) {
                 case EFI_CC_TYPE_AMD_SEV:   cc_name = "AMD SEV";   break;
                 case EFI_CC_TYPE_INTEL_TDX: cc_name = "Intel TDX"; break;
             }
@@ -149,24 +149,24 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
     size_t desc_len = prefix_len + value_len + 1;
 
     if (tcg2 != NULL) {
-        size_t event_size = offsetof(EFI_TCG2_EVENT, Event) + desc_len;
+        size_t event_size = offsetof(struct efi_tcg2_event, event) + desc_len;
 
-        EFI_TCG2_EVENT *event = ext_mem_alloc(event_size);
-        event->Size = (EFI_UINT32)event_size;
-        event->Header.HeaderSize = sizeof(EFI_TCG2_EVENT_HEADER);
-        event->Header.HeaderVersion = 1;
-        event->Header.PCRIndex = pcr;
-        event->Header.EventType = event_type;
+        struct efi_tcg2_event *event = ext_mem_alloc(event_size);
+        event->size = (uint32_t)event_size;
+        event->header.header_size = sizeof(struct efi_tcg2_event_header);
+        event->header.header_version = 1;
+        event->header.pcr_index = pcr;
+        event->header.event_type = event_type;
         if (prefix_len > 0) {
-            memcpy(event->Event, desc_prefix, prefix_len);
+            memcpy(event->event, desc_prefix, prefix_len);
         }
         if (value_len > 0) {
-            memcpy(event->Event + prefix_len, desc_value, value_len);
+            memcpy(event->event + prefix_len, desc_value, value_len);
         }
 
-        EFI_STATUS status = tcg2->HashLogExtendEvent(
+        efi_status status = tcg2->hash_log_extend_event(
             tcg2, 0,
-            (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
+            (efi_physical_address)(uintptr_t)data, (uint64_t)data_size,
             event);
         if (status == EFI_VOLUME_FULL) {
             tpm_log_full();
@@ -183,8 +183,8 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
         // CC platforms expose Memory Reference (MR) registers rather than
         // PCRs. The protocol provides a translation from a requested PCR
         // index to the platform's corresponding MR index.
-        EFI_CC_MR_INDEX mr_index;
-        EFI_STATUS status = cc->MapPcrToMrIndex(cc, pcr, &mr_index);
+        efi_cc_mr_index mr_index;
+        efi_status status = cc->map_pcr_to_mr_index(cc, pcr, &mr_index);
         if (status != EFI_SUCCESS) {
             quiet = false;
             print("WARNING: tpm: no measurement register for PCR %u: %X\n"
@@ -194,24 +194,24 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             return;
         }
 
-        size_t event_size = offsetof(EFI_CC_EVENT, Event) + desc_len;
+        size_t event_size = offsetof(struct efi_cc_event, event) + desc_len;
 
-        EFI_CC_EVENT *event = ext_mem_alloc(event_size);
-        event->Size = (EFI_UINT32)event_size;
-        event->Header.HeaderSize = sizeof(EFI_CC_EVENT_HEADER);
-        event->Header.HeaderVersion = EFI_CC_EVENT_HEADER_VERSION;
-        event->Header.MrIndex = mr_index;
-        event->Header.EventType = event_type;
+        struct efi_cc_event *event = ext_mem_alloc(event_size);
+        event->size = (uint32_t)event_size;
+        event->header.header_size = sizeof(struct efi_cc_event_header);
+        event->header.header_version = EFI_CC_EVENT_HEADER_VERSION;
+        event->header.mr_index = mr_index;
+        event->header.event_type = event_type;
         if (prefix_len > 0) {
-            memcpy(event->Event, desc_prefix, prefix_len);
+            memcpy(event->event, desc_prefix, prefix_len);
         }
         if (value_len > 0) {
-            memcpy(event->Event + prefix_len, desc_value, value_len);
+            memcpy(event->event + prefix_len, desc_value, value_len);
         }
 
-        status = cc->HashLogExtendEvent(
+        status = cc->hash_log_extend_event(
             cc, 0,
-            (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
+            (efi_physical_address)(uintptr_t)data, (uint64_t)data_size,
             event);
         if (status == EFI_VOLUME_FULL) {
             tpm_log_full();
@@ -421,18 +421,18 @@ static bool tcg_final_events_preboot(const uint8_t *log_data, size_t log_size,
         return false;
     }
 
-    EFI_TCG2_FINAL_EVENTS_TABLE header;
-    memcpy(&header, table, offsetof(EFI_TCG2_FINAL_EVENTS_TABLE, Event));
-    if (header.Version != TCG_FINAL_EVENTS_TABLE_VERSION) {
+    struct efi_tcg2_final_events_table header;
+    memcpy(&header, table, offsetof(struct efi_tcg2_final_events_table, event));
+    if (header.version != TCG_FINAL_EVENTS_TABLE_VERSION) {
         return false;
     }
 
-    const uint8_t *events = table + offsetof(EFI_TCG2_FINAL_EVENTS_TABLE, Event);
+    const uint8_t *events = table + offsetof(struct efi_tcg2_final_events_table, event);
     // They can only be among the events that follow the log's header.
     size_t limit = log_size - tcg_pcr_event_size(log_data, log_size);
     size_t total = 0;
 
-    for (uint64_t i = 0; i < header.NumberOfEvents; i++) {
+    for (uint64_t i = 0; i < header.number_of_events; i++) {
         size_t size = tcg_pcr_event2_size(events + total, limit - total, sizes);
         if (size == 0) {
             return false;
@@ -444,26 +444,26 @@ static bool tcg_final_events_preboot(const uint8_t *log_data, size_t log_size,
         return false;
     }
 
-    *count = header.NumberOfEvents;
+    *count = header.number_of_events;
     *total_size = total;
     return true;
 }
 
-static bool tcg2_get_event_log(uint32_t *format, EFI_PHYSICAL_ADDRESS *location,
-    EFI_PHYSICAL_ADDRESS *last_entry, EFI_BOOLEAN *truncated) {
-    EFI_TCG2_EVENT_LOG_BITMAP supported =
+static bool tcg2_get_event_log(uint32_t *format, efi_physical_address *location,
+    efi_physical_address *last_entry, bool *truncated) {
+    efi_tcg2_event_log_bitmap supported =
         EFI_TCG2_EVENT_LOG_FORMAT_TCG_1_2 | EFI_TCG2_EVENT_LOG_FORMAT_TCG_2;
 
-    EFI_TCG2_BOOT_SERVICE_CAPABILITY cap;
+    struct efi_tcg2_boot_service_capability cap;
     memset(&cap, 0, sizeof(cap));
-    cap.Size = sizeof(cap);
-    if (tcg2->GetCapability(tcg2, &cap) == EFI_SUCCESS) {
-        supported = cap.SupportedEventLogs;
+    cap.size = sizeof(cap);
+    if (tcg2->get_capability(tcg2, &cap) == EFI_SUCCESS) {
+        supported = cap.supported_event_logs;
     }
 
     // The crypto-agile log records every active PCR bank, and the final events
     // table only comes in that format (TCG EFI Protocol sections 5.2 and 7).
-    static const EFI_TCG2_EVENT_LOG_FORMAT formats[] = {
+    static const efi_tcg2_event_log_format formats[] = {
         EFI_TCG2_EVENT_LOG_FORMAT_TCG_2,
         EFI_TCG2_EVENT_LOG_FORMAT_TCG_1_2,
     };
@@ -472,7 +472,7 @@ static bool tcg2_get_event_log(uint32_t *format, EFI_PHYSICAL_ADDRESS *location,
         if ((supported & formats[i]) == 0) {
             continue;
         }
-        EFI_STATUS status = tcg2->GetEventLog(tcg2, formats[i], location,
+        efi_status status = tcg2->get_event_log(tcg2, formats[i], location,
                                               last_entry, truncated);
         if (status == EFI_SUCCESS) {
             *format = formats[i];
@@ -504,9 +504,9 @@ static struct tcg_digest_sizes event_log_digest_sizes;
 
 static bool event_log_capture(void) {
     uint32_t format;
-    EFI_PHYSICAL_ADDRESS location = 0;
-    EFI_PHYSICAL_ADDRESS last_entry = 0;
-    EFI_BOOLEAN truncated = EFI_FALSE;
+    efi_physical_address location = 0;
+    efi_physical_address last_entry = 0;
+    bool truncated = false;
 
     if (tcg2 != NULL) {
         if (!tcg2_get_event_log(&format, &location, &last_entry, &truncated)) {
@@ -515,7 +515,7 @@ static bool event_log_capture(void) {
         }
     } else if (cc != NULL) {
         format = EFI_CC_EVENT_LOG_FORMAT_TCG_2;
-        EFI_STATUS status = cc->GetEventLog(cc, format, &location, &last_entry, &truncated);
+        efi_status status = cc->get_event_log(cc, format, &location, &last_entry, &truncated);
         if (status != EFI_SUCCESS) {
             printv("tpm: CC GetEventLog failed: %X\n", (uint64_t)status);
             return false;
@@ -607,19 +607,19 @@ size_t tpm_append_final_events(void) {
         return event_log_size;
     }
 
-    EFI_TCG2_FINAL_EVENTS_TABLE header;
-    memcpy(&header, table, offsetof(EFI_TCG2_FINAL_EVENTS_TABLE, Event));
-    if (header.Version != TCG_FINAL_EVENTS_TABLE_VERSION
-     || header.NumberOfEvents < event_log_preboot_count) {
+    struct efi_tcg2_final_events_table header;
+    memcpy(&header, table, offsetof(struct efi_tcg2_final_events_table, event));
+    if (header.version != TCG_FINAL_EVENTS_TABLE_VERSION
+     || header.number_of_events < event_log_preboot_count) {
         return event_log_size;
     }
 
-    const uint8_t *events = table + offsetof(EFI_TCG2_FINAL_EVENTS_TABLE, Event)
+    const uint8_t *events = table + offsetof(struct efi_tcg2_final_events_table, event)
         + event_log_preboot_size;
     size_t room = event_log_capacity - event_log_size;
     size_t total = 0;
 
-    for (uint64_t i = event_log_preboot_count; i < header.NumberOfEvents; i++) {
+    for (uint64_t i = event_log_preboot_count; i < header.number_of_events; i++) {
         size_t size = tcg_pcr_event2_size(events + total, room - total,
             &event_log_digest_sizes);
         if (size == 0) {
@@ -632,7 +632,7 @@ size_t tpm_append_final_events(void) {
     memcpy((uint8_t *)event_log_copy + event_log_size, events, total);
     event_log_size += total;
     event_log_preboot_size += total;
-    event_log_preboot_count = header.NumberOfEvents;
+    event_log_preboot_count = header.number_of_events;
 
     printv("tpm: appended %U bytes of events logged after the capture\n", (uint64_t)total);
     return event_log_size;
@@ -659,21 +659,21 @@ void tpm_release_event_log(void) {
 }
 
 void *tpm_get_final_events_table(void) {
-    EFI_GUID guid;
+    struct efi_guid guid;
     if (tcg2 != NULL) {
-        EFI_GUID tcg2_guid = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
+        struct efi_guid tcg2_guid = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
         guid = tcg2_guid;
     } else if (cc != NULL) {
-        EFI_GUID cc_guid = EFI_CC_FINAL_EVENTS_TABLE_GUID;
+        struct efi_guid cc_guid = EFI_CC_FINAL_EVENTS_TABLE_GUID;
         guid = cc_guid;
     } else {
         return NULL;
     }
 
-    for (EFI_UINTN i = 0; i < gST->NumberOfTableEntries; i++) {
-        if (memcmp(&gST->ConfigurationTable[i].VendorGuid,
-                   &guid, sizeof(EFI_GUID)) == 0) {
-            return gST->ConfigurationTable[i].VendorTable;
+    for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+        if (memcmp(&gST->configuration_table[i].vendor_guid,
+                   &guid, sizeof(struct efi_guid)) == 0) {
+            return gST->configuration_table[i].vendor_table;
         }
     }
     return NULL;

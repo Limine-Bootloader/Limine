@@ -363,7 +363,7 @@ load:
 
 #elif defined(UEFI)
 
-static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle *image) {
+static struct efi_device_path_protocol *build_relative_efi_file_path(struct file_handle *image) {
     // The file path stored in EFI_LOADED_IMAGE_PROTOCOL::FilePath is
     // expected to be relative to the EFI_LOADED_IMAGE_PROTOCOL::DeviceHandle.
     // For this reason the EFI_DEVICE_PATH_PROTOCOL of the efi_part_handle
@@ -375,8 +375,8 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
     // UTF-16 never takes more code units than UTF-8 takes bytes; one more is
     // for the backslash rooting the path, as firmware roots those of the
     // images it loads.
-    size_t efi_file_path_alloc_len = (original_path_chars + 2) * sizeof(EFI_CHAR16);
-    EFI_CHAR16 *efi_file_path = ext_mem_alloc(efi_file_path_alloc_len);
+    size_t efi_file_path_alloc_len = (original_path_chars + 2) * sizeof(uint16_t);
+    uint16_t *efi_file_path = ext_mem_alloc(efi_file_path_alloc_len);
 
     size_t efi_file_path_chars;
     utf8_to_utf16(efi_file_path + 1, original_path_chars + 1, image->path, original_path_chars, &efi_file_path_chars);
@@ -394,33 +394,33 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
     efi_file_path[j] = 0;
 
 
-    size_t efi_file_path_len = ((j + 1) * sizeof(EFI_CHAR16));
-    size_t path_item_len     = sizeof(EFI_DEVICE_PATH_PROTOCOL) + efi_file_path_len;
-    size_t end_item_len      = sizeof(EFI_DEVICE_PATH_PROTOCOL);
+    size_t efi_file_path_len = ((j + 1) * sizeof(uint16_t));
+    size_t path_item_len     = sizeof(struct efi_device_path_protocol) + efi_file_path_len;
+    size_t end_item_len      = sizeof(struct efi_device_path_protocol);
     size_t alloc_len         = path_item_len + end_item_len;
 
     if (path_item_len > 0xffff) {
         panic(true, "efi: Image path too long for device path node");
     }
 
-    EFI_DEVICE_PATH_PROTOCOL *device_path;
-    EFI_STATUS status = gBS->AllocatePool(EfiLoaderData, alloc_len, (void **)&device_path);
+    struct efi_device_path_protocol *device_path;
+    efi_status status = gBS->allocate_pool(EFI_LOADER_DATA, alloc_len, (void **)&device_path);
     if (status) {
         panic(true, "efi: AllocatePool() failure (%X)", (uint64_t)status);
     }
 
-    EFI_FILEPATH_DEVICE_PATH *path_item = (EFI_FILEPATH_DEVICE_PATH *)device_path;
-    path_item->Header.Type = EFI_MEDIA_DEVICE_PATH;
-    path_item->Header.SubType = EFI_MEDIA_FILEPATH_DP;
-    path_item->Header.Length[0] = path_item_len;
-    path_item->Header.Length[1] = path_item_len >> 8;
-    memcpy(&path_item->PathName, efi_file_path, efi_file_path_len);
+    struct efi_filepath_device_path *path_item = (struct efi_filepath_device_path *)device_path;
+    path_item->header.type = EFI_MEDIA_DEVICE_PATH;
+    path_item->header.sub_type = EFI_MEDIA_FILEPATH_DP;
+    path_item->header.length[0] = path_item_len;
+    path_item->header.length[1] = path_item_len >> 8;
+    memcpy(&path_item->path_name, efi_file_path, efi_file_path_len);
 
-    EFI_DEVICE_PATH_PROTOCOL *end_item = (void *)device_path + path_item_len;
-    end_item->Type = EFI_END_DEVICE_PATH_TYPE;
-    end_item->SubType = EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE;
-    end_item->Length[0] = end_item_len;
-    end_item->Length[1] = end_item_len >> 8;
+    struct efi_device_path_protocol *end_item = (void *)device_path + path_item_len;
+    end_item->type = EFI_END_DEVICE_PATH_TYPE;
+    end_item->sub_type = EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE;
+    end_item->length[0] = end_item_len;
+    end_item->length[1] = end_item_len >> 8;
 
     pmm_free(efi_file_path, efi_file_path_alloc_len);
     return device_path;
@@ -451,9 +451,9 @@ noreturn void chainload(char *config, char *cmdline) {
 
     secure_boot_active = saved_secure_boot_active;
 
-    EFI_STATUS status;
+    efi_status status;
 
-    EFI_HANDLE efi_part_handle = image->efi_part_handle;
+    efi_handle efi_part_handle = image->efi_part_handle;
 
     void *ptr = image->fd;
     size_t image_size = image->size;
@@ -462,7 +462,7 @@ noreturn void chainload(char *config, char *cmdline) {
                           (uintptr_t)ptr, ALIGN_UP(image_size, 4096, panic(true, "chainload: Alignment overflow")),
                           MEMMAP_RESERVED, MEMMAP_USABLE, true, false, true);
 
-    EFI_DEVICE_PATH_PROTOCOL *efi_file_path = build_relative_efi_file_path(image);
+    struct efi_device_path_protocol *efi_file_path = build_relative_efi_file_path(image);
 
     fclose(image);
     term_notready();
@@ -476,21 +476,21 @@ noreturn void chainload(char *config, char *cmdline) {
     struct fb_info *fbinfo;
     size_t fb_count;
     fb_init(&fbinfo, &fb_count, req_width, req_height, req_bpp,
-            !fb_flush_reliable(), false);
+            !fb_flush_reliable(), false, false);
 
     size_t cmdline_len = strlen(cmdline);
-    EFI_CHAR16 *new_cmdline = NULL;
+    uint16_t *new_cmdline = NULL;
     size_t new_cmdline_size = 0;
     if (cmdline_len > 0) {
         // UTF-16 never takes more code units than UTF-8 takes bytes.
-        size_t cmdline_utf16_alloc_len = CHECKED_MUL(cmdline_len + 1, sizeof(EFI_CHAR16), panic(true, "efi: Allocation size overflow"));
-        EFI_CHAR16 *cmdline_utf16 = ext_mem_alloc(cmdline_utf16_alloc_len);
+        size_t cmdline_utf16_alloc_len = CHECKED_MUL(cmdline_len + 1, sizeof(uint16_t), panic(true, "efi: Allocation size overflow"));
+        uint16_t *cmdline_utf16 = ext_mem_alloc(cmdline_utf16_alloc_len);
 
         size_t cmdline_utf16_chars;
         utf8_to_utf16(cmdline_utf16, cmdline_len + 1, cmdline, cmdline_len, &cmdline_utf16_chars);
 
-        new_cmdline_size = (cmdline_utf16_chars + 1) * sizeof(EFI_CHAR16);
-        status = gBS->AllocatePool(EfiLoaderData, new_cmdline_size, (void **)&new_cmdline);
+        new_cmdline_size = (cmdline_utf16_chars + 1) * sizeof(uint16_t);
+        status = gBS->allocate_pool(EFI_LOADER_DATA, new_cmdline_size, (void **)&new_cmdline);
         if (status) {
             panic(true, "efi: Allocation failure");
         }
@@ -501,61 +501,61 @@ noreturn void chainload(char *config, char *cmdline) {
 
     pmm_release_uefi_mem();
 
-    EFI_MEMMAP_DEVICE_PATH memdev_path[2];
+    struct efi_memmap_device_path memdev_path[2];
 
-    memdev_path[0].Header.Type = EFI_HARDWARE_DEVICE_PATH;
-    memdev_path[0].Header.SubType = EFI_HW_MEMMAP_DP;
-    memdev_path[0].Header.Length[0] = sizeof(EFI_MEMMAP_DEVICE_PATH);
-    memdev_path[0].Header.Length[1] = sizeof(EFI_MEMMAP_DEVICE_PATH) >> 8;
+    memdev_path[0].header.type = EFI_HARDWARE_DEVICE_PATH;
+    memdev_path[0].header.sub_type = EFI_HW_MEMMAP_DP;
+    memdev_path[0].header.length[0] = sizeof(struct efi_memmap_device_path);
+    memdev_path[0].header.length[1] = sizeof(struct efi_memmap_device_path) >> 8;
 
-    memdev_path[0].MemoryType       = EfiLoaderCode;
-    memdev_path[0].StartingAddress  = (uintptr_t)ptr;
-    memdev_path[0].EndingAddress    = (uintptr_t)ptr + image_size;
+    memdev_path[0].memory_type       = EFI_LOADER_CODE;
+    memdev_path[0].starting_address  = (uintptr_t)ptr;
+    memdev_path[0].ending_address    = (uintptr_t)ptr + image_size;
 
-    memdev_path[1].Header.Type = EFI_END_DEVICE_PATH_TYPE;
-    memdev_path[1].Header.SubType = EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE;
-    memdev_path[1].Header.Length[0] = sizeof(EFI_DEVICE_PATH_PROTOCOL);
-    memdev_path[1].Header.Length[1] = sizeof(EFI_DEVICE_PATH_PROTOCOL) >> 8;
+    memdev_path[1].header.type = EFI_END_DEVICE_PATH_TYPE;
+    memdev_path[1].header.sub_type = EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE;
+    memdev_path[1].header.length[0] = sizeof(struct efi_device_path_protocol);
+    memdev_path[1].header.length[1] = sizeof(struct efi_device_path_protocol) >> 8;
 
-    EFI_HANDLE new_handle = 0;
+    efi_handle new_handle = 0;
 
-    status = gBS->LoadImage(0, efi_image_handle,
-                            (EFI_DEVICE_PATH_PROTOCOL *)memdev_path,
+    status = gBS->load_image(0, efi_image_handle,
+                            (struct efi_device_path_protocol *)memdev_path,
                             ptr, image_size, &new_handle);
     if (status) {
         panic(false, "efi: LoadImage failure (%X)", (uint64_t)status);
     }
 
-    EFI_GUID loaded_img_prot_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    struct efi_guid loaded_img_prot_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 
-    EFI_LOADED_IMAGE_PROTOCOL *new_handle_loaded_image = NULL;
-    status = gBS->HandleProtocol(new_handle, &loaded_img_prot_guid,
+    struct efi_loaded_image_protocol *new_handle_loaded_image = NULL;
+    status = gBS->handle_protocol(new_handle, &loaded_img_prot_guid,
                                  (void **)&new_handle_loaded_image);
     if (status) {
         panic(false, "efi: HandleProtocol failure (%X)", (uint64_t)status);
     }
 
     if (efi_part_handle != 0) {
-        new_handle_loaded_image->DeviceHandle = efi_part_handle;
+        new_handle_loaded_image->device_handle = efi_part_handle;
     }
 
-    new_handle_loaded_image->FilePath = efi_file_path;
+    new_handle_loaded_image->file_path = efi_file_path;
 
     if (cmdline_len > 0) {
-        new_handle_loaded_image->LoadOptionsSize = new_cmdline_size;
-        new_handle_loaded_image->LoadOptions = new_cmdline;
+        new_handle_loaded_image->load_options_size = new_cmdline_size;
+        new_handle_loaded_image->load_options = new_cmdline;
     } else {
-        new_handle_loaded_image->LoadOptionsSize = 0;
-        new_handle_loaded_image->LoadOptions = NULL;
+        new_handle_loaded_image->load_options_size = 0;
+        new_handle_loaded_image->load_options = NULL;
     }
 
     bli_on_boot();
 
-    EFI_UINTN exit_data_size = 0;
-    EFI_CHAR16 *exit_data = NULL;
-    EFI_STATUS exit_status = gBS->StartImage(new_handle, &exit_data_size, &exit_data);
+    size_t exit_data_size = 0;
+    uint16_t *exit_data = NULL;
+    efi_status exit_status = gBS->start_image(new_handle, &exit_data_size, &exit_data);
 
-    status = gBS->Exit(efi_image_handle, exit_status, exit_data_size, exit_data);
+    status = gBS->exit(efi_image_handle, exit_status, exit_data_size, exit_data);
     if (status) {
         panic(false, "efi: Exit failure (%X)", (uint64_t)status);
     }

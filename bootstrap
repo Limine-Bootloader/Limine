@@ -48,12 +48,12 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/osdev0/freestanding-c-hdrs.git \
         freestanding-c-hdrs \
-        5e951873194cf131d00abe4978426e5aaaf6e379
+        59d91c6ed2f97f7de619e2c85a376aea0304d207
 
     clone_repo_commit \
         https://github.com/osdev0/freestanding-lgrt.git \
         freestanding-lgrt \
-        3cb84d19dd20c54ec2d1d2f9b2ba635ce97bf749
+        1bf4c8eaa692e3ad0b1c927fd4712caa60bbe332
     cp freestanding-lgrt/src/freestanding-lgrt.c common/freestanding-lgrt.s2.c
 
     clone_repo_commit \
@@ -66,12 +66,12 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/Limine-Bootloader/limine-protocol.git \
         limine-protocol \
-        6e85ddd6f928b5b512015c4d47d1cfce2fd28079
+        877c2d4c50e170575f8b8e7fbf7b8fa89b1dc157
 
     clone_repo_commit \
         https://github.com/PicoEFI/PicoEFI.git \
         picoefi \
-        dc23de6c36ae9e10e5ff290d7c3dd6c04b141a7a
+        9065da08260729e932531110a5a7fb90c0022aa9
 
     # 3.1.2-1-g3e311fe
     clone_repo_commit \

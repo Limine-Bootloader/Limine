@@ -1,7 +1,10 @@
+import time
+
 from harness.api import check
-from harness.elf import ElfFile
+from harness.elf import PT_LOAD, ElfFile, ElfImage
 from harness.ports import X86_PORTS
-from cases._common import boot_entry, entry, panics_in_turn, read
+from harness.report import unescape
+from cases._common import boot_entry, entry, panics_in_turn, read, select_entry, wait_panic
 from cases.multiboot import (boot_mb1, boot_mb2, mb1_kernel, mb1_report, mb2_kernel, mb2_report)
 
 # Spoilt ELF kernels for Multiboot 1 and 2, each failing one check of
@@ -35,6 +38,10 @@ def hostile_images(e, proto):
         ('segment data past the end', e.patched(**{f'p_offset{first}': size}),
          'elf: p_offset + p_filesz exceeds file size'),
         ('overlapping segments', e.patched(**{f'p_paddr{last}': e.phdrs[first]['p_paddr']}),
+         'elf: Overlapping loadable segments'),
+        ('overlapping segments larger together than memory',
+         e.patched(**{f'p_paddr{i}': e.phdrs[first]['p_paddr'] for i in loads},
+                   **{f'p_memsz{i}': 0xa000000 for i in loads}),
          'elf: Overlapping loadable segments'),
         ('entry outside every segment', e.patched(e_entry=0x1000), f'{proto}: Entry point is outside the executable'),
         ('short section headers', e.patched(e_shentsize=20 if bits32 else 32),
@@ -102,3 +109,109 @@ def mb2_disjoint_elf(t):
     """Load a kernel whose header segment is far from its other segments."""
     m = boot_mb2(t, distant_header(mb2_kernel(t)))
     mb2_report(t, m)
+
+
+def target_over_staging(path):
+    """The kernel moved to 256MiB, behind a first segment of 128MiB at 260MiB,
+    over where the staging buffers of the others would otherwise go."""
+    e = ElfFile(read(path))
+    moved = [dict(p, p_paddr=p['p_paddr'] + 0xfd00000) if p['p_type'] == PT_LOAD else p for p in e.phdrs]
+    big = {'p_type': PT_LOAD, 'p_offset': 0, 'p_vaddr': 0x10400000, 'p_paddr': 0x10400000, 'p_filesz': 0,
+           'p_memsz': 0x8000000, 'p_flags': 4, 'p_align': 0x1000}
+    return e.with_phdrs([big] + moved)
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf'])
+def mb2_target_over_staging(t):
+    """Load a kernel, position independent, with a segment over where the
+    loader would otherwise stage the others [intent]."""
+    m = boot_mb2(t, target_over_staging(mb2_kernel(t)))
+    mb2_report(t, m)
+
+
+def many_segments(path):
+    """600 more segments, of a page each with a page between them, from
+    128MiB."""
+    e = ElfFile(read(path))
+    page = {'p_type': PT_LOAD, 'p_offset': 0, 'p_filesz': 0, 'p_memsz': 0x1000, 'p_flags': 4, 'p_align': 0x1000}
+    extra = [dict(page, p_vaddr=0x8000000 + i * 0x2000, p_paddr=0x8000000 + i * 0x2000) for i in range(600)]
+    return e.with_phdrs(e.phdrs + extra)
+
+
+@check(ports=X86_PORTS, tags=['multiboot1', 'elf'])
+def mb1_many_segments(t):
+    """Load a kernel with too many segments apart to reserve one by one
+    [intent]."""
+    m = boot_mb1(t, many_segments(mb1_kernel(t)))
+    mb1_report(t, m)
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf'])
+def mb2_many_segments(t):
+    """The same for Multiboot 2."""
+    m = boot_mb2(t, many_segments(mb2_kernel(t)))
+    mb2_report(t, m)
+
+
+def overlapping_segments(path, descending):
+    """65535 segments of two pages, a page apart so that each overlaps the
+    next, in ascending or descending order."""
+    e = ElfFile(read(path))
+    order = range(65534, -1, -1) if descending else range(65535)
+    return e.with_phdrs([{'p_type': PT_LOAD, 'p_offset': 0, 'p_vaddr': 0x1000000 + i * 0x1000,
+                          'p_paddr': 0x1000000 + i * 0x1000, 'p_filesz': 0, 'p_memsz': 0x2000, 'p_flags': 4,
+                          'p_align': 0x1000} for i in order])
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf', 'hostile'])
+def mb2_elf_segments_sorted(t):
+    """65535 overlapping segments are refused about as soon in descending
+    order as in ascending, which an insertion sort takes quadratic time
+    over [intent]."""
+    files = {'/boot/a.elf': overlapping_segments(mb2_kernel(t), False),
+             '/boot/d.elf': overlapping_segments(mb2_kernel(t), True)}
+    config = ('timeout: no\n' + entry('A', protocol='multiboot2', path='boot():/boot/a.elf')
+              + entry('D', protocol='multiboot2', path='boot():/boot/d.elf'))
+    m, _ = boot_entry(t, config, files=files, kernel_variant=None)
+    taken = []
+    for i, name in enumerate(('A', 'D')):
+        t.wait_text(m, 'ARROWS', 60)
+        select_entry(t, m, i, name)
+        start = time.monotonic()
+        m.press('ret')
+        msg, _ = wait_panic(t, m)
+        taken.append(time.monotonic() - start)
+        t.expect_eq(msg, 'elf: Overlapping loadable segments', f'{name}: the panic')
+        m.press('ret')
+    t.check(taken[1] < 4 * taken[0] + 2 * t.port.timeout_scale,
+            f'descending in {taken[1]:.1f}s, ascending in {taken[0]:.1f}s')
+
+
+def under_loader_memory(path, pages=0):
+    """The kernel moved to 416MiB, below a segment of 64MiB up to where RAM
+    ends on the BIOS machines, over the loader's own allocations there, with
+    pages more one-page segments between and no section headers, which would
+    have to go above."""
+    e = ElfFile(read(path))
+    moved = [dict(p, p_paddr=p['p_paddr'] + 0x19d00000) if p['p_type'] == PT_LOAD else p for p in e.phdrs]
+    page = {'p_type': PT_LOAD, 'p_offset': 0, 'p_filesz': 0, 'p_memsz': 0x1000, 'p_flags': 4, 'p_align': 0x1000}
+    extra = [dict(page, p_vaddr=0x1a100000 + i * 0x1000, p_paddr=0x1a100000 + i * 0x1000) for i in range(pages)]
+    top = dict(page, p_vaddr=0x1bfe0000, p_paddr=0x1bfe0000, p_memsz=0x4000000)
+    return ElfImage(e.with_phdrs(moved + extra + [top]), e.fields).patched(e_shoff=0, e_shnum=0, e_shstrndx=0)
+
+
+@check(ports=['bios'], tags=['multiboot1', 'elf'])
+def mb1_segment_over_loader_memory(t):
+    """A kernel, position independent, with a segment over the loader's own
+    allocations gets its information structure whole [intent]."""
+    m = boot_mb1(t, under_loader_memory(mb1_kernel(t, 'probe')))
+    m.wait_for('debugcon', 'E DONE', 60)
+    t.expect_eq(m.stream('debugcon').text(), 'mb1 command line\nE DONE\n', 'the command line from it')
+
+
+@check(ports=['bios'], tags=['multiboot2', 'elf'])
+def mb2_segment_over_loader_memory(t):
+    """The same for Multiboot 2, with segments enough that their array has
+    room for the information structure."""
+    m = boot_mb2(t, under_loader_memory(mb2_kernel(t), 1024))
+    t.expect_eq(unescape(mb2_report(t, m)['cmdline']), 'mb2 command line', 'the command line from it')

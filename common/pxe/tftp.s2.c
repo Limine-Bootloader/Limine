@@ -207,12 +207,12 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
 
 #elif defined(UEFI)
 
-_Static_assert(sizeof(EFI_PXE_BASE_CODE_PACKET) <= DHCP_ACK_PACKET_LEN, "DHCP packet buffer too small");
+_Static_assert(sizeof(union efi_pxe_base_code_packet) <= DHCP_ACK_PACKET_LEN, "DHCP packet buffer too small");
 
 // The firmware keeps the packet in a fixed-size union, so its length is only
 // known from where the End option sits (RFC 2132).
 static size_t dhcp_packet_len(const uint8_t *packet, size_t max) {
-    size_t i = offsetof(EFI_PXE_BASE_CODE_DHCPV4_PACKET, DhcpOptions);
+    size_t i = offsetof(struct efi_pxe_base_code_dhcpv4_packet, dhcp_options);
 
     while (i < max) {
         if (packet[i] == 255) {
@@ -232,24 +232,24 @@ static size_t dhcp_packet_len(const uint8_t *packet, size_t max) {
     return max;
 }
 
-static EFI_IP_ADDRESS *parse_ip_addr(struct volume *part, const char *server_addr) {
-    static EFI_IP_ADDRESS out;
+static union efi_ip_address *parse_ip_addr(struct volume *part, const char *server_addr) {
+    static union efi_ip_address out;
 
     if (!server_addr || !strlen(server_addr)) {
-        EFI_PXE_BASE_CODE_PACKET* packet;
-        if (part->pxe_base_code->Mode->PxeReplyReceived) packet = &part->pxe_base_code->Mode->PxeReply;
-        else if (part->pxe_base_code->Mode->ProxyOfferReceived) packet = &part->pxe_base_code->Mode->ProxyOffer;
-        else packet = &part->pxe_base_code->Mode->DhcpAck;
-        memcpy(out.Addr, packet->Dhcpv4.BootpSiAddr, 4);
-        if (!cached_dhcp_ack_valid && part->pxe_base_code->Mode->DhcpAckReceived) {
-            EFI_PXE_BASE_CODE_PACKET *ack = &part->pxe_base_code->Mode->DhcpAck;
-            cached_dhcp_packet_len = dhcp_packet_len(ack->Raw, sizeof(ack->Raw));
+        union efi_pxe_base_code_packet* packet;
+        if (part->pxe_base_code->mode->pxe_reply_received) packet = &part->pxe_base_code->mode->pxe_reply;
+        else if (part->pxe_base_code->mode->proxy_offer_received) packet = &part->pxe_base_code->mode->proxy_offer;
+        else packet = &part->pxe_base_code->mode->dhcp_ack;
+        memcpy(out.addr, packet->dhcpv4.bootp_si_addr, 4);
+        if (!cached_dhcp_ack_valid && part->pxe_base_code->mode->dhcp_ack_received) {
+            union efi_pxe_base_code_packet *ack = &part->pxe_base_code->mode->dhcp_ack;
+            cached_dhcp_packet_len = dhcp_packet_len(ack->raw, sizeof(ack->raw));
             memcpy(cached_dhcp_packet, ack, cached_dhcp_packet_len);
             cached_dhcp_ack_valid = true;
         }
     } else {
         // The URI code refuses an address inet_pton() cannot read.
-        inet_pton(server_addr, &out.Addr);
+        inet_pton(server_addr, &out.addr);
     }
 
     return &out;
@@ -260,16 +260,16 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
         return NULL;
     }
 
-    EFI_IP_ADDRESS *ip = parse_ip_addr(part, server_addr);
+    union efi_ip_address *ip = parse_ip_addr(part, server_addr);
 
-    EFI_UINT64 file_size;
-    EFI_STATUS status;
+    uint64_t file_size;
+    efi_status status;
 
     // Firmware from before EDK2 cf9ff46b rejects a NULL BufferPtr for every
     // Mtftp() opcode, not just the reading ones, so give it somewhere to point.
     uint8_t size_query_scratch;
 
-    status = part->pxe_base_code->Mtftp(
+    status = part->pxe_base_code->mtftp(
             part->pxe_base_code,
             EFI_PXE_BASE_CODE_TFTP_GET_FILE_SIZE,
             &size_query_scratch,
@@ -277,7 +277,7 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
             &file_size,
             NULL,
             ip,
-            (uint8_t *)name,
+            (char *)name,
             NULL,
             true);
 
@@ -294,7 +294,7 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
     handle->is_memfile = true;
 
     handle->pxe = true;
-    memcpy(handle->pxe_ip, ip->Addr, 4);
+    memcpy(handle->pxe_ip, ip->addr, 4);
     handle->pxe_port = 69;
 
     size_t name_len = strlen(name);
@@ -305,7 +305,7 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
 
     handle->fd = ext_mem_alloc(handle->size);
 
-    status = part->pxe_base_code->Mtftp(
+    status = part->pxe_base_code->mtftp(
             part->pxe_base_code,
             EFI_PXE_BASE_CODE_TFTP_READ_FILE,
             handle->fd,
@@ -313,7 +313,7 @@ struct file_handle *tftp_open(struct volume *part, const char *server_addr, cons
             &file_size,
             NULL,
             ip,
-            (uint8_t *)name,
+            (char *)name,
             NULL,
             false);
 

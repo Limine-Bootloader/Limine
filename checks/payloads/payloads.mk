@@ -172,7 +172,7 @@ limine-kernels: $(LIMINE_ELFS)
 override EFI_TARGETS := $(subst x86-64,x86_64,$(patsubst uefi-%,%,$(filter uefi-%,$(ENABLED_PORTS))))
 
 override EFI_CFLAGS_x86_64 := $(call target,x86_64) -m64 -march=x86-64 -mgeneral-regs-only -mno-red-zone
-override EFI_CFLAGS_ia32 := $(call target,i686) -m32 -march=i686 -mgeneral-regs-only
+override EFI_CFLAGS_ia32 := $(call target,i686) -m32 -march=i686 -mgeneral-regs-only -malign-double
 override EFI_CFLAGS_aarch64 := $(call target,aarch64) -mgeneral-regs-only
 override EFI_CFLAGS_riscv64 := $(call target,riscv64) -march=rv64imac_zicsr_zifencei -mabi=lp64 -mno-relax
 override EFI_CFLAGS_loongarch64 := $(call target,loongarch64) -march=loongarch64 -mabi=lp64s -msoft-float \
@@ -186,18 +186,18 @@ override EFI_LDFLAGS_loongarch64 := -m elf64loongarch
 
 override EFI_COMMON_CFLAGS := -std=gnu11 -O2 -g -Wall -Wextra -Werror -ffreestanding -fno-stack-protector \
     -fno-stack-check -fno-lto -fno-exceptions -fPIE -fshort-wchar -nostdinc \
-    -isystem $(SRCDIR)/freestanding-c-hdrs/include -I $(SRCDIR)/picoefi/inc
+    -isystem $(SRCDIR)/freestanding-c-hdrs/include -I $(SRCDIR)/picoefi/include
 
 override define efi_target
 $(OUT)/efi/$(1)/%.o: $(PAYLOADS)/efi/%.c $(PAYLOADS)/payloads.mk
 	mkdir -p $$(@D)
 	$$(CC) $$(EFI_COMMON_CFLAGS) $$(EFI_CFLAGS_$(1)) -c $$< -o $$@
 
-$(OUT)/efi/$(1)/entry.o: $(SRCDIR)/picoefi/$(1)/entry.S
+$(OUT)/efi/$(1)/entry.o: $(SRCDIR)/picoefi/src/$(1)/entry.S
 	mkdir -p $$(@D)
 	$$(CC) $$(EFI_COMMON_CFLAGS) $$(EFI_CFLAGS_$(1)) -c $$< -o $$@
 
-$(OUT)/efi/$(1)/reloc.o: $(SRCDIR)/picoefi/$(1)/reloc.c
+$(OUT)/efi/$(1)/reloc.o: $(SRCDIR)/picoefi/src/$(1)/reloc.c
 	mkdir -p $$(@D)
 	$$(CC) $$(EFI_COMMON_CFLAGS) $$(EFI_CFLAGS_$(1)) -c $$< -o $$@
 
@@ -208,7 +208,7 @@ $(OUT)/efi/$(1)/lgrt.o: $(SRCDIR)/common/freestanding-lgrt.s2.c
 
 $(OUT)/efi/$(1)/efiprobe.elf: $(addprefix $(OUT)/efi/$(1)/,entry.o reloc.o efiprobe.o mem.o lgrt.o)
 	$$(LD) $$(EFI_LDFLAGS_$(1)) -nostdlib -pie -z text -z max-page-size=0x1000 --hash-style=gnu \
-		-z pack-relative-relocs -T $(SRCDIR)/picoefi/$(1)/link_script.lds $$^ -o $$@
+		-z pack-relative-relocs -T $(SRCDIR)/picoefi/src/$(1)/link_script.lds $$^ -o $$@
 
 $(OUT)/efi/$(1)/efiprobe.efi: $(OUT)/efi/$(1)/efiprobe.elf
 	$$(OBJCOPY) -O binary $$< $$@
@@ -371,6 +371,15 @@ $(foreach v,$(MB1_VARIANTS),$(eval $(call mb1_kernel,$(word 1,$(subst :, ,$(v)))
 
 $(OUT)/multiboot/mb1/elf/kernel64.elf: $(OUT)/multiboot/mb1/elf/kernel.elf
 	$(OBJCOPY) -O elf64-x86-64 $< $@
+
+$(OUT)/multiboot/mb1/probe/kernel.elf: $(PAYLOADS)/multiboot/mb1_probe.asm $(PAYLOADS)/multiboot/mb.ld \
+		$(PAYLOADS)/payloads.mk
+	mkdir -p $(@D)
+	nasm -f elf32 -Wall -w-reloc -Werror $(PAYLOADS)/multiboot/mb1_probe.asm -o $(@D)/probe.o
+	$(LD) -m elf_i386 -nostdlib -static -z max-page-size=0x1000 -z noexecstack -T $(PAYLOADS)/multiboot/mb.ld \
+		$(@D)/probe.o -o $@
+
+override MB_KERNELS += $(OUT)/multiboot/mb1/probe/kernel.elf
 
 override MB1_HEADER_OFFSETS := 8160 8164 8180 8184 8192
 

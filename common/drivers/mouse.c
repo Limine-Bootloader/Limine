@@ -716,40 +716,40 @@ void mouse_flush(void) {
 #define MM_PER_CELL_X 2
 #define MM_PER_CELL_Y 4
 
-static EFI_SIMPLE_POINTER_PROTOCOL *rel_pointers[MAX_POINTERS];
+static struct efi_simple_pointer_protocol *rel_pointers[MAX_POINTERS];
 static size_t rel_pointer_count;
-static EFI_ABSOLUTE_POINTER_PROTOCOL *abs_pointers[MAX_POINTERS];
+static struct efi_absolute_pointer_protocol *abs_pointers[MAX_POINTERS];
 static size_t abs_pointer_count;
 
-static size_t locate_pointers(EFI_GUID *guid, void **out, size_t max) {
+static size_t locate_pointers(struct efi_guid *guid, void **out, size_t max) {
     void *iface;
 
     // Prefer the console splitter aggregate
-    if (gST->ConsoleInHandle != NULL
-     && gBS->HandleProtocol(gST->ConsoleInHandle, guid, &iface) == EFI_SUCCESS) {
+    if (gST->console_in_handle != NULL
+     && gBS->handle_protocol(gST->console_in_handle, guid, &iface) == EFI_SUCCESS) {
         out[0] = iface;
         return 1;
     }
 
-    EFI_UINTN count = 0;
-    EFI_HANDLE *handles = NULL;
-    if (gBS->LocateHandleBuffer(EfiByProtocol, guid, NULL, &count, &handles) != EFI_SUCCESS) {
+    size_t count = 0;
+    efi_handle *handles = NULL;
+    if (gBS->locate_handle_buffer(EFI_BY_PROTOCOL, guid, NULL, &count, &handles) != EFI_SUCCESS) {
         return 0;
     }
 
     size_t n = 0;
-    for (EFI_UINTN i = 0; i < count && n < max; i++) {
-        if (gBS->HandleProtocol(handles[i], guid, &iface) == EFI_SUCCESS) {
+    for (size_t i = 0; i < count && n < max; i++) {
+        if (gBS->handle_protocol(handles[i], guid, &iface) == EFI_SUCCESS) {
             out[n++] = iface;
         }
     }
-    gBS->FreePool(handles);
+    gBS->free_pool(handles);
     return n;
 }
 
 bool mouse_init(void) {
-    EFI_GUID rel_guid = EFI_SIMPLE_POINTER_PROTOCOL_GUID;
-    EFI_GUID abs_guid = EFI_ABSOLUTE_POINTER_PROTOCOL_GUID;
+    struct efi_guid rel_guid = EFI_SIMPLE_POINTER_PROTOCOL_GUID;
+    struct efi_guid abs_guid = EFI_ABSOLUTE_POINTER_PROTOCOL_GUID;
 
     mouse_deinit();
 
@@ -765,14 +765,14 @@ bool mouse_init(void) {
     }
 
     for (size_t i = 0; i < rel_pointer_count; i++) {
-        rel_pointers[i]->Reset(rel_pointers[i], false);
+        rel_pointers[i]->reset(rel_pointers[i], false);
         // GetState() reports the motion since its last call (UEFI 2.11 section
         // 12.5.3), which Reset() is not said to clear: drop what came before.
-        EFI_SIMPLE_POINTER_STATE state;
-        rel_pointers[i]->GetState(rel_pointers[i], &state);
+        struct efi_simple_pointer_state state;
+        rel_pointers[i]->get_state(rel_pointers[i], &state);
     }
     for (size_t i = 0; i < abs_pointer_count; i++) {
-        abs_pointers[i]->Reset(abs_pointers[i], false);
+        abs_pointers[i]->reset(abs_pointers[i], false);
     }
 
     left_down = false;
@@ -796,7 +796,7 @@ void mouse_deinit(void) {
     free_backings();
 }
 
-size_t mouse_get_efi_events(EFI_EVENT *events, size_t max) {
+size_t mouse_get_efi_events(efi_event *events, size_t max) {
     size_t n = 0;
 
     if (!mouse_active) {
@@ -804,29 +804,76 @@ size_t mouse_get_efi_events(EFI_EVENT *events, size_t max) {
     }
 
     for (size_t i = 0; i < rel_pointer_count && n < max; i++) {
-        events[n++] = rel_pointers[i]->WaitForInput;
+        events[n++] = rel_pointers[i]->wait_for_input;
     }
     for (size_t i = 0; i < abs_pointer_count && n < max; i++) {
-        events[n++] = abs_pointers[i]->WaitForInput;
+        events[n++] = abs_pointers[i]->wait_for_input;
     }
     return n;
 }
 
-static int set_absolute_position(EFI_ABSOLUTE_POINTER_MODE *mode,
-                                 EFI_ABSOLUTE_POINTER_STATE *state) {
+// The inverse of pointer_phys(): physical coordinates in, logical out.
+static void pointer_logical(struct flanterm_fb_context *ctx, size_t px, size_t py,
+                            size_t *x, size_t *y) {
+    switch (ctx->rotation) {
+        default:
+        case FLANTERM_FB_ROTATE_0: {
+            *x = px;
+            *y = py;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_90: {
+            *x = py;
+            *y = ctx->height - 1 - px;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_180: {
+            *x = ctx->width - 1 - px;
+            *y = ctx->height - 1 - py;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_270: {
+            *x = ctx->width - 1 - py;
+            *y = px;
+            break;
+        }
+    }
+}
+
+static int set_absolute_position(struct efi_absolute_pointer_mode *mode,
+                                 struct efi_absolute_pointer_state *state) {
     if (terms_i == 0
-     || mode->AbsoluteMaxX <= mode->AbsoluteMinX
-     || mode->AbsoluteMaxY <= mode->AbsoluteMinY) {
+     || mode->absolute_max_x <= mode->absolute_min_x
+     || mode->absolute_max_y <= mode->absolute_min_y) {
         return 0;
     }
 
-    int64_t new_x = (int64_t)((state->CurrentX - mode->AbsoluteMinX)
-                  * ((uint64_t)terms[0]->cols * 256)
-                  / (mode->AbsoluteMaxX - mode->AbsoluteMinX));
-    int64_t new_y = (int64_t)((state->CurrentY - mode->AbsoluteMinY)
-                  * ((uint64_t)terms[0]->rows * 256)
-                  / (mode->AbsoluteMaxY - mode->AbsoluteMinY));
+    uint64_t abs_x = state->current_x - mode->absolute_min_x;
+    uint64_t abs_y = state->current_y - mode->absolute_min_y;
+    uint64_t range_x = mode->absolute_max_x - mode->absolute_min_x;
+    uint64_t range_y = mode->absolute_max_y - mode->absolute_min_y;
 
+    // The firmware's console is never turned.
+    if (term_backend != GTERM) {
+        int64_t new_x = (int64_t)(abs_x * ((uint64_t)terms[0]->cols * 256) / range_x);
+        int64_t new_y = (int64_t)(abs_y * ((uint64_t)terms[0]->rows * 256) / range_y);
+        return move_by(new_x - pos_x, new_y - pos_y);
+    }
+
+    // The axes are those of the screen as the firmware drives it, the
+    // framebuffer as laid out, whatever turn the interface is drawn at.
+    struct flanterm_fb_context *ctx = (struct flanterm_fb_context *)terms[0];
+    bool sideways = ctx->rotation == FLANTERM_FB_ROTATE_90
+                 || ctx->rotation == FLANTERM_FB_ROTATE_270;
+    size_t width = sideways ? ctx->height : ctx->width;
+    size_t height = sideways ? ctx->width : ctx->height;
+    size_t px = MIN(abs_x * width / range_x, width - 1);
+    size_t py = MIN(abs_y * height / range_y, height - 1);
+
+    size_t x, y;
+    pointer_logical(ctx, px, py, &x, &y);
+    int64_t new_x = ((int64_t)x - (int64_t)ctx->offset_x) * 256 / (int64_t)ctx->glyph_width;
+    int64_t new_y = ((int64_t)y - (int64_t)ctx->offset_y) * 256 / (int64_t)ctx->glyph_height;
     return move_by(new_x - pos_x, new_y - pos_y);
 }
 
@@ -836,42 +883,42 @@ int mouse_handle_efi_event(size_t index) {
     }
 
     if (index < rel_pointer_count) {
-        EFI_SIMPLE_POINTER_PROTOCOL *p = rel_pointers[index];
-        EFI_SIMPLE_POINTER_STATE state;
-        if (p->GetState(p, &state) != EFI_SUCCESS) {
+        struct efi_simple_pointer_protocol *p = rel_pointers[index];
+        struct efi_simple_pointer_state state;
+        if (p->get_state(p, &state) != EFI_SUCCESS) {
             return 0;
         }
 
-        int64_t res_x = p->Mode->ResolutionX != 0 ? p->Mode->ResolutionX : 4;
-        int64_t res_y = p->Mode->ResolutionY != 0 ? p->Mode->ResolutionY : 4;
-        int ev = move_by((int64_t)state.RelativeMovementX * 256 / (res_x * MM_PER_CELL_X),
-                         (int64_t)state.RelativeMovementY * 256 / (res_y * MM_PER_CELL_Y));
+        int64_t res_x = p->mode->resolution_x != 0 ? p->mode->resolution_x : 4;
+        int64_t res_y = p->mode->resolution_y != 0 ? p->mode->resolution_y : 4;
+        int ev = move_by((int64_t)state.relative_movement_x * 256 / (res_x * MM_PER_CELL_X),
+                         (int64_t)state.relative_movement_y * 256 / (res_y * MM_PER_CELL_Y));
 
-        if (p->Mode->ResolutionZ != 0 && state.RelativeMovementZ != 0) {
-            int steps = state.RelativeMovementZ / (int64_t)p->Mode->ResolutionZ;
+        if (p->mode->resolution_z != 0 && state.relative_movement_z != 0) {
+            int steps = state.relative_movement_z / (int64_t)p->mode->resolution_z;
             if (steps == 0) {
-                steps = state.RelativeMovementZ > 0 ? 1 : -1;
+                steps = state.relative_movement_z > 0 ? 1 : -1;
             }
             // Z follows the Wheel usage (HID Usage Tables 1.7 section 4.3):
             // positive means rolled away from the user, so scrolling up.
             ev |= wheel_by(-steps);
         }
 
-        ev |= update_buttons(state.LeftButton, state.RightButton);
+        ev |= update_buttons(state.left_button, state.right_button);
         return ev;
     }
     index -= rel_pointer_count;
 
     if (index < abs_pointer_count) {
-        EFI_ABSOLUTE_POINTER_PROTOCOL *p = abs_pointers[index];
-        EFI_ABSOLUTE_POINTER_STATE state;
-        if (p->GetState(p, &state) != EFI_SUCCESS) {
+        struct efi_absolute_pointer_protocol *p = abs_pointers[index];
+        struct efi_absolute_pointer_state state;
+        if (p->get_state(p, &state) != EFI_SUCCESS) {
             return 0;
         }
 
-        int ev = set_absolute_position(p->Mode, &state);
-        ev |= update_buttons((state.ActiveButtons & EFI_ABSP_TouchActive) != 0,
-                             (state.ActiveButtons & EFI_ABS_AltActive) != 0);
+        int ev = set_absolute_position(p->mode, &state);
+        ev |= update_buttons((state.active_buttons & EFI_ABSP_TOUCH_ACTIVE) != 0,
+                             (state.active_buttons & EFI_ABS_ALT_ACTIVE) != 0);
         return ev;
     }
 
@@ -883,12 +930,12 @@ void mouse_flush(void) {
         return;
     }
     for (size_t i = 0; i < rel_pointer_count; i++) {
-        EFI_SIMPLE_POINTER_STATE state;
-        rel_pointers[i]->GetState(rel_pointers[i], &state);
+        struct efi_simple_pointer_state state;
+        rel_pointers[i]->get_state(rel_pointers[i], &state);
     }
     for (size_t i = 0; i < abs_pointer_count; i++) {
-        EFI_ABSOLUTE_POINTER_STATE state;
-        abs_pointers[i]->GetState(abs_pointers[i], &state);
+        struct efi_absolute_pointer_state state;
+        abs_pointers[i]->get_state(abs_pointers[i], &state);
     }
     reset_transient_state();
     seen_released = false;

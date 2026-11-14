@@ -1,6 +1,7 @@
 import struct
 
 from harness.api import check
+from harness.elf import PT_LOAD, ElfFile
 from harness.media import HostFile
 from harness.ports import X86_PORTS
 from cases._common import boot_entry, entry, panics_in_turn, read
@@ -119,6 +120,22 @@ def mb2_relocation_from_zero(t):
         t.expect_eq(base % 0x1000, 0, f'{variant}: aligned')
         check_mb2_info(t, r, 'mb2 command line', [], (base, base + hi - lo), elf=read(path), load_base=base)
         m.stop()
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'hostile'])
+def mb2_relocation_search_segments(t):
+    """A relocatable image of 10000 segments, whose last one no place puts in
+    RAM, is given up on after the search's cap of memory map scans, not that
+    many tries of every segment [intent]."""
+    data = read(mb2_kernel(t, 'reloczero'))
+    e = ElfFile(patched(data, header_tags(data)[10] + 8, '<III', 0, 0xffffffff, 0x1000))
+    page = {'p_type': PT_LOAD, 'p_offset': 0, 'p_filesz': 0, 'p_memsz': 0x1000, 'p_flags': 4, 'p_align': 0x1000}
+    extra = [dict(page, p_vaddr=0x400000 + i * 0x1000, p_paddr=0x400000 + i * 0x1000) for i in range(10000)]
+    far = dict(page, p_vaddr=0x20300000, p_paddr=0x20300000)
+    m, _ = boot_entry(t, 'timeout: no\n' + entry('K', protocol='multiboot2', path='boot():/boot/k.elf'),
+                      files={'/boot/k.elf': e.with_phdrs(e.phdrs + extra + [far])}, kernel_variant=None)
+    t.expect_eq(panics_in_turn(t, m, ['K']), ['multiboot2: Could not find viable load address for executable'],
+                'the search given up on')
 
 
 @check(ports=X86_PORTS, tags=['multiboot2'])
