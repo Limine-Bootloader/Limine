@@ -3,6 +3,7 @@ import time
 from harness.api import check
 from harness.elf import PT_LOAD, ElfFile, ElfImage
 from harness.ports import X86_PORTS
+from harness.report import unescape
 from cases._common import boot_entry, entry, panics_in_turn, read, select_entry, wait_panic
 from cases.multiboot import (boot_mb1, boot_mb2, mb1_kernel, mb1_report, mb2_kernel, mb2_report)
 
@@ -206,3 +207,11 @@ def mb1_segment_over_loader_memory(t):
     m = boot_mb1(t, under_loader_memory(mb1_kernel(t, 'probe')))
     m.wait_for('debugcon', 'E DONE', 60)
     t.expect_eq(m.stream('debugcon').text(), 'mb1 command line\nE DONE\n', 'the command line from it')
+
+
+@check(ports=['bios'], tags=['multiboot2', 'elf'])
+def mb2_segment_over_loader_memory(t):
+    """The same for Multiboot 2, with segments enough that their array has
+    room for the information structure."""
+    m = boot_mb2(t, under_loader_memory(mb2_kernel(t), 1024))
+    t.expect_eq(unescape(mb2_report(t, m)['cmdline']), 'mb2 command line', 'the command line from it')

@@ -565,7 +565,7 @@ reloc_fail:
     }
 
     // Reserve the whole span, not each segment, which could fill the memory
-    // map, so later sources, the kernel's own included, can't go on top.
+    // map, so that nothing allocated later, staging included, can go on top.
     struct elsewhere_range *last = &ranges[kernel_ranges_count - 1];
     elsewhere_reserve_target(ranges[0].target, last->target + last->length - ranges[0].target);
 
@@ -629,8 +629,9 @@ reloc_fail:
        + (section_hdr_info_valid ? section_hdr_info.num : 0);
     struct elsewhere_range *new_ranges = ext_mem_alloc_counted(ranges_max, sizeof(struct elsewhere_range));
 
+    // The old array is not freed: taken before the reservation, it may lie in
+    // the kernel's span, where anything reusing it would be copied over.
     memcpy(new_ranges, ranges, sizeof(struct elsewhere_range) * ranges_count);
-    pmm_free(ranges, sizeof(struct elsewhere_range) * ranges_count);
     ranges = new_ranges;
 
     // GRUB allocates boot info at 0x10000, *except* if the kernel happens
@@ -868,6 +869,12 @@ reloc_fail:
     }
 #endif
 
+    // Load relocation stub where it won't get overwritten: before the
+    // terminal frees memory that may lie in the kernel's span.
+    size_t reloc_stub_size = (size_t)multiboot_reloc_stub_end - (size_t)multiboot_reloc_stub;
+    void *reloc_stub = ext_mem_alloc(reloc_stub_size);
+    memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
+
     //////////////////////////////////////////////
     // Create framebuffer tag
     //////////////////////////////////////////////
@@ -1061,11 +1068,6 @@ skip_modeset:;
         append_tag(info_idx, tag);
     }
 #endif
-
-    // Load relocation stub where it won't get overwritten (hopefully)
-    size_t reloc_stub_size = (size_t)multiboot_reloc_stub_end - (size_t)multiboot_reloc_stub;
-    void *reloc_stub = ext_mem_alloc(reloc_stub_size);
-    memcpy(reloc_stub, multiboot_reloc_stub, reloc_stub_size);
 
 #if defined(UEFI)
     efi_exit_boot_services();
