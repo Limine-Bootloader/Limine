@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <config.h>
 #include <efi.h>
 #include <lib/tpm.h>
 #include <lib/misc.h>
@@ -70,12 +71,20 @@ struct tcg_digest_sizes {
 // confidential-computing platforms (TDX, SEV-SNP) without a discrete TPM.
 static EFI_TCG2_PROTOCOL *tcg2 = NULL;
 static EFI_CC_MEASUREMENT_PROTOCOL *cc = NULL;
+static uint32_t required_pcr_banks;
+static EFI_PHYSICAL_ADDRESS validated_location;
+static EFI_PHYSICAL_ADDRESS validated_last_entry;
+static bool tpm_log_truncated;
+static void tpm_validate_event(const EFI_TCG2_EVENT *event,
+                               EFI_PHYSICAL_ADDRESS previous_location,
+                               EFI_PHYSICAL_ADDRESS previous_last_entry);
 
 void tpm_init(void) {
     EFI_GUID tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
     EFI_TCG2_PROTOCOL *tcg2_proto = NULL;
     EFI_STATUS status = gBS->LocateProtocol(&tcg2_guid, NULL, (void **)&tcg2_proto);
-    if (status == EFI_SUCCESS && tcg2_proto != NULL) {
+    if (status == EFI_SUCCESS && tcg2_proto != NULL && tcg2_proto->GetCapability != NULL
+     && tcg2_proto->GetEventLog != NULL && tcg2_proto->HashLogExtendEvent != NULL) {
         EFI_TCG2_BOOT_SERVICE_CAPABILITY cap;
         memset(&cap, 0, sizeof(cap));
         cap.Size = sizeof(cap);
@@ -92,7 +101,9 @@ void tpm_init(void) {
     EFI_GUID cc_guid = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
     EFI_CC_MEASUREMENT_PROTOCOL *cc_proto = NULL;
     status = gBS->LocateProtocol(&cc_guid, NULL, (void **)&cc_proto);
-    if (status == EFI_SUCCESS && cc_proto != NULL) {
+    if (status == EFI_SUCCESS && cc_proto != NULL && cc_proto->GetCapability != NULL
+     && cc_proto->GetEventLog != NULL && cc_proto->HashLogExtendEvent != NULL
+     && cc_proto->MapPcrToMrIndex != NULL) {
         EFI_CC_BOOT_SERVICE_CAPABILITY cap;
         memset(&cap, 0, sizeof(cap));
         cap.Size = sizeof(cap);
@@ -112,6 +123,51 @@ void tpm_init(void) {
 
 bool tpm_present(void) {
     return tcg2 != NULL || cc != NULL;
+}
+
+bool tpm_secure_boot_available(void) {
+    return required_pcr_banks != 0;
+}
+
+bool tpm_cc_present(void) {
+    return tcg2 == NULL && cc != NULL;
+}
+
+void tpm_enable_secure_boot(void) {
+    if (tcg2 == NULL || tcg2->GetCapability == NULL
+     || tcg2->GetEventLog == NULL || tcg2->HashLogExtendEvent == NULL) {
+        if (cc != NULL) {
+            measured_boot = true;
+            return;
+        }
+        goto unavailable;
+    }
+
+    EFI_TCG2_BOOT_SERVICE_CAPABILITY cap = {
+        .Size = sizeof(EFI_TCG2_BOOT_SERVICE_CAPABILITY)
+    };
+    EFI_STATUS status = tcg2->GetCapability(tcg2, &cap);
+    size_t min_cap = offsetof(EFI_TCG2_BOOT_SERVICE_CAPABILITY, ActivePcrBanks)
+                   + sizeof(cap.ActivePcrBanks);
+    if (status != EFI_SUCCESS
+     || cap.Size < min_cap
+     || cap.StructureVersion.Major < 1
+     || (cap.StructureVersion.Major == 1 && cap.StructureVersion.Minor < 1)
+     || cap.ProtocolVersion.Major < 1
+     || (cap.ProtocolVersion.Major == 1 && cap.ProtocolVersion.Minor < 1)
+     || !cap.TPMPresentFlag
+     || (cap.ActivePcrBanks & EFI_TCG2_BOOT_HASH_ALG_SHA256) == 0
+     || (cap.SupportedEventLogs & EFI_TCG2_EVENT_LOG_FORMAT_TCG_2) == 0) {
+        goto unavailable;
+    }
+
+    required_pcr_banks = cap.ActivePcrBanks;
+    tpm_validate_log();
+    measured_boot = true;
+    return;
+
+unavailable:
+    measured_boot = false;
 }
 
 // EFI_VOLUME_FULL has the PCR extended and only the event left out of the log
@@ -137,19 +193,30 @@ static void tpm_extend_failed(void) {
     }
 }
 
-void tpm_measure(uint32_t pcr, uint32_t event_type,
-                 const void *data, size_t data_size,
-                 const char *desc_prefix, const char *desc_value) {
+static void tpm_measure_event(uint32_t pcr, uint32_t event_type,
+    const void *data, size_t data_size, const void *desc_prefix, size_t prefix_len,
+    const void *desc_value, size_t value_len, size_t terminator_size) {
+    bool sb_tcg2 = tpm_secure_boot_available();
+    bool sb_cc = firmware_secure_boot && tpm_cc_present();
+    if ((sb_tcg2 || sb_cc)
+     && (!measured_boot || (tcg2 == NULL && cc == NULL) || data == NULL)) {
+        panic(false, "tpm: authenticated boot cannot skip a measurement");
+    }
     if (!measured_boot || data == NULL) {
         return;
     }
 
-    size_t prefix_len = desc_prefix != NULL ? strlen(desc_prefix) : 0;
-    size_t value_len = desc_value != NULL ? strlen(desc_value) : 0;
-    size_t desc_len = prefix_len + value_len + 1;
+    size_t desc_len = CHECKED_ADD(prefix_len, value_len,
+        panic(false, "tpm: event description size overflow"));
+    desc_len = CHECKED_ADD(desc_len, terminator_size,
+        panic(false, "tpm: event description size overflow"));
 
     if (tcg2 != NULL) {
-        size_t event_size = offsetof(EFI_TCG2_EVENT, Event) + desc_len;
+        size_t event_size = CHECKED_ADD(offsetof(EFI_TCG2_EVENT, Event), desc_len,
+            panic(false, "tpm: event size overflow"));
+        if (event_size > UINT32_MAX) {
+            panic(false, "tpm: event is too large");
+        }
 
         EFI_TCG2_EVENT *event = ext_mem_alloc(event_size);
         event->Size = (EFI_UINT32)event_size;
@@ -164,11 +231,29 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             memcpy(event->Event + prefix_len, desc_value, value_len);
         }
 
+        EFI_PHYSICAL_ADDRESS previous_location = 0;
+        EFI_PHYSICAL_ADDRESS previous_last_entry = 0;
+        if (sb_tcg2 && !tpm_log_truncated) {
+            tpm_validate_log();
+            previous_location = validated_location;
+            previous_last_entry = validated_last_entry;
+        }
         EFI_STATUS status = tcg2->HashLogExtendEvent(
             tcg2, 0,
             (EFI_PHYSICAL_ADDRESS)(uintptr_t)data, (EFI_UINT64)data_size,
             event);
-        if (status == EFI_VOLUME_FULL) {
+        if (sb_tcg2) {
+            if (status == EFI_VOLUME_FULL) {
+                tpm_log_truncated = true;
+                tpm_log_full();
+            } else if (status != EFI_SUCCESS) {
+                pmm_free(event, event_size);
+                panic(false, "tpm: authenticated boot measurement failed (%X)",
+                      (uint64_t)status);
+            } else if (!tpm_log_truncated) {
+                tpm_validate_event(event, previous_location, previous_last_entry);
+            }
+        } else if (status == EFI_VOLUME_FULL) {
             tpm_log_full();
         } else if (status != EFI_SUCCESS) {
             quiet = false;
@@ -186,6 +271,10 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
         EFI_CC_MR_INDEX mr_index;
         EFI_STATUS status = cc->MapPcrToMrIndex(cc, pcr, &mr_index);
         if (status != EFI_SUCCESS) {
+            if (sb_cc) {
+                panic(false, "tpm: authenticated boot measurement register unavailable (%X)",
+                      (uint64_t)status);
+            }
             quiet = false;
             print("WARNING: tpm: no measurement register for PCR %u: %X\n"
                   "         This component has not been measured.\n",
@@ -194,7 +283,11 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             return;
         }
 
-        size_t event_size = offsetof(EFI_CC_EVENT, Event) + desc_len;
+        size_t event_size = CHECKED_ADD(offsetof(EFI_CC_EVENT, Event), desc_len,
+            panic(false, "tpm: event size overflow"));
+        if (event_size > UINT32_MAX) {
+            panic(false, "tpm: event is too large");
+        }
 
         EFI_CC_EVENT *event = ext_mem_alloc(event_size);
         event->Size = (EFI_UINT32)event_size;
@@ -216,6 +309,11 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
         if (status == EFI_VOLUME_FULL) {
             tpm_log_full();
         } else if (status != EFI_SUCCESS) {
+            if (sb_cc) {
+                pmm_free(event, event_size);
+                panic(false, "tpm: authenticated boot measurement failed (%X)",
+                      (uint64_t)status);
+            }
             quiet = false;
             print("WARNING: tpm: CC HashLogExtendEvent for PCR %u (MR %u) failed: %X\n"
                   "         This component has not been measured.\n",
@@ -225,6 +323,49 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
 
         pmm_free(event, event_size);
     }
+}
+
+void tpm_measure(uint32_t pcr, uint32_t event_type,
+    const void *data, size_t data_size, const char *desc_prefix, const char *desc_value) {
+    if (!measured_boot || data == NULL) {
+        return;
+    }
+    tpm_measure_event(pcr, event_type, data, data_size,
+        desc_prefix, desc_prefix != NULL ? strlen(desc_prefix) : 0,
+        desc_value, desc_value != NULL ? strlen(desc_value) : 0, 1);
+}
+
+void tpm_measure_config(const void *data, size_t size) {
+    if (!firmware_secure_boot) {
+        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL, data, size, "limine_cfg", NULL);
+        return;
+    }
+    if (!tpm_secure_boot_available() && !tpm_cc_present()) {
+        return;
+    }
+    struct {
+        uint32_t id;
+        uint32_t size;
+        char description[sizeof("limine.conf")];
+    } __attribute__((packed)) tag = {
+        .id = TPM_TAG_LIMINE_CONFIG,
+        .size = sizeof(tag.description),
+        .description = "limine.conf"
+    };
+    tpm_measure_event(TPM_PCR_LOADER_CONFIG, TPM_EV_EVENT_TAG, data, size,
+        &tag, sizeof(tag), NULL, 0, 0);
+}
+
+void tpm_measure_load_options(const uint16_t *options, size_t bytes) {
+    if (!tpm_secure_boot_available() && !(firmware_secure_boot && tpm_cc_present())) {
+        return;
+    }
+    if (options == NULL || bytes < sizeof(uint16_t) || bytes % sizeof(uint16_t) != 0
+     || options[bytes / sizeof(uint16_t) - 1] != 0) {
+        panic(false, "tpm: invalid UTF-16 load options");
+    }
+    tpm_measure_event(TPM_PCR_KERNEL_CONFIG, TPM_EV_IPL,
+        options, bytes, NULL, 0, options, bytes, 0);
 }
 
 void tpm_measure_path(uint32_t pcr, uint32_t event_type,
@@ -285,6 +426,38 @@ static int tcg_digest_index(const struct tcg_digest_sizes *sizes, uint16_t algor
     return -1;
 }
 
+static uint32_t tcg_algorithm_bank(uint16_t algorithm_id, uint16_t digest_size) {
+    switch (algorithm_id) {
+        case 0x0004: {
+            return digest_size == 20 ? EFI_TCG2_BOOT_HASH_ALG_SHA1 : 0;
+        }
+        case 0x000b: {
+            return digest_size == 32 ? EFI_TCG2_BOOT_HASH_ALG_SHA256 : 0;
+        }
+        case 0x000c: {
+            return digest_size == 48 ? EFI_TCG2_BOOT_HASH_ALG_SHA384 : 0;
+        }
+        case 0x000d: {
+            return digest_size == 64 ? EFI_TCG2_BOOT_HASH_ALG_SHA512 : 0;
+        }
+        case 0x0012: {
+            return digest_size == 32 ? EFI_TCG2_BOOT_HASH_ALG_SM3_256 : 0;
+        }
+        case 0x0027: {
+            return digest_size == 32 ? EFI_TCG2_BOOT_HASH_ALG_SHA3_256 : 0;
+        }
+        case 0x0028: {
+            return digest_size == 48 ? EFI_TCG2_BOOT_HASH_ALG_SHA3_384 : 0;
+        }
+        case 0x0029: {
+            return digest_size == 64 ? EFI_TCG2_BOOT_HASH_ALG_SHA3_512 : 0;
+        }
+        default: {
+            return 0;
+        }
+    }
+}
+
 // The record size functions return 0 for a record that is malformed or does
 // not fit in the size bytes at data.
 
@@ -301,19 +474,19 @@ static size_t tcg_pcr_event2_size(const void *data, size_t size,
                                   const struct tcg_digest_sizes *sizes) {
     struct log_reader r = { data, size, 0 };
 
-    // Section 5.3 wants a digest for each algorithm of the header. Fewer are
-    // let through, as only the record's extent matters here and the OS checks
-    // the log itself, but none may repeat, so there cannot be more.
     struct tcg_pcr_event2_head head;
-    if (!log_read(&r, &head, sizeof(head)) || head.digest_count > sizes->count) {
+    if (!log_read(&r, &head, sizeof(head)) || head.digest_count > sizes->count
+     || (tpm_secure_boot_available() && head.event_type != 3
+      && (head.digest_count == 0 || head.pcr_index > 23))) {
         return 0;
     }
 
     _Static_assert(TCG_LOG_MAX_ALGORITHMS <= 32, "one bit of seen per algorithm");
     uint32_t seen = 0;
+    uint32_t banks = 0;
     for (uint32_t i = 0; i < head.digest_count; i++) {
         uint16_t algorithm_id;
-        if (!log_read(&r, &algorithm_id, sizeof(algorithm_id))) {
+        if (!log_read(&r, &algorithm_id, sizeof(uint16_t))) {
             return 0;
         }
         int index = tcg_digest_index(sizes, algorithm_id);
@@ -321,13 +494,18 @@ static size_t tcg_pcr_event2_size(const void *data, size_t size,
             return 0;
         }
         seen |= UINT32_C(1) << index;
+        banks |= tcg_algorithm_bank(algorithm_id, sizes->algorithms[index].digest_size);
         if (!log_skip(&r, sizes->algorithms[index].digest_size)) {
             return 0;
         }
     }
+    if (tpm_secure_boot_available() && head.event_type != 3
+     && (banks & required_pcr_banks) != required_pcr_banks) {
+        return 0;
+    }
 
     uint32_t event_size;
-    if (!log_read(&r, &event_size, sizeof(event_size)) || !log_skip(&r, event_size)) {
+    if (!log_read(&r, &event_size, sizeof(uint32_t)) || !log_skip(&r, event_size)) {
         return 0;
     }
     return r.pos;
@@ -341,6 +519,16 @@ static size_t tcg_log_header_size(const void *data, size_t size,
         return 0;
     }
 
+    if (tpm_secure_boot_available()) {
+        struct tcg_pcr_event first;
+        static const uint8_t zero_digest[20];
+        memcpy(&first, data, sizeof(struct tcg_pcr_event));
+        if (first.pcr_index != 0 || first.event_type != 3
+         || memcmp(first.digest, zero_digest, sizeof(zero_digest)) != 0) {
+            return 0;
+        }
+    }
+
     struct log_reader r = {
         (const uint8_t *)data + sizeof(struct tcg_pcr_event),
         header_size - sizeof(struct tcg_pcr_event),
@@ -348,8 +536,13 @@ static size_t tcg_log_header_size(const void *data, size_t size,
     };
 
     struct tcg_efi_spec_id_event spec_id;
-    if (!log_read(&r, &spec_id, sizeof(spec_id))
+    if (!log_read(&r, &spec_id, sizeof(struct tcg_efi_spec_id_event))
      || memcmp(spec_id.signature, "Spec ID Event03", sizeof(spec_id.signature)) != 0) {
+        return 0;
+    }
+    if (tpm_secure_boot_available()
+     && (spec_id.spec_version_major != 2
+      || (spec_id.uintn_size != 1 && spec_id.uintn_size != 2))) {
         return 0;
     }
     if (spec_id.number_of_algorithms == 0
@@ -360,7 +553,8 @@ static size_t tcg_log_header_size(const void *data, size_t size,
     sizes->count = 0;
     for (uint32_t i = 0; i < spec_id.number_of_algorithms; i++) {
         struct tcg_efi_spec_id_event_algorithm_size algorithm;
-        if (!log_read(&r, &algorithm, sizeof(algorithm)) || algorithm.digest_size == 0) {
+        if (!log_read(&r, &algorithm, sizeof(struct tcg_efi_spec_id_event_algorithm_size))
+         || algorithm.digest_size == 0) {
             return 0;
         }
         // A repeated algorithm would leave its digest size ambiguous.
@@ -371,8 +565,11 @@ static size_t tcg_log_header_size(const void *data, size_t size,
     }
 
     uint8_t vendor_info_size;
-    if (!log_read(&r, &vendor_info_size, sizeof(vendor_info_size))
+    if (!log_read(&r, &vendor_info_size, sizeof(uint8_t))
      || !log_skip(&r, vendor_info_size)) {
+        return 0;
+    }
+    if (tpm_secure_boot_available() && r.pos != r.size) {
         return 0;
     }
 
@@ -406,6 +603,107 @@ static size_t tcg_log_size(const uint8_t *data, size_t limit, size_t last_offset
             return offset + size;
         }
         offset += size;
+    }
+}
+
+static void tpm_validate_log_state(EFI_PHYSICAL_ADDRESS *location_out,
+                                   EFI_PHYSICAL_ADDRESS *last_entry_out,
+                                   size_t *limit_out,
+                                   struct tcg_digest_sizes *sizes_out) {
+    if (tcg2 == NULL || required_pcr_banks == 0 || tcg2->GetEventLog == NULL) {
+        panic(false, "tpm: authenticated boot has no required TPM");
+    }
+
+    EFI_PHYSICAL_ADDRESS location = 0;
+    EFI_PHYSICAL_ADDRESS last_entry = 0;
+    EFI_BOOLEAN truncated = EFI_FALSE;
+    EFI_STATUS status = tcg2->GetEventLog(tcg2, EFI_TCG2_EVENT_LOG_FORMAT_TCG_2,
+        &location, &last_entry, &truncated);
+    if (status != EFI_SUCCESS || (truncated && !tpm_log_truncated) || location == 0
+     || last_entry == 0 || (uintptr_t)location != location || last_entry < location) {
+        panic(false, "tpm: authenticated boot requires a complete event log");
+    }
+
+    size_t limit = MIN((uintptr_t)TCG_LOG_MAX_SIZE, UINTPTR_MAX - (uintptr_t)location);
+    if (last_entry - location >= limit) {
+        panic(false, "tpm: event log last entry is out of range");
+    }
+    struct tcg_digest_sizes sizes = { 0 };
+    size_t size = tcg_log_size((const uint8_t *)(uintptr_t)location, limit,
+        last_entry - location, EFI_TCG2_EVENT_LOG_FORMAT_TCG_2, &sizes);
+    if (size == 0) {
+        panic(false, "tpm: authenticated boot event log is malformed");
+    }
+
+    uint32_t banks = 0;
+    for (uint32_t i = 0; i < sizes.count; i++) {
+        banks |= tcg_algorithm_bank(sizes.algorithms[i].algorithm_id,
+                                    sizes.algorithms[i].digest_size);
+    }
+    if ((banks & required_pcr_banks) != required_pcr_banks) {
+        panic(false, "tpm: authenticated boot event log is missing active PCR banks");
+    }
+
+    validated_location = location;
+    validated_last_entry = last_entry;
+    if (location_out != NULL) {
+        *location_out = location;
+    }
+    if (last_entry_out != NULL) {
+        *last_entry_out = last_entry;
+    }
+    if (limit_out != NULL) {
+        *limit_out = limit;
+    }
+    if (sizes_out != NULL) {
+        *sizes_out = sizes;
+    }
+}
+
+void tpm_validate_log(void) {
+    if (!tpm_secure_boot_available()) {
+        return;
+    }
+    tpm_validate_log_state(NULL, NULL, NULL, NULL);
+}
+
+static void tpm_validate_event(const EFI_TCG2_EVENT *event,
+                               EFI_PHYSICAL_ADDRESS previous_location,
+                               EFI_PHYSICAL_ADDRESS previous_last_entry) {
+    EFI_PHYSICAL_ADDRESS location = 0;
+    EFI_PHYSICAL_ADDRESS last_entry = 0;
+    size_t limit = 0;
+    struct tcg_digest_sizes sizes = { 0 };
+    tpm_validate_log_state(&location, &last_entry, &limit, &sizes);
+
+    if (last_entry - location <= previous_last_entry - previous_location) {
+        panic(false, "tpm: Measurement has no event-log evidence");
+    }
+
+    struct log_reader r = {
+        (const void *)(uintptr_t)last_entry, limit - (last_entry - location), 0
+    };
+    struct tcg_pcr_event2_head head;
+    if (!log_read(&r, &head, sizeof(struct tcg_pcr_event2_head))
+     || head.pcr_index != event->Header.PCRIndex || head.event_type != event->Header.EventType
+     || head.digest_count > sizes.count) {
+        panic(false, "tpm: Measurement is missing from the event log");
+    }
+    for (uint32_t i = 0; i < head.digest_count; i++) {
+        uint16_t id;
+        if (!log_read(&r, &id, sizeof(uint16_t))) {
+            panic(false, "tpm: Measurement digest is malformed");
+        }
+        int index = tcg_digest_index(&sizes, id);
+        if (index < 0 || !log_skip(&r, sizes.algorithms[index].digest_size)) {
+            panic(false, "tpm: Measurement digest is malformed");
+        }
+    }
+    uint32_t size;
+    if (!log_read(&r, &size, sizeof(uint32_t))
+     || size != event->Size - offsetof(EFI_TCG2_EVENT, Event)
+     || size > r.size - r.pos || memcmp(r.data + r.pos, event->Event, size) != 0) {
+        panic(false, "tpm: Measurement data is missing from the event log");
     }
 }
 

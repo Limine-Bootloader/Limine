@@ -1808,13 +1808,21 @@ noreturn void _menu(bool first_run) {
     if (!tpm_present()) {
         measured_boot = false;
     }
+    if (firmware_secure_boot) {
+        measured_boot = tpm_secure_boot_available() || tpm_cc_present();
+        if (!measured_boot) {
+            quiet = false;
+            print("WARNING: tpm: Secure Boot is active without TPM 2.0 measurements.\n");
+        }
+    }
 
-    // Measure the on-disk config bytes now that measured_boot is final.
-    size_t raw_size;
-    const char *raw = config_get_raw(&raw_size);
-    if (raw != NULL) {
-        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                    raw, raw_size, "limine_cfg", NULL);
+    // Measure raw config bytes on first run once measured_boot is final.
+    if (first_run) {
+        size_t raw_size;
+        const char *raw = config_get_raw(&raw_size);
+        if (raw != NULL) {
+            tpm_measure_config(raw, raw_size);
+        }
     }
 #endif
 

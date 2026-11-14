@@ -125,13 +125,19 @@ def tpm_panic_halts(t):
 
 @check(ports=UEFI_PORTS, tags=['tpm', 'secureboot'])
 def tpm_forced_by_secure_boot(t):
-    """With Secure Boot active and a config hash enrolled, measured boot is
-    on without measured_boot set."""
-    tpm_firmware(t)
-    m = sb_boot(t, 'timeout: 0\n' + kernel_entry(t), tpm=t.software_tpm())
-    evs = events(t.kernel_report(m, timeout=120))
-    t.check(any(pcr == 9 and data == 'limine_cfg' for pcr, _, _, data in evs),
-            f'[spec] the config measured into PCR 9: {[(e[0], e[3]) for e in evs]}')
+    """An enrolled config cannot disable measurements when Secure Boot is active."""
+    from cases.authenticated_boot import authenticated_boot, signed_probe
+    from harness.report import fnv1a
+    config = ('timeout: 0\nserial: yes\nmeasured_boot: no\n' +
+              entry('EFI', protocol='efi', path='boot():/kernel.efi', cmdline='name:enrolled info'))
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)}, enrolled=True,
+                           tpm=False, commands='faketcg2:200')
+    m.wait_for(t.kernel_channel, 'K name=enrolled', 120)
+    data = config.encode()
+    measurements = tcg2_extends(m.stream(t.kernel_channel).text())
+    t.check(any((pcr, kind, digest, size) == (5, 6, int(fnv1a(data), 16), len(data))
+                for pcr, kind, digest, size, _ in measurements),
+            f'config measured despite measured_boot: no: {measurements}')
 
 
 @check(ports=UEFI_PORTS, tags=['tpm', 'linux'])

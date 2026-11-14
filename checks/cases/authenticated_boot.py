@@ -118,3 +118,37 @@ def authenticated_optional_resource_unauthenticated_config(t):
     scr = t.wait_text(m, 'ARROWS', font=Font())
     t.check('PANIC' not in screen_text(scr), 'menu shown in built-in font')
     t.check(m.screendump().count_colour(0xff0000) == 0, 'hashed wallpaper skipped without enrolled config')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_empty_options_incomplete_log(t):
+    config = linux_config('')
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)},
+                           tpm=False, commands='faketcg2:208')
+    message, _ = wait_panic(t, m)
+    t.expect_eq(message, 'tpm: authenticated boot requires a complete event log',
+                'empty options cannot bypass log validation')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_invalid_sha3_logs(t):
+    for flags in (0x3200, 0x21200, 0x41200, 0x5200, 0x9200, 0x11200, 0x81200):
+        m = authenticated_boot(t, linux_config(), tpm=False, commands=f'faketcg2:{flags:x}')
+        message, _ = wait_panic(t, m)
+        t.check('event log is malformed' in message or 'missing active PCR banks' in message,
+                f'invalid SHA3 log {flags:x} refused: {message}')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_measurement_failure(t):
+    for flags in (0x0, 0x202, 0x208, 0x600, 0xa00):
+        m = authenticated_boot(t, linux_config(), tpm=False, commands=f'faketcg2:{flags:x}')
+        message, screen = wait_panic(t, m)
+        t.check(message.startswith('tpm: authenticated boot measurement failed')
+                or message == 'tpm: authenticated boot requires a complete event log'
+                or message == 'tpm: authenticated boot event log is malformed'
+                or message.startswith('tpm: Measurement'),
+                f'failed or unlogged measurement refused: {message}')
+        t.check(CC_PROMPT not in screen_text(screen), 'no prompt permits unmeasured boot')
+        m.stop()
