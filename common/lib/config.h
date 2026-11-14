@@ -6,6 +6,7 @@
 #include <lib/part.h>
 
 extern bool config_ready;
+extern bool config_authenticated;
 extern bool bad_config;
 
 struct menu_entry {

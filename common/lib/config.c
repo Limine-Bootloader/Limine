@@ -26,6 +26,7 @@ const char *config_b2sum = CONFIG_B2SUM_SIGNATURE CONFIG_B2SUM_EMPTY;
 #define SEPARATOR '\n'
 
 bool config_ready = false;
+bool config_authenticated = false;
 no_unwind bool bad_config = false;
 
 static char *config_addr;
@@ -532,6 +533,7 @@ int init_config(size_t config_size) {
         if (memcmp(ref.digest, out_buf, ref.digest_size) != 0) {
             panic(false, "!!! CHECKSUM MISMATCH FOR CONFIG FILE !!!");
         }
+        config_authenticated = true;
     }
 
 #if defined(UEFI)
