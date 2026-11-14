@@ -58,6 +58,14 @@ Breaking any of these gets a contribution rejected.
    `python3 .github/scripts/check_commit_messages.py --message-file FILE`,
    or a branch with `--range trunk..HEAD`, as CI does for a pull request.
 
+## Running the checks
+
+Run the checks with `make check`, never by calling `checks/run-checks`
+directly: `make check` also builds Limine and fetches the UEFI firmware the
+checks boot. On your own machine, run as many at a time as it has processors,
+with `-j$(nproc)`, and pass options on with `CHECKFLAGS`, as in
+`make check -j$(nproc) CHECKFLAGS="-p bios -t menu"`.
+
 ## Including CONTRIBUTING.md
 
 Claude Code and Antigravity inline `CONTRIBUTING.md` through the two lines
