@@ -66,6 +66,12 @@ checks boot. On your own machine, run as many at a time as it has processors,
 with `-j$(nproc)`, and pass options on with `CHECKFLAGS`, as in
 `make check -j$(nproc) CHECKFLAGS="-p bios -t menu"`.
 
+Build and check with both toolchains CI uses, each with `--enable-werror`, as
+their warnings differ: Clang, the default, and the GCC cross toolchains that
+`.github/workflows/run_checks.yml` fetches, one per port group, each selected
+with `TOOLCHAIN_FOR_TARGET=<arch>-linux-`. Those toolchains run on Linux hosts
+alone, so on other systems the GCC builds and checks may be left out.
+
 ## Including CONTRIBUTING.md
 
 Claude Code and Antigravity inline `CONTRIBUTING.md` through the two lines
