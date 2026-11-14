@@ -58,7 +58,7 @@ static bool validate_pitch(struct fb_info *ret, size_t mode) {
 
 // Some Apple firmware reports RGB pixel order from
 // both QueryMode and Mode->Info while the framebuffer is really BGR
-static bool apple_bgr_quirk(void) {
+static bool is_firmware_apple(void) {
     const EFI_CHAR16 *v = gST->FirmwareVendor;
     const char *apple = "Apple";
     if (v == NULL) {
@@ -87,7 +87,7 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
     bool ok = false;
 
     EFI_GRAPHICS_PIXEL_FORMAT pixel_format = mode_info->PixelFormat;
-    if (pixel_format == EfiPixelRedGreenBlueReserved8BitPerColor && apple_bgr_quirk()) {
+    if (pixel_format == EfiPixelRedGreenBlueReserved8BitPerColor && is_firmware_apple()) {
         pixel_format = EfiPixelBlueGreenRedReserved8BitPerColor;
     }
 
