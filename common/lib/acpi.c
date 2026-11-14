@@ -89,18 +89,18 @@ void *acpi_get_rsdp_v1(void) {
     // again since UEFI can contain both XSDP and RSDP (see ACPI 6.2 section
     // 5.2.5.2 'Finding the RSDP on UEFI Enabled Systems') and in the acpi_get_rsdp
     // function we look for the RSDP with the latest revision.
-    EFI_GUID acpi_1_guid = EFI_ACPI_10_TABLE_GUID;
+    struct efi_guid acpi_1_guid = EFI_ACPI_10_TABLE_GUID;
 
-    for (size_t i = 0; i < gST->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE *cur_table = &gST->ConfigurationTable[i];
+    for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+        struct efi_configuration_table *cur_table = &gST->configuration_table[i];
 
-        if (memcmp(&cur_table->VendorGuid, &acpi_1_guid, sizeof(EFI_GUID)) != 0)
+        if (memcmp(&cur_table->vendor_guid, &acpi_1_guid, sizeof(struct efi_guid)) != 0)
             continue;
 
-        if (acpi_checksum(cur_table->VendorTable, 20) != 0)
+        if (acpi_checksum(cur_table->vendor_table, 20) != 0)
             continue;
 
-        return (void *)cur_table->VendorTable;
+        return (void *)cur_table->vendor_table;
     }
 
     return NULL;
@@ -110,14 +110,14 @@ void acpi_get_smbios(void **smbios32, void **smbios64) {
     *smbios32 = NULL;
     *smbios64 = NULL;
 
-    for (size_t i = 0; i < gST->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE *cur_table = &gST->ConfigurationTable[i];
-        EFI_GUID smbios_guid = EFI_SMBIOS_TABLE_GUID;
+    for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+        struct efi_configuration_table *cur_table = &gST->configuration_table[i];
+        struct efi_guid smbios_guid = EFI_SMBIOS_TABLE_GUID;
 
-        if (memcmp(&cur_table->VendorGuid, &smbios_guid, sizeof(EFI_GUID)) != 0)
+        if (memcmp(&cur_table->vendor_guid, &smbios_guid, sizeof(struct efi_guid)) != 0)
             continue;
 
-        struct smbios_entry_point_32 *ptr = (struct smbios_entry_point_32 *)cur_table->VendorTable;
+        struct smbios_entry_point_32 *ptr = cur_table->vendor_table;
 
         if (!smbios_entry_32_valid(ptr)) {
             continue;
@@ -130,14 +130,14 @@ void acpi_get_smbios(void **smbios32, void **smbios64) {
         break;
     }
 
-    for (size_t i = 0; i < gST->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE *cur_table = &gST->ConfigurationTable[i];
-        EFI_GUID smbios3_guid = EFI_SMBIOS3_TABLE_GUID;
+    for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+        struct efi_configuration_table *cur_table = &gST->configuration_table[i];
+        struct efi_guid smbios3_guid = EFI_SMBIOS3_TABLE_GUID;
 
-        if (memcmp(&cur_table->VendorGuid, &smbios3_guid, sizeof(EFI_GUID)) != 0)
+        if (memcmp(&cur_table->vendor_guid, &smbios3_guid, sizeof(struct efi_guid)) != 0)
             continue;
 
-        struct smbios_entry_point_64 *ptr = (struct smbios_entry_point_64 *)cur_table->VendorTable;
+        struct smbios_entry_point_64 *ptr = cur_table->vendor_table;
 
         if (ptr->length < sizeof(struct smbios_entry_point_64)
          || acpi_checksum((void *)ptr, ptr->length) != 0)
@@ -349,15 +349,15 @@ void efi_map_runtime_entries(void) {
     size_t entry_count = efi_mmap_size / efi_desc_size;
 
     for (size_t i = 0; i < entry_count; i++) {
-        EFI_MEMORY_DESCRIPTOR *entry = (void *)efi_mmap + i * efi_desc_size;
+        struct efi_memory_descriptor *entry = (void *)efi_mmap + i * efi_desc_size;
 
-        if (entry->Type != EfiRuntimeServicesCode
-         && entry->Type != EfiRuntimeServicesData) {
+        if (entry->type != EFI_RUNTIME_SERVICES_CODE
+         && entry->type != EFI_RUNTIME_SERVICES_DATA) {
             continue;
         }
 
-        uint64_t base = entry->PhysicalStart;
-        uint64_t length = CHECKED_MUL(entry->NumberOfPages, 4096, continue);
+        uint64_t base = entry->physical_start;
+        uint64_t length = CHECKED_MUL(entry->number_of_pages, 4096, continue);
 
         memmap_alloc_range(base, length, MEMMAP_RESERVED_MAPPED, 0, true, false, true);
     }
@@ -367,27 +367,27 @@ void efi_map_runtime_entries(void) {
     // so we map them separately to ensure they are always accessible via HHDM.
     map_single_table((uintptr_t)gST, sizeof(*gST));
 
-    if (gST->RuntimeServices != NULL) {
-        map_single_table((uintptr_t)gST->RuntimeServices,
-                         sizeof(*gST->RuntimeServices));
+    if (gST->runtime_services != NULL) {
+        map_single_table((uintptr_t)gST->runtime_services,
+                         sizeof(*gST->runtime_services));
     }
 
-    if (gST->ConfigurationTable != NULL && gST->NumberOfTableEntries > 0) {
-        uint64_t ct_size = CHECKED_MUL(gST->NumberOfTableEntries,
-                (uint64_t)sizeof(EFI_CONFIGURATION_TABLE), goto skip_ct);
+    if (gST->configuration_table != NULL && gST->number_of_table_entries > 0) {
+        uint64_t ct_size = CHECKED_MUL(gST->number_of_table_entries,
+                (uint64_t)sizeof(struct efi_configuration_table), goto skip_ct);
         if (ct_size <= UINT32_MAX) {
-            map_single_table((uintptr_t)gST->ConfigurationTable, (uint32_t)ct_size);
+            map_single_table((uintptr_t)gST->configuration_table, (uint32_t)ct_size);
         }
 skip_ct:;
     }
 
-    if (gST->FirmwareVendor != NULL) {
+    if (gST->firmware_vendor != NULL) {
         size_t len = 0;
-        while (gST->FirmwareVendor[len] != 0) {
+        while (gST->firmware_vendor[len] != 0) {
             len++;
         }
-        map_single_table((uintptr_t)gST->FirmwareVendor,
-                         (len + 1) * sizeof(*gST->FirmwareVendor));
+        map_single_table((uintptr_t)gST->firmware_vendor,
+                         (len + 1) * sizeof(*gST->firmware_vendor));
     }
 }
 #endif

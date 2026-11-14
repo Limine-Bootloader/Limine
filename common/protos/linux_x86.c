@@ -700,7 +700,7 @@ no_fb:;
     ///////////////////////////////////////
 #if defined(UEFI)
     linux_install_efi_tpm_event_log();
-    efi_exit_boot_services();
+    efi_leave_boot_services();
 
 #if defined(__x86_64__)
     memcpy(&boot_params->efi_info.efi_loader_signature, "EL64", 4);

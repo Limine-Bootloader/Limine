@@ -329,29 +329,29 @@ static struct memmap_entry *recl;
 // Some UEFI implementations cannot handle allocations spanning a large
 // fraction of physical memory. Reduce the request cap no lower than 64MiB,
 // and use 1MiB requests only to recover a failed chunk.
-#define UEFI_ALLOC_MAX_PAGES ((EFI_UINTN)(0x40000000 / PAGE_SIZE))
-#define UEFI_ALLOC_MIN_PAGES ((EFI_UINTN)(0x04000000 / PAGE_SIZE))
-#define UEFI_ALLOC_FALLBACK_PAGES ((EFI_UINTN)(0x00100000 / PAGE_SIZE))
+#define UEFI_ALLOC_MAX_PAGES ((size_t)(0x40000000 / PAGE_SIZE))
+#define UEFI_ALLOC_MIN_PAGES ((size_t)(0x04000000 / PAGE_SIZE))
+#define UEFI_ALLOC_FALLBACK_PAGES ((size_t)(0x00100000 / PAGE_SIZE))
 
-static EFI_UINTN uefi_alloc_chunk_pages = UEFI_ALLOC_MAX_PAGES;
+static size_t uefi_alloc_chunk_pages = UEFI_ALLOC_MAX_PAGES;
 
-static void pmm_mark_uefi_pages_unclaimed(EFI_PHYSICAL_ADDRESS base,
-    EFI_UINTN page_count) {
+static void pmm_mark_uefi_pages_unclaimed(efi_physical_address base,
+    size_t page_count) {
     memmap_alloc_range(base, (uint64_t)page_count * PAGE_SIZE,
                        MEMMAP_EFI_RECLAIMABLE, MEMMAP_USABLE,
                        true, false, false);
 }
 
-static void pmm_claim_uefi_pages_fallback(EFI_PHYSICAL_ADDRESS base,
-    EFI_UINTN page_count, EFI_UINTN step_pages) {
-    EFI_PHYSICAL_ADDRESS failed_base = 0;
-    EFI_UINTN failed_pages = 0;
+static void pmm_claim_uefi_pages_fallback(efi_physical_address base,
+    size_t page_count, size_t step_pages) {
+    efi_physical_address failed_base = 0;
+    size_t failed_pages = 0;
 
     while (page_count != 0) {
-        EFI_UINTN chunk_pages = MIN(page_count, step_pages);
-        EFI_PHYSICAL_ADDRESS alloc_base = base;
-        EFI_STATUS status = gBS->AllocatePages(EfiAllocateAddress,
-                                               EfiLoaderCode,
+        size_t chunk_pages = MIN(page_count, step_pages);
+        efi_physical_address alloc_base = base;
+        efi_status status = gBS->allocate_pages(EFI_ALLOCATE_ADDRESS,
+                                               EFI_LOADER_CODE,
                                                chunk_pages,
                                                &alloc_base);
 
@@ -377,17 +377,17 @@ static void pmm_claim_uefi_pages_fallback(EFI_PHYSICAL_ADDRESS base,
     }
 }
 
-static void pmm_claim_uefi_pages(EFI_PHYSICAL_ADDRESS base, EFI_UINTN page_count) {
+static void pmm_claim_uefi_pages(efi_physical_address base, size_t page_count) {
     while (page_count != 0) {
-        EFI_UINTN chunk_pages = MIN(page_count, uefi_alloc_chunk_pages);
-        EFI_PHYSICAL_ADDRESS alloc_base = base;
-        EFI_STATUS status = gBS->AllocatePages(EfiAllocateAddress,
-                                               EfiLoaderCode,
+        size_t chunk_pages = MIN(page_count, uefi_alloc_chunk_pages);
+        efi_physical_address alloc_base = base;
+        efi_status status = gBS->allocate_pages(EFI_ALLOCATE_ADDRESS,
+                                               EFI_LOADER_CODE,
                                                chunk_pages,
                                                &alloc_base);
 
         if (status && chunk_pages > UEFI_ALLOC_MIN_PAGES) {
-            EFI_UINTN new_chunk_pages = MAX(chunk_pages / 2, UEFI_ALLOC_MIN_PAGES);
+            size_t new_chunk_pages = MAX(chunk_pages / 2, UEFI_ALLOC_MIN_PAGES);
             uefi_alloc_chunk_pages = MIN(uefi_alloc_chunk_pages,
                                          new_chunk_pages);
             continue;
@@ -449,17 +449,17 @@ static uint32_t conventional_memmap_type(uint64_t attribute) {
 }
 
 void init_memmap(void) {
-    EFI_STATUS status;
+    efi_status status;
 
-    EFI_MEMORY_DESCRIPTOR tmp_mmap[1];
+    struct efi_memory_descriptor tmp_mmap[1];
     efi_mmap_size = sizeof(tmp_mmap);
-    EFI_UINTN mmap_key = 0;
+    size_t mmap_key = 0;
 
-    gBS->GetMemoryMap(&efi_mmap_size, tmp_mmap, &mmap_key, &efi_desc_size, &efi_desc_ver);
+    gBS->get_memory_map(&efi_mmap_size, tmp_mmap, &mmap_key, &efi_desc_size, &efi_desc_ver);
 
     // EFI_BUFFER_TOO_SMALL promises only MemoryMapSize, so the descriptor size
     // this call reports has to be checked before it is divided by.
-    if (efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR)) {
+    if (efi_desc_size < sizeof(struct efi_memory_descriptor)) {
         goto fail;
     }
 
@@ -467,72 +467,74 @@ void init_memmap(void) {
 
     efi_mmap_size += 4096;
 
-    status = gBS->AllocatePool(EfiLoaderData, efi_mmap_size, (void **)&efi_mmap);
+    status = gBS->allocate_pool(EFI_LOADER_DATA, efi_mmap_size, (void **)&efi_mmap);
     if (status) {
         goto fail;
     }
 
     size_t memmap_alloc_size = CHECKED_MUL(memmap_max_entries, sizeof(struct memmap_entry), goto fail);
 
-    status = gBS->AllocatePool(EfiLoaderData, memmap_alloc_size, (void **)&memmap);
+    status = gBS->allocate_pool(EFI_LOADER_DATA, memmap_alloc_size, (void **)&memmap);
     if (status) {
-        gBS->FreePool(efi_mmap);
+        gBS->free_pool(efi_mmap);
         goto fail;
     }
 
-    status = gBS->AllocatePool(EfiLoaderData, memmap_alloc_size, (void **)&untouched_memmap);
+    status = gBS->allocate_pool(EFI_LOADER_DATA, memmap_alloc_size, (void **)&untouched_memmap);
     if (status) {
-        gBS->FreePool(efi_mmap);
-        gBS->FreePool(memmap);
+        gBS->free_pool(efi_mmap);
+        gBS->free_pool(memmap);
         goto fail;
     }
 
-    status = gBS->GetMemoryMap(&efi_mmap_size, efi_mmap, &mmap_key, &efi_desc_size, &efi_desc_ver);
+    status = gBS->get_memory_map(
+        &efi_mmap_size, efi_mmap, &mmap_key, &efi_desc_size, &efi_desc_ver
+    );
 
     // GetMemoryMap() reports a descriptor size per call, and it is this one the
     // walk below strides by.
-    if (status || efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR)) {
-        gBS->FreePool(efi_mmap);
-        gBS->FreePool(memmap);
-        gBS->FreePool(untouched_memmap);
+    if (status || efi_desc_size < sizeof(struct efi_memory_descriptor)) {
+        gBS->free_pool(efi_mmap);
+        gBS->free_pool(memmap);
+        gBS->free_pool(untouched_memmap);
         goto fail;
     }
 
     size_t entry_count = efi_mmap_size / efi_desc_size;
 
     for (size_t i = 0; i < entry_count; i++) {
-        EFI_MEMORY_DESCRIPTOR *entry = (void *)efi_mmap + i * efi_desc_size;
+        struct efi_memory_descriptor *entry = (void *)efi_mmap + i * efi_desc_size;
 
-        if (entry->NumberOfPages == 0) {
+        if (entry->number_of_pages == 0) {
             continue;
         }
 
         uint32_t our_type;
-        switch (entry->Type) {
-            case EfiReservedMemoryType:
-            case EfiRuntimeServicesCode:
-            case EfiRuntimeServicesData:
-            case EfiUnusableMemory:
-            case EfiMemoryMappedIO:
-            case EfiMemoryMappedIOPortSpace:
-            case EfiPalCode:
+        switch (entry->type) {
+            case EFI_RESERVED_MEMORY_TYPE:
+            case EFI_RUNTIME_SERVICES_CODE:
+            case EFI_RUNTIME_SERVICES_DATA:
+            case EFI_UNUSABLE_MEMORY:
+            case EFI_MEMORY_MAPPED_IO:
+            case EFI_MEMORY_MAPPED_IO_PORT_SPACE:
+            case EFI_PAL_CODE:
             default:
                 our_type = MEMMAP_RESERVED; break;
-            case EfiLoaderCode:
-            case EfiLoaderData:
-            case EfiBootServicesCode:
-            case EfiBootServicesData:
+            case EFI_LOADER_CODE:
+            case EFI_LOADER_DATA:
+            case EFI_BOOT_SERVICES_CODE:
+            case EFI_BOOT_SERVICES_DATA:
                 our_type = MEMMAP_EFI_RECLAIMABLE; break;
-            case EfiACPIReclaimMemory:
+            case EFI_ACPI_RECLAIM_MEMORY:
                 our_type = MEMMAP_ACPI_RECLAIMABLE; break;
-            case EfiACPIMemoryNVS:
+            case EFI_ACPI_MEMORY_NVS:
                 our_type = MEMMAP_ACPI_NVS; break;
-            case EfiConventionalMemory:
-                our_type = conventional_memmap_type(entry->Attribute); break;
+            case EFI_CONVENTIONAL_MEMORY:
+                our_type = conventional_memmap_type(entry->attribute); break;
         }
 
-        uint64_t base = entry->PhysicalStart;
-        uint64_t length = CHECKED_MUL(entry->NumberOfPages, 4096, continue);
+        uint64_t base = entry->physical_start;
+        uint64_t length = CHECKED_MUL(entry->number_of_pages, 4096, continue);
 
         if (memmap_entries == memmap_max_entries) {
             panic(false, "Memory map exhausted.");
@@ -568,7 +570,7 @@ void init_memmap(void) {
         if (untouched_memmap[i].type != MEMMAP_USABLE)
             continue;
 
-        EFI_PHYSICAL_ADDRESS base = untouched_memmap[i].base;
+        efi_physical_address base = untouched_memmap[i].base;
 
 #if defined(__i386__)
         if (CHECKED_ADD(untouched_memmap[i].base, untouched_memmap[i].length, continue) > 0x100000000) {
@@ -583,7 +585,7 @@ void init_memmap(void) {
     untouched_memmap_entries = memmap_entries;
 
     // Allocate bootloader itself
-    memmap_alloc_range((uintptr_t)EfiLoadSlide, EfiImageSize,
+    memmap_alloc_range((uintptr_t)efi_load_slide, efi_image_size,
                        MEMMAP_BOOTLOADER_RECLAIMABLE, 0, true, false, true);
 
     pmm_sanitise_entries(memmap, &memmap_entries, false);
@@ -617,12 +619,12 @@ static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool ra
         // boot services or conventional that fits within
         size_t efi_mmap_entry_count = efi_mmap_size / efi_desc_size;
         for (size_t i = 0; i < efi_mmap_entry_count; i++) {
-            EFI_MEMORY_DESCRIPTOR *entry = (void *)efi_mmap + i * efi_desc_size;
+            struct efi_memory_descriptor *entry = (void *)efi_mmap + i * efi_desc_size;
 
             uint64_t base = r->base;
             uint64_t top = CHECKED_ADD(base, r->length, continue);
-            uint64_t efi_base = entry->PhysicalStart;
-            uint64_t efi_size = CHECKED_MUL(entry->NumberOfPages, 4096, continue);
+            uint64_t efi_base = entry->physical_start;
+            uint64_t efi_size = CHECKED_MUL(entry->number_of_pages, 4096, continue);
 
             if (efi_base < base) {
                 if (efi_size <= base - efi_base)
@@ -646,22 +648,22 @@ static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool ra
                 continue;
 
             uint32_t our_type;
-            switch (entry->Type) {
-                case EfiLoaderCode:
-                case EfiLoaderData:
-                case EfiBootServicesCode:
-                case EfiBootServicesData:
+            switch (entry->type) {
+                case EFI_LOADER_CODE:
+                case EFI_LOADER_DATA:
+                case EFI_BOOT_SERVICES_CODE:
+                case EFI_BOOT_SERVICES_DATA:
                     if (raw) {
                         our_type = MEMMAP_USABLE;
                     } else {
                         our_type = MEMMAP_BOOTLOADER_RECLAIMABLE;
                     }
                     break;
-                case EfiConventionalMemory:
-                    our_type = conventional_memmap_type(entry->Attribute); break;
-                case EfiACPIReclaimMemory:
+                case EFI_CONVENTIONAL_MEMORY:
+                    our_type = conventional_memmap_type(entry->attribute); break;
+                case EFI_ACPI_RECLAIM_MEMORY:
                     our_type = MEMMAP_ACPI_RECLAIMABLE; break;
-                case EfiACPIMemoryNVS:
+                case EFI_ACPI_MEMORY_NVS:
                     our_type = MEMMAP_ACPI_NVS; break;
                 default:
                     our_type = MEMMAP_RESERVED; break;
@@ -679,7 +681,7 @@ static void pmm_reclaim_uefi_mem(struct memmap_entry *m, size_t *_count, bool ra
 }
 
 void pmm_release_uefi_mem(void) {
-    EFI_STATUS status;
+    efi_status status;
 
     for (size_t i = 0; i < untouched_memmap_entries; i++) {
         if (untouched_memmap[i].type != MEMMAP_USABLE
@@ -687,7 +689,7 @@ void pmm_release_uefi_mem(void) {
             continue;
         }
 
-        status = gBS->FreePages(untouched_memmap[i].base, untouched_memmap[i].length / 4096);
+        status = gBS->free_pages(untouched_memmap[i].base, untouched_memmap[i].length / 4096);
 
         if (status) {
             panic(false, "pmm: FreePages failure (%X)", (uint64_t)status);

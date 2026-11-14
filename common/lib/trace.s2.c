@@ -25,7 +25,7 @@ static char *trace_address(size_t *off, size_t addr) {
 #elif defined(UEFI)
     limine_map = full_map;
 
-    addr -= (size_t)EfiLoadSlide;
+    addr -= (size_t)efi_load_slide;
 #endif
 
     uintptr_t prev_addr = 0;

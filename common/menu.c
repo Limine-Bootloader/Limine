@@ -31,7 +31,7 @@
 #include <lib/misc.h>
 
 #if defined(UEFI)
-EFI_GUID limine_efi_vendor_guid =
+struct efi_guid limine_efi_vendor_guid =
     { 0x03884334, 0x1756, 0x4978, { 0x9c, 0x8c, 0x86, 0xfb, 0x89, 0x98, 0xb4, 0xea } };
 #endif
 
@@ -1599,9 +1599,9 @@ noreturn static void boot_uefi_shell(void) {
 
 bool reboot_to_fw_ui_supported(void) {
     uint64_t os_indications_supported;
-    EFI_UINTN size = sizeof(os_indications_supported);
-    EFI_GUID global_variable = EFI_GLOBAL_VARIABLE;
-    EFI_STATUS status = gRT->GetVariable(L"OsIndicationsSupported", &global_variable, NULL, &size, &os_indications_supported);
+    size_t size = sizeof(os_indications_supported);
+    struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
+    efi_status status = gRT->get_variable(L"OsIndicationsSupported", &global_variable, NULL, &size, &os_indications_supported);
     if (status == EFI_SUCCESS && size == sizeof(os_indications_supported)) {
         return (os_indications_supported & EFI_OS_INDICATIONS_BOOT_TO_FW_UI) != 0;
     }
@@ -1614,9 +1614,9 @@ noreturn void reboot_to_fw_ui(void) {
     print("Rebooting to the firmware setup...\n");
 
     uint64_t os_indications;
-    EFI_UINTN size = sizeof(os_indications);
-    EFI_GUID global_variable = EFI_GLOBAL_VARIABLE;
-    EFI_STATUS status = gRT->GetVariable(L"OsIndications", &global_variable, NULL, &size, &os_indications);
+    size_t size = sizeof(os_indications);
+    struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
+    efi_status status = gRT->get_variable(L"OsIndications", &global_variable, NULL, &size, &os_indications);
     if (status != EFI_SUCCESS || size != sizeof(os_indications)) {
         if (status == EFI_NOT_FOUND) {
             os_indications = 0;
@@ -1628,7 +1628,7 @@ noreturn void reboot_to_fw_ui(void) {
 
 not_found:;
     uint64_t new_os_indications = os_indications | EFI_OS_INDICATIONS_BOOT_TO_FW_UI;
-    status = gRT->SetVariable(L"OsIndications", &global_variable,
+    status = gRT->set_variable(L"OsIndications", &global_variable,
         EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
         sizeof(new_os_indications), &new_os_indications);
 
@@ -1636,7 +1636,7 @@ not_found:;
         panic(true, "Failed to set OsIndications variable, status=%X", (uint64_t)status);
     }
 
-    gRT->ResetSystem(EfiResetWarm, EFI_SUCCESS, 0, NULL);
+    gRT->reset_system(EFI_RESET_WARM, EFI_SUCCESS, 0, NULL);
     panic(true, "Failed to reboot to firmware UI");
 }
 #endif
@@ -1951,8 +1951,8 @@ noreturn void _menu(bool first_run) {
         char *remember_last = config_get_value(NULL, 0, "REMEMBER_LAST_ENTRY");
         if (remember_last != NULL && strcasecmp(remember_last, "yes") == 0) {
             char last_entry_path[MENU_PATH_MAX];
-            EFI_UINTN getvar_size = sizeof(last_entry_path);
-            if (gRT->GetVariable(L"LimineLastBootedEntry",
+            size_t getvar_size = sizeof(last_entry_path);
+            if (gRT->get_variable(L"LimineLastBootedEntry",
                                  &limine_efi_vendor_guid,
                                  NULL,
                                  &getvar_size,
@@ -2402,7 +2402,7 @@ timeout_aborted:
                 char entry_path[MENU_PATH_MAX];
                 size_t pos = 0;
                 get_entry_path(selected_menu_entry, entry_path, sizeof(entry_path), &pos);
-                gRT->SetVariable(L"LimineLastBootedEntry",
+                gRT->set_variable(L"LimineLastBootedEntry",
                                  &limine_efi_vendor_guid,
                                  EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
                                  strlen(entry_path) + 1,

@@ -13,20 +13,20 @@
 #endif
 
 #if defined(UEFI)
-extern EFI_SYSTEM_TABLE *gST;
-extern EFI_BOOT_SERVICES *gBS;
-extern EFI_RUNTIME_SERVICES *gRT;
-extern EFI_HANDLE efi_image_handle;
-extern EFI_MEMORY_DESCRIPTOR *efi_mmap;
-extern EFI_UINTN efi_mmap_size, efi_desc_size, efi_mmap_key;
-extern EFI_UINT32 efi_desc_ver;
+extern struct efi_system_table *gST;
+extern struct efi_boot_services *gBS;
+extern struct efi_runtime_services *gRT;
+extern efi_handle efi_image_handle;
+extern struct efi_memory_descriptor *efi_mmap;
+extern size_t efi_mmap_size, efi_desc_size, efi_mmap_key;
+extern uint32_t efi_desc_ver;
 
 extern bool efi_boot_services_exited;
-bool efi_exit_boot_services(void);
+bool efi_leave_boot_services(void);
 
-// Room for the map efi_exit_boot_services() rebuilds out of a firmware map of
+// Room for the map efi_leave_boot_services() rebuilds out of a firmware map of
 // mmap_size bytes, or 0 if that overflows.
-EFI_UINTN efi_rebuilt_mmap_max_size(EFI_UINTN mmap_size);
+size_t efi_rebuilt_mmap_max_size(size_t mmap_size);
 
 bool is_efi_serial_present(void);
 #endif
@@ -140,7 +140,7 @@ noreturn void enter_in_el2(uint64_t entry, uint64_t sp, uint64_t sctlr,
 #elif defined(__riscv)
 noreturn void riscv_spinup(uint64_t entry, uint64_t sp, uint64_t satp, uint64_t direct_map_offset);
 #if defined(UEFI)
-EFI_RISCV_EFI_BOOT_PROTOCOL *get_riscv_boot_protocol(void);
+struct efi_riscv_efi_boot_protocol *get_riscv_boot_protocol(void);
 #endif
 #elif defined(__loongarch64)
 noreturn void loongarch_spinup(uint64_t entry, uint64_t sp, uint64_t pgdl,

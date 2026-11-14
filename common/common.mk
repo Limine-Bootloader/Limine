@@ -67,7 +67,7 @@ ifeq ($(TARGET),uefi-x86-64)
     override TARGET_CFLAGS := $(UEFI_X86_64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_X86_64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
-        -I ../picoefi/inc \
+        -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
     override NASMFLAGS_FOR_TARGET := \
@@ -81,7 +81,7 @@ ifeq ($(TARGET),uefi-ia32)
     override TARGET_CFLAGS := $(UEFI_IA32_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_IA32_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
-        -I ../picoefi/inc \
+        -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
     override NASMFLAGS_FOR_TARGET := \
@@ -95,7 +95,7 @@ ifeq ($(TARGET),uefi-aarch64)
     override TARGET_CFLAGS := $(UEFI_AARCH64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_AARCH64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
-        -I ../picoefi/inc \
+        -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
 endif
@@ -104,7 +104,7 @@ ifeq ($(TARGET),uefi-riscv64)
     override TARGET_CFLAGS := $(UEFI_RISCV64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_RISCV64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
-        -I ../picoefi/inc \
+        -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
 endif
@@ -113,7 +113,7 @@ ifeq ($(TARGET),uefi-loongarch64)
     override TARGET_CFLAGS := $(UEFI_LOONGARCH64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_LOONGARCH64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
-        -I ../picoefi/inc \
+        -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
 endif
@@ -138,8 +138,8 @@ ifeq ($(TARGET),bios)
     override OBJ_REL := $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASMB_FILES:.asm_bios_ia32=.o) $(ASMX86_FILES:.asm_x86=.o)
 endif
 ifeq ($(TARGET),uefi-x86-64)
-    override C_FILES := $(shell cd .. && find common picoefi/x86_64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common picoefi/x86_64 -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common picoefi/src/x86_64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common picoefi/src/x86_64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_x86_64' | LC_ALL=C sort)
@@ -148,8 +148,8 @@ ifeq ($(TARGET),uefi-x86-64)
     override OBJ_REL := $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_x86_64=.o) $(ASM64U_FILES:.asm_uefi_x86_64=.o) $(ASMX86_FILES:.asm_x86=.o)
 endif
 ifeq ($(TARGET),uefi-ia32)
-    override C_FILES := $(shell cd .. && find common picoefi/ia32 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common picoefi/ia32 -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common picoefi/src/ia32 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common picoefi/src/ia32 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASMX86_FILES := $(shell cd .. && find common -type f -name '*.asm_x86' | LC_ALL=C sort)
     override ASM32_FILES := $(shell cd .. && find common -type f -name '*.asm_ia32' | LC_ALL=C sort)
@@ -158,8 +158,8 @@ ifeq ($(TARGET),uefi-ia32)
     override OBJ_REL := $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM32_FILES:.asm_ia32=.o) $(ASM32U_FILES:.asm_uefi_ia32=.o) $(ASMX86_FILES:.asm_x86=.o)
 endif
 ifeq ($(TARGET),uefi-aarch64)
-    override C_FILES := $(shell cd .. && find common picoefi/aarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common picoefi/aarch64 -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common picoefi/src/aarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common picoefi/src/aarch64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_aarch64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_aarch64' | LC_ALL=C sort)
@@ -167,8 +167,8 @@ ifeq ($(TARGET),uefi-aarch64)
     override OBJ_REL := $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_aarch64=.o) $(ASM64U_FILES:.asm_uefi_aarch64=.o)
 endif
 ifeq ($(TARGET),uefi-riscv64)
-    override C_FILES := $(shell cd .. && find common picoefi/riscv64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common picoefi/riscv64 -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common picoefi/src/riscv64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common picoefi/src/riscv64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_riscv64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_riscv64' | LC_ALL=C sort)
@@ -176,8 +176,8 @@ ifeq ($(TARGET),uefi-riscv64)
     override OBJ_REL := $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_riscv64=.o) $(ASM64U_FILES:.asm_uefi_riscv64=.o)
 endif
 ifeq ($(TARGET),uefi-loongarch64)
-    override C_FILES := $(shell cd .. && find common picoefi/loongarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
-    override S_FILES := $(shell cd .. && find common picoefi/loongarch64 -type f -name '*.S' | LC_ALL=C sort)
+    override C_FILES := $(shell cd .. && find common picoefi/src/loongarch64 flanterm/src libfdt/src -type f -name '*.c' | LC_ALL=C sort)
+    override S_FILES := $(shell cd .. && find common picoefi/src/loongarch64 -type f -name '*.S' | LC_ALL=C sort)
 
     override ASM64_FILES := $(shell cd .. && find common -type f -name '*.asm_loongarch64' | LC_ALL=C sort)
     override ASM64U_FILES := $(shell cd .. && find common -type f -name '*.asm_uefi_loongarch64' | LC_ALL=C sort)

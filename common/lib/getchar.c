@@ -393,32 +393,40 @@ int pit_sleep_and_quit_on_keypress(int seconds) {
 // The firmware's console can pass on what a terminal sent as one sequence over
 // several of its polls of the serial line, so the next key of a sequence is
 // waited for rather than taken to be missing. EFI_TIMEOUT if none comes.
-static EFI_STATUS read_sequence_key(bool ext, EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *exproto,
-                                    EFI_SIMPLE_TEXT_INPUT_PROTOCOL *sproto, EFI_KEY_DATA *kd) {
-    EFI_EVENT events[2];
-    EFI_UINTN which;
+static efi_status read_sequence_key(
+    bool ext,
+    struct efi_simple_text_input_ex_protocol *exproto,
+    struct efi_simple_text_input_protocol *sproto,
+    struct efi_key_data *kd
+) {
+    efi_event events[2];
+    size_t which;
 
-    events[0] = ext ? exproto->WaitForKeyEx : sproto->WaitForKey;
-    gBS->CreateEvent(EFI_EVT_TIMER, EFI_TPL_CALLBACK, NULL, NULL, &events[1]);
+    events[0] = ext ? exproto->wait_for_key_ex : sproto->wait_for_key;
+    gBS->create_event(EFI_EVT_TIMER, EFI_TPL_CALLBACK, NULL, NULL, &events[1]);
     // 100ms, in 100ns units.
-    gBS->SetTimer(events[1], EfiTimerRelative, 1000000);
-    gBS->WaitForEvent(2, events, &which);
-    gBS->CloseEvent(events[1]);
+    gBS->set_timer(events[1], EFI_TIMER_RELATIVE, 1000000);
+    gBS->wait_for_event(2, events, &which);
+    gBS->close_event(events[1]);
 
     if (which == 1) {
         return EFI_TIMEOUT;
     }
 
     if (ext) {
-        return exproto->ReadKeyStrokeEx(exproto, kd);
+        return exproto->read_key_stroke_ex(exproto, kd);
     }
-    return sproto->ReadKeyStroke(sproto, &kd->Key);
+    return sproto->read_key_stroke(sproto, &kd->key);
 }
 
-static int input_sequence(bool ss3, bool ext,
-    EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *exproto, EFI_SIMPLE_TEXT_INPUT_PROTOCOL *sproto) {
-    EFI_STATUS status;
-    EFI_KEY_DATA kd;
+static int input_sequence(
+    bool ss3,
+    bool ext,
+    struct efi_simple_text_input_ex_protocol *exproto,
+    struct efi_simple_text_input_protocol *sproto
+) {
+    efi_status status;
+    struct efi_key_data kd;
 
     int val = 0;
     bool first_param = true;
@@ -432,24 +440,24 @@ static int input_sequence(bool ss3, bool ext,
 
         // Parameter bytes are 0x30-0x3f (ECMA-48 5.4), SS3 takes none, and
         // parameters past the first only add modifiers.
-        if (ss3 || kd.Key.UnicodeChar < 0x30 || kd.Key.UnicodeChar > 0x3f) {
-            return input_sequence_key(kd.Key.UnicodeChar, val);
+        if (ss3 || kd.key.unicode_char < 0x30 || kd.key.unicode_char > 0x3f) {
+            return input_sequence_key(kd.key.unicode_char, val);
         }
 
-        if (kd.Key.UnicodeChar > '9') {
+        if (kd.key.unicode_char > '9') {
             first_param = false;
         } else if (first_param) {
-            append_input_sequence_digit(&val, kd.Key.UnicodeChar - '0');
+            append_input_sequence_digit(&val, kd.key.unicode_char - '0');
         }
     }
 }
 
 static int sleep_ms_core(uint64_t milliseconds, bool deliver_mouse) {
-    EFI_KEY_DATA kd;
+    struct efi_key_data kd;
 
-    EFI_UINTN which;
+    size_t which;
 
-    EFI_EVENT events[18];
+    efi_event events[18];
 
     size_t pointer_count = 0;
 
@@ -459,27 +467,27 @@ static int sleep_ms_core(uint64_t milliseconds, bool deliver_mouse) {
         return GETCHAR_MOUSE;
     }
 
-    EFI_GUID exproto_guid = EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL_GUID;
-    EFI_GUID sproto_guid = EFI_SIMPLE_TEXT_INPUT_PROTOCOL_GUID;
-    EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *exproto = NULL;
-    EFI_SIMPLE_TEXT_INPUT_PROTOCOL *sproto = NULL;
+    struct efi_guid exproto_guid = EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL_GUID;
+    struct efi_guid sproto_guid = EFI_SIMPLE_TEXT_INPUT_PROTOCOL_GUID;
+    struct efi_simple_text_input_ex_protocol *exproto = NULL;
+    struct efi_simple_text_input_protocol *sproto = NULL;
 
     bool use_sproto = false;
 
-    if (gBS->HandleProtocol(gST->ConsoleInHandle, &exproto_guid, (void **)&exproto) != EFI_SUCCESS) {
-        if (gBS->HandleProtocol(gST->ConsoleInHandle, &sproto_guid, (void **)&sproto) != EFI_SUCCESS) {
-            if (gST->ConIn != NULL) {
-                sproto = gST->ConIn;
+    if (gBS->handle_protocol(gST->console_in_handle, &exproto_guid, (void **)&exproto) != EFI_SUCCESS) {
+        if (gBS->handle_protocol(gST->console_in_handle, &sproto_guid, (void **)&sproto) != EFI_SUCCESS) {
+            if (gST->con_in != NULL) {
+                sproto = gST->con_in;
             } else {
                 panic(false, "Your input device doesn't have an input protocol!");
             }
         }
 
-        events[0] = sproto->WaitForKey;
+        events[0] = sproto->wait_for_key;
 
         use_sproto = true;
     } else {
-        events[0] = exproto->WaitForKeyEx;
+        events[0] = exproto->wait_for_key_ex;
     }
 
     if (deliver_mouse) {
@@ -487,52 +495,52 @@ static int sleep_ms_core(uint64_t milliseconds, bool deliver_mouse) {
     }
 
 restart:
-    gBS->CreateEvent(EFI_EVT_TIMER, EFI_TPL_CALLBACK, NULL, NULL, &events[1]);
+    gBS->create_event(EFI_EVT_TIMER, EFI_TPL_CALLBACK, NULL, NULL, &events[1]);
 
-    gBS->SetTimer(events[1], EfiTimerRelative,
+    gBS->set_timer(events[1], EFI_TIMER_RELATIVE,
                   milliseconds > UINT64_MAX / 10000 ? UINT64_MAX : milliseconds * 10000);
 
 again:
-    memset(&kd, 0, sizeof(EFI_KEY_DATA));
+    memset(&kd, 0, sizeof(struct efi_key_data));
 
-    gBS->WaitForEvent(2 + pointer_count, events, &which);
+    gBS->wait_for_event(2 + pointer_count, events, &which);
 
     if (which == 1) {
-        gBS->CloseEvent(events[1]);
+        gBS->close_event(events[1]);
         return 0;
     }
 
     if (which >= 2) {
         int ev = mouse_handle_efi_event(which - 2);
         if (ev != 0) {
-            gBS->CloseEvent(events[1]);
+            gBS->close_event(events[1]);
             return GETCHAR_MOUSE;
         }
         goto again;
     }
 
-    EFI_STATUS status;
+    efi_status status;
     if (use_sproto) {
-        status = sproto->ReadKeyStroke(sproto, &kd.Key);
+        status = sproto->read_key_stroke(sproto, &kd.key);
     } else {
-        status = exproto->ReadKeyStrokeEx(exproto, &kd);
+        status = exproto->read_key_stroke_ex(exproto, &kd);
     }
 
     if (status != EFI_SUCCESS) {
         goto again;
     }
 
-    if ((kd.KeyState.KeyShiftState & EFI_SHIFT_STATE_VALID) == 0) {
-        kd.KeyState.KeyShiftState = 0;
+    if ((kd.key_state.key_shift_state & EFI_SHIFT_STATE_VALID) == 0) {
+        kd.key_state.key_shift_state = 0;
     }
 
-    if (serial == true && kd.Key.ScanCode == 0x08) {
-        gBS->CloseEvent(events[1]);
+    if (serial == true && kd.key.scan_code == 0x08) {
+        gBS->close_event(events[1]);
         return '\b';
     }
 
-    if (kd.Key.ScanCode == EFI_SCAN_ESC) {
-        gBS->CloseEvent(events[1]);
+    if (kd.key.scan_code == EFI_SCAN_ESC) {
+        gBS->close_event(events[1]);
 
         status = read_sequence_key(!use_sproto, exproto, sproto, &kd);
 
@@ -544,8 +552,8 @@ again:
             goto restart;
         }
 
-        if (kd.Key.UnicodeChar == '[' || kd.Key.UnicodeChar == 'O') {
-            return input_sequence(kd.Key.UnicodeChar == 'O', !use_sproto, exproto, sproto);
+        if (kd.key.unicode_char == '[' || kd.key.unicode_char == 'O') {
+            return input_sequence(kd.key.unicode_char == 'O', !use_sproto, exproto, sproto);
         }
 
         goto restart;
@@ -553,18 +561,18 @@ again:
 
     // getchar_internal() takes 8-bit codes, and narrowing a wider one would
     // alias an unrelated key. None of the scan codes it handles is wider.
-    if (kd.Key.ScanCode > 0xff || kd.Key.UnicodeChar > 0xff) {
+    if (kd.key.scan_code > 0xff || kd.key.unicode_char > 0xff) {
         goto again;
     }
 
-    int ret = getchar_internal(kd.Key.ScanCode, kd.Key.UnicodeChar,
-                               kd.KeyState.KeyShiftState);
+    int ret = getchar_internal(kd.key.scan_code, kd.key.unicode_char,
+                               kd.key_state.key_shift_state);
 
     if (ret == -1) {
         goto again;
     }
 
-    gBS->CloseEvent(events[1]);
+    gBS->close_event(events[1]);
     return ret;
 }
 

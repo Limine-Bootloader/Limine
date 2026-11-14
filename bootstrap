@@ -71,7 +71,7 @@ if ! test -f version; then
     clone_repo_commit \
         https://github.com/PicoEFI/PicoEFI.git \
         picoefi \
-        dc23de6c36ae9e10e5ff290d7c3dd6c04b141a7a
+        9065da08260729e932531110a5a7fb90c0022aa9
 
     # 3.1.2-1-g3e311fe
     clone_repo_commit \

@@ -35,8 +35,8 @@ void linux_install_efi_tpm_event_log(void) {
 
     size_t preboot_size = tpm_get_final_events_preboot_size();
     struct linux_efi_tpm_event_log *table = NULL;
-    EFI_GUID guid = LINUX_EFI_TPM_EVENT_LOG_GUID;
-    EFI_STATUS status;
+    struct efi_guid guid = LINUX_EFI_TPM_EVENT_LOG_GUID;
+    efi_status status;
 
     if (log_size == 0) {
         printv("linux: TPM event log is empty, not passing it on\n");
@@ -50,7 +50,7 @@ void linux_install_efi_tpm_event_log(void) {
 
     // The kernel reads the table after ExitBootServices(), and memory of this
     // type is preserved until ACPI is enabled (UEFI 2.11 section 7.2).
-    status = gBS->AllocatePool(EfiACPIReclaimMemory, sizeof(*table) + log_size,
+    status = gBS->allocate_pool(EFI_ACPI_RECLAIM_MEMORY, sizeof(*table) + log_size,
                                (void **)&table);
     if (status != EFI_SUCCESS) {
         printv("linux: Failed to allocate the TPM event log table: %X\n", (uint64_t)status);
@@ -62,10 +62,10 @@ void linux_install_efi_tpm_event_log(void) {
     table->version = format;
     memcpy(table->log, log_data, log_size);
 
-    status = gBS->InstallConfigurationTable(&guid, table);
+    status = gBS->install_configuration_table(&guid, table);
     if (status != EFI_SUCCESS) {
         printv("linux: Failed to install the TPM event log table: %X\n", (uint64_t)status);
-        gBS->FreePool(table);
+        gBS->free_pool(table);
         goto out;
     }
 

@@ -19,8 +19,8 @@
 // 256 bits: the security level UEFI 2.11 section 37.5 requires of a DRBG
 // behind the RNG protocol. Ask for twice that, so that a raw source short of
 // full entropy still covers it.
-#define RNG_SEED_MIN_REQUEST ((EFI_UINTN)32)
-#define RNG_SEED_REQUEST ((EFI_UINTN)64)
+#define RNG_SEED_MIN_REQUEST ((size_t)32)
+#define RNG_SEED_REQUEST ((size_t)64)
 
 // UEFI is little-endian on every port (UEFI 2.11 section 1.9.1), so a native
 // store yields the little-endian count the table wants.
@@ -43,14 +43,14 @@ static void seed_fold(uint8_t *dst, size_t dst_len, size_t offset, const uint8_t
     }
 }
 
-static size_t seed_request(EFI_RNG_PROTOCOL *rng, EFI_RNG_ALGORITHM *alg, uint8_t *buf) {
-    EFI_UINTN len = RNG_SEED_REQUEST;
-    EFI_STATUS status = rng->GetRNG(rng, alg, len, buf);
+static size_t seed_request(struct efi_rng_protocol *rng, efi_rng_algorithm *alg, uint8_t *buf) {
+    size_t len = RNG_SEED_REQUEST;
+    efi_status status = rng->get_rng(rng, alg, len, buf);
 
     // The source has too little banked for the full length; take the minimum.
     if (status == EFI_NOT_READY) {
         len = RNG_SEED_MIN_REQUEST;
-        status = rng->GetRNG(rng, alg, len, buf);
+        status = rng->get_rng(rng, alg, len, buf);
     }
 
     if (status != EFI_SUCCESS) {
@@ -66,10 +66,10 @@ static size_t seed_request(EFI_RNG_PROTOCOL *rng, EFI_RNG_ALGORITHM *alg, uint8_
 // itself under random.trust_cpu, and passing their output on here would
 // have it credited under random.trust_bootloader instead.
 static size_t seed_gather(uint8_t *buf) {
-    EFI_GUID rng_guid = EFI_RNG_PROTOCOL_GUID;
-    EFI_RNG_PROTOCOL *rng = NULL;
+    struct efi_guid rng_guid = EFI_RNG_PROTOCOL_GUID;
+    struct efi_rng_protocol *rng = NULL;
 
-    EFI_STATUS status = gBS->LocateProtocol(&rng_guid, NULL, (void **)&rng);
+    efi_status status = gBS->locate_protocol(&rng_guid, NULL, (void **)&rng);
     if (status != EFI_SUCCESS || rng == NULL) {
         printv("rng_seed: No EFI RNG protocol\n");
         return 0;
@@ -78,7 +78,7 @@ static size_t seed_gather(uint8_t *buf) {
     // Every driver has a default algorithm (UEFI 2.11 section 37.5.2); raw,
     // where offered, is the entropy source with no DRBG in front (section
     // 37.5.4). Taking both means neither path alone decides the seed.
-    EFI_RNG_ALGORITHM raw = EFI_RNG_ALGORITHM_RAW;
+    efi_rng_algorithm raw = EFI_RNG_ALGORITHM_RAW;
     size_t filled = seed_request(rng, NULL, buf);
     filled += seed_request(rng, &raw, buf + filled);
 
@@ -88,10 +88,10 @@ static size_t seed_gather(uint8_t *buf) {
 // Material that a later boot could read again must never seed this one, so
 // the variable is deleted before its bytes are used.
 static size_t seed_take_variable(uint8_t *buf) {
-    EFI_GUID guid = RNG_SEED_TABLE_GUID;
-    EFI_UINTN size = RNG_SEED_MAX;
+    struct efi_guid guid = RNG_SEED_TABLE_GUID;
+    size_t size = RNG_SEED_MAX;
 
-    EFI_STATUS status = gRT->GetVariable(RNG_SEED_VAR_NAME, &guid, NULL, &size, buf);
+    efi_status status = gRT->get_variable(RNG_SEED_VAR_NAME, &guid, NULL, &size, buf);
     if (status == EFI_NOT_FOUND) {
         return 0;
     }
@@ -107,7 +107,7 @@ static size_t seed_take_variable(uint8_t *buf) {
 
     // With no attributes and no data, this is a delete that need not match
     // the attributes the variable was set with (UEFI 2.11 section 8.2.3).
-    status = gRT->SetVariable(RNG_SEED_VAR_NAME, &guid, 0, 0, NULL);
+    status = gRT->set_variable(RNG_SEED_VAR_NAME, &guid, 0, 0, NULL);
     if (status != EFI_SUCCESS) {
         seed_wipe(buf, RNG_SEED_MAX);
         printv("rng_seed: Failed to delete RandomSeed (%X), not using it\n", (uint64_t)status);
@@ -125,15 +125,15 @@ static size_t seed_take_variable(uint8_t *buf) {
 }
 
 void rng_seed_install(void) {
-    EFI_GUID table_guid = RNG_SEED_TABLE_GUID;
+    struct efi_guid table_guid = RNG_SEED_TABLE_GUID;
 
     // Nothing says an earlier stage's table is aligned, so it is only ever
     // accessed as bytes.
     uint8_t *prev = NULL;
-    for (EFI_UINTN i = 0; i < gST->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE *entry = &gST->ConfigurationTable[i];
-        if (memcmp(&entry->VendorGuid, &table_guid, sizeof(EFI_GUID)) == 0) {
-            prev = entry->VendorTable;
+    for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+        struct efi_configuration_table *entry = &gST->configuration_table[i];
+        if (memcmp(&entry->vendor_guid, &table_guid, sizeof(struct efi_guid)) == 0) {
+            prev = entry->vendor_table;
             break;
         }
     }
@@ -170,7 +170,7 @@ void rng_seed_install(void) {
     // 2.11 section 7.2, table 7.6), which is long enough, whereas
     // EfiRuntimeServicesData would pin the seed for the life of the system.
     struct rng_seed_table *table = NULL;
-    EFI_STATUS status = gBS->AllocatePool(EfiACPIReclaimMemory, table_size, (void **)&table);
+    efi_status status = gBS->allocate_pool(EFI_ACPI_RECLAIM_MEMORY, table_size, (void **)&table);
     if (status != EFI_SUCCESS) {
         seed_wipe(fresh, sizeof(fresh));
         printv("rng_seed: Failed to allocate the table (%X)\n", (uint64_t)status);
@@ -186,10 +186,10 @@ void rng_seed_install(void) {
 
     seed_wipe(fresh, sizeof(fresh));
 
-    status = gBS->InstallConfigurationTable(&table_guid, table);
+    status = gBS->install_configuration_table(&table_guid, table);
     if (status != EFI_SUCCESS) {
         seed_wipe(table, table_size);
-        gBS->FreePool(table);
+        gBS->free_pool(table);
         printv("rng_seed: Failed to install the table (%X)\n", (uint64_t)status);
         return;
     }

@@ -17,13 +17,13 @@
 #include <libfdt.h>
 
 #if defined(UEFI)
-EFI_SYSTEM_TABLE *gST;
-EFI_BOOT_SERVICES *gBS;
-EFI_RUNTIME_SERVICES *gRT;
-EFI_HANDLE efi_image_handle;
-EFI_MEMORY_DESCRIPTOR *efi_mmap = NULL;
-EFI_UINTN efi_mmap_size = 0, efi_desc_size = 0, efi_mmap_key = 0;
-EFI_UINT32 efi_desc_ver = 0;
+struct efi_system_table *gST;
+struct efi_boot_services *gBS;
+struct efi_runtime_services *gRT;
+efi_handle efi_image_handle;
+struct efi_memory_descriptor *efi_mmap = NULL;
+size_t efi_mmap_size = 0, efi_desc_size = 0, efi_mmap_key = 0;
+uint32_t efi_desc_ver = 0;
 #endif
 
 #if defined(UEFI) && defined(__x86_64__)
@@ -81,11 +81,11 @@ void prepare_spinup_tramp(void) {
     // spinup_go32 runs from here in compatibility mode, before it turns paging
     // off, so the firmware page tables still govern it. An EfiLoaderCode
     // allocation is not on its own a promise that the pages are executable.
-    EFI_GUID mem_attr_guid = EFI_MEMORY_ATTRIBUTE_PROTOCOL_GUID;
-    EFI_MEMORY_ATTRIBUTE_PROTOCOL *mem_attr = NULL;
-    if (gBS->LocateProtocol(&mem_attr_guid, NULL, (void **)&mem_attr) == EFI_SUCCESS) {
-        mem_attr->ClearMemoryAttributes(mem_attr,
-            (EFI_PHYSICAL_ADDRESS)(uintptr_t)spinup_tramp_buf,
+    struct efi_guid mem_attr_guid = EFI_MEMORY_ATTRIBUTE_PROTOCOL_GUID;
+    struct efi_memory_attribute_protocol *mem_attr = NULL;
+    if (gBS->locate_protocol(&mem_attr_guid, NULL, (void **)&mem_attr) == EFI_SUCCESS) {
+        mem_attr->clear_memory_attributes(mem_attr,
+            (efi_physical_address)(uintptr_t)spinup_tramp_buf,
             ALIGN_UP(total, 4096, panic(false, "spinup: trampoline overflow")),
             EFI_MEMORY_XP);
     }
@@ -126,11 +126,11 @@ uint64_t usec_at_bootloader_entry;
 
 #if defined(UEFI)
 bool is_efi_serial_present(void) {
-    EFI_STATUS status;
-    EFI_SERIAL_IO_PROTOCOL *serial_io = NULL;
-    EFI_GUID serial_io_guid = EFI_SERIAL_IO_PROTOCOL_GUID;
+    efi_status status;
+    struct efi_serial_io_protocol *serial_io = NULL;
+    struct efi_guid serial_io_guid = EFI_SERIAL_IO_PROTOCOL_GUID;
 
-    status = gBS->LocateProtocol(&serial_io_guid, NULL, (void **)&serial_io);
+    status = gBS->locate_protocol(&serial_io_guid, NULL, (void **)&serial_io);
     if (status) {
         return false;
     }
@@ -139,8 +139,8 @@ bool is_efi_serial_present(void) {
         return false;
     }
 
-    EFI_UINT32 control;
-    status = serial_io->GetControl(serial_io, &control);
+    uint32_t control;
+    status = serial_io->get_control(serial_io, &control);
     if (status) {
         return false;
     }
@@ -276,18 +276,18 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
 
 #if defined(UEFI)
     if (!dtb) {
-        EFI_GUID dtb_guid = EFI_DTB_TABLE_GUID;
-        for (size_t i = 0; i < gST->NumberOfTableEntries; i++) {
-            EFI_CONFIGURATION_TABLE *cur_table = &gST->ConfigurationTable[i];
-            if (memcmp(&cur_table->VendorGuid, &dtb_guid, sizeof(EFI_GUID)))
+        struct efi_guid dtb_guid = EFI_DTB_TABLE_GUID;
+        for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+            struct efi_configuration_table *cur_table = &gST->configuration_table[i];
+            if (memcmp(&cur_table->vendor_guid, &dtb_guid, sizeof(struct efi_guid)))
                 continue;
-            size = fdt_totalsize(cur_table->VendorTable);
+            size = fdt_totalsize(cur_table->vendor_table);
             if (measure) {
                 tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                            cur_table->VendorTable, size, "efi_dtb", NULL);
+                            cur_table->vendor_table, size, "efi_dtb", NULL);
             }
             dtb = ext_mem_alloc(size);
-            ret = fdt_open_into(cur_table->VendorTable, dtb, size);
+            ret = fdt_open_into(cur_table->vendor_table, dtb, size);
             if (ret < 0) {
                 if (required) {
                     panic(true, "dtb: failed to resize new DTB");
@@ -296,7 +296,7 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
                 dtb = NULL;
                 size = 0;
             } else {
-                printv("dtb: found dtb at %p via EFI\n", cur_table->VendorTable);
+                printv("dtb: found dtb at %p via EFI\n", cur_table->vendor_table);
             }
             break;
         }
@@ -354,35 +354,35 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
 
 #if defined(__riscv)
 
-EFI_RISCV_EFI_BOOT_PROTOCOL *get_riscv_boot_protocol(void) {
-    EFI_GUID boot_proto_guid = EFI_RISCV_EFI_BOOT_PROTOCOL_GUID;
-    EFI_RISCV_EFI_BOOT_PROTOCOL *proto;
+struct efi_riscv_efi_boot_protocol *get_riscv_boot_protocol(void) {
+    struct efi_guid boot_proto_guid = EFI_RISCV_EFI_BOOT_PROTOCOL_GUID;
+    struct efi_riscv_efi_boot_protocol *proto;
 
     // LocateProtocol() is available from EFI version 1.1
-    if (gBS->Hdr.Revision >= ((1 << 16) | 10)) {
-        if (gBS->LocateProtocol(&boot_proto_guid, NULL, (void **)&proto) == EFI_SUCCESS) {
+    if (gBS->hdr.revision >= ((1 << 16) | 10)) {
+        if (gBS->locate_protocol(&boot_proto_guid, NULL, (void **)&proto) == EFI_SUCCESS) {
             return proto;
         }
     }
 
-    EFI_UINTN bufsz = 0;
-    if (gBS->LocateHandle(EfiByProtocol, &boot_proto_guid, NULL, &bufsz, NULL) != EFI_BUFFER_TOO_SMALL) {
+    size_t bufsz = 0;
+    if (gBS->locate_handle(EFI_BY_PROTOCOL, &boot_proto_guid, NULL, &bufsz, NULL) != EFI_BUFFER_TOO_SMALL) {
         return NULL;
     }
 
-    EFI_UINTN handles_alloc = bufsz;
-    EFI_HANDLE *handles_buf = ext_mem_alloc(handles_alloc);
+    size_t handles_alloc = bufsz;
+    efi_handle *handles_buf = ext_mem_alloc(handles_alloc);
     if (handles_buf == NULL)
         return NULL;
 
-    if (bufsz < sizeof(EFI_HANDLE))
+    if (bufsz < sizeof(efi_handle))
         goto error;
 
-    if (gBS->LocateHandle(EfiByProtocol, &boot_proto_guid, NULL, &bufsz, handles_buf) != EFI_SUCCESS) {
+    if (gBS->locate_handle(EFI_BY_PROTOCOL, &boot_proto_guid, NULL, &bufsz, handles_buf) != EFI_SUCCESS) {
         goto error;
     }
 
-    if (gBS->HandleProtocol(handles_buf[0], &boot_proto_guid, (void **)&proto) != EFI_SUCCESS)
+    if (gBS->handle_protocol(handles_buf[0], &boot_proto_guid, (void **)&proto) != EFI_SUCCESS)
         goto error;
 
     pmm_free(handles_buf, handles_alloc);
@@ -397,18 +397,18 @@ error:
 
 no_unwind bool efi_boot_services_exited = false;
 
-EFI_UINTN efi_rebuilt_mmap_max_size(EFI_UINTN mmap_size) {
+size_t efi_rebuilt_mmap_max_size(size_t mmap_size) {
     // Slack for what allocations add to the map before its final read.
-    EFI_UINTN size = CHECKED_ADD(mmap_size, (EFI_UINTN)4096, return 0);
+    size_t size = CHECKED_ADD(mmap_size, (size_t)4096, return 0);
     // Cutting a descriptor at both edges of every region we own can add two
     // descriptors per region on top of the firmware's own.
-    EFI_UINTN split_slack = CHECKED_MUL((EFI_UINTN)untouched_memmap_entries, (EFI_UINTN)2, return 0);
+    size_t split_slack = CHECKED_MUL((size_t)untouched_memmap_entries, (size_t)2, return 0);
     split_slack = CHECKED_MUL(split_slack, efi_desc_size, return 0);
-    return CHECKED_ADD(CHECKED_MUL(size, (EFI_UINTN)2, return 0), split_slack, return 0);
+    return CHECKED_ADD(CHECKED_MUL(size, (size_t)2, return 0), split_slack, return 0);
 }
 
-bool efi_exit_boot_services(void) {
-    EFI_STATUS status;
+bool efi_leave_boot_services(void) {
+    efi_status status;
 
     // Pull entropy from EFI_RNG_PROTOCOL while it's still callable and
     // publish it for the kernel to mix into its early RNG state.
@@ -420,15 +420,15 @@ bool efi_exit_boot_services(void) {
 
     // Free the buffer init_memmap left us; the loop below manages
     // allocation lifetime itself.
-    status = gBS->FreePool(efi_mmap);
+    status = gBS->free_pool(efi_mmap);
     if (status) {
         goto fail;
     }
     efi_mmap = NULL;
 
-    EFI_MEMORY_DESCRIPTOR *efi_copy = NULL;
-    EFI_UINTN efi_mmap_alloc = 0;
-    EFI_UINTN efi_copy_alloc = 0;
+    struct efi_memory_descriptor *efi_copy = NULL;
+    size_t efi_mmap_alloc = 0;
+    size_t efi_copy_alloc = 0;
 
     bli_on_boot();
 
@@ -438,11 +438,11 @@ bool efi_exit_boot_services(void) {
         }
 
         efi_mmap_size = efi_mmap_alloc;
-        status = gBS->GetMemoryMap(&efi_mmap_size, efi_mmap, &efi_mmap_key,
+        status = gBS->get_memory_map(&efi_mmap_size, efi_mmap, &efi_mmap_key,
                                    &efi_desc_size, &efi_desc_ver);
 
         // The rebuild strides by this call's size, not an earlier call's.
-        if (efi_desc_size < sizeof(EFI_MEMORY_DESCRIPTOR)) {
+        if (efi_desc_size < sizeof(struct efi_memory_descriptor)) {
             goto fail;
         }
 
@@ -451,15 +451,15 @@ bool efi_exit_boot_services(void) {
             // reallocate, with slack for the descriptors AllocatePool
             // itself may add.
             if (efi_mmap != NULL) {
-                gBS->FreePool(efi_mmap);
+                gBS->free_pool(efi_mmap);
                 efi_mmap = NULL;
             }
             if (efi_copy != NULL) {
-                gBS->FreePool(efi_copy);
+                gBS->free_pool(efi_copy);
                 efi_copy = NULL;
             }
             efi_mmap_alloc = efi_mmap_size + 4096;
-            status = gBS->AllocatePool(EfiLoaderData, efi_mmap_alloc,
+            status = gBS->allocate_pool(EFI_LOADER_DATA, efi_mmap_alloc,
                                        (void **)&efi_mmap);
             if (status) {
                 goto fail;
@@ -468,7 +468,7 @@ bool efi_exit_boot_services(void) {
             if (efi_copy_alloc == 0) {
                 goto fail;
             }
-            status = gBS->AllocatePool(EfiLoaderData, efi_copy_alloc,
+            status = gBS->allocate_pool(EFI_LOADER_DATA, efi_copy_alloc,
                                        (void **)&efi_copy);
             if (status) {
                 goto fail;
@@ -480,7 +480,7 @@ bool efi_exit_boot_services(void) {
         }
 
         // Be gone, UEFI!
-        status = gBS->ExitBootServices(efi_image_handle, efi_mmap_key);
+        status = gBS->exit_boot_services(efi_image_handle, efi_mmap_key);
         if (status == EFI_SUCCESS) {
             // The map rebuild below can panic, and term_fallback() picks its
             // backend off this flag: the console protocol is already gone.
@@ -510,14 +510,14 @@ bool efi_exit_boot_services(void) {
     size_t efi_copy_i = 0;
 
     for (size_t i = 0; i < entry_count; i++) {
-        EFI_MEMORY_DESCRIPTOR *orig_entry = (void *)efi_mmap + i * efi_desc_size;
+        struct efi_memory_descriptor *orig_entry = (void *)efi_mmap + i * efi_desc_size;
 
-        if (orig_entry->NumberOfPages == 0) {
+        if (orig_entry->number_of_pages == 0) {
             continue;
         }
 
-        uint64_t base = orig_entry->PhysicalStart;
-        uint64_t top = base + orig_entry->NumberOfPages * 4096;
+        uint64_t base = orig_entry->physical_start;
+        uint64_t top = base + orig_entry->number_of_pages * 4096;
 
         // Emit the descriptor in runs, cut wherever it crosses the edge of a
         // region we own. Firmware is free to describe several of our regions
@@ -547,15 +547,16 @@ bool efi_exit_boot_services(void) {
                 }
             }
 
-            EFI_MEMORY_DESCRIPTOR *new_entry = (void *)efi_copy + efi_copy_i * efi_desc_size;
+            struct efi_memory_descriptor *new_entry = (void *)efi_copy
+                                                    + efi_copy_i * efi_desc_size;
             memcpy(new_entry, orig_entry, efi_desc_size);
-            new_entry->PhysicalStart = cur;
-            new_entry->NumberOfPages = (run_top - cur) / 4096;
+            new_entry->physical_start = cur;
+            new_entry->number_of_pages = (run_top - cur) / 4096;
             if (owned) {
-                new_entry->Type = EfiConventionalMemory;
+                new_entry->type = EFI_CONVENTIONAL_MEMORY;
             }
             if (cur != base) {
-                new_entry->VirtualStart = 0;
+                new_entry->virtual_start = 0;
             }
 
             efi_copy_i++;

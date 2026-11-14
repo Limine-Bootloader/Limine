@@ -418,7 +418,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         memcpy(raw_path_copy, raw->path, raw_path_len);
     }
 #if defined(UEFI)
-    EFI_HANDLE raw_efi_part = raw->efi_part_handle;
+    efi_handle raw_efi_part = raw->efi_part_handle;
 #endif
     bool raw_pxe = raw->pxe;
     uint8_t raw_pxe_ip[4];

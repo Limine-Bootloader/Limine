@@ -30,26 +30,26 @@
 void stage3_common(void);
 
 #if defined(UEFI)
-noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
-    gST = SystemTable;
-    gBS = SystemTable->BootServices;
-    gRT = SystemTable->RuntimeServices;
-    efi_image_handle = ImageHandle;
+noreturn void uefi_entry(efi_handle image_handle, struct efi_system_table *system_table) {
+    gST = system_table;
+    gBS = system_table->boot_services;
+    gRT = system_table->runtime_services;
+    efi_image_handle = image_handle;
 
     reseed_stack_guard();
 
     calibrate_tsc();
     usec_at_bootloader_entry = rdtsc_usec();
 
-    EFI_STATUS status;
+    efi_status status;
 
-    gST->ConOut->EnableCursor(gST->ConOut, false);
+    gST->con_out->enable_cursor(gST->con_out, false);
 
     init_memmap();
 
     term_fallback();
 
-    status = gBS->SetWatchdogTimer(0, 0x10000, 0, NULL);
+    status = gBS->set_watchdog_timer(0, 0x10000, 0, NULL);
     if (status) {
         print("WARNING: Failed to disable watchdog timer!\n");
     }
@@ -66,14 +66,14 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
 
     // Detect UEFI Secure Boot
     {
-        EFI_GUID global_variable = EFI_GLOBAL_VARIABLE;
-        EFI_UINT8 secure_boot = 0;
-        EFI_UINTN sb_size = sizeof(secure_boot);
-        EFI_STATUS sb_status = gRT->GetVariable(L"SecureBoot", &global_variable, NULL, &sb_size, &secure_boot);
+        struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
+        uint8_t secure_boot = 0;
+        size_t sb_size = sizeof(secure_boot);
+        efi_status sb_status = gRT->get_variable(L"SecureBoot", &global_variable, NULL, &sb_size, &secure_boot);
         if (sb_status == EFI_SUCCESS && secure_boot == 1) {
-            EFI_UINT8 setup_mode = 0;
-            EFI_UINTN sm_size = sizeof(setup_mode);
-            EFI_STATUS sm_status = gRT->GetVariable(L"SetupMode", &global_variable, NULL, &sm_size, &setup_mode);
+            uint8_t setup_mode = 0;
+            size_t sm_size = sizeof(setup_mode);
+            efi_status sm_status = gRT->get_variable(L"SetupMode", &global_variable, NULL, &sm_size, &setup_mode);
             if (sm_status != EFI_SUCCESS || setup_mode == 0) {
                 secure_boot_active = true;
             }
@@ -84,7 +84,7 @@ noreturn void uefi_entry(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) 
 
     boot_volume = NULL;
 
-    EFI_HANDLE current_handle = ImageHandle;
+    efi_handle current_handle = image_handle;
     for (size_t j = 0; j < 25; j++) {
         if (current_handle == NULL) {
 could_not_match:
@@ -143,23 +143,23 @@ opened:
             panic(false, "No volume contained a Limine configuration file");
         }
 
-        EFI_GUID loaded_img_prot_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
-        EFI_LOADED_IMAGE_PROTOCOL *loaded_image = NULL;
+        struct efi_guid loaded_img_prot_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+        struct efi_loaded_image_protocol *loaded_image = NULL;
 
-        status = gBS->HandleProtocol(current_handle, &loaded_img_prot_guid,
+        status = gBS->handle_protocol(current_handle, &loaded_img_prot_guid,
                                      (void **)&loaded_image);
 
         if (status) {
             goto could_not_match;
         }
 
-        boot_volume = disk_volume_from_efi_handle(loaded_image->DeviceHandle);
+        boot_volume = disk_volume_from_efi_handle(loaded_image->device_handle);
 
         if (boot_volume != NULL) {
             stage3_common();
         }
 
-        current_handle = loaded_image->ParentHandle;
+        current_handle = loaded_image->parent_handle;
     }
 
     goto could_not_match;
@@ -170,12 +170,13 @@ opened:
 // Firmware predating RISCV_EFI_BOOT_PROTOCOL passes the boot hart in the
 // device tree it publishes instead.
 static bool get_dtb_boot_hartid(size_t *hartid) {
-    EFI_GUID dtb_guid = EFI_DTB_TABLE_GUID;
+    struct efi_guid dtb_guid = EFI_DTB_TABLE_GUID;
     void *dtb = NULL;
 
-    for (size_t i = 0; i < gST->NumberOfTableEntries; i++) {
-        if (memcmp(&gST->ConfigurationTable[i].VendorGuid, &dtb_guid, sizeof(EFI_GUID)) == 0) {
-            dtb = gST->ConfigurationTable[i].VendorTable;
+    for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+        struct efi_configuration_table *table = &gST->configuration_table[i];
+        if (memcmp(&table->vendor_guid, &dtb_guid, sizeof(struct efi_guid)) == 0) {
+            dtb = table->vendor_table;
             break;
         }
     }
@@ -215,8 +216,8 @@ noreturn void stage3_common(void) {
 
 #if defined(__riscv)
 #if defined(UEFI)
-    EFI_RISCV_EFI_BOOT_PROTOCOL *rv_proto = get_riscv_boot_protocol();
-    if (rv_proto == NULL || rv_proto->GetBootHartId(rv_proto, &bsp_hartid) != EFI_SUCCESS) {
+    struct efi_riscv_efi_boot_protocol *rv_proto = get_riscv_boot_protocol();
+    if (rv_proto == NULL || rv_proto->get_boot_hart_id(rv_proto, &bsp_hartid) != EFI_SUCCESS) {
         if (!get_dtb_boot_hartid(&bsp_hartid)) {
             panic(false, "failed to get BSP's hartid");
         }
