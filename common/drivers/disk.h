@@ -10,7 +10,7 @@
 
 #include <efi.h>
 
-struct volume *disk_volume_from_efi_handle(efi_handle efi_handle);
+struct volume *disk_volume_from_efi_handle(efi_handle handle);
 
 #endif
 

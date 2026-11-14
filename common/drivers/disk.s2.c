@@ -374,7 +374,7 @@ int disk_read_sectors(struct volume *volume, void *buf, uint64_t block, size_t c
     }
 }
 
-static struct volume *pxe_from_efi_handle(efi_handle efi_handle) {
+static struct volume *pxe_from_efi_handle(efi_handle handle) {
     static struct volume *vol = NULL;
 
     efi_status status;
@@ -382,7 +382,7 @@ static struct volume *pxe_from_efi_handle(efi_handle efi_handle) {
     struct efi_guid pxe_base_code_guid = EFI_PXE_BASE_CODE_PROTOCOL_GUID;
     struct efi_pxe_base_code_protocol *pxe_base_code = NULL;
 
-    status = gBS->handle_protocol(efi_handle, &pxe_base_code_guid, (void **)&pxe_base_code);
+    status = gBS->handle_protocol(handle, &pxe_base_code_guid, (void **)&pxe_base_code);
     if (status) {
         return NULL;
     }
@@ -403,7 +403,7 @@ static struct volume *pxe_from_efi_handle(efi_handle efi_handle) {
         return NULL;
     }
 
-    vol = pxe_bind_volume(efi_handle, pxe_base_code);
+    vol = pxe_bind_volume(handle, pxe_base_code);
     return vol;
 }
 
@@ -466,7 +466,7 @@ static struct volume *volume_by_sector_hash(void *b2b) {
     return NULL;
 }
 
-static bool is_efi_handle_to_skip(efi_handle efi_handle) {
+static bool is_efi_handle_to_skip(efi_handle handle) {
     efi_status status;
 
     struct efi_guid dp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
@@ -479,7 +479,7 @@ static bool is_efi_handle_to_skip(efi_handle efi_handle) {
         {0x7CCE9C94, 0x983F, 0x4D0A, {0x81, 0x43, 0xB6, 0xC0, 0x55, 0x45, 0xB2, 0x23}},
     };
 
-    status = gBS->handle_protocol(efi_handle, &dp_guid, (void **)&dp);
+    status = gBS->handle_protocol(handle, &dp_guid, (void **)&dp);
     if (status) {
         return false;
     }
@@ -514,13 +514,13 @@ static bool is_efi_handle_to_skip(efi_handle efi_handle) {
     return false;
 }
 
-static bool is_efi_handle_optical(efi_handle efi_handle) {
+static bool is_efi_handle_optical(efi_handle handle) {
     efi_status status;
 
     struct efi_guid dp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
     struct efi_device_path_protocol *dp = NULL;
 
-    status = gBS->handle_protocol(efi_handle, &dp_guid, (void **)&dp);
+    status = gBS->handle_protocol(handle, &dp_guid, (void **)&dp);
     if (status) {
         return false;
     }
@@ -544,12 +544,12 @@ static bool is_efi_handle_optical(efi_handle efi_handle) {
     return false;
 }
 
-static struct efi_device_path_protocol *get_device_path(efi_handle efi_handle) {
+static struct efi_device_path_protocol *get_device_path(efi_handle handle) {
     efi_status status;
     struct efi_guid dp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
     struct efi_device_path_protocol *dp = NULL;
 
-    status = gBS->handle_protocol(efi_handle, &dp_guid, (void **)&dp);
+    status = gBS->handle_protocol(handle, &dp_guid, (void **)&dp);
     if (status) {
         return NULL;
     }
@@ -664,23 +664,23 @@ static struct volume *volume_by_device_path(efi_handle query_handle, bool cdrom_
     return cdrom_medium_fallback ? cdrom_medium : NULL;
 }
 
-static struct volume *volume_from_efi_handle(efi_handle efi_handle, bool cdrom_medium_fallback) {
+static struct volume *volume_from_efi_handle(efi_handle handle, bool cdrom_medium_fallback) {
     efi_status status;
 
     struct efi_guid block_io_guid = EFI_BLOCK_IO_PROTOCOL_GUID;
     struct efi_block_io_protocol *block_io = NULL;
 
-    if (is_efi_handle_to_skip(efi_handle)) {
+    if (is_efi_handle_to_skip(handle)) {
         return NULL;
     }
 
-    status = gBS->handle_protocol(efi_handle, &block_io_guid, (void **)&block_io);
+    status = gBS->handle_protocol(handle, &block_io_guid, (void **)&block_io);
     if (status) {
-        return pxe_from_efi_handle(efi_handle);
+        return pxe_from_efi_handle(handle);
     }
 
     // Try device path matching first (primary method)
-    struct volume *ret = volume_by_device_path(efi_handle, cdrom_medium_fallback);
+    struct volume *ret = volume_by_device_path(handle, cdrom_medium_fallback);
     if (ret != NULL) {
         return ret;
     }
@@ -718,11 +718,11 @@ static struct volume *volume_from_efi_handle(efi_handle efi_handle, bool cdrom_m
     // A Block I/O matching no volume does not rule out having booted over the
     // network from this handle: PXE stacks have been known to leave a
     // non-functional one behind on it.
-    return pxe_from_efi_handle(efi_handle);
+    return pxe_from_efi_handle(handle);
 }
 
-struct volume *disk_volume_from_efi_handle(efi_handle efi_handle) {
-    return volume_from_efi_handle(efi_handle, true);
+struct volume *disk_volume_from_efi_handle(efi_handle handle) {
+    return volume_from_efi_handle(handle, true);
 }
 
 static void find_unique_sectors(void) {
@@ -795,11 +795,11 @@ static void find_part_handles(efi_handle *handles, size_t handle_count) {
     }
 }
 
-static bool is_efi_handle_driver_managed(efi_handle efi_handle, struct efi_guid *protocol) {
+static bool is_efi_handle_driver_managed(efi_handle handle, struct efi_guid *protocol) {
     struct efi_open_protocol_information_entry *entries = NULL;
     size_t entries_count = 0;
 
-    if (gBS->open_protocol_information(efi_handle, protocol,
+    if (gBS->open_protocol_information(handle, protocol,
                                      &entries, &entries_count) != EFI_SUCCESS) {
         return false;
     }
@@ -820,19 +820,19 @@ static bool is_efi_handle_driver_managed(efi_handle efi_handle, struct efi_guid 
     return managed;
 }
 
-static bool should_connect_storage_controller(efi_handle efi_handle, bool bound) {
+static bool should_connect_storage_controller(efi_handle handle, bool bound) {
     struct efi_guid block_io_guid = EFI_BLOCK_IO_PROTOCOL_GUID;
     void *block_io = NULL;
-    if (gBS->handle_protocol(efi_handle, &block_io_guid, &block_io) == EFI_SUCCESS) {
+    if (gBS->handle_protocol(handle, &block_io_guid, &block_io) == EFI_SUCCESS) {
         // A disk or partition already claimed by a partition or filesystem
         // driver has nothing left to connect.
         struct efi_guid disk_io_guid = EFI_DISK_IO_PROTOCOL_GUID;
-        return !is_efi_handle_driver_managed(efi_handle, &disk_io_guid);
+        return !is_efi_handle_driver_managed(handle, &disk_io_guid);
     }
 
     struct efi_guid pci_io_guid = EFI_PCI_IO_PROTOCOL_GUID;
     struct efi_pci_io_protocol *pci_io = NULL;
-    if (gBS->handle_protocol(efi_handle, &pci_io_guid, (void **)&pci_io) != EFI_SUCCESS) {
+    if (gBS->handle_protocol(handle, &pci_io_guid, (void **)&pci_io) != EFI_SUCCESS) {
         return false;
     }
 
@@ -854,7 +854,7 @@ static bool should_connect_storage_controller(efi_handle efi_handle, bool bound)
     // Unless asked to, only connect controllers no bus driver has bound yet
     // (the Fast Boot case of ticket #598). Re-connecting live controllers
     // makes some buggy firmware misbehave, up to spontaneous resets.
-    return bound || !is_efi_handle_driver_managed(efi_handle, &pci_io_guid);
+    return bound || !is_efi_handle_driver_managed(handle, &pci_io_guid);
 }
 
 // Recursively, so that their disks and partitions appear, without pulling in
@@ -874,9 +874,9 @@ static void connect_storage_controllers(bool bound) {
     gBS->free_pool(all_handles);
 }
 
-static bool is_efi_handle_indexed(efi_handle efi_handle) {
+static bool is_efi_handle_indexed(efi_handle handle) {
     for (size_t i = 0; i < volume_index_i; i++) {
-        if (volume_index[i]->efi_handle == efi_handle) {
+        if (volume_index[i]->efi_handle == handle) {
             return true;
         }
     }

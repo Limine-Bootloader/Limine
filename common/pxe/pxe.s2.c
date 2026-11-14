@@ -75,12 +75,12 @@ void pxe_init(void) {
 #elif defined(UEFI)
 
 struct volume *pxe_bind_volume(
-    efi_handle efi_handle,
+    efi_handle handle,
     struct efi_pxe_base_code_protocol *pxe_base_code
 ) {
     struct volume *volume = ext_mem_alloc(sizeof(struct volume));
 
-    volume->efi_handle = efi_handle;
+    volume->efi_handle = handle;
     volume->pxe_base_code = pxe_base_code;
     volume->pxe = true;
 
