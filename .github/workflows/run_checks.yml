@@ -4,13 +4,37 @@ on: [ push, pull_request ]
 
 jobs:
   run_checks:
-    name: Run the checks (${{ matrix.port }})
+    name: Run the checks (${{ matrix.toolchain }}, ${{ matrix.port }})
     runs-on: ubuntu-latest
     container: archlinux:latest
+    env:
+      GCC_VERSION: 16.2.0
     strategy:
       fail-fast: false
       matrix:
+        toolchain: [ llvm, gnu ]
         port: [ bios, uefi-ia32, uefi-x86-64, uefi-aarch64, uefi-riscv64, uefi-loongarch64 ]
+        # The GCC cross toolchain each port needs, and the ports built with it,
+        # which take in the images the port's checks boot.
+        include:
+          - port: bios
+            gnu_arch: x86_64
+            gnu_ports: --enable-bios --enable-bios-cd --enable-bios-pxe --enable-uefi-ia32 --enable-uefi-x86-64 --enable-uefi-cd
+          - port: uefi-ia32
+            gnu_arch: x86_64
+            gnu_ports: --enable-bios --enable-bios-cd --enable-bios-pxe --enable-uefi-ia32 --enable-uefi-x86-64 --enable-uefi-cd
+          - port: uefi-x86-64
+            gnu_arch: x86_64
+            gnu_ports: --enable-bios --enable-bios-cd --enable-bios-pxe --enable-uefi-ia32 --enable-uefi-x86-64 --enable-uefi-cd
+          - port: uefi-aarch64
+            gnu_arch: aarch64
+            gnu_ports: --enable-uefi-aarch64 --enable-uefi-cd
+          - port: uefi-riscv64
+            gnu_arch: riscv64
+            gnu_ports: --enable-uefi-riscv64 --enable-uefi-cd
+          - port: uefi-loongarch64
+            gnu_arch: loongarch64
+            gnu_ports: --enable-uefi-loongarch64 --enable-uefi-cd
 
     steps:
       - name: Install dependencies
@@ -19,8 +43,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Build the bootloader
+      # On the PATH for the checks too, which build what they boot with it.
+      - name: Download the GCC cross toolchain
+        if: ${{ matrix.toolchain == 'gnu' }}
+        run: |
+          curl -Lo gcc.tar.gz https://mirrors.edge.kernel.org/pub/tools/crosstool/files/bin/x86_64/${{ env.GCC_VERSION }}/x86_64-gcc-${{ env.GCC_VERSION }}-nolibc-${{ matrix.gnu_arch }}-linux.tar.gz
+          tar -xf gcc.tar.gz
+          echo "$(pwd -P)/gcc-${{ env.GCC_VERSION }}-nolibc/${{ matrix.gnu_arch }}-linux/bin" >> "$GITHUB_PATH"
+
+      - name: Build the bootloader (LLVM)
+        if: ${{ matrix.toolchain == 'llvm' }}
         run: ./bootstrap && ./configure --enable-werror --enable-all && make all -j$(nproc)
+
+      - name: Build the bootloader (GNU)
+        if: ${{ matrix.toolchain == 'gnu' }}
+        run: ./bootstrap && ./configure TOOLCHAIN_FOR_TARGET=${{ matrix.gnu_arch }}-linux- --enable-werror ${{ matrix.gnu_ports }} && make all -j$(nproc)
 
       # The checks' timeouts are set for machines faster than GitHub's runners.
       - name: Run the checks for ${{ matrix.port }}
@@ -32,5 +69,5 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
-          name: checks-results-${{ matrix.port }}
+          name: checks-results-${{ matrix.toolchain }}-${{ matrix.port }}
           path: checks-results
