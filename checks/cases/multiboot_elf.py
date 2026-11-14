@@ -124,3 +124,27 @@ def mb2_target_over_staging(t):
     loader would otherwise stage the others [intent]."""
     m = boot_mb2(t, target_over_staging(mb2_kernel(t)))
     mb2_report(t, m)
+
+
+def many_segments(path):
+    """600 more segments, of a page each with a page between them, from
+    128MiB."""
+    e = ElfFile(read(path))
+    page = {'p_type': PT_LOAD, 'p_offset': 0, 'p_filesz': 0, 'p_memsz': 0x1000, 'p_flags': 4, 'p_align': 0x1000}
+    extra = [dict(page, p_vaddr=0x8000000 + i * 0x2000, p_paddr=0x8000000 + i * 0x2000) for i in range(600)]
+    return e.with_phdrs(e.phdrs + extra)
+
+
+@check(ports=X86_PORTS, tags=['multiboot1', 'elf'])
+def mb1_many_segments(t):
+    """Load a kernel with too many segments apart to reserve one by one
+    [intent]."""
+    m = boot_mb1(t, many_segments(mb1_kernel(t)))
+    mb1_report(t, m)
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf'])
+def mb2_many_segments(t):
+    """The same for Multiboot 2."""
+    m = boot_mb2(t, many_segments(mb2_kernel(t)))
+    mb2_report(t, m)
