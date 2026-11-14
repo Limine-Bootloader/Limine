@@ -470,7 +470,8 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
 
         switch (reloc_tag.preference) {
             default:
-            case 0: case 1: // No preference / prefer lowest
+            case 0:
+            case 1: { // No preference / prefer lowest
                 reloc_ascend = true;
                 relocated_base = ALIGN_UP(reloc_tag.min_addr, reloc_tag.align, goto reloc_fail);
                 uint64_t relocated_top = CHECKED_ADD(relocated_base, image_span, goto reloc_fail);
@@ -478,6 +479,7 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
                     goto reloc_fail;
                 }
                 break;
+            }
             case 2: // Prefer highest
                 reloc_ascend = false;
                 if (image_span > reloc_tag.max_addr) {
@@ -546,16 +548,11 @@ cand_fail:
         }
 
         if (!check_usable_memory(ranges[i].target, ranges[i].target + ranges[i].length)) {
-            goto reloc_fail;
+reloc_fail:
+            panic(true, "multiboot2: Could not find viable load address for executable");
         }
     }
 
-    goto reloc_ok;
-
-reloc_fail:
-    panic(true, "multiboot2: Could not find viable load address for executable");
-
-reloc_ok:
     for (size_t i = 0; i < kernel_ranges_count; i++) {
         if (entry_point >= ranges[i].target
          && entry_point < ranges[i].target + ranges[i].length) {
