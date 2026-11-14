@@ -1,12 +1,15 @@
 import gzip
+import re
 
 from harness.api import check
-from harness.media import HostFile, Tree
-from harness.ports import ALL_PORTS, Drive
+from harness.media import Disk, Fat, HostFile, Part, Tree
+from harness.ports import ALL_PORTS, UEFI_PORTS, Drive
 from cases._common import check_report_clean, entry, kernel_file, wait_panic
+from cases.chainload import probe_then_limine
 
-# Disks that fail Limine's reads: sectors the medium will not deliver, and a
-# disk smaller than the transfers Limine sizes up its drives with.
+# Disks that fail Limine's reads: sectors the medium will not deliver, a disk
+# smaller than the transfers Limine sizes up its drives with, and one whose
+# firmware refuses the transfers its granularity implies.
 
 MODULE = bytes(range(251)) * (2 * 1024 * 1024 // 251)
 
@@ -61,3 +64,21 @@ def disk_smaller_than_transfers(t):
     m = t.boot(drives=[Drive(disk.path, bootindex=1), Drive(tiny)])
     r = t.kernel_report(m)
     check_report_clean(t, r)
+
+
+@check(ports=UEFI_PORTS, tags=['disk'])
+def disk_refused_transfers(t):
+    """[user] A disk whose firmware fails reads over 16KiB despite a transfer
+    length granularity of 512 blocks, here one the EFI probe installs, still
+    has its partitions found [intent]."""
+    limit = 0x4000
+    part = Part(size_mb=1, fs=Fat(12, files={'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))}))
+    Disk('gpt', 3, parts=[part]).build(t.path('fakedisk.img'), t.workdir)
+    path = f'guid({part.guid}):/boot/kernel.elf'
+    m = probe_then_limine(t, f'name:fakedisk fakedisk:{limit:x}:fakedisk.img',
+                          'timeout: 0\n' + entry('Test', path=path, cmdline='x'),
+                          {'/fakedisk.img': HostFile(t.path('fakedisk.img'))})
+    r = t.kernel_report(m)
+    check_report_clean(t, r)
+    refused = re.findall(r'K fakedisk\.refused=([0-9a-f]+)', m.stream(t.kernel_channel).text())
+    t.check(any(int(size, 16) > limit for size in refused), f'reads over the limit tried and failed: {refused}')
