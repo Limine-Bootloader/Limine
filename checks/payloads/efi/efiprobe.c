@@ -953,9 +953,12 @@ static void *read_file(const EFI_CHAR16 *name, EFI_MEMORY_TYPE type, EFI_UINTN *
         return NULL;
     }
     void *buf = NULL;
-    EFI_UINTN cap = 1 << 20;
-    if (bs->AllocatePool(type, cap, &buf) == EFI_SUCCESS) {
-        *size = cap;
+    // All ones seeks to the end (UEFI 2.11 section 13.5.11).
+    EFI_UINT64 end = 0;
+    if (f->SetPosition(f, UINT64_MAX) == EFI_SUCCESS && f->GetPosition(f, &end) == EFI_SUCCESS
+     && f->SetPosition(f, 0) == EFI_SUCCESS
+     && bs->AllocatePool(type, (EFI_UINTN)end, &buf) == EFI_SUCCESS) {
+        *size = (EFI_UINTN)end;
         if (f->Read(f, size, buf) != EFI_SUCCESS) {
             bs->FreePool(buf);
             buf = NULL;
@@ -1036,6 +1039,89 @@ static void cmd_dtb(char *arg) {
     }
     EFI_GUID g = { 0xb1b621d5, 0xf19c, 0x41a5, { 0x83, 0x0b, 0xd9, 0x15, 0x2c, 0x69, 0xaa, 0xe0 } };
     out("K dtb=%x\n", (uint64_t)bs->InstallConfigurationTable(&g, blob));
+}
+
+// A disk whose Block I/O claims a transfer length granularity of 512 blocks
+// yet fails reads over a limit with EFI_OUT_OF_RESOURCES, as some firmware
+// does. It reports each read it fails.
+static uint8_t *fakedisk_data;
+static uint64_t fakedisk_limit;
+static EFI_BLOCK_IO_MEDIA fakedisk_media;
+
+static EFI_STATUS EFI_API fakedisk_reset(EFI_BLOCK_IO_PROTOCOL *this, EFI_BOOLEAN extended) {
+    (void)this;
+    (void)extended;
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS EFI_API fakedisk_read(
+    EFI_BLOCK_IO_PROTOCOL *this, EFI_UINT32 media_id, EFI_LBA lba, EFI_UINTN size, void *buf
+) {
+    (void)this;
+    if (media_id != fakedisk_media.MediaId) {
+        return EFI_MEDIA_CHANGED;
+    }
+    if (size % fakedisk_media.BlockSize != 0) {
+        return EFI_BAD_BUFFER_SIZE;
+    }
+    if (buf == NULL || ((uintptr_t)buf & (fakedisk_media.IoAlign - 1)) != 0
+     || lba > fakedisk_media.LastBlock
+     || size / fakedisk_media.BlockSize > fakedisk_media.LastBlock + 1 - lba) {
+        return EFI_INVALID_PARAMETER;
+    }
+    if (size > fakedisk_limit) {
+        out("K fakedisk.refused=%x\n", (uint64_t)size);
+        return EFI_OUT_OF_RESOURCES;
+    }
+    memcpy(buf, fakedisk_data + lba * fakedisk_media.BlockSize, size);
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS EFI_API fakedisk_write(
+    EFI_BLOCK_IO_PROTOCOL *this, EFI_UINT32 media_id, EFI_LBA lba, EFI_UINTN size, void *buf
+) {
+    (void)this;
+    (void)media_id;
+    (void)lba;
+    (void)size;
+    (void)buf;
+    return EFI_WRITE_PROTECTED;
+}
+
+static EFI_STATUS EFI_API fakedisk_flush(EFI_BLOCK_IO_PROTOCOL *this) {
+    (void)this;
+    return EFI_SUCCESS;
+}
+
+static EFI_BLOCK_IO_PROTOCOL fakedisk = {
+    EFI_BLOCK_IO_PROTOCOL_REVISION3, &fakedisk_media, fakedisk_reset, fakedisk_read,
+    fakedisk_write, fakedisk_flush
+};
+
+// fakedisk:LIMIT:NAME installs it over the image in file NAME, at the root of
+// this image's volume, failing reads over LIMIT bytes.
+static void cmd_fakedisk(char *arg) {
+    const char *end;
+    fakedisk_limit = parse_hex(arg, &end);
+    EFI_CHAR16 name[256];
+    to_utf16(name, *end == ':' ? end + 1 : "", 256);
+    EFI_UINTN size = 0;
+    fakedisk_data = read_file(name, EfiLoaderData, &size);
+    if (fakedisk_data == NULL || size < 512) {
+        out("K fakedisk=unreadable\n");
+        return;
+    }
+    fakedisk_media.MediaPresent = true;
+    fakedisk_media.ReadOnly = true;
+    fakedisk_media.BlockSize = 512;
+    fakedisk_media.IoAlign = 4;
+    fakedisk_media.LastBlock = size / 512 - 1;
+    fakedisk_media.LogicalBlocksPerPhysicalBlock = 1;
+    fakedisk_media.OptimalTransferLengthGranularity = 512;
+    EFI_GUID g = EFI_BLOCK_IO_PROTOCOL_GUID;
+    EFI_HANDLE h = NULL;
+    EFI_STATUS s = bs->InstallProtocolInterface(&h, &g, EFI_NATIVE_INTERFACE, &fakedisk);
+    out("K fakedisk=%x\n", (uint64_t)s);
 }
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -1580,6 +1666,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system_table) {
             cmd_fakecc(tok + 7);
         } else if (sprefix(tok, "faketcg2:")) {
             cmd_faketcg2(tok + 9);
+        } else if (sprefix(tok, "fakedisk:")) {
+            cmd_fakedisk(tok + 9);
 #if defined(__riscv)
         } else if (sprefix(tok, "satpoff")) {
             cmd_satpoff();
