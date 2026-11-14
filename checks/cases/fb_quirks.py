@@ -35,6 +35,8 @@ STEAM_DECK = [smbios(1, manufacturer='Valve', product='Jupiter', version='1')]
 DYNABOOK_K50 = [smbios(1, manufacturer='Dynabook Inc.', product='dynabook K50/FR')]
 # The early Intel Mac whose firmware gives its framebuffer a wrong pitch.
 MACBOOK_AIR_3_1 = [smbios(0, vendor='Apple Inc.'), smbios(1, product='MacBookAir3,1')]
+# A Mac whose GOP reports 8-bit RGB for a BGR framebuffer.
+MACBOOK_AIR_2_1 = [smbios(0, vendor='Apple Inc.'), smbios(1, product='MacBookAir2,1')]
 
 
 def default_strings(date):
@@ -386,3 +388,21 @@ def fb_quirks_mac_pitch(t):
     earlier = [smbios(0, vendor='Apple Inc.'), smbios(1, product='MacBookAir1,1 MacBookAir3,1')]
     t.expect_eq(protocol_report(t, earlier)['framebuffer.0'], plain['framebuffer.0'],
                 'an entry for MacBookAir1,1 matching first')
+
+
+@check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop'])
+def fb_quirks_bgr_macs(t):
+    """On a Mac SMBIOS names as one whose GOP reports 8-bit RGB for a BGR
+    framebuffer."""
+    rgb, bgr = 'r=8:0 g=8:8 b=8:16', 'r=8:16 g=8:8 b=8:0'
+    plain = protocol_report(t, [])
+    t.check(rgb in plain['framebuffer.0'], f'the current mode reported as 8-bit RGB: {plain["framebuffer.0"]}')
+    r = protocol_report(t, MACBOOK_AIR_2_1)
+    t.expect_eq(r['framebuffer.0'], plain['framebuffer.0'].replace(rgb, bgr), 'the current mode')
+    t.expect_eq(r.indexed('framebuffer.0.mode'),
+                [m.replace(rgb, bgr) for m in plain.indexed('framebuffer.0.mode')], 'the modes')
+    macmini = [smbios(0, vendor='Apple Inc.'), smbios(1, product='Macmini3,1')]
+    t.expect_eq(protocol_report(t, macmini)['framebuffer.0'], plain['framebuffer.0'].replace(rgb, bgr),
+                'the Macmini3,1')
+    unlisted = [smbios(0, vendor='Apple Inc.'), smbios(1, product='Macmini2,1')]
+    t.expect_eq(protocol_report(t, unlisted)['framebuffer.0'], plain['framebuffer.0'], 'an unlisted Mac')
