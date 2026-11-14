@@ -23,6 +23,11 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
 #endif
 );
 
+#if defined(UEFI)
+// EFI images are authorised by LoadImage; external initrds are measured data.
+struct file_handle *uri_open_uefi(char *uri, uint32_t type);
+#endif
+
 // Same as uri_open, for a resource the boot can do without: a problem that
 // would return to the menu is printed instead and NULL is returned, and so is
 // a hash mismatch, whatever hash_mismatch_panic says.

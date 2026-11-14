@@ -350,7 +350,8 @@ static bool uri_hash_mismatch(const struct hash_reference *hash_ref, const char 
     return true;
 }
 
-struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
+static struct file_handle *uri_open_internal(char *uri, uint32_t type,
+                                             bool allow_high_mem, bool require_hash
 #if defined(__i386__)
     , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
@@ -397,7 +398,7 @@ struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
         return NULL;
     }
 
-    if (secure_boot_active && hash == NULL) {
+    if (require_hash && hash == NULL) {
         URI_ERROR("Secure Boot is active and URI `%#` has no associated hash!", uri);
         fclose(raw);
         return NULL;
@@ -721,12 +722,44 @@ grew:;
     return out;
 }
 
+struct file_handle *uri_open(char *uri, uint32_t type, bool allow_high_mem
+#if defined(__i386__)
+    , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
+    , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
+#endif
+) {
+    return uri_open_internal(uri, type, allow_high_mem, secure_boot_active
+#if defined(__i386__)
+        , memcpy_to_64, memcpy_from_64
+#endif
+    );
+}
+
+#if defined(UEFI)
+struct file_handle *uri_open_uefi(char *uri, uint32_t type) {
+    bool allow_high = true;
+#if defined(__i386__)
+    allow_high = false;
+#endif
+    return uri_open_internal(uri, type, allow_high, false
+#if defined(__i386__)
+        , NULL, NULL
+#endif
+    );
+}
+#endif
+
 struct file_handle *uri_open_optional(char *uri, uint32_t type, bool allow_high_mem
 #if defined(__i386__)
     , void (*memcpy_to_64)(uint64_t dst, void *src, size_t count)
     , void (*memcpy_from_64)(void *dst, uint64_t src, size_t count)
 #endif
 ) {
+#if defined(UEFI)
+    if (firmware_secure_boot && !config_authenticated) {
+        return NULL;
+    }
+#endif
     optional_resource = true;
     struct file_handle *ret = uri_open(uri, type, allow_high_mem
 #if defined(__i386__)

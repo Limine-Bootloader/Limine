@@ -618,6 +618,11 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
         }
         char *background_path = config_get_value(config, wallpaper_index, "WALLPAPER");
         if (background_path != NULL) {
+#if defined(UEFI)
+            if (firmware_secure_boot && !config_authenticated) {
+                print("Wallpaper skipped: Secure Boot is active without an enrolled config.\n");
+            } else
+#endif
             if (secure_boot_active && strchr(background_path, '#') == NULL) {
                 print("Wallpaper skipped: Secure Boot is active and no hash is associated.\n");
             } else {
@@ -698,6 +703,12 @@ static void gterm_parse_config(char *config, struct gterm_config *cfg) {
 
     char *menu_font = config_get_value(config, 0, "TERM_FONT");
     if (menu_font != NULL) {
+#if defined(UEFI)
+        if (firmware_secure_boot && !config_authenticated) {
+            print("Font skipped: Secure Boot is active without an enrolled config.\n");
+            goto config_no_load_font;
+        }
+#endif
         if (secure_boot_active && strchr(menu_font, '#') == NULL) {
             print("Font skipped: Secure Boot is active and no hash is associated.\n");
             goto config_no_load_font;
