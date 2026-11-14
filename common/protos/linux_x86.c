@@ -621,7 +621,9 @@ no_modules:;
 #if defined(UEFI)
     gop_force_16 = true;
 #endif
-    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false);
+    // Linux corrects what the firmware is known to misreport itself, so
+    // width and height exchanged here would be exchanged back.
+    fb_init(&fbs, &fbs_count, req_width, req_height, req_bpp, false, false, false);
     if (fbs_count == 0) {
 #if defined(UEFI)
         goto no_fb;

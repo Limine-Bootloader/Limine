@@ -1,13 +1,14 @@
 import re
+import struct
 import time
 
 from harness.api import check
 from harness.media import HostFile
-from harness.ports import UEFI_PORTS
+from harness.ports import ALL_PORTS, UEFI_PORTS
 from harness import screen as screen_mod
-from cases._common import check_report_clean, entry, kernel_file, screen_text
+from cases._common import boot_entry, check_report_clean, entry, kernel_file, screen_text
 from cases.chainload import probe_then_limine
-from cases.multiboot import mb1_kernel
+from cases.multiboot import mb1_kernel, mb1_report, mb2_kernel, mb2_report
 
 # What Limine knows of machines' framebuffers beyond what their firmware says,
 # by the SMBIOS strings common/lib/fb_quirks.c lists the machines by, as
@@ -25,7 +26,10 @@ def smbios(type_, **fields):
     return f'type={type_}' + ''.join(f',{k}={v.replace(",", ",,")}' for k, v in fields.items())
 
 
-# The panel's right edge at the top of the casing, at 800x1280.
+# A portrait panel whose modes GOP reports landscape.
+MIIX_320 = [smbios(1, manufacturer='LENOVO', version='Lenovo MIIX 320-10ICR')]
+# The panel's right edge at the top of the casing, at 800x1280; GOP's 1280x800
+# mode turned in software.
 STEAM_DECK = [smbios(1, manufacturer='Valve', product='Jupiter', version='1')]
 # Its left edge.
 DYNABOOK_K50 = [smbios(1, manufacturer='Dynabook Inc.', product='dynabook K50/FR')]
@@ -44,13 +48,23 @@ def boot_fake(t, smbios_, config, files):
 
 
 def protocol_report(t, smbios_, extra='', globals_=''):
-    """The Limine protocol test kernel's report, booted on the probe's GOPs."""
+    """The Limine protocol test kernel's report, booted on the probe's GOPs
+    on UEFI, on VBE on BIOS."""
     config = 'timeout: 0\n' + globals_ + entry('Test', path='boot():/boot/kernel.elf', cmdline='x', extra=extra)
-    m = boot_fake(t, smbios_, config, {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))})
+    if t.port.is_uefi:
+        m = boot_fake(t, smbios_, config, {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))})
+    else:
+        m, _ = boot_entry(t, config, smbios=smbios_)
     r = t.kernel_report(m)
     check_report_clean(t, r)
     m.stop()
     return r
+
+
+def geometry(fb):
+    """A framebuffer or mode as the test kernel reports it, but for its
+    memory model and masks."""
+    return ' '.join(fb.split()[:2])
 
 
 def upright(r):
@@ -115,6 +129,15 @@ def fb_quirks_first_framebuffer_only(t):
     rotation = int(re.search(r'rotation=(\d+)', r['flanterm.1.font']).group(1))
     t.expect_eq(rotation, ROTATE_0, 'the interface on it unturned')
     t.expect_eq(r.int('framebuffer.1.upright_rotation'), ROTATE_0, 'no turn given for it')
+
+    r = report(MIIX_320)
+    width, height = (int(v) for v in r['framebuffer.0'].split('x')[:2])
+    t.check(width < height, f'a portrait panel\'s: the firmware\'s framebuffer exchanged: {r["framebuffer.0"]}')
+    t.expect_eq(geometry(r['framebuffer.1']), '800x600x32 pitch=3200', 'the probe\'s as reported')
+    t.expect_eq(r.indexed('framebuffer.1.mode'),
+                ['640x480x16 pitch=1280', '800x600x32 pitch=3200', '320x200x16 pitch=640',
+                 '800x1280x32 pitch=3200', '720x1280x32 pitch=2880', '1280x800x32 pitch=5376'],
+                'and its modes')
 
 
 @check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop', 'gterm'])
@@ -190,3 +213,131 @@ def fb_quirks_rotation_after_boot_services(t):
     m = probe_then_limine(t, 'fakegop:2 fragment:180', config, {'/kernel': HostFile(mb1_kernel(t, 'video'))},
                           display=False, smbios=STEAM_DECK)
     wait_fake_text(t, m, 'Too many memory map entries', 800, 1280, 3200, rotate=270)
+
+
+@check(ports=ALL_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop'])
+def fb_quirks_portrait_panels(t):
+    """On a machine SMBIOS names as one whose GOP reports its portrait
+    panel's modes with width and height exchanged, the kernel gets the
+    current mode and every other the right way round, their rows taken to be
+    unpadded; a mode reported portrait is taken to be right already
+    [intent]. VBE's modes are taken as reported."""
+    if not t.port.is_uefi:
+        plain = protocol_report(t, [])
+        r = protocol_report(t, MIIX_320)
+        t.expect_eq((r['framebuffer.0'], r.indexed('framebuffer.0.mode')),
+                    (plain['framebuffer.0'], plain.indexed('framebuffer.0.mode')), 'VBE\'s modes as reported')
+        return
+    r = protocol_report(t, MIIX_320)
+    t.expect_eq(geometry(r['framebuffer.0']), '600x800x32 pitch=2400', 'the EDID\'s 800x600')
+    t.expect_eq(r.indexed('framebuffer.0.mode'),
+                ['480x640x16 pitch=960', '600x800x32 pitch=2400', '200x320x16 pitch=400',
+                 '800x1280x32 pitch=3200', '720x1280x32 pitch=2880', '800x1280x32 pitch=3200'],
+                'the modes, those reported landscape exchanged')
+    r = protocol_report(t, MIIX_320, 'resolution: 1280x800x32')
+    t.expect_eq(geometry(r['framebuffer.0']), '800x1280x32 pitch=3200', '1280x800 in padded rows')
+
+
+def structure(type_, handle, formatted, strings):
+    """An SMBIOS structure (DSP0134 3.9.0 section 6.1.2): its header, the
+    rest of its formatted area, and its strings."""
+    data = struct.pack('<BBH', type_, 4 + len(formatted), handle) + formatted
+    return data + b''.join(s.encode() + b'\0' for s in strings) + (b'\0' if strings else b'\0\0')
+
+
+@check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop'])
+def fb_quirks_keys(t):
+    """A machine is named by SMBIOS strings that each equal, or hold, a text
+    byte for byte, case included, all of an entry's matching. A string comes
+    from the first structure of its type long enough to give its number."""
+    def exchanged(smbios_):
+        return geometry(protocol_report(t, smbios_)['framebuffer.0']) == '600x800x32 pitch=2400'
+
+    miix_310 = smbios(1, manufacturer='LENOVO', version='MIIX 310-10ICR')
+    t.check(exchanged([miix_310, smbios(0, version='1HCN44WW')]), 'Miix 310-10ICR and its BIOS version')
+    t.check(not exchanged([miix_310]), 'Miix 310-10ICR without its BIOS version')
+    t.check(exchanged([smbios(1, manufacturer='LENOVO', version='IdeaPad Duet 3 10IGL5-LTE')]),
+            'a version holding the text')
+    t.check(not exchanged([smbios(1, manufacturer='Lenovo', version='Lenovo MIIX 320-10ICR')]),
+            'the manufacturer in other case')
+    blobs = [structure(1, 0x0e00, bytes((1, 2)), ['LENOVO', '80XF']),
+             structure(1, 0x0e01, bytes((1, 2, 3, 0)) + bytes(16) + bytes((6, 0, 0)),
+                       ['Someone Else', 'Something', 'Lenovo MIIX 320-10ICR'])]
+    files = []
+    for i, blob in enumerate(blobs):
+        path = t.path(f'type1-{i}.bin')
+        with open(path, 'wb') as f:
+            f.write(blob)
+        files.append(f'file={path}')
+    t.check(exchanged(files), 'the manufacturer from a structure too short to hold the version, the version from '
+                              'the next')
+
+
+@check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop'])
+def fb_quirks_fixed_mode(t):
+    """On a Steam Deck, whose firmware turns its 1280x800 mode in software
+    while memory keeps the panel's own layout, 800x1280 in rows of 832
+    pixels, that mode is given as laid out, and only that one; the panel's
+    turn is then known at its own size."""
+    r = protocol_report(t, STEAM_DECK, 'resolution: 1280x800x32')
+    t.expect_eq(geometry(r['framebuffer.0']), '800x1280x32 pitch=3328', '1280x800')
+    t.expect_eq(r.indexed('framebuffer.0.mode'),
+                ['640x480x16 pitch=1280', '800x600x32 pitch=3200', '320x200x16 pitch=640',
+                 '800x1280x32 pitch=3200', '720x1280x32 pitch=2880', '800x1280x32 pitch=3328'],
+                'the modes, 1280x800 alone given as laid out')
+    t.expect_eq(upright(r), ROTATE_90, 'the turn of the panel at its own size')
+    r = protocol_report(t, STEAM_DECK)
+    t.expect_eq(geometry(r['framebuffer.0']), '800x600x32 pitch=3200', 'another mode as reported')
+
+
+@check(ports=UEFI_PORTS, tags=['fb-quirks', 'gop', 'gterm'])
+def fb_quirks_portrait_interface(t):
+    """Limine's interface is drawn on a portrait panel whose modes GOP
+    reports landscape as it is laid out."""
+    config = 'timeout: no\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='x')
+    m = boot_fake(t, MIIX_320, config, {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))})
+    wait_fake_text(t, m, 'ARROWS', 600, 800, 2400)
+
+
+@check(ports=['uefi-ia32', 'uefi-x86-64'], tags=['fb-quirks', 'multiboot1', 'gop'])
+def fb_quirks_portrait_after_boot_services(t):
+    """The terminal Limine keeps for panicking once boot services are gone
+    draws on a portrait panel whose modes GOP reports landscape as it is
+    laid out, whatever the kernel is given [intent]. Here it shows
+    Multiboot 1's panic at a memory map the probe fragmented past what Limine
+    passes."""
+    config = 'timeout: 0\n' + entry('Test', protocol='multiboot1', path='boot():/kernel', cmdline='x')
+    m = probe_then_limine(t, 'fakegop:2 fragment:180', config, {'/kernel': HostFile(mb1_kernel(t, 'video'))},
+                          display=False, smbios=MIIX_320)
+    wait_fake_text(t, m, 'Too many memory map entries', 600, 800, 2400)
+
+
+@check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'linux', 'multiboot1', 'multiboot2', 'gop'])
+def fb_quirks_for_limine_only(t):
+    """The firmware's own description of a framebuffer is corrected for the
+    Limine protocol's kernels alone. Linux corrects it itself, and is given
+    it as the firmware reports it, as are Multiboot 1 and 2 kernels
+    [intent]."""
+    from cases.linux import bzimage, hexint, stub, stub_report, x86_report
+    t.expect_eq(geometry(protocol_report(t, MIIX_320)['framebuffer.0']), '600x800x32 pitch=2400',
+                'the Limine protocol: the mode corrected')
+    if t.port.is_x86:
+        path, image, report, prefix = '/bzImage', bzimage(t), x86_report, 'si.'
+    else:
+        path, image, report, prefix = '/Image', stub(t), stub_report, 'screen_info.'
+    config = 'timeout: 0\n' + entry('Linux', protocol='linux', path=f'boot():{path}', cmdline='x')
+    m = boot_fake(t, MIIX_320, config, {path: image})
+    r = report(t, m)
+    t.expect_eq(tuple(hexint(r, prefix + k) for k in ('width', 'height', 'linelength')), (800, 600, 3200),
+                'Linux: the mode as reported')
+    m.stop()
+    if not t.port.is_x86:
+        return
+    for protocol, kernel, mb_report in (('multiboot1', mb1_kernel(t, 'video'), mb1_report),
+                                        ('multiboot2', mb2_kernel(t, 'fb'), mb2_report)):
+        config = 'timeout: 0\n' + entry('MB', protocol=protocol, path='boot():/kernel', cmdline='x')
+        m = boot_fake(t, MIIX_320, config, {'/kernel': HostFile(kernel)})
+        r = mb_report(t, m)
+        t.expect_eq(tuple(hexint(r, 'fb.' + k) for k in ('width', 'height', 'pitch')), (800, 600, 3200),
+                    f'{protocol}: the mode as reported')
+        m.stop()
