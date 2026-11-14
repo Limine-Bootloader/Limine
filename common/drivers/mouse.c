@@ -812,6 +812,34 @@ size_t mouse_get_efi_events(EFI_EVENT *events, size_t max) {
     return n;
 }
 
+// The inverse of pointer_phys(): physical coordinates in, logical out.
+static void pointer_logical(struct flanterm_fb_context *ctx, size_t px, size_t py,
+                            size_t *x, size_t *y) {
+    switch (ctx->rotation) {
+        default:
+        case FLANTERM_FB_ROTATE_0: {
+            *x = px;
+            *y = py;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_90: {
+            *x = py;
+            *y = ctx->height - 1 - px;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_180: {
+            *x = ctx->width - 1 - px;
+            *y = ctx->height - 1 - py;
+            break;
+        }
+        case FLANTERM_FB_ROTATE_270: {
+            *x = ctx->width - 1 - py;
+            *y = px;
+            break;
+        }
+    }
+}
+
 static int set_absolute_position(EFI_ABSOLUTE_POINTER_MODE *mode,
                                  EFI_ABSOLUTE_POINTER_STATE *state) {
     if (terms_i == 0
@@ -820,13 +848,32 @@ static int set_absolute_position(EFI_ABSOLUTE_POINTER_MODE *mode,
         return 0;
     }
 
-    int64_t new_x = (int64_t)((state->CurrentX - mode->AbsoluteMinX)
-                  * ((uint64_t)terms[0]->cols * 256)
-                  / (mode->AbsoluteMaxX - mode->AbsoluteMinX));
-    int64_t new_y = (int64_t)((state->CurrentY - mode->AbsoluteMinY)
-                  * ((uint64_t)terms[0]->rows * 256)
-                  / (mode->AbsoluteMaxY - mode->AbsoluteMinY));
+    uint64_t abs_x = state->CurrentX - mode->AbsoluteMinX;
+    uint64_t abs_y = state->CurrentY - mode->AbsoluteMinY;
+    uint64_t range_x = mode->AbsoluteMaxX - mode->AbsoluteMinX;
+    uint64_t range_y = mode->AbsoluteMaxY - mode->AbsoluteMinY;
 
+    // The firmware's console is never turned.
+    if (term_backend != GTERM) {
+        int64_t new_x = (int64_t)(abs_x * ((uint64_t)terms[0]->cols * 256) / range_x);
+        int64_t new_y = (int64_t)(abs_y * ((uint64_t)terms[0]->rows * 256) / range_y);
+        return move_by(new_x - pos_x, new_y - pos_y);
+    }
+
+    // The axes are those of the screen as the firmware drives it, the
+    // framebuffer as laid out, whatever turn the interface is drawn at.
+    struct flanterm_fb_context *ctx = (struct flanterm_fb_context *)terms[0];
+    bool sideways = ctx->rotation == FLANTERM_FB_ROTATE_90
+                 || ctx->rotation == FLANTERM_FB_ROTATE_270;
+    size_t width = sideways ? ctx->height : ctx->width;
+    size_t height = sideways ? ctx->width : ctx->height;
+    size_t px = MIN(abs_x * width / range_x, width - 1);
+    size_t py = MIN(abs_y * height / range_y, height - 1);
+
+    size_t x, y;
+    pointer_logical(ctx, px, py, &x, &y);
+    int64_t new_x = ((int64_t)x - (int64_t)ctx->offset_x) * 256 / (int64_t)ctx->glyph_width;
+    int64_t new_y = ((int64_t)y - (int64_t)ctx->offset_y) * 256 / (int64_t)ctx->glyph_height;
     return move_by(new_x - pos_x, new_y - pos_y);
 }
 
