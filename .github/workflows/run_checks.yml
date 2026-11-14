@@ -1,6 +1,10 @@
 name: Run the checks
 
-on: [ push, pull_request ]
+# Not on tag pushes, which only start the release workflow.
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
 
 jobs:
   run_checks:
