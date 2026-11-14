@@ -333,7 +333,7 @@ void calibrate_tsc(void) {
     uint64_t best_delta = 0;
     for (int round = 0; round < EFI_CALIBRATION_ROUNDS; round++) {
         uint64_t tsc_start = rdtsc();
-        gBS->Stall(EFI_CALIBRATION_STALL);
+        gBS->stall(EFI_CALIBRATION_STALL);
         uint64_t tsc_end = rdtsc();
 
         if (tsc_end > tsc_start) {

@@ -1987,7 +1987,7 @@ FEAT_END
     }
 #endif
 
-    efi_exit_boot_services();
+    efi_leave_boot_services();
 
     // ExitBootServices() measures into PCR 5, and only the final events table
     // records those events.

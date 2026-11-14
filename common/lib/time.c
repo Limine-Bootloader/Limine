@@ -76,8 +76,8 @@ again:
 
 #if defined(UEFI)
 uint64_t time(void) {
-    EFI_TIME time;
-    EFI_STATUS status = gRT->GetTime(&time, NULL);
+    struct efi_time time;
+    efi_status status = gRT->get_time(&time, NULL);
 
     if (status != 0) {
         return 0;
@@ -86,7 +86,7 @@ uint64_t time(void) {
     // TimeZone is ignored and the clock taken to hold UTC: nothing keeps
     // the zone in step with the clock, and EDK2's PL031 and virtual RTC
     // libraries apply it with the opposite sign to the spec.
-    return get_unix_epoch(time.Second, time.Minute, time.Hour,
-                          time.Day, time.Month, time.Year);
+    return get_unix_epoch(time.second, time.minute, time.hour,
+                          time.day, time.month, time.year);
 }
 #endif

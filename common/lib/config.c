@@ -44,32 +44,32 @@ const char *config_get_raw(size_t *size_out) {
 static char efi_app_path[128] = {0};
 
 static bool init_efi_app_path(size_t *len_out) {
-    EFI_STATUS status;
-    EFI_LOADED_IMAGE_PROTOCOL *loaded_image;
-    EFI_DEVICE_PATH_PROTOCOL *path;
-    EFI_CHAR16 path_units[EFI_APP_PATH_LEN];
+    efi_status status;
+    struct efi_loaded_image_protocol *loaded_image;
+    struct efi_device_path_protocol *path;
+    uint16_t path_units[EFI_APP_PATH_LEN];
     size_t len = 0, dir_len = 0;
 
-    EFI_GUID loaded_image_protocol_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    struct efi_guid loaded_image_protocol_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 
-    status = gBS->HandleProtocol(efi_image_handle, &loaded_image_protocol_guid,
+    status = gBS->handle_protocol(efi_image_handle, &loaded_image_protocol_guid,
                                  (void **)&loaded_image);
     if (status != 0) {
         return false;
     }
 
     // NULL for an image loaded from a buffer without a device path.
-    path = loaded_image->FilePath;
+    path = loaded_image->file_path;
     if (path == NULL) {
         return false;
     }
 
-    while (!(path->Type == EFI_END_DEVICE_PATH_TYPE && path->SubType == EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE)) {
-        if (path->Type == EFI_MEDIA_DEVICE_PATH && path->SubType == EFI_MEDIA_FILEPATH_DP) {
+    while (!(path->type == EFI_END_DEVICE_PATH_TYPE && path->sub_type == EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE)) {
+        if (path->type == EFI_MEDIA_DEVICE_PATH && path->sub_type == EFI_MEDIA_FILEPATH_DP) {
             goto found;
         }
 
-        uint16_t node_length = EfiDevicePathNodeLength(path);
+        uint16_t node_length = efi_device_path_node_length(path);
         if (node_length < 4) {
             return false;
         }
@@ -82,8 +82,8 @@ found:
     // A file path may span several consecutive EFI_MEDIA_FILEPATH_DP nodes;
     // walk them all, bounding each scan by the node length, and keep the
     // directory.
-    while (path->Type == EFI_MEDIA_DEVICE_PATH && path->SubType == EFI_MEDIA_FILEPATH_DP) {
-        uint16_t node_length = EfiDevicePathNodeLength(path);
+    while (path->type == EFI_MEDIA_DEVICE_PATH && path->sub_type == EFI_MEDIA_FILEPATH_DP) {
+        uint16_t node_length = efi_device_path_node_length(path);
         if (node_length < 4) {
             return false;
         }
@@ -97,7 +97,7 @@ found:
         bool separator = len != 0;
 
         for (size_t i = 0; i < node_chars; i++) {
-            EFI_CHAR16 c = node_path[i * 2] | (node_path[i * 2 + 1] << 8);
+            uint16_t c = node_path[i * 2] | (node_path[i * 2 + 1] << 8);
             if (c == 0) {
                 break;
             }

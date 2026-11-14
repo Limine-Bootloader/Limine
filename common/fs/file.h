@@ -27,7 +27,7 @@ struct file_handle {
     uint64_t   size;
     uint64_t   load_addr_64;
 #if defined(UEFI)
-    EFI_HANDLE efi_part_handle;
+    efi_handle efi_part_handle;
 #endif
     bool pxe;
     uint8_t pxe_ip[4];

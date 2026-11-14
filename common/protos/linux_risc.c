@@ -88,8 +88,8 @@ _Static_assert(sizeof(struct linux_header) == 0x40, "linux_header layout");
 // UINTN is 8 bytes (UEFI 2.11, section 2.3.1).
 
 struct linux_efi_initrd {
-    EFI_UINTN base;
-    EFI_UINTN size;
+    size_t base;
+    size_t size;
 };
 
 _Static_assert(offsetof(struct linux_efi_initrd, base) == 0, "linux_efi_initrd layout");
@@ -97,12 +97,12 @@ _Static_assert(offsetof(struct linux_efi_initrd, size) == 8, "linux_efi_initrd l
 _Static_assert(sizeof(struct linux_efi_initrd) == 16, "linux_efi_initrd layout");
 
 struct linux_efi_boot_memmap {
-    EFI_UINTN map_size;
-    EFI_UINTN desc_size;
-    EFI_UINT32 desc_ver;
-    EFI_UINTN map_key;
-    EFI_UINTN buff_size;
-    EFI_MEMORY_DESCRIPTOR descs[];
+    size_t map_size;
+    size_t desc_size;
+    uint32_t desc_ver;
+    size_t map_key;
+    size_t buff_size;
+    struct efi_memory_descriptor descs[];
 };
 
 _Static_assert(offsetof(struct linux_efi_boot_memmap, map_size) == 0, "linux_efi_boot_memmap layout");
@@ -114,15 +114,15 @@ _Static_assert(offsetof(struct linux_efi_boot_memmap, descs) == 40, "linux_efi_b
 _Static_assert(sizeof(struct linux_efi_boot_memmap) == 40, "linux_efi_boot_memmap layout");
 
 struct linux_efi_memreserve_entry {
-    EFI_UINT64 base;
-    EFI_UINT64 size;
+    uint64_t base;
+    uint64_t size;
 };
 
 // One link of a chain of reservation tables, which the kernel may extend.
 struct linux_efi_memreserve {
-    EFI_INT32 capacity;
-    EFI_INT32 count;
-    EFI_UINT64 next;
+    int32_t capacity;
+    int32_t count;
+    uint64_t next;
     struct linux_efi_memreserve_entry entries[];
 };
 
@@ -312,7 +312,7 @@ static void add_framebuffer(struct fb_info *fb) {
 
     // Memory of this type is preserved until ACPI is enabled (UEFI 2.11
     // section 7.2), so the kernel cannot hand it out before copying the table.
-    EFI_STATUS alloc_ret = gBS->AllocatePool(EfiACPIReclaimMemory, sizeof(*table), (void **)&table);
+    efi_status alloc_ret = gBS->allocate_pool(EFI_ACPI_RECLAIM_MEMORY, sizeof(*table), (void **)&table);
     if (alloc_ret != EFI_SUCCESS) {
         panic(true, "linux: failed to allocate screen info table");
     }
@@ -342,8 +342,8 @@ static void add_framebuffer(struct fb_info *fb) {
         memcpy(&table->edid_info, fb->edid, sizeof(table->edid_info));
     }
 
-    EFI_GUID screen_info_table_guid = {0xe03fc20a, 0x85dc, 0x406e, {0xb9, 0x0e, 0x4a, 0xb5, 0x02, 0x37, 0x1d, 0x95}};
-    EFI_STATUS ret = gBS->InstallConfigurationTable(&screen_info_table_guid, table);
+    struct efi_guid screen_info_table_guid = {0xe03fc20a, 0x85dc, 0x406e, {0xb9, 0x0e, 0x4a, 0xb5, 0x02, 0x37, 0x1d, 0x95}};
+    efi_status ret = gBS->install_configuration_table(&screen_info_table_guid, table);
 
     if (ret != EFI_SUCCESS) {
         panic(true, "linux: failed to install screen info configuration table: '%X'", (uint64_t)ret);
@@ -351,7 +351,7 @@ static void add_framebuffer(struct fb_info *fb) {
 }
 
 static void prepare_efi_tables(struct boot_param *p, char *config) {
-    EFI_STATUS ret = 0;
+    efi_status ret = 0;
 
     {
         size_t req_width = 0, req_height = 0, req_bpp = 0;
@@ -380,7 +380,7 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
     {
         struct linux_efi_memreserve *memreserve_table;
 
-        ret = gBS->AllocatePool(EfiLoaderData, sizeof(*memreserve_table), (void **)&memreserve_table);
+        ret = gBS->allocate_pool(EFI_LOADER_DATA, sizeof(*memreserve_table), (void **)&memreserve_table);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to allocate memory reservation table");
         }
@@ -390,8 +390,8 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
         memreserve_table->count = 0;
         memreserve_table->next = 0;
 
-        EFI_GUID memreserve_table_guid = { 0x888eb0c6, 0x8ede, 0x4ff5, { 0xa8, 0xf0, 0x9a, 0xee, 0x5c, 0xb9, 0x77, 0xc2}};
-        ret = gBS->InstallConfigurationTable(&memreserve_table_guid, memreserve_table);
+        struct efi_guid memreserve_table_guid = { 0x888eb0c6, 0x8ede, 0x4ff5, { 0xa8, 0xf0, 0x9a, 0xee, 0x5c, 0xb9, 0x77, 0xc2}};
+        ret = gBS->install_configuration_table(&memreserve_table_guid, memreserve_table);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to install memory reservation table: '%X'", (uint64_t)ret);
         }
@@ -400,32 +400,32 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
     if (p->module_base) {
         struct linux_efi_initrd *initrd_table;
 
-        ret = gBS->AllocatePool(EfiLoaderData, sizeof(*initrd_table), (void **)&initrd_table);
+        ret = gBS->allocate_pool(EFI_LOADER_DATA, sizeof(*initrd_table), (void **)&initrd_table);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to allocate Linux initrd table");
         }
 
-        initrd_table->base = (EFI_UINTN)p->module_base;
+        initrd_table->base = (size_t)p->module_base;
         initrd_table->size = p->module_size;
 
-        EFI_GUID initrd_table_guid = { 0x5568e427, 0x68fc, 0x4f3d, { 0xac, 0x74, 0xca, 0x55, 0x52, 0x31, 0xcc, 0x68}};
-        ret = gBS->InstallConfigurationTable(&initrd_table_guid, initrd_table);
+        struct efi_guid initrd_table_guid = { 0x5568e427, 0x68fc, 0x4f3d, { 0xac, 0x74, 0xca, 0x55, 0x52, 0x31, 0xcc, 0x68}};
+        ret = gBS->install_configuration_table(&initrd_table_guid, initrd_table);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to install initrd");
         }
     }
 
     {
-        // What gets copied in here is the map efi_exit_boot_services()
+        // What gets copied in here is the map efi_leave_boot_services()
         // rebuilds out of the firmware's, which grows little from here on.
-        EFI_UINTN mmap_size = 0, mmap_key, desc_size;
-        EFI_UINT32 desc_ver;
-        ret = gBS->GetMemoryMap(&mmap_size, NULL, &mmap_key, &desc_size, &desc_ver);
+        size_t mmap_size = 0, mmap_key, desc_size;
+        uint32_t desc_ver;
+        ret = gBS->get_memory_map(&mmap_size, NULL, &mmap_key, &desc_size, &desc_ver);
         if (ret != EFI_BUFFER_TOO_SMALL) {
             panic(true, "linux: failed to get UEFI memory map size");
         }
 
-        EFI_UINTN descs_size = efi_rebuilt_mmap_max_size(mmap_size);
+        size_t descs_size = efi_rebuilt_mmap_max_size(mmap_size);
         if (descs_size == 0 || descs_size > SIZE_MAX - sizeof(struct linux_efi_boot_memmap)) {
             panic(true, "linux: UEFI memory map too large");
         }
@@ -433,15 +433,15 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
 
         // Memory of this type is preserved until ACPI is enabled (UEFI 2.11
         // section 7.2), so the kernel cannot hand it out before reading the map.
-        ret = gBS->AllocatePool(EfiACPIReclaimMemory, buff_size, (void **)&p->memmap);
+        ret = gBS->allocate_pool(EFI_ACPI_RECLAIM_MEMORY, buff_size, (void **)&p->memmap);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to allocate UEFI memory map");
         }
 
         p->memmap->buff_size = buff_size;
 
-        EFI_GUID memmap_table_guid = { 0x800f683f, 0xd08b, 0x423a, { 0xa2, 0x93, 0x96, 0x5c, 0x3c, 0x6f, 0xe2, 0xb4}};
-        ret = gBS->InstallConfigurationTable(&memmap_table_guid, p->memmap);
+        struct efi_guid memmap_table_guid = { 0x800f683f, 0xd08b, 0x423a, { 0xa2, 0x93, 0x96, 0x5c, 0x3c, 0x6f, 0xe2, 0xb4}};
+        ret = gBS->install_configuration_table(&memmap_table_guid, p->memmap);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to install UEFI memory map");
         }
@@ -458,15 +458,15 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
 
         // Preserved until ACPI is enabled (UEFI 2.11 section 7.2), unlike the
         // memory the tree was built in.
-        ret = gBS->AllocatePool(EfiACPIReclaimMemory, dtb_size, &dtb_table);
+        ret = gBS->allocate_pool(EFI_ACPI_RECLAIM_MEMORY, dtb_size, &dtb_table);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to allocate device tree table");
         }
 
         memcpy(dtb_table, p->dtb, dtb_size);
 
-        EFI_GUID dtb_table_guid = EFI_DTB_TABLE_GUID;
-        ret = gBS->InstallConfigurationTable(&dtb_table_guid, dtb_table);
+        struct efi_guid dtb_table_guid = EFI_DTB_TABLE_GUID;
+        ret = gBS->install_configuration_table(&dtb_table_guid, dtb_table);
         if (ret != EFI_SUCCESS) {
             panic(true, "linux: failed to install device tree table: '%X'", (uint64_t)ret);
         }
@@ -474,19 +474,19 @@ static void prepare_efi_tables(struct boot_param *p, char *config) {
 #endif
 
     linux_install_efi_tpm_event_log();
-    efi_exit_boot_services();
+    efi_leave_boot_services();
 }
 
 #if !defined(__loongarch__)
 // Kernels do without runtime services when the runtime descriptors they get
 // carry all-ones virtual addresses.
-static void mark_runtime_unmapped(EFI_MEMORY_DESCRIPTOR *map) {
+static void mark_runtime_unmapped(struct efi_memory_descriptor *map) {
     size_t entry_count = efi_mmap_size / efi_desc_size;
     for (size_t i = 0; i < entry_count; i++) {
-        EFI_MEMORY_DESCRIPTOR *entry = (void *)map + i * efi_desc_size;
+        struct efi_memory_descriptor *entry = (void *)map + i * efi_desc_size;
 
-        if (entry->Attribute & EFI_MEMORY_RUNTIME) {
-            entry->VirtualStart = UINT64_MAX;
+        if (entry->attribute & EFI_MEMORY_RUNTIME) {
+            entry->virtual_start = UINT64_MAX;
         }
     }
 }
@@ -531,22 +531,22 @@ static void prepare_mmap(struct boot_param *p) {
 
     size_t efi_mmap_entry_count = efi_mmap_size / efi_desc_size;
     for (size_t i = 0; i < efi_mmap_entry_count; i++) {
-        EFI_MEMORY_DESCRIPTOR *entry = (void *)efi_mmap + i * efi_desc_size;
+        struct efi_memory_descriptor *entry = (void *)efi_mmap + i * efi_desc_size;
 
-        if (entry->Attribute & EFI_MEMORY_RUNTIME) {
+        if (entry->attribute & EFI_MEMORY_RUNTIME) {
             // LoongArch kernel requires the virtual address stays in the
             // privileged, direct-mapped window
             #if defined(__loongarch__)
-                entry->VirtualStart = entry->PhysicalStart | (0x8ULL << 60);
+                entry->virtual_start = entry->physical_start | (0x8ULL << 60);
             #else
-                entry->VirtualStart = entry->PhysicalStart;
+                entry->virtual_start = entry->physical_start;
             #endif
         }
     }
 
     memcpy(&p->memmap->descs, efi_mmap, efi_mmap_size);
 
-    EFI_STATUS status = gRT->SetVirtualAddressMap(efi_mmap_size, efi_desc_size, efi_desc_ver, efi_mmap);
+    efi_status status = gRT->set_virtual_address_map(efi_mmap_size, efi_desc_size, efi_desc_ver, efi_mmap);
     if (status != EFI_SUCCESS) {
 #if defined(__loongarch__)
         // The kernel uses the runtime services table regardless of the

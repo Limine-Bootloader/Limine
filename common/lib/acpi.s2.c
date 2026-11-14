@@ -47,37 +47,37 @@ void *acpi_get_rsdp(void) {
 #include <efi.h>
 
 void *acpi_get_rsdp(void) {
-    EFI_GUID acpi_2_guid = EFI_ACPI_20_TABLE_GUID;
-    EFI_GUID acpi_1_guid = EFI_ACPI_10_TABLE_GUID;
+    struct efi_guid acpi_2_guid = EFI_ACPI_20_TABLE_GUID;
+    struct efi_guid acpi_1_guid = EFI_ACPI_10_TABLE_GUID;
 
     void *rsdp = NULL;
 
-    for (size_t i = 0; i < gST->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE *cur_table = &gST->ConfigurationTable[i];
+    for (size_t i = 0; i < gST->number_of_table_entries; i++) {
+        struct efi_configuration_table *cur_table = &gST->configuration_table[i];
 
-        bool is_xsdp = memcmp(&cur_table->VendorGuid, &acpi_2_guid, sizeof(EFI_GUID)) == 0;
-        bool is_rsdp = memcmp(&cur_table->VendorGuid, &acpi_1_guid, sizeof(EFI_GUID)) == 0;
+        bool is_xsdp = memcmp(&cur_table->vendor_guid, &acpi_2_guid, sizeof(struct efi_guid)) == 0;
+        bool is_rsdp = memcmp(&cur_table->vendor_guid, &acpi_1_guid, sizeof(struct efi_guid)) == 0;
 
         if (!is_xsdp && !is_rsdp)
             continue;
 
-        if ((is_xsdp && acpi_checksum(cur_table->VendorTable, sizeof(struct rsdp)) != 0) || // XSDP is 36 bytes wide
-            (is_rsdp && acpi_checksum(cur_table->VendorTable, 20) != 0)) // RSDP is 20 bytes wide
+        if ((is_xsdp && acpi_checksum(cur_table->vendor_table, sizeof(struct rsdp)) != 0) || // XSDP is 36 bytes wide
+            (is_rsdp && acpi_checksum(cur_table->vendor_table, 20) != 0)) // RSDP is 20 bytes wide
             continue;
 
-        printv("acpi: Found %s at %p\n", is_xsdp ? "XSDP" : "RSDP", cur_table->VendorTable);
+        printv("acpi: Found %s at %p\n", is_xsdp ? "XSDP" : "RSDP", cur_table->vendor_table);
 
         // We want to return the XSDP if it exists rather then returning
         // the RSDP. We need to add a check for that since the table entries
         // are not in the same order for all EFI systems since it might be the
         // case where the RSDP occurs before the XSDP.
         if (is_xsdp) {
-            rsdp = (void *)cur_table->VendorTable;
+            rsdp = (void *)cur_table->vendor_table;
             break; // Found it!.
         } else {
             // Found the RSDP but we continue to loop since we might
             // find the XSDP.
-            rsdp = (void *)cur_table->VendorTable;
+            rsdp = (void *)cur_table->vendor_table;
         }
     }
 

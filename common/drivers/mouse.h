@@ -39,7 +39,7 @@ void mouse_erase_pointer(void);
 #if defined(BIOS)
 int mouse_process_pending(void);
 #elif defined(UEFI)
-size_t mouse_get_efi_events(EFI_EVENT *events, size_t max);
+size_t mouse_get_efi_events(efi_event *events, size_t max);
 int mouse_handle_efi_event(size_t index);
 #endif
 

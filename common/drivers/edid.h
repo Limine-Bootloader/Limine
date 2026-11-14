@@ -33,7 +33,7 @@ struct edid_info_struct {
 #if defined(UEFI)
 #include <efi.h>
 
-struct edid_info_struct *get_edid_info(EFI_HANDLE gop_handle);
+struct edid_info_struct *get_edid_info(efi_handle gop_handle);
 #endif
 
 #if defined(BIOS)

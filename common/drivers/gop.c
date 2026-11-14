@@ -56,13 +56,17 @@ static bool validate_pitch(struct fb_info *ret, size_t mode) {
 
 // Most of this code taken from https://wiki.osdev.org/GOP
 
-static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop, size_t mode) {
-    EFI_STATUS status;
+static bool mode_to_fb_info(
+    struct fb_info *ret,
+    struct efi_graphics_output_protocol *gop,
+    size_t mode
+) {
+    efi_status status;
 
-    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *mode_info;
-    EFI_UINTN mode_info_size;
+    struct efi_graphics_output_mode_information *mode_info;
+    size_t mode_info_size;
 
-    status = gop->QueryMode(gop, mode, &mode_info_size, &mode_info);
+    status = gop->query_mode(gop, mode, &mode_info_size, &mode_info);
 
     if (status) {
         return false;
@@ -70,8 +74,8 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
 
     bool ok = false;
 
-    switch (mode_info->PixelFormat) {
-        case EfiPixelBlueGreenRedReserved8BitPerColor: {
+    switch (mode_info->pixel_format) {
+        case EFI_PIXEL_BLUE_GREEN_RED_RESERVED_8_BIT_PER_COLOR: {
             ret->framebuffer_bpp = 32;
             ret->red_mask_size = 8;
             ret->red_mask_shift = 16;
@@ -81,7 +85,7 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
             ret->blue_mask_shift = 0;
             break;
         }
-        case EfiPixelRedGreenBlueReserved8BitPerColor: {
+        case EFI_PIXEL_RED_GREEN_BLUE_RESERVED_8_BIT_PER_COLOR: {
             ret->framebuffer_bpp = 32;
             ret->red_mask_size = 8;
             ret->red_mask_shift = 0;
@@ -91,27 +95,27 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
             ret->blue_mask_shift = 16;
             break;
         }
-        case EfiPixelBitMask: {
-            if ((mode_info->PixelInformation.RedMask
-               | mode_info->PixelInformation.GreenMask
-               | mode_info->PixelInformation.BlueMask
-               | mode_info->PixelInformation.ReservedMask) == 0) {
+        case EFI_PIXEL_BIT_MASK: {
+            if ((mode_info->pixel_information.red_mask
+               | mode_info->pixel_information.green_mask
+               | mode_info->pixel_information.blue_mask
+               | mode_info->pixel_information.reserved_mask) == 0) {
                 goto out;
             }
             ret->framebuffer_bpp = linear_masks_to_bpp(
-                                      mode_info->PixelInformation.RedMask,
-                                      mode_info->PixelInformation.GreenMask,
-                                      mode_info->PixelInformation.BlueMask,
-                                      mode_info->PixelInformation.ReservedMask);
+                                      mode_info->pixel_information.red_mask,
+                                      mode_info->pixel_information.green_mask,
+                                      mode_info->pixel_information.blue_mask,
+                                      mode_info->pixel_information.reserved_mask);
             linear_mask_to_mask_shift(&ret->red_mask_size,
                                       &ret->red_mask_shift,
-                                      mode_info->PixelInformation.RedMask);
+                                      mode_info->pixel_information.red_mask);
             linear_mask_to_mask_shift(&ret->green_mask_size,
                                       &ret->green_mask_shift,
-                                      mode_info->PixelInformation.GreenMask);
+                                      mode_info->pixel_information.green_mask);
             linear_mask_to_mask_shift(&ret->blue_mask_size,
                                       &ret->blue_mask_shift,
-                                      mode_info->PixelInformation.BlueMask);
+                                      mode_info->pixel_information.blue_mask);
             break;
         }
         default:
@@ -119,31 +123,31 @@ static bool mode_to_fb_info(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *g
     }
 
     ret->memory_model = 0x06;
-    ret->framebuffer_pitch = mode_info->PixelsPerScanLine * (ret->framebuffer_bpp / 8);
-    ret->framebuffer_width = mode_info->HorizontalResolution;
-    ret->framebuffer_height = mode_info->VerticalResolution;
+    ret->framebuffer_pitch = mode_info->pixels_per_scan_line * (ret->framebuffer_bpp / 8);
+    ret->framebuffer_width = mode_info->horizontal_resolution;
+    ret->framebuffer_height = mode_info->vertical_resolution;
 
     ok = validate_pitch(ret, mode);
 
 out:
     // UEFI calls this buffer callee allocated and says nothing about freeing
     // it, so leave one the protocol is still pointing at alone.
-    if (gop->Mode == NULL || mode_info != gop->Mode->Info) {
-        gBS->FreePool(mode_info);
+    if (gop->mode == NULL || mode_info != gop->mode->info) {
+        gBS->free_pool(mode_info);
     }
     return ok;
 }
 
 bool gop_force_16 = false;
 
-static bool try_mode(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop,
+static bool try_mode(struct fb_info *ret, struct efi_graphics_output_protocol *gop,
                      size_t mode, uint64_t width, uint64_t height, int bpp,
                      struct fb_info *fbs, size_t fbs_count) {
-    if (gop->Mode == NULL) {
+    if (gop->mode == NULL) {
         return false;
     }
 
-    EFI_STATUS status;
+    efi_status status;
 
     if (!mode_to_fb_info(ret, gop, mode)) {
         return false;
@@ -166,17 +170,17 @@ static bool try_mode(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop,
     }
 
     for (size_t i = 0; i < fbs_count; i++) {
-        if (gop->Mode->FrameBufferBase == fbs[i].framebuffer_addr) {
+        if (gop->mode->frame_buffer_base == fbs[i].framebuffer_addr) {
             return false;
         }
     }
 
     printv("gop: Found matching mode %X, attempting to set...\n", (uint64_t)mode);
 
-    if (mode == gop->Mode->Mode) {
+    if (mode == gop->mode->mode) {
         printv("gop: Mode was already set, perfect!\n");
     } else {
-        status = gop->SetMode(gop, mode);
+        status = gop->set_mode(gop, mode);
 
         if (status) {
             printv("gop: Failed to set video mode %X, moving on...\n", (uint64_t)mode);
@@ -184,19 +188,19 @@ static bool try_mode(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop,
         }
     }
 
-    if (gop->Mode == NULL || gop->Mode->Info == NULL) {
+    if (gop->mode == NULL || gop->mode->info == NULL) {
         return false;
     }
 
     // Recalculate pitch from gop->Mode->Info, as some firmware (e.g. Apple
     // Macs) report incorrect PixelsPerScanLine via QueryMode.
-    ret->framebuffer_pitch = gop->Mode->Info->PixelsPerScanLine * (ret->framebuffer_bpp / 8);
+    ret->framebuffer_pitch = gop->mode->info->pixels_per_scan_line * (ret->framebuffer_bpp / 8);
 
     if (!validate_pitch(ret, mode)) {
         return false;
     }
 
-    ret->framebuffer_addr = gop->Mode->FrameBufferBase;
+    ret->framebuffer_addr = gop->mode->frame_buffer_base;
     if (ret->framebuffer_addr == 0) {
         return false;
     }
@@ -210,8 +214,8 @@ static bool try_mode(struct fb_info *ret, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop,
     return true;
 }
 
-static struct fb_info *get_mode_list(size_t *count, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop) {
-    EFI_UINTN modes_count = gop->Mode->MaxMode;
+static struct fb_info *get_mode_list(size_t *count, struct efi_graphics_output_protocol *gop) {
+    size_t modes_count = gop->mode->max_mode;
 
     struct fb_info *ret = ext_mem_alloc_counted(modes_count, sizeof(struct fb_info));
 
@@ -245,15 +249,15 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
         preset_modes_initialised = true;
     }
 
-    EFI_STATUS status;
+    efi_status status;
 
-    EFI_HANDLE tmp_handles[1];
+    efi_handle tmp_handles[1];
 
-    EFI_HANDLE *handles = tmp_handles;
-    EFI_UINTN handles_size = sizeof(EFI_HANDLE);
-    EFI_GUID gop_guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+    efi_handle *handles = tmp_handles;
+    size_t handles_size = sizeof(efi_handle);
+    struct efi_guid gop_guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 
-    status = gBS->LocateHandle(EfiByProtocol, &gop_guid, NULL, &handles_size, handles);
+    status = gBS->locate_handle(EFI_BY_PROTOCOL, &gop_guid, NULL, &handles_size, handles);
 
     if (status != EFI_SUCCESS && status != EFI_BUFFER_TOO_SMALL) {
         *ret = NULL;
@@ -261,10 +265,10 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
         return;
     }
 
-    EFI_UINTN handles_alloc = handles_size;
+    size_t handles_alloc = handles_size;
     handles = ext_mem_alloc(handles_alloc);
 
-    status = gBS->LocateHandle(EfiByProtocol, &gop_guid, NULL, &handles_size, handles);
+    status = gBS->locate_handle(EFI_BY_PROTOCOL, &gop_guid, NULL, &handles_size, handles);
     if (status != EFI_SUCCESS) {
         pmm_free(handles, handles_alloc);
         *ret = NULL;
@@ -272,7 +276,7 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
         return;
     }
 
-    size_t handles_count = handles_size / sizeof(EFI_HANDLE);
+    size_t handles_count = handles_size / sizeof(efi_handle);
 
     *ret = ext_mem_alloc_counted(handles_count, sizeof(struct fb_info));
 
@@ -298,28 +302,28 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
         uint64_t _target_height = target_height;
         uint64_t _target_bpp = target_bpp;
 
-        EFI_GRAPHICS_OUTPUT_PROTOCOL *gop;
+        struct efi_graphics_output_protocol *gop;
 
-        status = gBS->HandleProtocol(handles[i], &gop_guid, (void **)&gop);
+        status = gBS->handle_protocol(handles[i], &gop_guid, (void **)&gop);
         if (status != EFI_SUCCESS) {
             continue;
         }
 
-        EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *mode_info;
-        EFI_UINTN mode_info_size;
+        struct efi_graphics_output_mode_information *mode_info;
+        size_t mode_info_size;
 
-        status = gop->QueryMode(gop, gop->Mode == NULL ? 0 : gop->Mode->Mode,
+        status = gop->query_mode(gop, gop->mode == NULL ? 0 : gop->mode->mode,
                                 &mode_info_size, &mode_info);
 
         if (status == EFI_NOT_STARTED) {
             if (fbs_count > 0) {
                 continue;
             }
-            status = gop->SetMode(gop, 0);
+            status = gop->set_mode(gop, 0);
             if (status) {
                 continue;
             }
-            status = gop->QueryMode(gop, gop->Mode == NULL ? 0 : gop->Mode->Mode,
+            status = gop->query_mode(gop, gop->mode == NULL ? 0 : gop->mode->mode,
                                     &mode_info_size, &mode_info);
         }
 
@@ -327,16 +331,16 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
             continue;
         }
 
-        uint32_t mode_width = mode_info->HorizontalResolution;
-        uint32_t mode_height = mode_info->VerticalResolution;
+        uint32_t mode_width = mode_info->horizontal_resolution;
+        uint32_t mode_height = mode_info->vertical_resolution;
 
-        if (gop->Mode == NULL) {
-            gBS->FreePool(mode_info);
+        if (gop->mode == NULL) {
+            gBS->free_pool(mode_info);
             continue;
         }
 
-        if (mode_info != gop->Mode->Info) {
-            gBS->FreePool(mode_info);
+        if (mode_info != gop->mode->info) {
+            gBS->free_pool(mode_info);
         }
 
         // A GPU with no display attached can report a 0x0 current mode, and
@@ -348,12 +352,12 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
         }
 
         if (preset_modes[i] == -1) {
-            preset_modes[i] = gop->Mode->Mode;
+            preset_modes[i] = gop->mode->mode;
         }
 
         fb->edid = get_edid_info(handles[i]);
 
-        EFI_UINTN modes_count = gop->Mode->MaxMode;
+        size_t modes_count = gop->mode->max_mode;
 
         size_t current_fallback = 0;
 

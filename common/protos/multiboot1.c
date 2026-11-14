@@ -576,7 +576,7 @@ skip_modeset:;
     }
 
 #if defined(UEFI)
-    efi_exit_boot_services();
+    efi_leave_boot_services();
 #endif
 
     size_t mb_mmap_count;

@@ -494,10 +494,19 @@ LIMINE_PORT_FLAGS([BIOS], [the x86 BIOS port], [i686],
 ])
 
 LIMINE_PORT_FLAGS([UEFI_IA32], [the IA-32 UEFI port], [i686],
-    [$limine_cflags -fPIE -fvisibility=hidden -fshort-wchar -m32 -march=i686 -mno-mmx${limine_x86_mflags:+ $limine_x86_mflags}],
+    [$limine_cflags -fPIE -fvisibility=hidden -fshort-wchar -m32 -march=i686 -mno-mmx -malign-double${limine_x86_mflags:+ $limine_x86_mflags}],
     [$limine_ldflags -m elf_i386 -pie -z text --hash-style=gnu], [
     LIMINE_X86_CHECKS([UEFI_IA32])
     LIMINE_PACK_RELATIVE_RELOCS([UEFI_IA32])
+    # Clang below 9 takes -malign-double and ignores it, which lays out every
+    # firmware structure with a 64 bit member wrong, so check the alignment
+    # rather than the flag.
+    AC_MSG_CHECKING([whether $CC_FOR_TARGET aligns 64 bit types to 8 bytes for $limine_port])
+    AS_IF([printf 'struct s { char c; long long x; };\n_Static_assert(sizeof(struct s) == 16, "");\n' |
+           limine_cc_run $UEFI_IA32_CFLAGS -c -x c - -o /dev/null],
+        [AC_MSG_RESULT([yes])],
+        [AC_MSG_RESULT([no])
+         AC_MSG_ERROR([$CC_FOR_TARGET does not align 64 bit types to 8 bytes])])
 ])
 
 LIMINE_PORT_FLAGS([UEFI_X86_64], [the x86-64 UEFI port], [x86_64],

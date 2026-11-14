@@ -25,14 +25,14 @@ struct mbr_entry {
 
 struct volume {
 #if defined(UEFI)
-    EFI_HANDLE efi_handle;
+    efi_handle efi_handle;
 
     // Block storage
-    EFI_HANDLE efi_part_handle;
-    EFI_BLOCK_IO_PROTOCOL *block_io;
+    efi_handle efi_part_handle;
+    struct efi_block_io_protocol *block_io;
 
     // PXE
-    EFI_PXE_BASE_CODE_PROTOCOL *pxe_base_code;
+    struct efi_pxe_base_code_protocol *pxe_base_code;
 
     bool unique_sector_valid;
     uint8_t unique_sector_b2b[BLAKE2B_OUT_BYTES];

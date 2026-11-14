@@ -132,7 +132,10 @@ struct pxenv_get_cached_info {
 
 #elif defined(UEFI)
 
-struct volume *pxe_bind_volume(EFI_HANDLE efi_handle, EFI_PXE_BASE_CODE_PROTOCOL *pxe_base_code);
+struct volume *pxe_bind_volume(
+    efi_handle efi_handle,
+    struct efi_pxe_base_code_protocol *pxe_base_code
+);
 
 #endif
 
