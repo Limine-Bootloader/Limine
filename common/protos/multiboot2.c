@@ -568,11 +568,10 @@ reloc_ok:
         panic(true, "multiboot2: Entry point is outside the executable");
     }
 
-    // Reserve the kernel's target so later sources, its own included, can't be
-    // allocated on top of it.
-    for (size_t i = 0; i < kernel_ranges_count; i++) {
-        elsewhere_reserve_target(ranges[i].target, ranges[i].length);
-    }
+    // Reserve the whole span, not each segment, which could fill the memory
+    // map, so later sources, the kernel's own included, can't go on top.
+    struct elsewhere_range *last = &ranges[kernel_ranges_count - 1];
+    elsewhere_reserve_target(ranges[0].target, last->target + last->length - ranges[0].target);
 
     if (addresstag == NULL) {
         elf_stage_elsewhere(kernel, ranges, kernel_ranges_count);
