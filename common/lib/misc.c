@@ -125,6 +125,39 @@ bool secure_boot_active = false;
 uint64_t usec_at_bootloader_entry;
 
 #if defined(UEFI)
+bool firmware_secure_boot = false;
+
+void efi_init_secure_boot(void) {
+    EFI_GUID global_variable = EFI_GLOBAL_VARIABLE;
+    EFI_UINT8 secure_boot = 0;
+    EFI_UINT8 setup_mode = 0;
+    EFI_UINTN sb_size = sizeof(EFI_UINT8);
+    EFI_UINTN sm_size = sizeof(EFI_UINT8);
+    EFI_STATUS sb_status = gRT->GetVariable(
+        L"SecureBoot", &global_variable, NULL, &sb_size, &secure_boot
+    );
+    EFI_STATUS sm_status = gRT->GetVariable(
+        L"SetupMode", &global_variable, NULL, &sm_size, &setup_mode
+    );
+
+    // UEFI 2.11 section 3.3 defines these only on Secure Boot platforms.
+    if (sb_status == EFI_NOT_FOUND && sm_status == EFI_NOT_FOUND) {
+        return;
+    }
+    if (sb_status != EFI_SUCCESS || sm_status != EFI_SUCCESS
+     || sb_size != sizeof(EFI_UINT8) || sm_size != sizeof(EFI_UINT8)
+     || secure_boot > 1 || setup_mode > 1
+     || (secure_boot != 0 && setup_mode != 0)) {
+        panic(false, "uefi: Cannot determine the firmware Secure Boot state");
+    }
+
+    firmware_secure_boot = secure_boot == 1;
+    secure_boot_active = firmware_secure_boot;
+    if (firmware_secure_boot) {
+        editor_enabled = false;
+    }
+}
+
 bool is_efi_serial_present(void) {
     EFI_STATUS status;
     EFI_SERIAL_IO_PROTOCOL *serial_io = NULL;
@@ -232,6 +265,11 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
             soft_panic = false;
         }
         if (dtb_path != NULL) {
+#if defined(UEFI)
+            if (firmware_secure_boot) {
+                panic(false, "linux: External device trees are unavailable in authenticated boot");
+            }
+#endif
             // A URI the parser refuses panics whatever required says, since
             // ignoring one would silently drop a hash the config asked for.
             struct file_handle *dtb_file = uri_open(dtb_path, MEMMAP_BOOTLOADER_RECLAIMABLE, false

@@ -16,7 +16,9 @@
 #include <sys/idt.h>
 #include <sys/cpu.h>
 #include <lib/bli.h>
+#include <lib/tpm.h>
 #include <lib/utf.h>
+#include <protos/linux_efi.h>
 #include <drivers/vga_textmode.h>
 #include <mm/pmm.h>
 #if defined(UEFI)
@@ -426,52 +428,124 @@ static EFI_DEVICE_PATH_PROTOCOL *build_relative_efi_file_path(struct file_handle
     return device_path;
 }
 
-noreturn void chainload(char *config, char *cmdline) {
+static EFI_DEVICE_PATH_PROTOCOL *build_full_efi_file_path(EFI_HANDLE device,
+    EFI_DEVICE_PATH_PROTOCOL *file_path) {
+    EFI_GUID guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+    EFI_DEVICE_PATH_PROTOCOL *path = NULL;
+    EFI_STATUS status = gBS->HandleProtocol(device, &guid, (void **)&path);
+    if (status != EFI_SUCCESS || path == NULL) {
+        panic(false, "efi: Image device has no device path");
+    }
+    size_t length = 0;
+    for (;;) {
+        EFI_DEVICE_PATH_PROTOCOL *node = (void *)((uint8_t *)path + length);
+        size_t size = node->Length[0] | (size_t)node->Length[1] << 8;
+        if (size < sizeof(EFI_DEVICE_PATH_PROTOCOL) || size > UINT16_MAX - length) {
+            panic(false, "efi: Invalid image device path");
+        }
+        if (node->Type == EFI_END_DEVICE_PATH_TYPE) {
+            if (node->SubType != EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE
+             || size != sizeof(EFI_DEVICE_PATH_PROTOCOL)) {
+                panic(false, "efi: Unsupported image device path");
+            }
+            break;
+        }
+        length += size;
+    }
+    size_t file_size = file_path->Length[0] | (size_t)file_path->Length[1] << 8;
+    size_t total = CHECKED_ADD(length, file_size + sizeof(EFI_DEVICE_PATH_PROTOCOL),
+        panic(false, "efi: Device path size overflow"));
+    EFI_DEVICE_PATH_PROTOCOL *full = NULL;
+    status = gBS->AllocatePool(EfiLoaderData, total, (void **)&full);
+    if (status != EFI_SUCCESS) {
+        panic(false, "efi: Device path allocation failure (%X)", (uint64_t)status);
+    }
+    memcpy(full, path, length);
+    memcpy((uint8_t *)full + length, file_path, file_size + sizeof(EFI_DEVICE_PATH_PROTOCOL));
+    return full;
+}
+
+static void release_image_source(void *ptr, size_t size) {
+    EFI_STATUS status = gBS->FreePages((uintptr_t)ptr,
+        DIV_ROUNDUP(size, 4096, panic(false, "efi: Image size overflow")));
+    if (status != EFI_SUCCESS) {
+        panic(false, "efi: Failed to free the image source (%X)", (uint64_t)status);
+    }
+}
+
+static void release_efi_pool(void *ptr) {
+    if (ptr == NULL) {
+        return;
+    }
+    EFI_STATUS status = gBS->FreePool(ptr);
+    if (status != EFI_SUCCESS) {
+        panic(false, "efi: Failed to free image data (%X)", (uint64_t)status);
+    }
+}
+
+noreturn void efi_load(char *config, char *cmdline, bool linux_protocol) {
     char *image_path = config_get_value(config, 0, "PATH");
     if (image_path == NULL) {
-        image_path = config_get_value(config, 0, "IMAGE_PATH");
+        image_path = config_get_value(config, 0, linux_protocol ? "KERNEL_PATH" : "IMAGE_PATH");
     }
     if (image_path == NULL) {
         panic(true, "efi: Image path not specified");
     }
 
-    // The firmware's LoadImage will verify the Secure Boot signature of the
-    // chainloaded EFI application, so Limine does not need to enforce its
-    // own hash check here.
-    bool saved_secure_boot_active = secure_boot_active;
-    secure_boot_active = false;
-
-    struct file_handle *image;
-    if ((image = uri_open(image_path, MEMMAP_RESERVED, false
-#if defined(__i386__)
-        , NULL, NULL
-#endif
-    )) == NULL)
+    if (firmware_secure_boot && image_path[0] == '$') {
+        panic(false, "efi: Compressed image URIs are unavailable in authenticated boot");
+    }
+    struct file_handle *image = uri_open_uefi(image_path, MEMMAP_RESERVED);
+    if (image == NULL) {
         panic(true, "efi: Failed to open image with path `%s`. Is the path correct?", image_path);
-
-    secure_boot_active = saved_secure_boot_active;
+    }
 
     EFI_STATUS status;
 
     EFI_HANDLE efi_part_handle = image->efi_part_handle;
 
     void *ptr = image->fd;
-    size_t image_size = image->size;
+    if (image->size == 0 || image->size > SIZE_MAX) {
+        panic(false, "efi: Invalid image size");
+    }
+    size_t image_size = (size_t)image->size;
 
+    if (firmware_secure_boot) {
+        EFI_GUID fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+        void *filesystem = NULL;
+        if (image->pxe || efi_part_handle == NULL
+         || gBS->HandleProtocol(efi_part_handle, &fs_guid, &filesystem) != EFI_SUCCESS
+         || filesystem == NULL) {
+            panic(false, "efi: Image must be on an EFI filesystem");
+        }
+    }
+
+    size_t aligned_image_size = ALIGN_UP(image_size, 4096,
+        panic(false, "chainload: Alignment overflow"));
     memmap_alloc_range_in(untouched_memmap, &untouched_memmap_entries,
-                          (uintptr_t)ptr, ALIGN_UP(image_size, 4096, panic(true, "chainload: Alignment overflow")),
+                          (uintptr_t)ptr, aligned_image_size,
                           MEMMAP_RESERVED, MEMMAP_USABLE, true, false, true);
 
     EFI_DEVICE_PATH_PROTOCOL *efi_file_path = build_relative_efi_file_path(image);
+    EFI_DEVICE_PATH_PROTOCOL *efi_full_path = NULL;
+    if (firmware_secure_boot) {
+        efi_full_path = build_full_efi_file_path(efi_part_handle, efi_file_path);
+        release_efi_pool(efi_file_path);
+        efi_file_path = NULL;
+    }
 
     fclose(image);
+    if (firmware_secure_boot) {
+        linux_efi_prepare(config, cmdline, linux_protocol);
+    }
     term_notready();
 
     size_t req_width = 0, req_height = 0, req_bpp = 0;
 
     char *resolution = config_get_value(config, 0, "RESOLUTION");
-    if (resolution != NULL)
+    if (resolution != NULL) {
         parse_resolution(&req_width, &req_height, &req_bpp, resolution);
+    }
 
     struct fb_info *fbinfo;
     size_t fb_count;
@@ -483,20 +557,34 @@ noreturn void chainload(char *config, char *cmdline) {
     size_t new_cmdline_size = 0;
     if (cmdline_len > 0) {
         // UTF-16 never takes more code units than UTF-8 takes bytes.
-        size_t cmdline_utf16_alloc_len = CHECKED_MUL(cmdline_len + 1, sizeof(EFI_CHAR16), panic(true, "efi: Allocation size overflow"));
+        size_t cmdline_chars = CHECKED_ADD(cmdline_len, 1,
+            panic(false, "efi: Command line size overflow"));
+        size_t cmdline_utf16_alloc_len = CHECKED_MUL(cmdline_chars, sizeof(EFI_CHAR16),
+            panic(false, "efi: Allocation size overflow"));
         EFI_CHAR16 *cmdline_utf16 = ext_mem_alloc(cmdline_utf16_alloc_len);
 
         size_t cmdline_utf16_chars;
         utf8_to_utf16(cmdline_utf16, cmdline_len + 1, cmdline, cmdline_len, &cmdline_utf16_chars);
 
         new_cmdline_size = (cmdline_utf16_chars + 1) * sizeof(EFI_CHAR16);
+        if (new_cmdline_size > UINT32_MAX) {
+            panic(false, "efi: Command line is too large");
+        }
         status = gBS->AllocatePool(EfiLoaderData, new_cmdline_size, (void **)&new_cmdline);
         if (status) {
-            panic(true, "efi: Allocation failure");
+            panic(false, "efi: Allocation failure");
         }
         memcpy(new_cmdline, cmdline_utf16, new_cmdline_size);
 
         pmm_free(cmdline_utf16, cmdline_utf16_alloc_len);
+    }
+
+    if (firmware_secure_boot) {
+        if (new_cmdline != NULL) {
+            tpm_measure_load_options(new_cmdline, new_cmdline_size);
+        } else {
+            tpm_validate_log();
+        }
     }
 
     pmm_release_uefi_mem();
@@ -510,7 +598,8 @@ noreturn void chainload(char *config, char *cmdline) {
 
     memdev_path[0].MemoryType       = EfiLoaderCode;
     memdev_path[0].StartingAddress  = (uintptr_t)ptr;
-    memdev_path[0].EndingAddress    = (uintptr_t)ptr + image_size;
+    memdev_path[0].EndingAddress    = CHECKED_ADD((uintptr_t)ptr, image_size - 1,
+        panic(false, "efi: Image range overflow"));
 
     memdev_path[1].Header.Type = EFI_END_DEVICE_PATH_TYPE;
     memdev_path[1].Header.SubType = EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE;
@@ -519,9 +608,24 @@ noreturn void chainload(char *config, char *cmdline) {
 
     EFI_HANDLE new_handle = 0;
 
-    status = gBS->LoadImage(0, efi_image_handle,
-                            (EFI_DEVICE_PATH_PROTOCOL *)memdev_path,
-                            ptr, image_size, &new_handle);
+    EFI_DEVICE_PATH_PROTOCOL *load_path = firmware_secure_boot
+        ? efi_full_path : (EFI_DEVICE_PATH_PROTOCOL *)memdev_path;
+    status = gBS->LoadImage(0, efi_image_handle, load_path, ptr, image_size, &new_handle);
+    if (firmware_secure_boot && status != EFI_SUCCESS && new_handle != NULL) {
+        EFI_STATUS unload_status = gBS->UnloadImage(new_handle);
+        if (unload_status != EFI_SUCCESS) {
+            panic(false, "efi: Failed to unload the rejected image (%X)", (uint64_t)unload_status);
+        }
+        new_handle = NULL;
+    }
+    if (firmware_secure_boot) {
+        release_image_source(ptr, image_size);
+        if (status != EFI_SUCCESS) {
+            linux_efi_release();
+            release_efi_pool(efi_full_path);
+            release_efi_pool(new_cmdline);
+        }
+    }
     if (status) {
         panic(false, "efi: LoadImage failure (%X)", (uint64_t)status);
     }
@@ -531,22 +635,39 @@ noreturn void chainload(char *config, char *cmdline) {
     EFI_LOADED_IMAGE_PROTOCOL *new_handle_loaded_image = NULL;
     status = gBS->HandleProtocol(new_handle, &loaded_img_prot_guid,
                                  (void **)&new_handle_loaded_image);
-    if (status) {
+    if (status != EFI_SUCCESS || new_handle_loaded_image == NULL) {
+        if (firmware_secure_boot) {
+            EFI_STATUS unload_status = gBS->UnloadImage(new_handle);
+            if (unload_status != EFI_SUCCESS) {
+                panic(false, "efi: Failed to unload the image (%X)", (uint64_t)unload_status);
+            }
+            linux_efi_release();
+            release_efi_pool(efi_full_path);
+            release_efi_pool(new_cmdline);
+        }
         panic(false, "efi: HandleProtocol failure (%X)", (uint64_t)status);
     }
 
-    if (efi_part_handle != 0) {
+    if (!firmware_secure_boot) {
+        if (efi_part_handle != 0) {
+            new_handle_loaded_image->DeviceHandle = efi_part_handle;
+        }
+        new_handle_loaded_image->FilePath = efi_file_path;
+    } else if (new_handle_loaded_image->DeviceHandle == NULL && efi_part_handle != NULL) {
         new_handle_loaded_image->DeviceHandle = efi_part_handle;
     }
 
-    new_handle_loaded_image->FilePath = efi_file_path;
-
-    if (cmdline_len > 0) {
+    if (new_cmdline != NULL) {
         new_handle_loaded_image->LoadOptionsSize = new_cmdline_size;
         new_handle_loaded_image->LoadOptions = new_cmdline;
     } else {
         new_handle_loaded_image->LoadOptionsSize = 0;
         new_handle_loaded_image->LoadOptions = NULL;
+    }
+
+    if (firmware_secure_boot) {
+        linux_efi_register();
+        tpm_validate_log();
     }
 
     bli_on_boot();
@@ -555,12 +676,36 @@ noreturn void chainload(char *config, char *cmdline) {
     EFI_CHAR16 *exit_data = NULL;
     EFI_STATUS exit_status = gBS->StartImage(new_handle, &exit_data_size, &exit_data);
 
+    if (firmware_secure_boot) {
+        // UEFI 2.11 section 7.4.3 unloads applications, but not all drivers.
+        EFI_LOADED_IMAGE_PROTOCOL *remaining_image = NULL;
+        status = gBS->HandleProtocol(new_handle, &loaded_img_prot_guid, (void **)&remaining_image);
+        if (status == EFI_SUCCESS) {
+            status = gBS->UnloadImage(new_handle);
+            if (status != EFI_SUCCESS) {
+                panic(false, "efi: Failed to unload the returned image (%X)", (uint64_t)status);
+            }
+        } else if (status != EFI_INVALID_PARAMETER && status != EFI_UNSUPPORTED
+                && status != EFI_NOT_FOUND) {
+            panic(false, "efi: Failed to check the returned image (%X)", (uint64_t)status);
+        }
+        linux_efi_release();
+        release_efi_pool(efi_full_path);
+        release_efi_pool(new_cmdline);
+        release_efi_pool(exit_data);
+        panic(false, "efi: Image returned in authenticated boot (%X)", (uint64_t)exit_status);
+    }
+
     status = gBS->Exit(efi_image_handle, exit_status, exit_data_size, exit_data);
     if (status) {
         panic(false, "efi: Exit failure (%X)", (uint64_t)status);
     }
 
     __builtin_unreachable();
+}
+
+noreturn void chainload(char *config, char *cmdline) {
+    efi_load(config, cmdline, false);
 }
 
 #endif

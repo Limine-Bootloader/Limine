@@ -6,6 +6,7 @@
 #include <lib/part.h>
 
 extern bool config_ready;
+extern bool config_authenticated;
 extern bool bad_config;
 
 struct menu_entry {
@@ -37,6 +38,7 @@ const char *config_get_raw(size_t *size_out);
 #endif
 
 char *config_get_value(const char *config, size_t index, const char *key);
+char *config_get_value_next(const char **cursor, const char *key);
 struct conf_tuple config_get_tuple(const char *config, size_t index,
                                    const char *key1, const char *key2);
 

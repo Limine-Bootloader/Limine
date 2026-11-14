@@ -1550,7 +1550,7 @@ static const char *uefi_shell_filename(void) {
 
 static bool uefi_shell_available(void) {
     // Only what the verified config describes may boot under enforcement.
-    if (secure_boot_active) {
+    if (firmware_secure_boot) {
         return false;
     }
 
@@ -1789,7 +1789,11 @@ noreturn void _menu(bool first_run) {
     char *hash_mismatch_panic_str = config_get_value(NULL, 0, "HASH_MISMATCH_PANIC");
     hash_mismatch_panic = hash_mismatch_panic_str == NULL || strcasecmp(hash_mismatch_panic_str, "no") != 0;
 
-    if (secure_boot_active) {
+    if (secure_boot_active
+#if defined(UEFI)
+     || firmware_secure_boot
+#endif
+    ) {
         hash_mismatch_panic = true;
         editor_enabled = false;
     }
@@ -1804,13 +1808,21 @@ noreturn void _menu(bool first_run) {
     if (!tpm_present()) {
         measured_boot = false;
     }
+    if (firmware_secure_boot) {
+        measured_boot = tpm_secure_boot_available() || tpm_cc_present();
+        if (!measured_boot) {
+            quiet = false;
+            print("WARNING: tpm: Secure Boot is active without TPM 2.0 measurements.\n");
+        }
+    }
 
-    // Measure the on-disk config bytes now that measured_boot is final.
-    size_t raw_size;
-    const char *raw = config_get_raw(&raw_size);
-    if (raw != NULL) {
-        tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,
-                    raw, raw_size, "limine_cfg", NULL);
+    // Measure raw config bytes on first run once measured_boot is final.
+    if (first_run) {
+        size_t raw_size;
+        const char *raw = config_get_raw(&raw_size);
+        if (raw != NULL) {
+            tpm_measure_config(raw, raw_size);
+        }
     }
 #endif
 
@@ -1823,7 +1835,11 @@ noreturn void _menu(bool first_run) {
     }
 
     char *editor_enabled_str = config_get_value(NULL, 0, "EDITOR_ENABLED");
-    if (editor_enabled_str != NULL && !secure_boot_active) {
+    if (editor_enabled_str != NULL && !secure_boot_active
+#if defined(UEFI)
+     && !firmware_secure_boot
+#endif
+    ) {
         editor_enabled = strcmp(editor_enabled_str, "yes") == 0;
     }
 
@@ -1898,7 +1914,11 @@ noreturn void _menu(bool first_run) {
 #endif
     }
 
-    if (secure_boot_active && !custom_branding) {
+    if ((secure_boot_active
+#if defined(UEFI)
+    || firmware_secure_boot
+#endif
+    ) && !custom_branding) {
         const char *suffix = ", Secure Boot)";
         size_t suffix_len = strlen(suffix) + 1;
         size_t old_len = strlen(menu_branding);
@@ -2499,6 +2519,18 @@ noreturn void boot(char *config) {
     if (proto == NULL) {
         panic(true, "Boot protocol not specified for this entry");
     }
+
+#if defined(UEFI)
+    if (firmware_secure_boot) {
+        if (strcmp(proto, "linux") == 0) {
+            efi_load(config, cmdline, true);
+        }
+        if (strcmp(proto, "efi") != 0 && strcmp(proto, "uefi") != 0
+         && strcmp(proto, "efi_chainload") != 0 && strcmp(proto, "efi_boot_entry") != 0) {
+            panic(false, "boot: Protocol is unavailable with firmware Secure Boot");
+        }
+    }
+#endif
 
     if (!strcmp(proto, "limine")) {
         limine_load(config, cmdline);

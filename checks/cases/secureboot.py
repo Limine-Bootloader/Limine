@@ -9,6 +9,7 @@ from harness.report import unescape
 from harness import images, secureboot
 from harness.screen import Font, builtin_font
 from cases._common import entry, kernel_file, screen_text, wait_panic
+from cases.chainload import probe, probe_report
 
 # UEFI Secure Boot: what USAGE.md ("Secure Boot") says Limine enforces once
 # Secure Boot is active and a config hash is enrolled, and that without an
@@ -66,19 +67,27 @@ def kernel_entry(t, hashed=True, extra='', modules=(), cmdline='secure boot'):
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_enforced(t):
-    """With Secure Boot active and the config hash enrolled, a config whose
-    paths all carry hashes boots."""
-    m = sb_boot(t, 'timeout: 0\n' + kernel_entry(t))
-    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'booted')
+    """An enrolled config can boot a signed EFI image with a hashed initrd."""
+    image = secureboot.sign(t.env, probe(t).path, t.path('signed-kernel.efi'))
+    data = b'initrd contents'
+    config = 'timeout: 0\n' + entry('Linux', protocol='linux', path='boot():/kernel.efi',
+        cmdline='name:enrolled readinitrd', modules=[(f'boot():/initrd#{b2(data)}', None)])
+    m = sb_boot(t, config, files={'/kernel.efi': HostFile(image), '/initrd': data})
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'enrolled', 'signed image booted with enrolled config')
+    t.expect_eq(report.int('initrd.size'), len(data), 'hashed initrd delivered')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_path_needs_hash(t):
-    """Every path must carry a hash."""
-    m = sb_boot(t, 'timeout: 0\n' + kernel_entry(t, hashed=False))
+    """An enrolled config still requires an initrd hash."""
+    image = secureboot.sign(t.env, probe(t).path, t.path('signed-kernel.efi'))
+    config = 'timeout: 0\n' + entry('Linux', protocol='linux', path='boot():/kernel.efi',
+                                   modules=[('boot():/initrd', None)])
+    m = sb_boot(t, config, files={'/kernel.efi': HostFile(image), '/initrd': b'data'})
     msg, _ = wait_panic(t, m)
-    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/boot/kernel.elf` has no associated hash!',
-                '[intent] a kernel path without a hash')
+    t.expect_eq(msg, 'Secure Boot is active and URI `boot():/initrd` has no associated hash!',
+                'an initrd without a hash is refused')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
@@ -98,12 +107,13 @@ def sb_config_mismatch(t):
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_hash_mismatch_always_panics(t):
-    """hash_mismatch_panic is forced to yes."""
-    config = 'timeout: 0\nhash_mismatch_panic: no\n' + kernel_entry(
-        t, modules=[(f'boot():/boot/m.bin#{b2(b"something else")}', None)])
-    m = sb_boot(t, config, files={'/boot/m.bin': b'module contents'})
+    image = secureboot.sign(t.env, probe(t).path, t.path('signed-kernel.efi'))
+    config = 'timeout: 0\nhash_mismatch_panic: no\n' + entry(
+        'Linux', protocol='linux', path='boot():/kernel.efi',
+        modules=[(f'boot():/initrd#{b2(b"something else")}', None)])
+    m = sb_boot(t, config, files={'/kernel.efi': HostFile(image), '/initrd': b'module contents'})
     msg, _ = wait_panic(t, m)
-    t.expect_eq(msg, 'BLAKE2b hash for URI `boot():/boot/m.bin` does not match!', 'a mismatch panics regardless')
+    t.expect_eq(msg, 'BLAKE2b hash for URI `boot():/initrd` does not match!', 'a mismatch panics regardless')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
@@ -155,16 +165,14 @@ def sb_efi_chainload(t):
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_not_enrolled(t):
-    """With no config hash enrolled Secure Boot counts as inactive: paths need
-    no hash and the editor is there."""
+    """Secure Boot restricts native loading even without an enrolled config hash."""
     config = 'timeout: no\n' + kernel_entry(t, hashed=False)
     m = sb_boot(t, config, enrolled=False)
-    scr = t.wait_text(m, 'ARROWS')
-    text = screen_text(scr)
-    t.check('E Edit' in text, 'editor available')
-    t.check(', Secure Boot)' not in text, '[intent] branding without Secure Boot')
+    text = screen_text(t.wait_text(m, 'ARROWS'))
+    t.check('E Edit' not in text, 'editor unavailable')
     m.press('ret')
-    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'a kernel without a hash boots')
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'boot: Protocol is unavailable with firmware Secure Boot', 'native protocol refused')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
