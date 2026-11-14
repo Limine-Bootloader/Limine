@@ -491,13 +491,16 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
         }
 
         // A small align turns this into a byte-by-byte walk, each step scanning
-        // the memory map. The cap bounds that work, and below page alignment it
-        // bounds the reach with it.
-        uint64_t reloc_tries = 0;
+        // the memory map per segment. The cap counts the scans, so it bounds
+        // that work, and below page alignment the reach with it.
+        uint64_t reloc_checks = 0;
 
         for (;;) {
             int64_t cand_slide = (int64_t)relocated_base - orig_base;
             for (size_t i = 0; i < kernel_ranges_count; i++) {
+                if (++reloc_checks > 0x100000) {
+                    goto reloc_fail;
+                }
                 uint64_t seg_target = ranges[i].target + cand_slide;
                 uint64_t seg_top = CHECKED_ADD(seg_target, ranges[i].length, goto cand_fail);
                 if (!check_usable_memory(seg_target, seg_top)
@@ -508,10 +511,6 @@ noreturn void multiboot2_load(char *config, char* cmdline) {
             break;
 
 cand_fail:
-            if (++reloc_tries > 0x100000) {
-                goto reloc_fail;
-            }
-
             if (reloc_ascend) {
                 relocated_base += reloc_tag.align;
                 uint64_t relocated_top = CHECKED_ADD(relocated_base, image_span, goto reloc_fail);
