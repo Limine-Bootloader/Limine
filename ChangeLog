@@ -1,3 +1,60 @@
+2026-11-14  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.10.0 ***
+
+    Noteworthy changes compared to the previous release, 12.9.6:
+
+    New features:
+        - Turn the interface upright by default on the handhelds and tablets
+          whose panel Linux knows to be mounted turned in their casing, such as
+          the Steam Deck. `interface_rotation` still overrides it.
+        - Correct the framebuffer geometry that firmware is known to misreport,
+          as Linux does: the modes GOP reports landscape on some portrait
+          panels, and the MacBookAir3,1's pitch. Only Limine's own interface
+          and the Limine boot protocol see the corrections, and only on the
+          first framebuffer.
+        - Limine boot protocol: Report the clockwise turn that each
+          framebuffer's picture needs to look upright, as `upright_rotation` in
+          revision 2 of the framebuffer response.
+
+    Bug fixes:
+        - Multiboot 1 and 2: Load ELF kernels whose segments lie far apart,
+          staging each segment on its own rather than all of them in one buffer
+          spanning the gaps. Fixes #704.
+        - Multiboot 1 and 2: Keep the relocation stub and the ranges it copies
+          out of the memory the kernel is copied to, where they could be
+          overwritten mid-copy.
+        - UEFI: Halve the transfer size until a disk accepts it, rather than
+          failing on disks that refuse transfers as large as their optimal
+          transfer granularity implies. Fixes #708.
+        - UEFI: Put a touchscreen or tablet's position where it is on screen
+          when the interface is rotated.
+        - UEFI: Report conventional memory earmarked for specific purposes, or
+          that cannot be cached write-back, as reserved rather than usable.
+        - x86: Measure the TSC frequency without SMIs or hypervisor stalls
+          throwing it off, and take the crystal clock frequency from the
+          processor model where CPUID leaf 0x15 leaves it out.
+        - x86: Enable 8-bit APIC IDs on AMD processors before starting the
+          application processors, as without them, start-up IPIs to APIC IDs of
+          15 and up reach the wrong processors.
+        - x86: Bound the waits for a VT-d or AMD-Vi remapping unit to stop, and
+          leave alone one whose registers read as all ones, either of which
+          could hang the handoff.
+        - x86: Keep NMI LVT entries edge triggered whatever the ACPI tables
+          say.
+        - Miscellaneous bug fixes.
+
+    Miscellaneous:
+        - Update PicoEFI, freestanding-c-hdrs, and freestanding-lgrt.
+        - Compile the IA-32 UEFI port with `-malign-double` again, as PicoEFI
+          now lays out its 64-bit members by the compiler's alignment.
+        - Run the checks on every push and pull request, and check the commit
+          messages of pull requests.
+        - Spell out the coding style and commit message rules in
+          CONTRIBUTING.md, and require tests with every change.
+        - Stop more checks of the menu failing spuriously on slow machines.
+        - Miscellaneous improvements.
+
 2026-10-28  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.9.6 ***
