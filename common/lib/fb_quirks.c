@@ -40,6 +40,61 @@ struct key {
 #define EQ(F, T) { (F), true, (T) }
 #define HAS(F, T) { (F), false, (T) }
 
+struct mac_framebuffer {
+    struct key keys[MAX_KEYS];
+    uint32_t base;
+    uint16_t pitch;
+    uint16_t width;
+    uint16_t height;
+    bool force_pitch;
+};
+
+// FM~"VENDOR" and SP~"MODEL", then the geometry.
+#define MAC(VENDOR, MODEL, BASE, PITCH, WIDTH, HEIGHT, FORCE_PITCH) \
+    { { HAS(FM, VENDOR), HAS(SP, MODEL) }, (BASE), (PITCH), (WIDTH), (HEIGHT), (FORCE_PITCH) }
+
+// Early Intel Macs' framebuffer geometry. From Linux v7.3.4,
+// drivers/firmware/efi/sysfb_efi.c.
+static const struct mac_framebuffer mac_framebuffers[] = {
+    MAC("Apple Computer, Inc.", "iMac4,1", 0x80010000, 5888, 1440, 900, false),
+    MAC("Apple Computer, Inc.", "iMac5,1", 0x80010000, 6912, 1680, 1050, false),
+    MAC("Apple Inc.", "iMac5,1", 0x80010000, 6912, 1680, 1050, false),
+    MAC("Apple Computer, Inc.", "iMac6,1", 0x80010000, 8192, 1920, 1200, false),
+    MAC("Apple Inc.", "iMac6,1", 0x80010000, 8192, 1920, 1200, false),
+    MAC("Apple Inc.", "iMac7,1", 0x40010000, 6912, 1680, 1050, false),
+    MAC("Apple Inc.", "iMac8,1", 0xc0060000, 8192, 1920, 1200, false),
+    MAC("Apple Inc.", "iMac10,1", 0xc0010000, 8192, 1920, 1080, false),
+    MAC("Apple Inc.", "iMac11,1", 0xc0010000, 10240, 2560, 1440, false),
+    MAC("Apple Computer, Inc.", "Macmini1,1", 0x80000000, 8192, 1024, 768, false),
+    MAC("Apple Inc.", "Macmini3,1", 0x40010000, 4096, 1024, 768, false),
+    MAC("Apple Inc.", "Macmini4,1", 0xc0010000, 8192, 1920, 1200, false),
+    MAC("Apple Computer, Inc.", "MacBook1,1", 0x80000000, 8192, 1280, 800, false),
+    MAC("Apple Computer, Inc.", "MacBook2,1", 0x80000000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBook2,1", 0x80000000, 8192, 1280, 800, false),
+    MAC("Apple Computer, Inc.", "MacBook3,1", 0x80000000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBook3,1", 0x80000000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBook4,1", 0x80000000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBook5,1", 0x80010000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBook6,1", 0x80010000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBook7,1", 0x80010000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBookAir1,1", 0x80000000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBookAir3,1", 0, 8192, 0, 0, true),
+    MAC("Apple Computer, Inc.", "MacBookPro1,1", 0x80010000, 5888, 1440, 900, false),
+    MAC("Apple Computer, Inc.", "MacBookPro2,1", 0, 0, 0, 0, false),
+    MAC("Apple Computer, Inc.", "MacBookPro2,2", 0x80010000, 5888, 1440, 900, false),
+    MAC("Apple Inc.", "MacBookPro2,1", 0, 0, 0, 0, false),
+    MAC("Apple Computer, Inc.", "MacBookPro3,1", 0x80030000, 8192, 1440, 900, false),
+    MAC("Apple Inc.", "MacBookPro3,1", 0x80030000, 8192, 1440, 900, false),
+    MAC("Apple Inc.", "MacBookPro4,1", 0xc0060000, 8192, 1920, 1200, false),
+    MAC("Apple Inc.", "MacBookPro5,1", 0xc0010000, 8192, 1440, 900, false),
+    MAC("Apple Inc.", "MacBookPro5,2", 0xc0010000, 8192, 1920, 1200, false),
+    MAC("Apple Inc.", "MacBookPro5,3", 0xd0010000, 8192, 1440, 900, false),
+    MAC("Apple Inc.", "MacBookPro6,1", 0x90030000, 8192, 1920, 1200, false),
+    MAC("Apple Inc.", "MacBookPro6,2", 0x90030000, 8192, 1680, 1050, false),
+    MAC("Apple Inc.", "MacBookPro7,1", 0xc0010000, 8192, 1280, 800, false),
+    MAC("Apple Inc.", "MacBookPro8,2", 0x90010000, 5888, 1440, 900, false)
+};
+
 struct portrait_panel {
     struct key keys[MAX_KEYS];
     // Only a mode reported as 1280x800, which the firmware turns in software
@@ -337,6 +392,36 @@ static bool keys_match(const struct key *keys, const char *const fields[FIELD_CO
     return true;
 }
 
+static const struct mac_framebuffer *find_mac(const char *const fields[FIELD_COUNT]) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(mac_framebuffers); i++) {
+        const struct mac_framebuffer *mac = &mac_framebuffers[i];
+        // An entry with no geometry leaves the next to decide.
+        if (mac->base == 0 && mac->pitch == 0 && mac->width == 0 && mac->height == 0) {
+            continue;
+        }
+        if (keys_match(mac->keys, fields)) {
+            return mac;
+        }
+    }
+    return NULL;
+}
+
+static void correct_mac(struct fb_info *mode, const struct mac_framebuffer *mac) {
+    if (mode->framebuffer_width == 0) {
+        mode->framebuffer_width = mac->width;
+    }
+    if (mode->framebuffer_height == 0) {
+        mode->framebuffer_height = mac->height;
+    }
+
+    // A mode whose rows are wider than the forced pitch cannot have it, and
+    // keeps the firmware's.
+    uint64_t row = mode->framebuffer_width * ((mode->framebuffer_bpp + 7) / 8);
+    if (mode->framebuffer_pitch == 0 || (mac->force_pitch && mac->pitch >= row)) {
+        mode->framebuffer_pitch = mac->pitch;
+    }
+}
+
 #if defined(UEFI)
 static const struct portrait_panel *find_portrait(const char *const fields[FIELD_COUNT]) {
     for (size_t i = 0; i < SIZEOF_ARRAY(portrait_panels); i++) {
@@ -406,6 +491,7 @@ void fb_quirks_apply(struct fb_info *fbs, size_t fbs_count) {
     const char *fields[FIELD_COUNT];
     read_fields(fields);
 
+    const struct mac_framebuffer *mac = find_mac(fields);
 #if defined(UEFI)
     // Only GOP is known to report these modes exchanged.
     const struct portrait_panel *portrait = find_portrait(fields);
@@ -416,6 +502,15 @@ void fb_quirks_apply(struct fb_info *fbs, size_t fbs_count) {
     // The first framebuffer alone, the one the Linux protocol hands Linux, so
     // that Limine goes by these tables exactly where Linux does.
     struct fb_info *fb = &fbs[0];
+
+    // Base 0 is no framebuffer for the geometry to fill in.
+    if (mac != NULL && fb->framebuffer_addr != 0) {
+        // Each mode as the framebuffer would be in it.
+        correct_mac(fb, mac);
+        for (size_t i = 0; i < fb->mode_count; i++) {
+            correct_mac(&fb->mode_list[i], mac);
+        }
+    }
 
     if (portrait != NULL) {
         // Each mode as the framebuffer would be in it.
