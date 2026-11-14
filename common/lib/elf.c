@@ -1269,6 +1269,38 @@ again:
     return true;
 }
 
+static void sift_down(struct elsewhere_range *ranges, size_t root, size_t count) {
+    for (;;) {
+        size_t child = root * 2 + 1;
+        if (child >= count) {
+            return;
+        }
+        if (child + 1 < count && ranges[child + 1].target > ranges[child].target) {
+            child++;
+        }
+        if (ranges[root].target >= ranges[child].target) {
+            return;
+        }
+        struct elsewhere_range tmp = ranges[root];
+        ranges[root] = ranges[child];
+        ranges[child] = tmp;
+        root = child;
+    }
+}
+
+// Heapsort, as a file can hold 65535 segments.
+static void sort_ranges(struct elsewhere_range *ranges, size_t count) {
+    for (size_t i = count / 2; i-- > 0; ) {
+        sift_down(ranges, i, count);
+    }
+    for (size_t end = count; end-- > 1; ) {
+        struct elsewhere_range tmp = ranges[0];
+        ranges[0] = ranges[end];
+        ranges[end] = tmp;
+        sift_down(ranges, 0, end);
+    }
+}
+
 bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_size,
                           uint64_t *entry_point, struct elsewhere_range **ranges,
                           uint64_t *ranges_count) {
@@ -1360,15 +1392,7 @@ bool elf32_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
         }
     }
 
-    for (size_t i = 1; i < num_loadable; i++) {
-        struct elsewhere_range key = (*ranges)[i];
-        size_t j = i;
-        while (j > 0 && (*ranges)[j - 1].target > key.target) {
-            (*ranges)[j] = (*ranges)[j - 1];
-            j--;
-        }
-        (*ranges)[j] = key;
-    }
+    sort_ranges(*ranges, num_loadable);
 
     for (size_t i = 1; i < num_loadable; i++) {
         if ((*ranges)[i].target < (*ranges)[i - 1].target + (*ranges)[i - 1].length) {
@@ -1470,15 +1494,7 @@ bool elf64_load_elsewhere(uint8_t *elf, size_t file_size, uint64_t max_image_siz
         }
     }
 
-    for (size_t i = 1; i < num_loadable; i++) {
-        struct elsewhere_range key = (*ranges)[i];
-        size_t j = i;
-        while (j > 0 && (*ranges)[j - 1].target > key.target) {
-            (*ranges)[j] = (*ranges)[j - 1];
-            j--;
-        }
-        (*ranges)[j] = key;
-    }
+    sort_ranges(*ranges, num_loadable);
 
     for (size_t i = 1; i < num_loadable; i++) {
         if ((*ranges)[i].target < (*ranges)[i - 1].target + (*ranges)[i - 1].length) {

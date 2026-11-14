@@ -1,7 +1,9 @@
+import time
+
 from harness.api import check
 from harness.elf import PT_LOAD, ElfFile
 from harness.ports import X86_PORTS
-from cases._common import boot_entry, entry, panics_in_turn, read
+from cases._common import boot_entry, entry, panics_in_turn, read, select_entry, wait_panic
 from cases.multiboot import (boot_mb1, boot_mb2, mb1_kernel, mb1_report, mb2_kernel, mb2_report)
 
 # Spoilt ELF kernels for Multiboot 1 and 2, each failing one check of
@@ -148,3 +150,37 @@ def mb2_many_segments(t):
     """The same for Multiboot 2."""
     m = boot_mb2(t, many_segments(mb2_kernel(t)))
     mb2_report(t, m)
+
+
+def overlapping_segments(path, descending):
+    """65535 segments of two pages, a page apart so that each overlaps the
+    next, in ascending or descending order."""
+    e = ElfFile(read(path))
+    order = range(65534, -1, -1) if descending else range(65535)
+    return e.with_phdrs([{'p_type': PT_LOAD, 'p_offset': 0, 'p_vaddr': 0x1000000 + i * 0x1000,
+                          'p_paddr': 0x1000000 + i * 0x1000, 'p_filesz': 0, 'p_memsz': 0x2000, 'p_flags': 4,
+                          'p_align': 0x1000} for i in order])
+
+
+@check(ports=X86_PORTS, tags=['multiboot2', 'elf', 'hostile'])
+def mb2_elf_segments_sorted(t):
+    """65535 overlapping segments are refused about as soon in descending
+    order as in ascending, which an insertion sort takes quadratic time
+    over [intent]."""
+    files = {'/boot/a.elf': overlapping_segments(mb2_kernel(t), False),
+             '/boot/d.elf': overlapping_segments(mb2_kernel(t), True)}
+    config = ('timeout: no\n' + entry('A', protocol='multiboot2', path='boot():/boot/a.elf')
+              + entry('D', protocol='multiboot2', path='boot():/boot/d.elf'))
+    m, _ = boot_entry(t, config, files=files, kernel_variant=None)
+    taken = []
+    for i, name in enumerate(('A', 'D')):
+        t.wait_text(m, 'ARROWS', 60)
+        select_entry(t, m, i, name)
+        start = time.monotonic()
+        m.press('ret')
+        msg, _ = wait_panic(t, m)
+        taken.append(time.monotonic() - start)
+        t.expect_eq(msg, 'elf: Overlapping loadable segments', f'{name}: the panic')
+        m.press('ret')
+    t.check(taken[1] < 4 * taken[0] + 2 * t.port.timeout_scale,
+            f'descending in {taken[1]:.1f}s, ascending in {taken[0]:.1f}s')
