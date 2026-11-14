@@ -885,31 +885,13 @@ static bool is_efi_handle_indexed(EFI_HANDLE efi_handle) {
 }
 
 // Halve the transfer size until the device reads it. index_disks() has
-// already read block 0 alone, so a failure here is down to the size.
+// already read block 0 alone, so a failure here is down to the size. Reading
+// through the cache spares the partition table a second read.
 static void probe_xfer_size(struct volume *block) {
-    EFI_BLOCK_IO_PROTOCOL *drive = block->block_io;
-
-    size_t alignment = 4096;
-    uint32_t io_align = drive->Media->IoAlign;
-    if (io_align > alignment && (io_align & (io_align - 1)) == 0) {
-        alignment = io_align;
-    }
-
-    uint64_t disk_blocks = (uint64_t)drive->Media->LastBlock + 1;
-    size_t buf_size = block->fastest_xfer_size * drive->Media->BlockSize;
-    void *buf = ext_mem_alloc_type_aligned(buf_size, MEMMAP_BOOTLOADER_RECLAIMABLE, alignment);
-
-    while (block->fastest_xfer_size > 1) {
-        uint64_t count = MIN((uint64_t)block->fastest_xfer_size, disk_blocks);
-        EFI_STATUS status = drive->ReadBlocks(drive, drive->Media->MediaId, 0,
-            count * drive->Media->BlockSize, buf);
-        if (status == EFI_SUCCESS) {
-            break;
-        }
+    uint8_t byte;
+    while (block->fastest_xfer_size > 1 && !volume_read(block, &byte, 0, 1)) {
         block->fastest_xfer_size /= 2;
     }
-
-    pmm_free(buf, MAX(buf_size, alignment));
 }
 
 // Kept across index_disks() calls, so that disks found later number after
