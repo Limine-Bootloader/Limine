@@ -95,6 +95,17 @@ def authenticated_setup_mode_legacy(t):
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_efi_entry_ignores_global_dtb(t):
+    """global_dtb and dtb_path do not block generic protocol: efi entries under Secure Boot."""
+    config = ('timeout: 0\nglobal_dtb: boot():/missing-global.dtb\n'
+              + entry('EFI', protocol='efi', path='boot():/kernel.efi',
+                      cmdline='name:efidtb info', extra='dtb_path: boot():/missing-entry.dtb'))
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)}, tpm=False)
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'efidtb', 'protocol: efi ignores global_dtb and dtb_path')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_secure_boot_disabled(t):
     config = 'timeout: 0\n' + entry('Native', path='boot():/native.elf', cmdline='native')
     m = authenticated_boot(t, config, {'/native.elf': HostFile(kernel_file(t, 'full'))},
@@ -105,7 +116,8 @@ def authenticated_secure_boot_disabled(t):
 
 @check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_menu_restrictions(t):
-    config = 'timeout: no\neditor_enabled: yes\n' + entry('Linux', protocol='linux', path='boot():/missing')
+    config = ('timeout: no\neditor_enabled: yes\nglobal_dtb: boot():/missing.dtb\n'
+              + entry('Linux', protocol='linux', path='boot():/missing'))
     m = authenticated_boot(t, config)
     text = screen_text(t.wait_text(m, 'ARROWS'))
     t.check('E Edit' not in text, 'configuration cannot enable the editor')

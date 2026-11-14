@@ -1731,6 +1731,17 @@ noreturn void _menu(bool first_run) {
         }
     }
 
+    char *hash_mismatch_panic_str = config_get_value(NULL, 0, "HASH_MISMATCH_PANIC");
+    hash_mismatch_panic = hash_mismatch_panic_str == NULL
+                       || strcasecmp(hash_mismatch_panic_str, "no") != 0;
+
+#if defined(UEFI)
+    if (firmware_secure_boot) {
+        hash_mismatch_panic = true;
+        editor_enabled = false;
+    }
+#endif
+
 #if defined(__riscv)
     init_riscv(NULL);
 #endif
@@ -1786,15 +1797,7 @@ noreturn void _menu(bool first_run) {
     serial_initialise();
 #endif
 
-    char *hash_mismatch_panic_str = config_get_value(NULL, 0, "HASH_MISMATCH_PANIC");
-    hash_mismatch_panic = hash_mismatch_panic_str == NULL || strcasecmp(hash_mismatch_panic_str, "no") != 0;
-
 #if defined(UEFI)
-    if (firmware_secure_boot) {
-        hash_mismatch_panic = true;
-        editor_enabled = false;
-    }
-
     char *measured_boot_str = config_get_value(NULL, 0, "MEASURED_BOOT");
     measured_boot = measured_boot_str != NULL && strcmp(measured_boot_str, "yes") == 0;
     if (secure_boot_active) {
