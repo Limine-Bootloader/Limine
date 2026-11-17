@@ -1,10 +1,11 @@
 from harness.api import check
 from harness.ports import ALL_PORTS
+from cases._common import screen_text
 from cases.menu import boot_menu, tree_menu, wait_menu
 
-# Where the menu text sits: interface_anchor and the two cell offsets. What
-# the code alone decides is [intent]; the values themselves come from
-# CONFIG.md.
+# Where the menu text sits and how its lines line up: interface_anchor,
+# interface_align, and the two cell offsets. What the code alone decides is
+# [intent]; the values themselves come from CONFIG.md.
 
 NAMES = ('First', 'Collapsed', 'Last')
 
@@ -80,6 +81,33 @@ def menu_placement_anchor_forms(t):
         _, want = require_block(t, boot_menu(t, placement_menu('interface_anchor: right_top\n')), 'right_top')
         _, got = require_block(t, boot_menu(t, placement_menu(f'interface_anchor: {value}\n')), value)
         t.expect_eq(got, want, f'interface_anchor: {value} reads as right_top')
+
+
+@check(ports=ALL_PORTS, tags=['menu'])
+def menu_placement_align(t):
+    """interface_align lines the entries up against each other: left, centre,
+    or right, and right mirrors the tree decorations so they branch outwards."""
+    def run(value=None):
+        extra = 'interface_anchor: left_top\n'
+        if value is not None:
+            extra += f'interface_align: {value}\n'
+        return require_block(t, boot_menu(t, placement_menu(extra)), str(value))
+
+    scr, left = run()
+    starts = [s[0] for s in entry_spans(scr)]
+    t.expect_eq(len(set(starts)), 1, '[intent] left (the default) starts every line at the same column')
+
+    scr, centre = run('center')
+    mids = [(s[0] + s[1]) // 2 for s in entry_spans(scr)]
+    t.check(max(mids) - min(mids) <= 1, f'center centres every line ({mids})')
+
+    scr, right = run('right')
+    ends = [s[1] for s in entry_spans(scr)]
+    t.check(max(ends) - min(ends) <= 1, f'right ends every line at the same column ({ends})')
+
+    text = screen_text(scr)
+    t.check('├' not in text and '└' not in text, '[intent] right aligned lines do not branch to the left')
+    t.check('┤' in text or '┘' in text or '<--' in text, '[intent] right aligned lines keep the branch on the right')
 
 
 @check(ports=ALL_PORTS, tags=['menu'])
