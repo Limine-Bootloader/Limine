@@ -95,6 +95,16 @@ static const struct mac_framebuffer mac_framebuffers[] = {
     MAC("Apple Inc.", "MacBookPro8,2", 0x90010000, 5888, 1440, 900, false)
 };
 
+#if defined(UEFI)
+// Macs whose GOP reports 8-bit RGB while the framebuffer is BGR
+// see linux-fbdev ("efifb swapping Red/Blue color", 2012) 
+// and Red Hat bug 1180836.
+static const struct key bgr_macs[][MAX_KEYS] = {
+    { HAS(FM, "Apple"), EQ(SP, "MacBookAir2,1") },
+    { HAS(FM, "Apple"), EQ(SP, "Macmini3,1") }
+};
+#endif
+
 struct portrait_panel {
     struct key keys[MAX_KEYS];
     // Only a mode reported as 1280x800, which the firmware turns in software
@@ -423,6 +433,23 @@ static void correct_mac(struct fb_info *mode, const struct mac_framebuffer *mac)
 }
 
 #if defined(UEFI)
+static bool is_bgr_mac(const char *const fields[FIELD_COUNT]) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(bgr_macs); i++) {
+        if (keys_match(bgr_macs[i], fields)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void correct_bgr(struct fb_info *mode) {
+    if (mode->framebuffer_bpp == 32 && mode->red_mask_size == 8 && mode->red_mask_shift == 0
+     && mode->blue_mask_size == 8 && mode->blue_mask_shift == 16) {
+        mode->red_mask_shift = 16;
+        mode->blue_mask_shift = 0;
+    }
+}
+
 static const struct portrait_panel *find_portrait(const char *const fields[FIELD_COUNT]) {
     for (size_t i = 0; i < SIZEOF_ARRAY(portrait_panels); i++) {
         if (keys_match(portrait_panels[i].keys, fields)) {
@@ -511,6 +538,15 @@ void fb_quirks_apply(struct fb_info *fbs, size_t fbs_count) {
             correct_mac(&fb->mode_list[i], mac);
         }
     }
+
+#if defined(UEFI)
+    if (is_bgr_mac(fields)) {
+        correct_bgr(fb);
+        for (size_t i = 0; i < fb->mode_count; i++) {
+            correct_bgr(&fb->mode_list[i]);
+        }
+    }
+#endif
 
     if (portrait != NULL) {
         // Each mode as the framebuffer would be in it.
