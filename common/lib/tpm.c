@@ -7,6 +7,7 @@
 #include <lib/tpm.h>
 #include <lib/misc.h>
 #include <lib/print.h>
+#include <lib/tpm_mem.h>
 #include <lib/libc.h>
 #include <lib/getchar.h>
 #include <mm/pmm.h>
@@ -251,6 +252,13 @@ void tpm_measure_path(uint32_t pcr, uint32_t event_type,
     tpm_measure(pcr, event_type, stripped, path_len, desc_prefix, stripped);
 }
 
+static size_t log_memory_extent(uintptr_t address) {
+    // Until exit, the saved map predates any late firmware allocations.
+    return tpm_log_extent(
+        efi_boot_services_exited ? NULL : gBS, efi_mmap, efi_mmap_size, efi_desc_size, address
+    );
+}
+
 // Confines reads of firmware-supplied data to the extent it may occupy.
 struct log_reader {
     const uint8_t *data;
@@ -409,6 +417,21 @@ static size_t tcg_log_size(const uint8_t *data, size_t limit, size_t last_offset
     }
 }
 
+static bool final_events_reader(struct log_reader *r, uint64_t *count) {
+    const void *table = tpm_get_final_events_table();
+    *r = (struct log_reader){ table, log_memory_extent((uintptr_t)table), 0 };
+    if (table == NULL) {
+        return false;
+    }
+    struct efi_tcg2_final_events_table header;
+    if (!log_read(r, &header, offsetof(struct efi_tcg2_final_events_table, event))
+     || header.version != TCG_FINAL_EVENTS_TABLE_VERSION) {
+        return false;
+    }
+    *count = header.number_of_events;
+    return true;
+}
+
 // The final events table repeats every event logged since the first
 // GetEventLog call (TCG EFI Protocol section 7, UEFI 2.11 section 38.3), so the
 // events it holds at capture are the newest ones of the captured log. Gives
@@ -416,23 +439,17 @@ static size_t tcg_log_size(const uint8_t *data, size_t limit, size_t last_offset
 // replays them all, and a duplicated event does less harm than a lost one.
 static bool tcg_final_events_preboot(const uint8_t *log_data, size_t log_size,
     const struct tcg_digest_sizes *sizes, uint64_t *count, size_t *total_size) {
-    const uint8_t *table = tpm_get_final_events_table();
-    if (table == NULL) {
+    struct log_reader r;
+    uint64_t entries;
+    if (!final_events_reader(&r, &entries)) {
         return false;
     }
-
-    struct efi_tcg2_final_events_table header;
-    memcpy(&header, table, offsetof(struct efi_tcg2_final_events_table, event));
-    if (header.version != TCG_FINAL_EVENTS_TABLE_VERSION) {
-        return false;
-    }
-
-    const uint8_t *events = table + offsetof(struct efi_tcg2_final_events_table, event);
-    // They can only be among the events that follow the log's header.
+    const uint8_t *events = r.data + r.pos;
     size_t limit = log_size - tcg_pcr_event_size(log_data, log_size);
+    limit = MIN(limit, r.size - r.pos);
     size_t total = 0;
 
-    for (uint64_t i = 0; i < header.number_of_events; i++) {
+    for (uint64_t i = 0; i < entries; i++) {
         size_t size = tcg_pcr_event2_size(events + total, limit - total, sizes);
         if (size == 0) {
             return false;
@@ -444,7 +461,7 @@ static bool tcg_final_events_preboot(const uint8_t *log_data, size_t log_size,
         return false;
     }
 
-    *count = header.number_of_events;
+    *count = entries;
     *total_size = total;
     return true;
 }
@@ -530,7 +547,7 @@ static bool event_log_capture(void) {
     }
 
     const uint8_t *log_data = (const uint8_t *)(uintptr_t)location;
-    size_t limit = MIN((uintptr_t)TCG_LOG_MAX_SIZE, UINTPTR_MAX - (uintptr_t)location);
+    size_t limit = MIN((size_t)TCG_LOG_MAX_SIZE, log_memory_extent((uintptr_t)location));
     struct tcg_digest_sizes sizes = { 0 };
     size_t size = 0;
 
@@ -602,24 +619,17 @@ size_t tpm_append_final_events(void) {
         return event_log_size;
     }
 
-    const uint8_t *table = tpm_get_final_events_table();
-    if (table == NULL) {
+    struct log_reader r;
+    uint64_t entries;
+    if (!final_events_reader(&r, &entries) || entries < event_log_preboot_count
+     || !log_skip(&r, event_log_preboot_size)) {
         return event_log_size;
     }
-
-    struct efi_tcg2_final_events_table header;
-    memcpy(&header, table, offsetof(struct efi_tcg2_final_events_table, event));
-    if (header.version != TCG_FINAL_EVENTS_TABLE_VERSION
-     || header.number_of_events < event_log_preboot_count) {
-        return event_log_size;
-    }
-
-    const uint8_t *events = table + offsetof(struct efi_tcg2_final_events_table, event)
-        + event_log_preboot_size;
-    size_t room = event_log_capacity - event_log_size;
+    const uint8_t *events = r.data + r.pos;
+    size_t room = MIN(event_log_capacity - event_log_size, r.size - r.pos);
     size_t total = 0;
 
-    for (uint64_t i = event_log_preboot_count; i < header.number_of_events; i++) {
+    for (uint64_t i = event_log_preboot_count; i < entries; i++) {
         size_t size = tcg_pcr_event2_size(events + total, room - total,
             &event_log_digest_sizes);
         if (size == 0) {
@@ -632,7 +642,7 @@ size_t tpm_append_final_events(void) {
     memcpy((uint8_t *)event_log_copy + event_log_size, events, total);
     event_log_size += total;
     event_log_preboot_size += total;
-    event_log_preboot_count = header.number_of_events;
+    event_log_preboot_count = entries;
 
     printv("tpm: appended %U bytes of events logged after the capture\n", (uint64_t)total);
     return event_log_size;
