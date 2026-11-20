@@ -517,11 +517,15 @@ LIMINE_PORT_FLAGS([UEFI_X86_64], [the x86-64 UEFI port], [x86_64],
     LIMINE_PACK_RELATIVE_RELOCS([UEFI_X86_64])
 ])
 
+# The UEFI AArch64 binding has x18 left unused (UEFI 2.11 section 2.3.6.4).
 LIMINE_PORT_FLAGS([UEFI_AARCH64], [the aarch64 UEFI port], [aarch64],
-    [$limine_cflags -fPIE -fvisibility=hidden -fshort-wchar -mcpu=generic -march=armv8-a+nofp+nosimd -mcmodel=small],
+    [$limine_cflags -fPIE -fvisibility=hidden -fshort-wchar -mcpu=generic -march=armv8-a+nofp+nosimd -mlittle-endian -mcmodel=small -ffixed-x18],
     [$limine_ldflags -m aarch64elf -pie -z text --hash-style=gnu], [
     LIMINE_CHECK_CFLAG([UEFI_AARCH64], [-fno-stack-clash-protection])
     LIMINE_CHECK_CFLAG([UEFI_AARCH64], [-mbranch-protection=none])
+    # Clang does not take this ABI name.
+    AS_IF([test "x$CC_FOR_TARGET_IS_CLANG" = "xno"],
+        [LIMINE_CHECK_CFLAG([UEFI_AARCH64], [-mabi=lp64])])
     # Only the linker can work around Cortex-A53 erratum 843419, so require one
     # that can.
     LIMINE_CHECK_LDFLAG([UEFI_AARCH64], [--fix-cortex-a53-843419],
