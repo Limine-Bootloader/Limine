@@ -472,7 +472,8 @@ AC_DEFUN([LIMINE_X86_CHECKS], [
 
 limine_cflags="m4_normalize([
     -g -Wall -Wextra -Wshadow -Wvla $WERROR_FLAG -std=gnu11 -ffreestanding
-    -fno-exceptions -fno-common -ffunction-sections -fdata-sections
+    -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables
+    -fno-common -ffunction-sections -fdata-sections
     -fstack-protector-strong -fno-stack-check -fno-omit-frame-pointer
     -fno-strict-aliasing -fno-lto
 ])"
