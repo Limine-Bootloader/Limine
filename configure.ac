@@ -515,6 +515,9 @@ LIMINE_PORT_FLAGS([UEFI_X86_64], [the x86-64 UEFI port], [x86_64],
     [$limine_ldflags -m elf_x86_64 -pie -z text --hash-style=gnu], [
     LIMINE_X86_CHECKS([UEFI_X86_64])
     LIMINE_PACK_RELATIVE_RELOCS([UEFI_X86_64])
+    # Older GCCs need this for ms_abi calls. Clang has no such flag.
+    AS_IF([test "x$CC_FOR_TARGET_IS_CLANG" = "xno"],
+        [UEFI_X86_64_CFLAGS="$UEFI_X86_64_CFLAGS -maccumulate-outgoing-args"])
 ])
 
 # The UEFI AArch64 binding has x18 left unused (UEFI 2.11 section 2.3.6.4).
