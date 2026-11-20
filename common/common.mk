@@ -67,6 +67,7 @@ ifeq ($(TARGET),uefi-x86-64)
     override TARGET_CFLAGS := $(UEFI_X86_64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_X86_64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
+        -include hidden.h \
         -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
@@ -81,6 +82,7 @@ ifeq ($(TARGET),uefi-ia32)
     override TARGET_CFLAGS := $(UEFI_IA32_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_IA32_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
+        -include hidden.h \
         -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
@@ -95,6 +97,7 @@ ifeq ($(TARGET),uefi-aarch64)
     override TARGET_CFLAGS := $(UEFI_AARCH64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_AARCH64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
+        -include hidden.h \
         -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
@@ -104,6 +107,7 @@ ifeq ($(TARGET),uefi-riscv64)
     override TARGET_CFLAGS := $(UEFI_RISCV64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_RISCV64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
+        -include hidden.h \
         -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
@@ -113,6 +117,7 @@ ifeq ($(TARGET),uefi-loongarch64)
     override TARGET_CFLAGS := $(UEFI_LOONGARCH64_CFLAGS)
     override TARGET_LDFLAGS := $(UEFI_LOONGARCH64_LDFLAGS)
     override CPPFLAGS_FOR_TARGET := \
+        -include hidden.h \
         -I ../picoefi/include \
         $(CPPFLAGS_FOR_TARGET) \
         -DUEFI
