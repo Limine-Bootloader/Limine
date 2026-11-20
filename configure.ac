@@ -554,6 +554,9 @@ LIMINE_PORT_FLAGS([UEFI_RISCV64], [the riscv64 UEFI port], [riscv64],
     # Clang called this code model "small" before the ISA's own name.
     LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mcmodel=medlow], [-mcode-model],
         [LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mcmodel=small], [-mcode-model])])
+    # UEFI 2.11 section 2.3.7.3 has code assume nothing of unaligned accesses.
+    # Compilers without the flag never make them.
+    LIMINE_CHECK_CFLAG([UEFI_RISCV64], [-mstrict-align])
     # Keep linker relaxation away from gp, which nothing sets up. Linkers
     # without the flag only use gp if the script defines __global_pointer$.
     LIMINE_CHECK_LDFLAG([UEFI_RISCV64], [--no-relax-gp])
