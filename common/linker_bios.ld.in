@@ -49,7 +49,7 @@ SECTIONS
         terms = .;
         terms_i = .;
         usec_at_bootloader_entry = .;
-        serial_out = .;
+        term_serial_out = .;
         stage3_addr = .;
 #else
 #ifdef LINKER_NOS2MAP

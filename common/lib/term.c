@@ -10,6 +10,7 @@
 #include <mm/pmm.h>
 #include <mm/mtrr.h>
 #include <mm/efi_pt.h>
+#include <drivers/serial.h>
 #include <drivers/vga_textmode.h>
 #include <lib/gterm.h>
 #include <flanterm_backends/fb.h>
@@ -353,6 +354,118 @@ void term_set_text_bg_nearest(struct flanterm_context *ctx, uint32_t rgb) {
         ctx->set_text_bg_bright(ctx, colour - 8);
     }
 }
+
+#if defined(BIOS)
+// What is printed goes to the serial line as it is, but for 24-bit SGR
+// colours, which the terminal there may lack: those go as the nearest of 16.
+static char serial_seq[64];
+static size_t serial_seq_len = 0;
+
+static void serial_out_seq(void) {
+    for (size_t i = 0; i < serial_seq_len; i++) {
+        serial_out(serial_seq[i]);
+    }
+    serial_seq_len = 0;
+}
+
+static void serial_out_number(uint32_t n) {
+    char digits[10];
+    size_t len = 0;
+    do {
+        digits[len++] = '0' + n % 10;
+        n /= 10;
+    } while (n != 0);
+    while (len > 0) {
+        serial_out(digits[--len]);
+    }
+}
+
+static void serial_out_sgr(void) {
+    uint32_t params[32];
+    size_t count = 0;
+    uint32_t value = 0;
+    // The parameters after the CSI, each ended by a ; or the final m.
+    for (size_t i = 2; i < serial_seq_len; i++) {
+        char c = serial_seq[i];
+        if (c >= '0' && c <= '9' && value <= 0xffff) {
+            value = value * 10 + (c - '0');
+        } else if ((c == ';' || c == 'm') && count < SIZEOF_ARRAY(params)) {
+            params[count++] = value;
+            value = 0;
+        } else {
+            goto raw;
+        }
+    }
+
+    // A 256-colour index is passed over, lest it read as a 38 or 48.
+    size_t kept = 0;
+    bool rgb = false;
+    for (size_t i = 0; i < count; i++) {
+        uint32_t param = params[i];
+        bool extended = param == 38 || param == 48;
+        if (extended && i + 4 < count && params[i + 1] == 2) {
+            uint32_t colour = ((params[i + 2] & 0xff) << 16) | ((params[i + 3] & 0xff) << 8)
+                            | (params[i + 4] & 0xff);
+            size_t nearest = nearest_colour(colour);
+            params[kept++] = (param == 38 ? 30 : 40) + (nearest < 8 ? nearest : nearest - 8 + 60);
+            i += 4;
+            rgb = true;
+        } else if (extended && i + 2 < count && params[i + 1] == 5) {
+            params[kept++] = param;
+            params[kept++] = params[++i];
+            params[kept++] = params[++i];
+        } else {
+            params[kept++] = param;
+        }
+    }
+    if (!rgb) {
+        goto raw;
+    }
+
+    serial_out('\e');
+    serial_out('[');
+    for (size_t i = 0; i < kept; i++) {
+        if (i != 0) {
+            serial_out(';');
+        }
+        serial_out_number(params[i]);
+    }
+    serial_out('m');
+    serial_seq_len = 0;
+    return;
+
+raw:
+    serial_out_seq();
+}
+
+void term_serial_out(uint8_t b) {
+    if (serial_seq_len == 0) {
+        if (b == '\e') {
+            serial_seq[serial_seq_len++] = b;
+        } else {
+            serial_out(b);
+        }
+        return;
+    }
+
+    if (serial_seq_len == 1 && b != '[') {
+        serial_out_seq();
+        term_serial_out(b);
+        return;
+    }
+
+    serial_seq[serial_seq_len++] = b;
+    if (serial_seq_len > 2 && b >= 0x40 && b <= 0x7e) {
+        if (b == 'm') {
+            serial_out_sgr();
+        } else {
+            serial_out_seq();
+        }
+    } else if (serial_seq_len == sizeof(serial_seq)) {
+        serial_out_seq();
+    }
+}
+#endif
 
 #if defined(UEFI)
 void term_prepare_post_ebs(void) {

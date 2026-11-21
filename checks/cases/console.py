@@ -49,7 +49,7 @@ def serial_colour(t, m, needle, offset=0):
     return fg
 
 
-@check(ports=UEFI_PORTS, tags=['console', 'serial'])
+@check(ports=ALL_PORTS, tags=['console', 'serial'])
 def console_serial_colours(t):
     """The interface's colours reach the serial line as the nearest of the 16
     every terminal has [intent]: by default green help keys, a bright green
@@ -65,6 +65,20 @@ def console_serial_colours(t):
         t.expect_eq(serial_colour(t, m, countdown, len(countdown)), bright, f'{name} countdown')
         t.expect_eq(serial_colour(t, m, 'Limine '), branding, f'{name} branding')
         m.stop()
+
+
+@check(ports=['bios'], tags=['console', 'serial'])
+def console_serial_sgr(t):
+    """On BIOS, where what is printed goes to the serial line as it is, a
+    24-bit SGR colour goes as the nearest of the 16, the rest of its sequence
+    kept, and other sequences unchanged [intent]."""
+    e = '\x1b'
+    branding = f'{e}[1;38;2;0;200;0;48;5;17mA{e}[0m{e}[38;5;2;48;2;250;80;80mB{e}[0m{e}[38;2;1mC'
+    m = boot_menu(t, f'timeout: no\nserial: yes\ninterface_branding: {branding}\n' + menu_entry(1, 'Only', 'x'))
+    t.wait_serial_text(m, 'ABC')
+    sent = f'{e}[1;32;48;5;17mA{e}[0m{e}[38;5;2;101mB{e}[0m{e}[38;2;1mC'.encode()
+    raw = bytes(m.stream('serial').raw())
+    t.check(sent in raw, f'{sent!r} on the serial line:\n{raw!r}')
 
 
 @check(ports=ALL_PORTS, tags=['console'])
