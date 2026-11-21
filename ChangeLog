@@ -1,3 +1,39 @@
+2026-11-21  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.11.0 ***
+
+    Noteworthy changes compared to the previous release, 12.10.0:
+
+    New features:
+        - Add Vim-style keys to the menu, in either case: J and K move the
+          selection down and up, and L does what Right does.
+        - Collapse an expanded directory in the menu with Left, H, or h, which
+          from elsewhere in a directory move the selection to the directory.
+          Right, L, and l still toggle a directory.
+        - Add `qwertz` to the layouts `keyboard_layout` takes.
+
+    Bug fixes:
+        - Show the interface's colours on the serial line and in text mode,
+          where 24-bit colours have been lost since 12.0.0, as the nearest of
+          the 16 colours there.
+        - UEFI: Hide the firmware console's cursor in the menu, showing it only
+          where Limine's terminal has one, as in the editor.
+        - UEFI: Show SGR 33 as brown rather than bright yellow on the firmware
+          console, as VGA text mode does.
+        - UEFI: Correct the colour masks of the MacBookAir2,1 and Macmini3,1,
+          whose GOP reports RGB for their BGR framebuffers. As with the other
+          corrections, only Limine's own interface and the Limine boot
+          protocol see it, and only on the first framebuffer.
+
+    Miscellaneous:
+        - Update freestanding-c-hdrs and freestanding-lgrt.
+        - Build the UEFI ports as the UEFI 2.11 calling conventions require:
+          AArch64 code leaves x18 alone, and RISC-V code makes no unaligned
+          accesses.
+        - Build without unwind tables, and on UEFI, reach what other files
+          define directly rather than through the GOT.
+        - Miscellaneous improvements.
+
 2026-11-14  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.10.0 ***
