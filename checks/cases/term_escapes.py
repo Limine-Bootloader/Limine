@@ -1,5 +1,6 @@
 from harness.api import check
 from harness.ports import ALL_PORTS, UEFI_PORTS
+from cases.console import serial_colour
 from cases.menu import boot_menu, booted_cmdline, menu_entry, wait_menu
 
 # Limine's terminal interprets control sequences (ECMA-48 5th edition) in what
@@ -76,6 +77,21 @@ def term_escapes_graphical(t):
     t.check(c['B'].fg != c['A'].fg and c['C'].bg != c['A'].bg, 'bold and blink brighten the defaults')
     t.check(c['E'].bg != c['A'].bg and c['D'].fg == c['E'].fg, 'bright red background behind E')
     t.expect_eq(c['G'].bg, 0x010203, '24-bit background')
+
+
+@check(ports=UEFI_PORTS, tags=['console', 'term'])
+def term_escapes_firmware_console(t):
+    """On the firmware's console, as the serial line gives it, SGR 30-37 and
+    90-97 are each of the 16 colours, 33 brown and 93 yellow as in VGA text
+    mode [intent]."""
+    for base, shown in ((0, '01234567'), (8, '89ABCDEF')):
+        first = 30 if base == 0 else 90
+        branding = ''.join(f'{E}[{first + i}m{ch}' for i, ch in enumerate(shown)) + f'{E}[0m'
+        m = boot_menu(t, f'timeout: no\nserial: yes\ninterface_branding: {branding}\n' + menu_entry(1, 'Only', 'x'))
+        t.wait_serial_text(m, shown)
+        t.expect_eq([serial_colour(t, m, shown, i) for i in range(8)], [f'c{base + i}' for i in range(8)],
+                    f'SGR {first}-{first + 7}')
+        m.stop()
 
 
 @check(ports=ALL_PORTS, tags=['console', 'term'])
