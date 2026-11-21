@@ -2376,6 +2376,35 @@ timeout_aborted:
                 mouse_render_pointer();
                 break;
             }
+            case GETCHAR_CURSOR_LEFT:
+            case 'h':
+            case 'H': {
+                if (max_entries == 0) {
+                    break;
+                }
+                if (selected_menu_entry->sub != NULL && selected_menu_entry->expanded) {
+                    selected_menu_entry->expanded = false;
+                    goto refresh;
+                }
+                struct menu_entry *parent = selected_menu_entry->parent;
+                if (parent == NULL) {
+                    break;
+                }
+                // Back past the siblings before this entry and all they have
+                // expanded, then one more row to the parent's.
+                struct menu_entry *sibling = parent->sub;
+                for (; sibling != selected_menu_entry; sibling = sibling->next) {
+                    if (should_skip_entry(sibling)) {
+                        continue;
+                    }
+                    selected_entry--;
+                    if (sibling->sub != NULL && sibling->expanded) {
+                        selected_entry -= count_visible_entries(sibling->sub);
+                    }
+                }
+                selected_entry--;
+                goto refresh;
+            }
             case GETCHAR_CURSOR_RIGHT:
             case 'l':
             case 'L':
