@@ -287,7 +287,11 @@ static struct efi_device_path_protocol *file_devpath(const char *path) {
 }
 
 static void cmd_info(void) {
+    // These checks do not depend on firmware support for DevicePathToText.
+    out("K file_path_is_null=%u\n", (uint64_t)(loaded->file_path == NULL));
+    out("K device_handle_is_null=%u\n", (uint64_t)(loaded->device_handle == NULL));
     out("K options_size=%u\n", (uint64_t)loaded->load_options_size);
+    out("K options_is_null=%u\n", (uint64_t)(loaded->load_options == NULL));
     if (loaded->load_options != NULL) {
         uint16_t *o = loaded->load_options;
         out("K options=%w\n", o);
@@ -756,11 +760,98 @@ static uint64_t fnv1a(const uint8_t *p, uint64_t len) {
     return h;
 }
 
+static struct {
+    struct efi_vendor_device_path vendor;
+    struct efi_device_path_protocol end;
+} initrd_path = {
+    .vendor = {
+        .header = {
+            EFI_MEDIA_DEVICE_PATH,
+            EFI_MEDIA_VENDOR_DP,
+            { sizeof(struct efi_vendor_device_path), 0 }
+        },
+        .guid = { 0x5568e427, 0x68fc, 0x4f3d, { 0xac, 0x74, 0xca, 0x55, 0x52, 0x31, 0xcc, 0x68 } },
+    },
+    .end = { EFI_END_DEVICE_PATH_TYPE, EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE, { 4, 0 } },
+};
+
+static void cmd_initrd(void) {
+    struct efi_guid guid = EFI_LOAD_FILE2_PROTOCOL_GUID;
+    struct efi_device_path_protocol *path = &initrd_path.vendor.header;
+    efi_handle handle = NULL;
+    efi_status status = bs->locate_device_path(&guid, &path, &handle);
+    out("K initrd.locate=%x\n", (uint64_t)status);
+    if (status != EFI_SUCCESS) {
+        return;
+    }
+    efi_load_file2_protocol *load_file = NULL;
+    status = bs->handle_protocol(handle, &guid, (void **)&load_file);
+    out("K initrd.protocol=%x\n", (uint64_t)status);
+    if (status != EFI_SUCCESS || load_file == NULL) {
+        return;
+    }
+    size_t size = 0;
+    status = load_file->load_file(load_file, path, false, &size, NULL);
+    out("K initrd.query=%x\nK initrd.size=%u\n", (uint64_t)status, (uint64_t)size);
+    if (status != EFI_BUFFER_TOO_SMALL || size == 0 || size > 0x8000000) {
+        return;
+    }
+    void *data = alloc(size);
+    if (data == NULL) {
+        out("K initrd.error=allocation failed\n");
+        return;
+    }
+    size_t small = size - 1;
+    status = load_file->load_file(load_file, path, false, &small, data);
+    out("K initrd.small=%x\nK initrd.small_size=%u\n", (uint64_t)status, (uint64_t)small);
+    size_t actual = size;
+    status = load_file->load_file(load_file, path, false, &actual, data);
+    out("K initrd.read=%x\nK initrd.read_size=%u\n", (uint64_t)status, (uint64_t)actual);
+    if (status == EFI_SUCCESS && actual <= size) {
+        out("K initrd.hash=%016x\n", fnv1a(data, actual));
+    }
+    actual = size;
+    status = load_file->load_file(load_file, path, true, &actual, data);
+    out("K initrd.boot_policy=%x\n", (uint64_t)status);
+    bs->free_pool(data);
+}
+
+static efi_status EFI_API inherited_initrd(struct efi_load_file_protocol *this,
+                                           struct efi_device_path_protocol *path,
+                                           bool boot_policy, size_t *size,
+                                           void *buffer) {
+    (void)this;
+    static const char data[] = "inherited initrd";
+    if (path == NULL || size == NULL) {
+        return EFI_INVALID_PARAMETER;
+    }
+    if (boot_policy) {
+        return EFI_UNSUPPORTED;
+    }
+    if (buffer == NULL || *size < sizeof(data)) {
+        *size = sizeof(data);
+        return EFI_BUFFER_TOO_SMALL;
+    }
+    memcpy(buffer, data, sizeof(data));
+    *size = sizeof(data);
+    return EFI_SUCCESS;
+}
+
+static void cmd_fakeinitrd(void) {
+    static efi_load_file2_protocol protocol = { inherited_initrd };
+    struct efi_guid guid = EFI_LOAD_FILE2_PROTOCOL_GUID;
+    struct efi_guid path_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+    efi_handle handle = NULL;
+    efi_status status = bs->install_multiple_protocol_interfaces(&handle, &guid, &protocol,
+                                                                &path_guid, &initrd_path, NULL);
+    out("K fakeinitrd=%x\n", (uint64_t)status);
+}
+
 // A CC measurement protocol over no hardware, as Limine finds on Intel TDX
 // and AMD SEV: it maps PCRs to MRs as TDX does (PCR 0 to the MRTD, 1 and 7 to
 // RTMR[0], 2 to 6 to RTMR[1], 8 to 15 to RTMR[2]), and reports each call.
 // Flags: 1 has MapPcrToMrIndex() fail, 2 HashLogExtendEvent(), 4
-// GetEventLog(); 8 has HashLogExtendEvent() report the event log full.
+// GetEventLog(); 8 reports a full log, and 10 advertises no TCG2 log.
 static uint32_t fakecc_flags;
 
 static efi_status EFI_API fakecc_capability(struct efi_cc_measurement_protocol *this,
@@ -769,7 +860,7 @@ static efi_status EFI_API fakecc_capability(struct efi_cc_measurement_protocol *
     cap->structure_version = (struct efi_cc_version){ 1, 0 };
     cap->protocol_version = (struct efi_cc_version){ 1, 0 };
     cap->hash_algorithm_bitmap = EFI_CC_BOOT_HASH_ALG_SHA384;
-    cap->supported_event_logs = EFI_CC_EVENT_LOG_FORMAT_TCG_2;
+    cap->supported_event_logs = (fakecc_flags & 0x10) != 0 ? 0 : EFI_CC_EVENT_LOG_FORMAT_TCG_2;
     cap->cc_type = (struct efi_cc_type){ EFI_CC_TYPE_INTEL_TDX, 0 };
     return EFI_SUCCESS;
 }
@@ -822,19 +913,45 @@ static void install_fakecc(void) {
     out("K fakecc=%x\n", (uint64_t)bs->install_protocol_interface(&h, &g, EFI_NATIVE_INTERFACE, &fakecc));
 }
 
-// A TCG2 protocol over no TPM that claims one, reporting each call. Flags as
-// the CC protocol's, but for 1, which it has no use for.
+// The legacy flags match fakecc, except 1. Further flags: 10 no SHA256,
+// 20 no TCG2 log, 40 short capability, 80 no TPM, 100 failed capability,
+// 200 a minimal valid Spec ID log instead of no log; 1000 adds SHA3 banks.
+// 2000/20000/40000 give wrong SHA3 digest sizes; 4000 is unknown, 8000
+// duplicates an algorithm, 10000 omits a bank from the header, 80000 omits
+// an active digest from an event, 100000 leaves SHA3 banks inactive, 200000
+// returns EFI_VOLUME_FULL on extend, and 400000 adds an unknown active bank.
+// 800000 logs another firmware event after ours, and 1000000 reports the log
+// full on the first extend only. With FULL_ON_LOAD, 800 corrupts the header
+// only when the child image loads.
+#define FAKETCG2_FULL_ON_LOAD 0x2000000
+#define FAKETCG2_FULL_AFTER_CONFIG 0x4000000
 static uint32_t faketcg2_flags;
+static uint8_t faketcg2_log[65536];
+static size_t faketcg2_log_size;
+static size_t faketcg2_last;
+static bool faketcg2_full;
 
 static efi_status EFI_API faketcg2_capability(struct efi_tcg2_protocol *this, struct efi_tcg2_boot_service_capability *cap) {
     (void)this;
+    if (faketcg2_flags & 0x100) {
+        return EFI_DEVICE_ERROR;
+    }
+    cap->size = (faketcg2_flags & 0x40) ? 1 : sizeof(*cap);
     cap->structure_version = (struct efi_tcg2_version){ 1, 1 };
     cap->protocol_version = (struct efi_tcg2_version){ 1, 1 };
-    cap->hash_algorithm_bitmap = EFI_TCG2_BOOT_HASH_ALG_SHA256;
-    cap->supported_event_logs = EFI_TCG2_EVENT_LOG_FORMAT_TCG_2;
-    cap->tpm_present_flag = true;
-    cap->number_of_pcr_banks = 1;
-    cap->active_pcr_banks = EFI_TCG2_BOOT_HASH_ALG_SHA256;
+    bool sha3 = (faketcg2_flags & 0x1000) != 0;
+    bool inactive = (faketcg2_flags & 0x100000) != 0;
+    cap->hash_algorithm_bitmap = EFI_TCG2_BOOT_HASH_ALG_SHA256 | (sha3 ? 0xe0 : 0);
+    cap->supported_event_logs = (faketcg2_flags & 0x20) ? 0 : EFI_TCG2_EVENT_LOG_FORMAT_TCG_2;
+    cap->tpm_present_flag = (faketcg2_flags & 0x80) == 0;
+    cap->number_of_pcr_banks = sha3 && !inactive ? 4 : 1;
+    cap->active_pcr_banks = (faketcg2_flags & 0x10) != 0 ? 0 :
+        inactive ? EFI_TCG2_BOOT_HASH_ALG_SHA256 : cap->hash_algorithm_bitmap;
+    if ((faketcg2_flags & 0x400000) != 0) {
+        cap->hash_algorithm_bitmap |= 0x100;
+        cap->active_pcr_banks |= 0x100;
+        cap->number_of_pcr_banks++;
+    }
     return EFI_SUCCESS;
 }
 
@@ -846,9 +963,63 @@ static efi_status EFI_API faketcg2_event_log(struct efi_tcg2_protocol *this, efi
     if (faketcg2_flags & 4) {
         return EFI_DEVICE_ERROR;
     }
-    *location = 0;
-    *last = 0;
-    *truncated = (faketcg2_flags & 8) != 0;
+    static const uint8_t spec_id_log[] = {
+        0, 0, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        33, 0, 0, 0,
+        'S', 'p', 'e', 'c', ' ', 'I', 'D', ' ', 'E', 'v', 'e', 'n', 't', '0', '3', 0,
+        0, 0, 0, 0, 0, 2, 0, sizeof(size_t) / 4,
+        1, 0, 0, 0, 0x0b, 0, 32, 0, 0,
+    };
+    if (faketcg2_log_size == 0) {
+        memcpy(faketcg2_log, spec_id_log, sizeof(spec_id_log));
+        faketcg2_log_size = sizeof(spec_id_log);
+        if ((faketcg2_flags & 0x1000) != 0) {
+            faketcg2_log[28] = 45;
+            faketcg2_log[56] = 4;
+            const uint8_t more[] = { 0x27, 0, 32, 0, 0x28, 0, 48, 0, 0x29, 0, 64, 0, 0 };
+            memcpy(faketcg2_log + 64, more, sizeof(more));
+            faketcg2_log_size += 12;
+            if ((faketcg2_flags & 0x2000) != 0) {
+                faketcg2_log[66] = 31;
+            }
+            if ((faketcg2_flags & 0x20000) != 0) {
+                faketcg2_log[70] = 47;
+            }
+            if ((faketcg2_flags & 0x40000) != 0) {
+                faketcg2_log[74] = 63;
+            }
+            if ((faketcg2_flags & 0x4000) != 0) {
+                faketcg2_log[64] = 0xfe;
+            }
+            if ((faketcg2_flags & 0x8000) != 0) {
+                faketcg2_log[68] = 0x27;
+                faketcg2_log[70] = 32;
+            }
+            if ((faketcg2_flags & 0x10000) != 0) {
+                faketcg2_log[56] = 3;
+                faketcg2_log[28] = 41;
+                faketcg2_log[72] = 0;
+                faketcg2_log_size -= 4;
+            }
+        } else if ((faketcg2_flags & 0x400000) != 0) {
+            faketcg2_log[28] = 37;
+            faketcg2_log[56] = 2;
+            const uint8_t extra_alg[] = { 0xfe, 0, 16, 0, 0 };
+            memcpy(faketcg2_log + 64, extra_alg, sizeof(extra_alg));
+            faketcg2_log_size += 4;
+        }
+        if ((faketcg2_flags & (0x800 | FAKETCG2_FULL_ON_LOAD)) == 0x800) {
+            faketcg2_log[32] ^= 1;
+        }
+    }
+    *location = (faketcg2_flags & 0x200)
+        ? (efi_physical_address)(uintptr_t)faketcg2_log : 0;
+    *last = *location ? *location + faketcg2_last : 0;
+    *truncated = (faketcg2_flags & 8) != 0 || faketcg2_full;
+    if ((faketcg2_flags & FAKETCG2_FULL_AFTER_CONFIG) != 0 && faketcg2_last != 0) {
+        faketcg2_full = true;
+    }
     return EFI_SUCCESS;
 }
 
@@ -857,11 +1028,77 @@ static efi_status EFI_API faketcg2_extend(struct efi_tcg2_protocol *this, uint64
     (void)this;
     out("K tcg2.extend=%u %x %x %x %u %e\n", (uint64_t)event->header.pcr_index, (uint64_t)event->header.event_type,
         (uint64_t)flags, fnv1a((const uint8_t *)(uintptr_t)data, len), (uint64_t)len, (const char *)event->event);
-    return (faketcg2_flags & 2) ? EFI_DEVICE_ERROR : (faketcg2_flags & 8) ? EFI_VOLUME_FULL : EFI_SUCCESS;
+    if (faketcg2_flags & 2) {
+        return EFI_DEVICE_ERROR;
+    }
+    if ((faketcg2_flags & 0x200008) != 0
+     || ((faketcg2_flags & 0x1000000) != 0 && !faketcg2_full)) {
+        faketcg2_full = true;
+        return EFI_VOLUME_FULL;
+    }
+    if ((faketcg2_flags & 0x200) && !(faketcg2_flags & 0x400)) {
+        size_t size = event->size - offsetof(struct efi_tcg2_event, event);
+        bool sha3 = (faketcg2_flags & 0x1000) != 0 && (faketcg2_flags & 0x100000) == 0;
+        bool extra_alg = !sha3 && (faketcg2_flags & 0x400000) != 0;
+        bool missing = (faketcg2_flags & 0x80000) != 0;
+        size_t extra = sha3 ? (missing ? 84 : 150) : (extra_alg ? 18 : 0);
+        size_t length = 12 + 2 + 32 + extra + 4 + size;
+        if (length > sizeof(faketcg2_log) - faketcg2_log_size) {
+            faketcg2_full = true;
+            return EFI_VOLUME_FULL;
+        }
+        uint8_t *p = faketcg2_log + faketcg2_log_size;
+        faketcg2_last = faketcg2_log_size;
+        uint32_t count = sha3 ? (missing ? 3 : 4) : (extra_alg ? 2 : 1);
+        uint16_t algorithm = 0x0b;
+        uint32_t event_size = (uint32_t)size;
+        memcpy(p, &event->header.pcr_index, 4); p += 4;
+        memcpy(p, &event->header.event_type, 4); p += 4;
+        memcpy(p, &count, 4); p += 4;
+        memcpy(p, &algorithm, 2); p += 2;
+        memset(p, 0, 32); p += 32;
+        if (sha3) {
+            const uint16_t ids[] = { 0x27, 0x28, 0x29 };
+            const size_t lengths[] = { 32, 48, 64 };
+            for (size_t i = 0; i < (missing ? 2 : 3); i++) {
+                memcpy(p, &ids[i], 2); p += 2;
+                memset(p, 0, lengths[i]); p += lengths[i];
+            }
+        } else if (extra_alg) {
+            uint16_t extra_id = 0x00fe;
+            memcpy(p, &extra_id, 2); p += 2;
+            memset(p, 0, 16); p += 16;
+        }
+        memcpy(p, &event_size, 4); p += 4;
+        memcpy(p, event->event, size);
+        faketcg2_log_size += length;
+        if ((faketcg2_flags & 0x800000) != 0 && length <= sizeof(faketcg2_log) - faketcg2_log_size) {
+            uint8_t *next = faketcg2_log + faketcg2_log_size;
+            memcpy(next, faketcg2_log + faketcg2_last, length);
+            uint32_t type = 3;
+            memcpy(next + sizeof(uint32_t), &type, sizeof(uint32_t));
+            faketcg2_last = faketcg2_log_size;
+            faketcg2_log_size += length;
+        }
+    }
+    return EFI_SUCCESS;
 }
 
-static struct efi_tcg2_protocol faketcg2 = { faketcg2_capability, faketcg2_event_log, faketcg2_extend, NULL, NULL, NULL,
-                                      NULL };
+static efi_status EFI_API faketcg2_banks(struct efi_tcg2_protocol *this, uint32_t *banks) {
+    (void)this;
+    bool sha3 = (faketcg2_flags & 0x1000) != 0 && (faketcg2_flags & 0x100000) == 0;
+    *banks = (faketcg2_flags & 0x10) != 0
+        ? 0 : EFI_TCG2_BOOT_HASH_ALG_SHA256 | (sha3 ? 0xe0 : 0);
+    if ((faketcg2_flags & 0x400000) != 0) {
+        *banks |= 0x100;
+    }
+    return EFI_SUCCESS;
+}
+
+static struct efi_tcg2_protocol faketcg2 = {
+    faketcg2_capability, faketcg2_event_log, faketcg2_extend,
+    NULL, faketcg2_banks, NULL, NULL
+};
 static bool faketcg2_pending;
 
 // Installed by chain, as the CC protocol is.
@@ -870,10 +1107,216 @@ static void cmd_faketcg2(char *arg) {
     faketcg2_pending = true;
 }
 
+static void EFI_API faketcg2_image_loaded(efi_event event, void *context) {
+    (void)context;
+    faketcg2_full = true;
+    if ((faketcg2_flags & 0x800) != 0) {
+        faketcg2_log[32] ^= 1;
+    }
+    bs->close_event(event);
+}
+
 static void install_faketcg2(void) {
     struct efi_guid g = EFI_TCG2_PROTOCOL_GUID;
     efi_handle h = NULL;
     out("K faketcg2=%x\n", (uint64_t)bs->install_protocol_interface(&h, &g, EFI_NATIVE_INTERFACE, &faketcg2));
+    if ((faketcg2_flags & FAKETCG2_FULL_ON_LOAD) != 0) {
+        struct efi_guid image_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+        efi_event event;
+        efi_status status = bs->create_event(
+            EFI_EVT_NOTIFY_SIGNAL, EFI_TPL_CALLBACK, faketcg2_image_loaded, NULL, &event
+        );
+        if (status == EFI_SUCCESS) {
+            void *registration;
+            status = bs->register_protocol_notify(&image_guid, event, &registration);
+            if (status != EFI_SUCCESS) {
+                bs->close_event(event);
+            }
+        }
+        out("K faketcg2.load_notify=%x\n", (uint64_t)status);
+    }
+}
+
+static unsigned fake_sb_case = 0xff;
+static efi_get_variable real_get_variable;
+
+static bool same_wide(const uint16_t *a, const uint16_t *b) {
+    while (*a == *b && *a != 0) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
+static efi_status EFI_API fake_sb_get_variable(uint16_t *name, struct efi_guid *guid,
+                                                uint32_t *attributes, size_t *size,
+                                                void *data) {
+    struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
+    bool sb = name != NULL && same_wide(name, L"SecureBoot");
+    bool sm = name != NULL && same_wide(name, L"SetupMode");
+    if ((!sb && !sm) || guid == NULL
+     || memcmp(guid, &global_variable, sizeof(struct efi_guid)) != 0) {
+        return real_get_variable(name, guid, attributes, size, data);
+    }
+    if (fake_sb_case == 0 || (sb && fake_sb_case == 1)
+     || (sm && (fake_sb_case == 2 || fake_sb_case == 18 || fake_sb_case == 22))) {
+        return EFI_NOT_FOUND;
+    }
+    if ((sb && fake_sb_case == 3) || (sm && fake_sb_case == 4)) {
+        return EFI_DEVICE_ERROR;
+    }
+    if (attributes != NULL) {
+        uint32_t attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS;
+        if ((sb && fake_sb_case == 15) || (sm && fake_sb_case == 17)) {
+            attrs |= EFI_VARIABLE_NON_VOLATILE;
+        } else if ((sm && fake_sb_case == 16) || (sb && fake_sb_case == 20)) {
+            attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS;
+        } else if ((sb && fake_sb_case == 19) || (sm && fake_sb_case == 21)) {
+            attrs = EFI_VARIABLE_RUNTIME_ACCESS;
+        }
+        *attributes = attrs;
+    }
+    if ((sb && fake_sb_case == 13) || (sm && fake_sb_case == 14)) {
+        *size = 2;
+        return EFI_BUFFER_TOO_SMALL;
+    }
+    if ((sb && fake_sb_case == 5) || (sm && fake_sb_case == 6)) {
+        *size = sb ? 0 : 2;
+        return EFI_SUCCESS;
+    }
+    *size = 1;
+    uint8_t value = 0;
+    if (sb && (fake_sb_case == 7 || fake_sb_case == 22)) {
+        value = 2;
+    } else if (sb && (fake_sb_case == 9 || fake_sb_case == 12 || fake_sb_case == 15
+                   || fake_sb_case == 16 || fake_sb_case == 18)) {
+        value = 1;
+    } else if (sm && (fake_sb_case == 8 || fake_sb_case == 9 || fake_sb_case == 11
+                   || fake_sb_case == 17)) {
+        value = fake_sb_case == 8 ? 2 : 1;
+    }
+    if (data != NULL) {
+        *(uint8_t *)data = value;
+    }
+    return EFI_SUCCESS;
+}
+
+static efi_allocate_pool real_image_allocate_pool;
+static efi_free_pool real_image_free_pool;
+static struct {
+    void *ptr;
+    size_t size;
+} fake_image_pools[4096];
+static size_t fake_image_pool_count;
+static void *fake_relative_pool;
+static void *fake_full_pool;
+static size_t fake_relative_frees;
+static size_t fake_full_frees;
+
+static efi_status EFI_API fake_image_allocate_pool(uint32_t type, size_t size,
+                                                   void **ptr) {
+    efi_status status = real_image_allocate_pool(type, size, ptr);
+    if (status == EFI_SUCCESS && fake_full_pool == NULL && fake_image_pool_count < 4096) {
+        fake_image_pools[fake_image_pool_count].ptr = *ptr;
+        fake_image_pools[fake_image_pool_count++].size = size;
+    }
+    return status;
+}
+
+static efi_status EFI_API fake_image_free_pool(void *ptr) {
+    static const uint16_t kernel_path[] = u"\\kernel.efi";
+    for (size_t i = fake_image_pool_count; i-- > 0; ) {
+        if (fake_image_pools[i].ptr == ptr) {
+            size_t size = fake_image_pools[i].size;
+            struct efi_device_path_protocol *path = ptr;
+            if (size >= sizeof(*path) + sizeof(kernel_path)
+             && path->type == EFI_MEDIA_DEVICE_PATH && path->sub_type == EFI_MEDIA_FILEPATH_DP
+             && memcmp((uint8_t *)ptr + sizeof(*path), kernel_path, sizeof(kernel_path)) == 0) {
+                fake_relative_pool = ptr;
+                fake_relative_frees++;
+                out("K fakeimage.relative_free=%u\n", (uint64_t)fake_relative_frees);
+            }
+            fake_image_pools[i].ptr = NULL;
+            break;
+        }
+    }
+    if (ptr == fake_full_pool && ptr != NULL) {
+        fake_full_frees++;
+        out("K fakeimage.full_free=%u\n", (uint64_t)fake_full_frees);
+    }
+    return real_image_free_pool(ptr);
+}
+
+static uint32_t fake_image_mode;
+static efi_image_load real_load_image;
+static efi_image_start real_start_image;
+static efi_image_unload real_unload_image;
+static efi_handle_protocol real_image_handle_protocol;
+static efi_handle fake_image_handle;
+static struct efi_loaded_image_protocol *fake_loaded_image;
+static struct efi_device_path_protocol *fake_image_path;
+static efi_handle fake_image_device;
+static efi_handle fake_alternate_device;
+
+static efi_status EFI_API fake_unload_image(efi_handle handle) {
+    if (handle == fake_image_handle && (fake_image_mode == 3 || fake_image_mode == 4)) {
+        return EFI_ACCESS_DENIED;
+    }
+    return real_unload_image(handle);
+}
+
+static efi_status EFI_API fake_image_protocol(efi_handle handle, struct efi_guid *guid, void **out) {
+    struct efi_guid image = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    struct efi_guid fs = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    if (fake_image_mode == 4 && handle == fake_image_handle
+     && memcmp(guid, &image, sizeof(struct efi_guid)) == 0) {
+        return EFI_DEVICE_ERROR;
+    }
+    if (fake_image_mode == 5 && handle == loaded->device_handle
+     && memcmp(guid, &fs, sizeof(struct efi_guid)) == 0) {
+        return EFI_UNSUPPORTED;
+    }
+    return real_image_handle_protocol(handle, guid, out);
+}
+
+static efi_status EFI_API fake_load_image(
+    bool policy, efi_handle parent, struct efi_device_path_protocol *path,
+    void *buffer, size_t size, efi_handle *handle
+) {
+    if (buffer != NULL) {
+        fake_full_pool = path;
+        out("K fakeimage.relative_before_load=%u\n", (uint64_t)fake_relative_frees);
+        out("K fakeimage.full_alive=%u\n", (uint64_t)(path != NULL && path != fake_relative_pool));
+    }
+    efi_status status = real_load_image(policy, parent, path, buffer, size, handle);
+    if (status == EFI_SUCCESS && buffer != NULL && (fake_image_mode == 3 || fake_image_mode == 4)) {
+        fake_image_handle = *handle;
+        return fake_image_mode == 3 ? EFI_SECURITY_VIOLATION : EFI_SUCCESS;
+    }
+    if (status == EFI_SUCCESS && buffer != NULL) {
+        struct efi_guid guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+        status = bs->handle_protocol(*handle, &guid, (void **)&fake_loaded_image);
+        if (status != EFI_SUCCESS || fake_loaded_image == NULL) {
+            return status;
+        }
+        fake_image_handle = *handle;
+        fake_image_path = fake_loaded_image->file_path;
+        fake_image_device = fake_image_mode == 1 ? loaded->device_handle : fake_alternate_device;
+        fake_loaded_image->device_handle = fake_image_mode == 1 ? NULL : fake_image_device;
+        out("K fakeimage.inject=%u %u\n", (uint64_t)fake_image_mode,
+            (uint64_t)(fake_image_path != NULL));
+    }
+    return status;
+}
+
+static efi_status EFI_API fake_start_image(efi_handle handle, size_t *size, uint16_t **data) {
+    if (handle == fake_image_handle) {
+        out("K fakeimage.device=%u\n",
+            (uint64_t)(fake_loaded_image->device_handle == fake_image_device));
+        out("K fakeimage.path=%u\n",
+            (uint64_t)(fake_loaded_image->file_path == fake_image_path));
+    }
+    return real_start_image(handle, size, data);
 }
 
 static void cmd_chain(char *arg) {
@@ -891,6 +1334,52 @@ static void cmd_chain(char *arg) {
     out("K chain.load=%x\n", (uint64_t)s);
     if (s != EFI_SUCCESS) {
         return;
+    }
+    if (fake_image_mode == 2) {
+        struct efi_guid fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+        struct efi_guid dp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+        void *fs = NULL;
+        void *device_path = NULL;
+        efi_status fs_status = bs->handle_protocol(loaded->device_handle, &fs_guid, &fs);
+        efi_status dp_status = bs->handle_protocol(loaded->device_handle, &dp_guid, &device_path);
+        if (fs_status == EFI_SUCCESS && dp_status == EFI_SUCCESS) {
+            fs_status = bs->install_protocol_interface(
+                &fake_alternate_device, &fs_guid, EFI_NATIVE_INTERFACE, fs
+            );
+            if (fs_status == EFI_SUCCESS) {
+                dp_status = bs->install_protocol_interface(
+                    &fake_alternate_device, &dp_guid, EFI_NATIVE_INTERFACE, device_path
+                );
+            }
+        }
+        out("K fakeimage.fixture=%u\n", (uint64_t)(fs_status == EFI_SUCCESS
+            && dp_status == EFI_SUCCESS && fake_alternate_device != NULL));
+    }
+    if (fake_image_mode != 0) {
+        real_unload_image = bs->unload_image;
+        real_image_handle_protocol = bs->handle_protocol;
+        bs->unload_image = fake_unload_image;
+        bs->handle_protocol = fake_image_protocol;
+        real_load_image = bs->load_image;
+        real_start_image = bs->start_image;
+        real_image_allocate_pool = bs->allocate_pool;
+        real_image_free_pool = bs->free_pool;
+        bs->allocate_pool = fake_image_allocate_pool;
+        bs->free_pool = fake_image_free_pool;
+        bs->load_image = fake_load_image;
+        bs->start_image = fake_start_image;
+        bs->hdr.crc32 = 0;
+        uint32_t crc = 0;
+        bs->calculate_crc32(bs, bs->hdr.header_size, &crc);
+        bs->hdr.crc32 = crc;
+    }
+    if (fake_sb_case != 0xff) {
+        real_get_variable = rt->get_variable;
+        rt->get_variable = fake_sb_get_variable;
+        rt->hdr.crc32 = 0;
+        uint32_t crc = 0;
+        bs->calculate_crc32(rt, rt->hdr.header_size, &crc);
+        rt->hdr.crc32 = crc;
     }
     if (fakecc_pending) {
         install_fakecc();
@@ -1692,6 +2181,14 @@ efi_status efi_main(efi_handle image, struct efi_system_table *system_table) {
             cmd_faketcg2(tok + 9);
         } else if (sprefix(tok, "fakedisk:")) {
             cmd_fakedisk(tok + 9);
+        } else if (sprefix(tok, "fakesb:")) {
+            fake_sb_case = (unsigned)parse_hex(tok + 7, NULL);
+        } else if (sprefix(tok, "fakeimage:")) {
+            fake_image_mode = (uint32_t)parse_hex(tok + 10, NULL);
+        } else if (sprefix(tok, "fakeinitrd")) {
+            cmd_fakeinitrd();
+        } else if (sprefix(tok, "readinitrd")) {
+            cmd_initrd();
 #if defined(__riscv)
         } else if (sprefix(tok, "satpoff")) {
             cmd_satpoff();

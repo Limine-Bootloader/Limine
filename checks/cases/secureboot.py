@@ -5,15 +5,14 @@ import subprocess
 from harness.api import check
 from harness.media import HostFile, Tree
 from harness.ports import UEFI_PORTS
-from harness.report import unescape
+from harness.report import fnv1a, unescape
 from harness import images, secureboot
 from harness.screen import Font, builtin_font
 from cases._common import entry, kernel_file, screen_text, wait_panic
+from cases.dtb import tree as dtb_tree
 
-# UEFI Secure Boot: what USAGE.md ("Secure Boot") says Limine enforces once
-# Secure Boot is active and a config hash is enrolled, and that without an
-# enrolled hash it treats Secure Boot as inactive. [intent] marks what only
-# Limine's code says.
+# Native entries require an enrolled config and hashed resources under UEFI
+# Secure Boot. [intent] marks what only Limine's code says.
 
 
 def b2(data):
@@ -68,8 +67,12 @@ def kernel_entry(t, hashed=True, extra='', modules=(), cmdline='secure boot'):
 def sb_enforced(t):
     """With Secure Boot active and the config hash enrolled, a config whose
     paths all carry hashes boots."""
-    m = sb_boot(t, 'timeout: 0\n' + kernel_entry(t))
-    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'booted')
+    data = b'module contents'
+    config = 'timeout: 0\n' + kernel_entry(t, modules=[(f'boot():/boot/m.bin#{b2(data)}', None)])
+    m = sb_boot(t, config, files={'/boot/m.bin': data})
+    report = t.kernel_report(m)
+    t.expect_eq(unescape(report['cmdline']), 'secure boot', 'native kernel booted')
+    t.expect_eq(report['module.00.hash'], fnv1a(data), 'verified module delivered')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
@@ -104,6 +107,29 @@ def sb_hash_mismatch_always_panics(t):
     m = sb_boot(t, config, files={'/boot/m.bin': b'module contents'})
     msg, _ = wait_panic(t, m)
     t.expect_eq(msg, 'BLAKE2b hash for URI `boot():/boot/m.bin` does not match!', 'a mismatch panics regardless')
+
+
+@check(ports=UEFI_PORTS, tags=['secureboot', 'dtb'])
+def sb_enrolled_dtb(t):
+    data = dtb_tree(t, 'enrolled')
+    path = 'boot():/test.dtb'
+    files = {'/test.dtb': data}
+    config = f'timeout: 0\nglobal_dtb: {path}#{b2(data)}\n' + kernel_entry(t)
+    m = sb_boot(t, config, files=files)
+    t.expect_eq(t.kernel_report(m)['dtb.marker'], 'enrolled', 'verified global DTB delivered')
+    m.stop()
+
+    config = 'timeout: 0\n' + kernel_entry(t, extra=f'dtb_path: {path}')
+    m = sb_boot(t, config, files=files)
+    message, _ = wait_panic(t, m)
+    t.expect_eq(message, f'Secure Boot is active and URI `{path}` has no associated hash!',
+                'an entry DTB requires a hash')
+    m.stop()
+
+    config = f'timeout: 0\nhash_mismatch_panic: no\nglobal_dtb: {path}#{b2(b"other")}\n' + kernel_entry(t)
+    m = sb_boot(t, config, files=files)
+    message, _ = wait_panic(t, m)
+    t.expect_eq(message, f'BLAKE2b hash for URI `{path}` does not match!', 'global DTB mismatch')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
@@ -155,16 +181,14 @@ def sb_efi_chainload(t):
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_not_enrolled(t):
-    """With no config hash enrolled Secure Boot counts as inactive: paths need
-    no hash and the editor is there."""
+    """Secure Boot restricts native loading even without an enrolled config hash."""
     config = 'timeout: no\n' + kernel_entry(t, hashed=False)
     m = sb_boot(t, config, enrolled=False)
-    scr = t.wait_text(m, 'ARROWS')
-    text = screen_text(scr)
-    t.check('E Edit' in text, 'editor available')
-    t.check(', Secure Boot)' not in text, '[intent] branding without Secure Boot')
+    text = screen_text(t.wait_text(m, 'ARROWS'))
+    t.check('E Edit' not in text, 'editor unavailable')
     m.press('ret')
-    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'a kernel without a hash boots')
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'boot: Protocol is unavailable with firmware Secure Boot', 'native protocol refused')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])

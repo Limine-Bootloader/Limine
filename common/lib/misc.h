@@ -22,6 +22,8 @@ extern size_t efi_mmap_size, efi_desc_size, efi_mmap_key;
 extern uint32_t efi_desc_ver;
 
 extern bool efi_boot_services_exited;
+extern bool firmware_secure_boot;
+void efi_init_secure_boot(void);
 bool efi_leave_boot_services(void);
 
 // Room for the map efi_leave_boot_services() rebuilds out of a firmware map of
