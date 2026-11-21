@@ -92,14 +92,16 @@ LAYOUTS = {
         'phdr': (('p_type', 0, 'I'), ('p_flags', 4, 'I'), ('p_offset', 8, 'Q'), ('p_vaddr', 16, 'Q'),
                  ('p_paddr', 24, 'Q'), ('p_filesz', 32, 'Q'), ('p_memsz', 40, 'Q'), ('p_align', 48, 'Q')),
         'shdr': (('sh_name', 0, 'I'), ('sh_type', 4, 'I'), ('sh_flags', 8, 'Q'), ('sh_addr', 16, 'Q'),
-                 ('sh_offset', 24, 'Q'), ('sh_size', 32, 'Q'), ('sh_link', 40, 'I'), ('sh_info', 44, 'I'))},
+                 ('sh_offset', 24, 'Q'), ('sh_size', 32, 'Q'), ('sh_link', 40, 'I'), ('sh_info', 44, 'I'),
+                 ('sh_addralign', 48, 'Q'))},
     1: {'header': (('e_type', 16, 'H'), ('e_machine', 18, 'H'), ('e_entry', 24, 'I'), ('e_phoff', 28, 'I'),
                    ('e_shoff', 32, 'I'), ('e_phentsize', 42, 'H'), ('e_phnum', 44, 'H'), ('e_shentsize', 46, 'H'),
                    ('e_shnum', 48, 'H'), ('e_shstrndx', 50, 'H')),
         'phdr': (('p_type', 0, 'I'), ('p_offset', 4, 'I'), ('p_vaddr', 8, 'I'), ('p_paddr', 12, 'I'),
                  ('p_filesz', 16, 'I'), ('p_memsz', 20, 'I'), ('p_flags', 24, 'I'), ('p_align', 28, 'I')),
         'shdr': (('sh_name', 0, 'I'), ('sh_type', 4, 'I'), ('sh_flags', 8, 'I'), ('sh_addr', 12, 'I'),
-                 ('sh_offset', 16, 'I'), ('sh_size', 20, 'I'), ('sh_link', 24, 'I'), ('sh_info', 28, 'I'))},
+                 ('sh_offset', 16, 'I'), ('sh_size', 20, 'I'), ('sh_link', 24, 'I'), ('sh_info', 28, 'I'),
+                 ('sh_addralign', 32, 'I'))},
 }
 
 
