@@ -1047,9 +1047,9 @@ static void cmd_dtb(char *arg) {
     out("K dtb=%x\n", (uint64_t)bs->install_configuration_table(&g, blob));
 }
 
-// A disk whose Block I/O claims a transfer length granularity of 512 blocks
-// yet fails reads over a limit with EFI_OUT_OF_RESOURCES, as some firmware
-// does. It reports each read it fails.
+// A disk whose Block I/O claims a given transfer length granularity, yet
+// fails reads over a limit with EFI_OUT_OF_RESOURCES, as some firmware does.
+// It reports the size of each read.
 static uint8_t *fakedisk_data;
 static uint64_t fakedisk_limit;
 static struct efi_block_io_media fakedisk_media;
@@ -1079,6 +1079,7 @@ static efi_status EFI_API fakedisk_read(
         out("K fakedisk.refused=%x\n", (uint64_t)size);
         return EFI_OUT_OF_RESOURCES;
     }
+    out("K fakedisk.read=%x\n", (uint64_t)size);
     memcpy(buf, fakedisk_data + lba * fakedisk_media.block_size, size);
     return EFI_SUCCESS;
 }
@@ -1104,11 +1105,12 @@ static struct efi_block_io_protocol fakedisk = {
     fakedisk_write, fakedisk_flush
 };
 
-// fakedisk:LIMIT:NAME installs it over the image in file NAME, at the root of
-// this image's volume, failing reads over LIMIT bytes.
+// fakedisk:LIMIT:GRANULARITY:NAME installs it over the image in file NAME, at
+// the root of this image's volume, failing reads over LIMIT bytes.
 static void cmd_fakedisk(char *arg) {
     const char *end;
     fakedisk_limit = parse_hex(arg, &end);
+    uint32_t granularity = (uint32_t)parse_hex(*end == ':' ? end + 1 : end, &end);
     uint16_t name[256];
     to_utf16(name, *end == ':' ? end + 1 : "", 256);
     size_t size = 0;
@@ -1123,7 +1125,7 @@ static void cmd_fakedisk(char *arg) {
     fakedisk_media.io_align = 4;
     fakedisk_media.last_block = size / 512 - 1;
     fakedisk_media.logical_blocks_per_physical_block = 1;
-    fakedisk_media.optimal_transfer_length_granularity = 512;
+    fakedisk_media.optimal_transfer_length_granularity = granularity;
     struct efi_guid g = EFI_BLOCK_IO_PROTOCOL_GUID;
     efi_handle h = NULL;
     efi_status s = bs->install_protocol_interface(&h, &g, EFI_NATIVE_INTERFACE, &fakedisk);

@@ -9,7 +9,8 @@ from cases.chainload import probe_then_limine
 
 # Disks that fail Limine's reads: sectors the medium will not deliver, a disk
 # smaller than the transfers Limine sizes up its drives with, and one whose
-# firmware refuses the transfers its granularity implies.
+# firmware refuses the transfers its granularity implies. Also the size of the
+# transfers Limine makes to a disk that does not refuse them.
 
 MODULE = bytes(range(251)) * (2 * 1024 * 1024 // 251)
 
@@ -75,10 +76,31 @@ def disk_refused_transfers(t):
     part = Part(size_mb=1, fs=Fat(12, files={'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))}))
     Disk('gpt', 3, parts=[part]).build(t.path('fakedisk.img'), t.workdir)
     path = f'guid({part.guid}):/boot/kernel.elf'
-    m = probe_then_limine(t, f'name:fakedisk fakedisk:{limit:x}:fakedisk.img',
+    m = probe_then_limine(t, f'name:fakedisk fakedisk:{limit:x}:200:fakedisk.img',
                           'timeout: 0\n' + entry('Test', path=path, cmdline='x'),
                           {'/fakedisk.img': HostFile(t.path('fakedisk.img'))})
     r = t.kernel_report(m)
     check_report_clean(t, r)
     refused = re.findall(r'K fakedisk\.refused=([0-9a-f]+)', m.stream(t.kernel_channel).text())
     t.check(any(int(size, 16) > limit for size in refused), f'reads over the limit tried and failed: {refused}')
+
+
+@check(ports=UEFI_PORTS, tags=['disk'])
+def disk_transfer_size(t):
+    """[user] A disk that gives no transfer length granularity, or one dividing
+    512 blocks, is read 512 blocks at a time, the most Limine transfers at
+    once [intent]."""
+    part = Part(size_mb=4, fs=Fat(16, files={'/boot/kernel.elf': HostFile(kernel_file(t, 'full')),
+                                             '/boot/m.bin': MODULE}))
+    Disk('gpt', 6, parts=[part]).build(t.path('fakedisk.img'), t.workdir)
+    config = 'timeout: 0\n' + entry('Test', path=f'guid({part.guid}):/boot/kernel.elf',
+                                     modules=[(f'guid({part.guid}):/boot/m.bin', None)])
+    for granularity in (0, 8):
+        m = probe_then_limine(t, f'name:fakedisk fakedisk:ffffffff:{granularity:x}:fakedisk.img',
+                              config, {'/fakedisk.img': HostFile(t.path('fakedisk.img'))})
+        r = t.kernel_report(m)
+        check_report_clean(t, r)
+        reads = re.findall(r'K fakedisk\.read=([0-9a-f]+)', m.stream(t.kernel_channel).text())
+        largest = max((int(size, 16) for size in reads), default=0)
+        t.expect_eq(largest, 512 * 512, f'granularity {granularity}: the largest read')
+        m.stop()

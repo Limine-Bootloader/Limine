@@ -17,7 +17,6 @@
 #include <sys/cpu.h>
 #include <pxe/pxe.h>
 
-#define DEFAULT_FASTEST_XFER_SIZE 64
 #define MAX_FASTEST_XFER_SIZE 512
 
 #if defined(BIOS)
@@ -988,17 +987,12 @@ static bool index_disks(void) {
         }
 
         // UEFI 2.11 13.9: the granularity is what transfers should be a
-        // multiple of, not a transfer size.
-        if (granularity == 0) {
-            block->fastest_xfer_size = DEFAULT_FASTEST_XFER_SIZE;
-        } else if (granularity > MAX_FASTEST_XFER_SIZE) {
+        // multiple of, not a transfer size. Each read may be a round trip to
+        // network storage, so transfers are as large as the cap allows.
+        if (granularity == 0 || granularity > MAX_FASTEST_XFER_SIZE) {
             block->fastest_xfer_size = MAX_FASTEST_XFER_SIZE;
         } else {
-            block->fastest_xfer_size = ALIGN_UP((size_t)DEFAULT_FASTEST_XFER_SIZE, granularity,
-                panic(false, "disk: Transfer size overflow"));
-            if (block->fastest_xfer_size > MAX_FASTEST_XFER_SIZE) {
-                block->fastest_xfer_size = ALIGN_DOWN((size_t)MAX_FASTEST_XFER_SIZE, granularity);
-            }
+            block->fastest_xfer_size = ALIGN_DOWN((size_t)MAX_FASTEST_XFER_SIZE, granularity);
         }
 
         // Some firmware refuses a transfer of the size its own granularity
