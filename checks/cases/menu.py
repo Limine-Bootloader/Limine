@@ -254,7 +254,7 @@ def menu_keyboard_layout(t):
     before the menu and the editor see it: on Dvorak the key in QWERTY's D
     place is E, the edit key. An unknown layout remaps nothing."""
     for layout, edit, typed, expect in (('dvorak', 'd', 'jdpps', 'hello'), ('azerty', 'e', 'qwaz;', 'azqwm'),
-                                        ('colemak', 'e', 'jdpps', 'jdpps')):
+                                        ('qwertz', 'e', 'yzY/]', 'zyZ-+'), ('colemak', 'e', 'jdpps', 'jdpps')):
         m = boot_menu(t, f'timeout: no\nkeyboard_layout: {layout}\n' + menu_entry(1, 'Only', 'x'))
         wait_menu(t, m)
         m.press(edit)
