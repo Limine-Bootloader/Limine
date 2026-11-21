@@ -7,7 +7,7 @@ from harness.elf import ElfFile
 from harness.env import SRCDIR
 
 # What the build makes of Limine's own sources, read from the objects it
-# leaves: what a link only rejects where its layout happens to expose it.
+# leaves: what a link or a boot only shows where the layout exposes it.
 
 SHF_ALLOC = 0x2
 SHF_EXECINSTR = 0x4
@@ -33,16 +33,21 @@ def global_data(path):
                    e.field(f'sh_addralign{shndx}'))
 
 
-@check(ports=['uefi-aarch64'], tags=['build'])
-def build_aarch64_assembly_data_aligned(t):
-    """Each global datum the AArch64 port's assembly defines is aligned to 8
-    bytes, as C reaches it directly, with loads whose relocations need the
-    address a multiple of the access size (R_AARCH64_LDST64_ABS_LO12_NC for
-    64 bits), and the link fails wherever its layout leaves it otherwise."""
-    sources = sorted(glob.glob(os.path.join(SRCDIR, 'common', '**', '*.asm_*aarch64'), recursive=True))
-    t.require(sources, 'AArch64 assembly sources found')
+@check(ports=['uefi-aarch64', 'uefi-riscv64', 'uefi-loongarch64'], tags=['build'])
+def build_assembly_data_aligned(t):
+    """Each global datum a port's assembly defines is aligned to 8 bytes, as C
+    reaches it directly and loads it at its type's width: on AArch64 with
+    relocations that need the address a multiple of that width
+    (R_AARCH64_LDST64_ABS_LO12_NC for 64 bits), so that the link fails
+    wherever its layout leaves it otherwise, and on RISC-V, built with
+    -mstrict-align, and LoongArch with accesses the processor need not
+    support unaligned."""
+    arch = t.port.arch
+    sources = sorted(glob.glob(os.path.join(SRCDIR, 'common', '**', f'*.asm_*{arch}'), recursive=True))
+    t.require(sources, f'{arch} assembly sources found')
+    builddir = os.path.dirname(t.env.limine_elf(t.port.name))
     for source in sources:
         obj = os.path.splitext(os.path.relpath(source, SRCDIR))[0] + '.o'
-        for name, offset, align in global_data(os.path.join(t.env.builddir, 'common-uefi-aarch64', obj)):
+        for name, offset, align in global_data(os.path.join(builddir, obj)):
             t.check(offset % 8 == 0 and align >= 8,
                     f'{obj}: {name} at offset {offset:#x} in a section aligned to {align}')
