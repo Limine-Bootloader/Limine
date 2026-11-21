@@ -174,13 +174,14 @@ class Font:
 
 
 class Cell:
-    __slots__ = ('ch', 'code', 'fg', 'bg')
+    __slots__ = ('ch', 'code', 'fg', 'bg', 'cursor')
 
-    def __init__(self, ch, code, fg, bg):
+    def __init__(self, ch, code, fg, bg, cursor=False):
         self.ch = ch
         self.code = code
         self.fg = fg
         self.bg = bg
+        self.cursor = cursor
 
     def __repr__(self):
         fg = 'None' if self.fg is None else f'{self.fg:06x}'
@@ -227,6 +228,10 @@ class TextScreen:
         if len(hits) != 1:
             raise AssertionError(f'expected exactly one {needle!r} on screen, found {hits}\n{self.text()}')
         return hits[0]
+
+    def cursors(self):
+        """Each (x, y) a text cursor was read on."""
+        return [(i % self.cols, i // self.cols) for i, c in enumerate(self.cells) if c.cursor]
 
     def span_fg(self, x, y, length):
         return {self.cell(x + i, y).fg for i in range(length) if self.cell(x + i, y).ch != ' '}
@@ -309,6 +314,7 @@ def decode_cells(img, table, char, cols, rows, off_x, off_y, width, height, scal
                     code = partial[1].get(key[:partial[0]])
                     if code is not None and (best_partial is None or lit < best_partial[0]):
                         best_partial = (lit, code, colour)
+            cursor = best is None and best_partial is not None
             best = best or best_partial
             if best is None:
                 cells.append(Cell('\ufffd', None, None, None))
@@ -320,7 +326,7 @@ def decode_cells(img, table, char, cols, rows, off_x, off_y, width, height, scal
             if len(others) == 1:
                 o = others[0]
                 bg = (o[0] << 16) | (o[1] << 8) | o[2]
-            cells.append(Cell(char(code), code, fg, bg))
+            cells.append(Cell(char(code), code, fg, bg, cursor))
     return TextScreen(cells, cols, rows)
 
 

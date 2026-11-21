@@ -150,11 +150,17 @@ static void fallback_scroll(struct flanterm_context *ctx) {
     gST->con_out->set_cursor_position(gST->con_out, cursor_x, cursor_y);
 }
 
+static void fallback_sync_cursor(struct flanterm_context *ctx) {
+    if ((gST->con_out->mode->cursor_visible != 0) != ctx->cursor_enabled) {
+        gST->con_out->enable_cursor(gST->con_out, ctx->cursor_enabled);
+    }
+}
+
 static void fallback_raw_putchar(struct flanterm_context *ctx, uint8_t c) {
     if (!ctx->scroll_enabled && cursor_x == ctx->cols - 1 && cursor_y == ctx->rows - 1) {
         return;
     }
-    gST->con_out->enable_cursor(gST->con_out, true);
+    fallback_sync_cursor(ctx);
     uint16_t string[2];
     // Flanterm maps several code points to some codes; this gives back the
     // one standard CP437 assigns.
@@ -424,6 +430,7 @@ void term_fallback(void) {
         term->set_text_fg_default_bright = fallback_set_text_fg_default_bright;
         term->set_text_bg_default_bright = fallback_set_text_bg_default_bright;
         term->swap_palette = fallback_swap_palette;
+        term->double_buffer_flush = fallback_sync_cursor;
 
         term->set_text_fg_default(term);
         term->set_text_bg_default(term);

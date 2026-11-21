@@ -1,5 +1,5 @@
 from harness.api import check
-from harness.ports import ALL_PORTS
+from harness.ports import ALL_PORTS, UEFI_PORTS
 from cases.menu import boot_menu, booted_cmdline, menu_entry, wait_menu
 
 # Limine's terminal interprets control sequences (ECMA-48 5th edition) in what
@@ -91,3 +91,19 @@ def term_too_small_falls_back(t):
     t.check('ABCDEFG' in scr.text() and 'Only' in scr.text(), 'the menu shown')
     m.press('ret')
     t.expect_eq(booted_cmdline(t, m), 'fallback', 'booted from it')
+
+
+@check(ports=UEFI_PORTS, tags=['console', 'term'])
+def term_firmware_console_cursor(t):
+    """On the firmware's console, here for serial: yes, the firmware's cursor
+    shows where Limine's terminal has one: in the editor, not in the menu
+    [intent]."""
+    m = boot_menu(t, 'timeout: no\nserial: yes\n' + menu_entry(1, 'Only', 'x'))
+    scr = t.wait_screen(m, lambda s: 'ARROWS' in s.text(), firmware=True, desc='the menu')
+    t.expect_eq(scr.cursors(), [], 'no cursor in the menu')
+    m.press('e')
+    scr = t.wait_screen(m, lambda s: 'cmdline: x' in s.text(), firmware=True, desc='the editor')
+    t.expect_eq(len(scr.cursors()), 1, 'a cursor in the editor')
+    m.press('esc')
+    scr = t.wait_screen(m, lambda s: 'ARROWS' in s.text(), firmware=True, desc='the menu again')
+    t.expect_eq(scr.cursors(), [], 'none once back in the menu')
