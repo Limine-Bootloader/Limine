@@ -125,6 +125,27 @@ def menu_directories(t):
 
 
 @check(ports=ALL_PORTS, tags=['menu'])
+def menu_vim_keys(t):
+    """J and K move the selection as Down and Up do, and L expands and
+    collapses a directory and boots an entry as Right does, in either case
+    [intent]."""
+    m = boot_menu(t, tree_menu())
+    wait_menu(t, m)
+    m.type_text('jJ')
+    t.wait_text(m, 'an inner comment')
+    m.type_text('jj')
+    t.wait_text(m, 'ENTER Expand')
+    m.type_text('l')
+    t.wait_text(m, 'Hidden Child')
+    m.type_text('L')
+    t.wait_screen(m, lambda s: 'Hidden Child' not in screen_text(s), desc='Collapsed collapsed')
+    m.type_text('kK')
+    t.wait_text(m, 'an inner comment')
+    m.type_text('l')
+    t.expect_eq(booted_cmdline(t, m), 'inner one', 'L booted the selected entry')
+
+
+@check(ports=ALL_PORTS, tags=['menu'])
 def menu_countdown(t):
     """With a timeout the default entry boots after the countdown; a key
     pressed during it stops it."""
