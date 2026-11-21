@@ -211,7 +211,7 @@ static size_t ansi_colours[] = {
     EFI_BLACK,
     EFI_RED,
     EFI_GREEN,
-    EFI_YELLOW,
+    EFI_BROWN,
     EFI_BLUE,
     EFI_MAGENTA,
     EFI_CYAN,
