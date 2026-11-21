@@ -197,6 +197,7 @@ smp_trampoline_end:
 
 .section .rodata
 
+.balign 8
 .global smp_trampoline_size
 smp_trampoline_size:
     .quad smp_trampoline_end - smp_trampoline_start
