@@ -393,14 +393,16 @@ def fb_quirks_mac_pitch(t):
 @check(ports=UEFI_PORTS, tags=['fb-quirks', 'limine-protocol', 'gop'])
 def fb_quirks_bgr_macs(t):
     """On a Mac SMBIOS names as one whose GOP reports 8-bit RGB for a BGR
-    framebuffer."""
+    framebuffer, the kernel gets 8-bit BGR for the current mode and every
+    other GOP reports as 8-bit RGB, and the rest as reported [intent]."""
     rgb, bgr = 'r=8:0 g=8:8 b=8:16', 'r=8:16 g=8:8 b=8:0'
     plain = protocol_report(t, [])
     t.check(rgb in plain['framebuffer.0'], f'the current mode reported as 8-bit RGB: {plain["framebuffer.0"]}')
+    modes = plain.indexed('framebuffer.0.mode_masks')
+    t.check(rgb in modes and any(m != rgb for m in modes), f'modes reported as 8-bit RGB and not: {modes}')
     r = protocol_report(t, MACBOOK_AIR_2_1)
     t.expect_eq(r['framebuffer.0'], plain['framebuffer.0'].replace(rgb, bgr), 'the current mode')
-    t.expect_eq(r.indexed('framebuffer.0.mode'),
-                [m.replace(rgb, bgr) for m in plain.indexed('framebuffer.0.mode')], 'the modes')
+    t.expect_eq(r.indexed('framebuffer.0.mode_masks'), [m.replace(rgb, bgr) for m in modes], 'the modes')
     macmini = [smbios(0, vendor='Apple Inc.'), smbios(1, product='Macmini3,1')]
     t.expect_eq(protocol_report(t, macmini)['framebuffer.0'], plain['framebuffer.0'].replace(rgb, bgr),
                 'the Macmini3,1')

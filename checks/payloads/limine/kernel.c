@@ -776,6 +776,9 @@ static void check_framebuffers(void) {
                 struct limine_video_mode *vm = fb->modes[m];
                 kprintf("K framebuffer.%lu.mode.%lu=%lux%lux%u pitch=%lu\n", i, m, vm->width,
                         vm->height, vm->bpp, vm->pitch);
+                kprintf("K framebuffer.%lu.mode_masks.%lu=r=%u:%u g=%u:%u b=%u:%u\n", i, m,
+                        vm->red_mask_size, vm->red_mask_shift, vm->green_mask_size,
+                        vm->green_mask_shift, vm->blue_mask_size, vm->blue_mask_shift);
                 if (vm->memory_model != LIMINE_FRAMEBUFFER_RGB
                  || vm->pitch < vm->width * ((vm->bpp + 7) / 8)) {
                     modes_ok = false;
