@@ -1,5 +1,23 @@
 2026-11-21  Mintsuki  <mintsuki@protonmail.com>
 
+    *** Release 12.11.1 ***
+
+    Noteworthy changes compared to the previous release, 12.11.0:
+
+    Bug fixes:
+        - UEFI: Fix the AArch64 port failing to link wherever the toolchain
+          lays the SMP trampoline's size out at an address not a multiple of 8,
+          as Alpine Linux's build does.
+
+    Miscellaneous:
+        - Move Kamila Szewczyk's copyright from the project's copyright line
+          back to the headers of the code she contributed, and remove her from
+          the maintainers AUTHORS.md lists.
+        - Check that the data the AArch64, RISC-V, and LoongArch ports'
+          assembly defines is aligned.
+
+2026-11-21  Mintsuki  <mintsuki@protonmail.com>
+
     *** Release 12.11.0 ***
 
     Noteworthy changes compared to the previous release, 12.10.0:
