@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -311,6 +312,48 @@ static void dummy_handle_deinit(struct flanterm_context *ctx, void (*_free)(void
     (void)_free;
 }
 
+// The VGA palette, in the order SGR numbers colours: normal, then bright.
+static const uint32_t vga_palette[16] = {
+    0x000000, 0xaa0000, 0x00aa00, 0xaa5500, 0x0000aa, 0xaa00aa, 0x00aaaa, 0xaaaaaa,
+    0x555555, 0xff5555, 0x55ff55, 0xffff55, 0x5555ff, 0xff55ff, 0x55ffff, 0xffffff
+};
+
+static size_t nearest_colour(uint32_t rgb) {
+    size_t nearest = 0;
+    int nearest_distance = INT_MAX;
+    for (size_t i = 0; i < SIZEOF_ARRAY(vga_palette); i++) {
+        int distance = 0;
+        for (int shift = 0; shift < 24; shift += 8) {
+            int d = (int)((rgb >> shift) & 0xff) - (int)((vga_palette[i] >> shift) & 0xff);
+            distance += d * d;
+        }
+        if (distance < nearest_distance) {
+            nearest = i;
+            nearest_distance = distance;
+        }
+    }
+    return nearest;
+}
+
+// A terminal of 16 colours shows a 24-bit one as the nearest of them.
+void term_set_text_fg_nearest(struct flanterm_context *ctx, uint32_t rgb) {
+    size_t colour = nearest_colour(rgb);
+    if (colour < 8) {
+        ctx->set_text_fg(ctx, colour);
+    } else {
+        ctx->set_text_fg_bright(ctx, colour - 8);
+    }
+}
+
+void term_set_text_bg_nearest(struct flanterm_context *ctx, uint32_t rgb) {
+    size_t colour = nearest_colour(rgb);
+    if (colour < 8) {
+        ctx->set_text_bg(ctx, colour);
+    } else {
+        ctx->set_text_bg_bright(ctx, colour - 8);
+    }
+}
+
 #if defined(UEFI)
 void term_prepare_post_ebs(void) {
     if (post_ebs_term != NULL) {
@@ -429,6 +472,8 @@ void term_fallback(void) {
         term->set_text_bg_default = fallback_set_text_bg_default;
         term->set_text_fg_default_bright = fallback_set_text_fg_default_bright;
         term->set_text_bg_default_bright = fallback_set_text_bg_default_bright;
+        term->set_text_fg_rgb = term_set_text_fg_nearest;
+        term->set_text_bg_rgb = term_set_text_bg_nearest;
         term->swap_palette = fallback_swap_palette;
         term->double_buffer_flush = fallback_sync_cursor;
 

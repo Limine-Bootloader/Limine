@@ -13,11 +13,13 @@ E = '\x1b'
 # bytes of the sequences as well.
 COLOURS = (f'{E}[0mA{E}[1mB{E}[0m{E}[5mC{E}[0m{E}[93mD{E}[101mE{E}[0m{E}[34;1mF{E}[0m{E}[48;2;1;2;3mG'
            f'{E}[0m')
+# A 24-bit green nearest the palette's green, and a pink nearest its light red.
+RGB = f'{E}[38;2;0;200;0mH{E}[48;2;250;80;80mI{E}[0m'
 EDITS = f'{E}7ABC{E}8D{E}[2CPQ{E}[2D{E}[2@R{E}[3CSTU{E}[3D{E}[P{E}[0m'
 # What the edits leave: D written over A where the cursor was saved, R and a
 # blank, of the two inserted, before PQ, and S deleted from STU.
 EDITED = 'DBCR PQTU'
-VGA_GREY, VGA_WHITE, VGA_DARK_GREY = 0xaaaaaa, 0xffffff, 0x555555
+VGA_GREY, VGA_WHITE, VGA_DARK_GREY, VGA_GREEN = 0xaaaaaa, 0xffffff, 0x555555, 0x00aa00
 VGA_YELLOW, VGA_LIGHT_RED, VGA_LIGHT_BLUE, VGA_BLACK = 0xffff55, 0xff5555, 0x5555ff, 0x000000
 
 
@@ -39,14 +41,16 @@ def branding_cells(t, graphics, branding, shown):
 def term_escapes_textmode(t):
     """In VGA text mode: SGR 1 brightens the default foreground, SGR 5 the
     default background, 90-97 and 100-107 are the bright colours, bold
-    brightens a colour set before it, a 24-bit colour is ignored; DECSC and
-    DECRC save and restore the cursor, CUF and CUB move it, ICH inserts
-    blanks, DCH deletes."""
+    brightens a colour set before it, a 24-bit colour shows as the nearest
+    of the 16 [intent]; DECSC and DECRC save and restore the cursor, CUF and
+    CUB move it, ICH inserts blanks, DCH deletes."""
     branding_cells(t, 'no', EDITS, EDITED)
     c = branding_cells(t, 'no', COLOURS, 'ABCDEFG')
+    c.update(branding_cells(t, 'no', RGB, 'HI'))
     for ch, attr, want in (('A', 'fg', VGA_GREY), ('B', 'fg', VGA_WHITE), ('C', 'bg', VGA_DARK_GREY),
                            ('D', 'fg', VGA_YELLOW), ('E', 'fg', VGA_YELLOW), ('E', 'bg', VGA_LIGHT_RED),
-                           ('F', 'fg', VGA_LIGHT_BLUE), ('G', 'bg', VGA_BLACK)):
+                           ('F', 'fg', VGA_LIGHT_BLUE), ('G', 'bg', VGA_BLACK), ('H', 'fg', VGA_GREEN),
+                           ('I', 'fg', VGA_GREEN), ('I', 'bg', VGA_LIGHT_RED)):
         t.expect_eq(getattr(c[ch], attr), want, f'{ch} {attr}')
     # RI with the cursor homed to the top row scrolls the screen down a row.
     _, row = branding_at(t, 'no', 'REV', 'REV')
