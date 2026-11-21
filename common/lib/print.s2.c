@@ -9,7 +9,6 @@
 #include <lib/real.h>
 #endif
 #include <sys/cpu.h>
-#include <drivers/serial.h>
 
 #if defined(BIOS)
 static void s2_print(const char *s, size_t len) {
@@ -233,7 +232,7 @@ out:
                     default: continue;
                 }
             }
-            serial_out(print_buf[i]);
+            term_serial_out(print_buf[i]);
         }
 #endif
     }
