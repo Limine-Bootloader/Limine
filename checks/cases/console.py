@@ -4,7 +4,7 @@ import time
 from harness.api import check
 from harness.ports import ALL_PORTS, UEFI_PORTS
 from cases._common import entry, limine_version, screen_text
-from cases.menu import BRANDING_ARCH, KERNEL, boot_menu, booted_cmdline, nothing_booted, tree_menu
+from cases.menu import BRANDING_ARCH, KERNEL, boot_menu, booted_cmdline, menu_entry, nothing_booted, tree_menu
 
 # Where Limine's interface goes and how much it says: serial, graphics, quiet,
 # verbose, terse and serial_baudrate, as CONFIG.md describes them. [intent]
@@ -36,6 +36,35 @@ def console_serial_menu(t):
     t.wait_serial_text(m, 'an inner comment')
     type_serial(m, b'\r')
     t.expect_eq(booted_cmdline(t, m), 'inner one', 'keys typed on the serial line chose and booted Inner One')
+
+
+def serial_colour(t, m, needle, offset=0):
+    """Which of the 16 colours the character offset into needle has on the
+    serial line, the firmware's console on UEFI sending bright as bold."""
+    term = t.serial_terminal(m, 80, 25)
+    x, y = term.screen().find_one(needle)
+    fg, _, bold = term.attr[y][x + offset]
+    if bold and fg in [f'c{i}' for i in range(8)]:
+        return f'c{int(fg[1:]) + 8}'
+    return fg
+
+
+@check(ports=UEFI_PORTS, tags=['console', 'serial'])
+def console_serial_colours(t):
+    """The interface's colours reach the serial line as the nearest of the 16
+    every terminal has [intent]: by default green help keys, a bright green
+    countdown and cyan branding, and custom colours alike."""
+    countdown = 'Booting automatically in '
+    custom = ('interface_help_colour: 4040ff\ninterface_help_colour_bright: 10a0a0\n'
+              'interface_branding_colour: e01010\n')
+    for name, options, help_, bright, branding in (('default', '', 'c2', 'c10', 'c6'),
+                                                   ('custom', custom, 'c12', 'c6', 'c1')):
+        m = boot_menu(t, 'timeout: 60\nserial: yes\n' + options + menu_entry(1, 'Only', 'x'))
+        t.wait_serial_text(m, countdown)
+        t.expect_eq(serial_colour(t, m, 'ARROWS'), help_, f'{name} help keys')
+        t.expect_eq(serial_colour(t, m, countdown, len(countdown)), bright, f'{name} countdown')
+        t.expect_eq(serial_colour(t, m, 'Limine '), branding, f'{name} branding')
+        m.stop()
 
 
 @check(ports=ALL_PORTS, tags=['console'])
