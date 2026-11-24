@@ -179,6 +179,29 @@ Miscellaneous:
 
 Limine interface control options:
 
+* `interface_menu_style` - Selects the boot menu renderer. Set to `graphical`
+  to use the framebuffer menu when a supported graphical terminal is available.
+  The default, and the fallback when it is unavailable, is the text menu.
+* `interface_menu_icon` - Associates an entry title with an icon path, in the
+  form `<entry title>=<path>`. This option may be repeated. Icons are used only
+  by the graphical menu; a missing or invalid icon falls back to the entry's
+  initial. Secure Boot requires the path to carry a hash.
+* `interface_menu_header` - Path to a header image for the graphical menu.
+  PNG transparency is supported. If the image is missing or invalid, the
+  `interface_branding` text is shown instead. Secure Boot requires the path to
+  carry a hash.
+* `interface_menu_font` - Path to an LBF1 bitmap font for the graphical menu.
+  It is independent of `term_font`; an invalid or missing font falls back to
+  the terminal font. Secure Boot requires the path to carry a hash.
+* `interface_menu_panel_colour` - An `RRGGBB` hexadecimal value specifying
+  the background colour behind the selected graphical menu entry. Default is
+  `111923`.
+* `interface_menu_text_colour` - An `RRGGBB` hexadecimal value specifying
+  the graphical menu entry text colour. Default is `e8edf2`.
+* `interface_menu_muted_colour` - An `RRGGBB` hexadecimal value specifying
+  the graphical menu secondary text colour. Default is `9aaec2`.
+* `interface_menu_accent_colour` - An `RRGGBB` hexadecimal value specifying
+  the graphical menu selection and accent colour. Default is `52d9ff`.
 * `interface_resolution` - Specify screen resolution to be used by the Limine
   interface (menu, editor, console...) in the form `<width>x<height>`. This
   will *only* affect the Limine interface, not any booted OS. If not specified,
@@ -189,8 +212,8 @@ Limine interface control options:
   It can be any of the following values: `0`, `90`, `180`, `270`. Default is
   `0`, but on a panel Limine knows to be mounted turned in its casing it is the
   turn that shows the interface upright.
-* `interface_branding` - A string that will be displayed on top of the Limine
-  interface.
+* `interface_branding` - A string displayed as the graphical menu heading when
+  `interface_menu_header` is unset, and above the text menu otherwise.
 * `interface_branding_colour` - An `RRGGBB` hexadecimal value specifying the
   colour of the branding string. Default is `00aaaa`.
 * `interface_branding_color` - Alias of `interface_branding_colour`.
