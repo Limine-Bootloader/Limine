@@ -1,5 +1,5 @@
-#ifndef COMMON__MENU_MODEL_H
-#define COMMON__MENU_MODEL_H
+#ifndef MENU_MODEL_H
+#define MENU_MODEL_H
 
 #include <stddef.h>
 #include <lib/config.h>

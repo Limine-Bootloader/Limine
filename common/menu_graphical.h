@@ -1,5 +1,5 @@
-#ifndef COMMON__MENU_GRAPHICAL_H
-#define COMMON__MENU_GRAPHICAL_H
+#ifndef MENU_GRAPHICAL_H
+#define MENU_GRAPHICAL_H
 
 #include <stdbool.h>
 #include <stddef.h>
