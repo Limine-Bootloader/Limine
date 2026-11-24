@@ -7,6 +7,8 @@
 #include <lib/bli.h>
 #include <lib/print.h>
 #include <lib/misc.h>
+#include <menu_graphical.h>
+#include <menu_model.h>
 #include <lib/libc.h>
 #include <lib/config.h>
 #if defined(UEFI)
@@ -48,6 +50,8 @@ static char interface_help_colour_bright[24] = "\e[38;2;85;255;85m";
 static char menu_branding_colour[24] = "\e[38;2;0;170;170m";
 
 static char *menu_branding = NULL;
+static struct menu_model graphical_model;
+static bool graphical_menu;
 
 int current_keyboard_layout = KEYBOARD_LAYOUT_UNKNOWN;
 
@@ -1481,6 +1485,10 @@ extern symbol bss_end;
 #endif
 
 static void menu_init_term(void) {
+    menu_graphical_close();
+    menu_model_destroy(&graphical_model);
+    graphical_menu = false;
+
     // If there is GRAPHICS config key and the value is "yes", enable graphics
 #if defined(BIOS)
     char *graphics = config_get_value(NULL, 0, "GRAPHICS");
@@ -1520,6 +1528,10 @@ static void menu_init_term(void) {
         serial = true;
         term_fallback();
 #endif
+    }
+
+    if (!quiet) {
+        graphical_menu = menu_graphical_init();
     }
 }
 
@@ -2150,6 +2162,9 @@ refresh:
     size_t max_tree_len, max_tree_height;
     max_entries = print_tree(tree_offset, terms[0]->rows - 8 - header_offset, NULL, 0, 0, selected_entry, menu_tree,
                              &selected_menu_entry, &max_tree_len, &max_tree_height);
+    if (graphical_menu) {
+        menu_model_update(&graphical_model, menu_tree, should_skip_entry);
+    }
 
     if (max_entries != 0) {
         size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 3) ? (terms[0]->cols - max_tree_len - 3) / 2 : 1;
@@ -2241,7 +2256,12 @@ refresh:
             print("\e[2K%sBooting automatically in %s%s%s...\e[0m",
                   interface_help_colour, interface_help_colour_bright, timeout_buf, interface_help_colour);
             FOR_TERM(TERM->scroll_enabled = true);
-            FOR_TERM(TERM->double_buffer_flush(TERM));
+            if (graphical_menu) {
+                menu_graphical_draw(&graphical_model, selected_entry,
+                                    menu_branding, help_hidden, "AUTO BOOT");
+            } else {
+                FOR_TERM(TERM->double_buffer_flush(TERM));
+            }
             mouse_render_pointer();
 
             if (sleep_ms == 0) {
@@ -2273,7 +2293,12 @@ refresh:
         goto editor;
     }
 
-    FOR_TERM(TERM->double_buffer_flush(TERM));
+    if (graphical_menu) {
+        menu_graphical_draw(&graphical_model, selected_entry,
+                            menu_branding, help_hidden, NULL);
+    } else {
+        FOR_TERM(TERM->double_buffer_flush(TERM));
+    }
     mouse_render_pointer();
 
     for (;;) {
@@ -2356,19 +2381,22 @@ timeout_aborted:
 
                 size_t target;
 
-                if (mouse.click
-                 && row_to_entry_index(mouse.click_y, tree_row_start, window,
-                                       tree_offset, max_entries, &target)) {
+                bool hit = graphical_menu
+                    ? menu_graphical_hit_test(mouse.click_x, mouse.click_y, &target)
+                    : row_to_entry_index(mouse.click_y, tree_row_start, window,
+                                         tree_offset, max_entries, &target);
+                if (mouse.click && hit) {
                     selected_entry = target;
                     print_tree(0, 0, NULL, 0, 0, selected_entry, menu_tree,
                                &selected_menu_entry, NULL, NULL);
                     goto autoboot;
                 }
 
-                if (mouse.moved
-                 && row_to_entry_index(mouse.y, tree_row_start, window,
-                                       tree_offset, max_entries, &target)
-                 && target != selected_entry) {
+                hit = graphical_menu
+                    ? menu_graphical_hit_test(mouse.x, mouse.y, &target)
+                    : row_to_entry_index(mouse.y, tree_row_start, window,
+                                         tree_offset, max_entries, &target);
+                if (mouse.moved && hit && target != selected_entry) {
                     selected_entry = target;
                     goto refresh;
                 }
@@ -2419,6 +2447,9 @@ timeout_aborted:
                     goto refresh;
                 }
                 mouse_erase_pointer();
+                menu_graphical_close();
+                graphical_menu = false;
+                menu_model_destroy(&graphical_model);
                 if (!quiet) {
                     if (term_backend == FALLBACK) {
                         if (!gterm_init(NULL, NULL, NULL, 0, 0)) {
@@ -2458,13 +2489,16 @@ timeout_aborted:
                     if (max_entries == 0 || selected_menu_entry->sub != NULL) {
                         break;
                     }
+                    menu_graphical_suspend();
                     editor_no_term_reset = true;
                     mouse_erase_pointer();
                     char *new_body = config_entry_editor(selected_menu_entry->name, selected_menu_entry->body);
                     // Drop half-delivered mouse input left over from the editor.
                     mouse_flush();
-                    if (new_body == NULL)
+                    if (new_body == NULL) {
+                        menu_graphical_resume();
                         goto refresh;
+                    }
                     selected_menu_entry->body = new_body;
                     selected_menu_entry->skipped_computed = false;
                     selected_menu_entry->dup_index_computed = false;
@@ -2493,6 +2527,7 @@ timeout_aborted:
                 if (editor_enabled) {
                     editor_blank:
                     booting_from_blank = true;
+                    menu_graphical_suspend();
                     mouse_erase_pointer();
                     char *new_entry = config_entry_editor("Blank Entry", "");
                     if (new_entry != NULL) {
@@ -2501,6 +2536,7 @@ timeout_aborted:
                     }
                     booting_from_blank = false;
                     mouse_flush();
+                    menu_graphical_resume();
                     goto refresh;
                 }
                 break;

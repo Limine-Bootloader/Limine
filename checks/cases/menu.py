@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 from harness.api import check
 from harness import efivars
@@ -16,8 +17,7 @@ KERNEL = 'boot():/boot/kernel.elf'
 LIMINE_VENDOR = '03884334-1756-4978-9c8c-86fb8998b4ea'
 BRANDING_ARCH = {'bios': 'x86-64, BIOS', 'uefi-ia32': 'x86-64, UEFI32', 'uefi-x86-64': 'x86-64, UEFI',
                  'uefi-aarch64': 'aarch64, UEFI', 'uefi-riscv64': 'riscv64, UEFI',
-                 'uefi-loongarch64': 'loongarch64, UEFI'}
-
+                  'uefi-loongarch64': 'loongarch64, UEFI'}
 
 def menu_entry(level, title, cmdline=None, comment=None):
     lines = ['/' * level + title]
@@ -46,6 +46,39 @@ def boot_menu(t, config, files=None, **machine):
         tree.add(path, data)
     t.limine_files(config, tree)
     return t.boot(t.boot_disk(tree), **machine)
+
+
+def graphical_theme(entries):
+    asset_root = Path(__file__).resolve().parents[1] / 'assets/graphical-menu'
+    files = {
+        '/eucleia-coast.png': HostFile(
+            str(asset_root / 'eucleia-coast.png')),
+        '/eucleia-header.png': HostFile(
+            str(asset_root / 'eucleia-header.png')),
+        '/arch.png': HostFile(
+            str(asset_root / 'arch.png')),
+        '/linux.png': HostFile(
+            str(asset_root / 'linux.png')),
+        '/windows.png': HostFile(
+            str(asset_root / 'windows.png')),
+        '/menu.lbf': HostFile(
+            str(asset_root / 'ebgaramond-24.lbf')),
+    }
+    config = ('timeout: no\ninterface_menu_style: graphical\n'
+              'interface_resolution: 1920x1080\nterm_font_scale: 1x1\n'
+              'wallpaper: boot():/eucleia-coast.png\n'
+              'wallpaper_style: stretched\n'
+              'term_margin: 0\nterm_margin_gradient: 0\n'
+              'interface_menu_header: boot():/eucleia-header.png\n'
+              'interface_menu_font: boot():/menu.lbf\n'
+              'interface_menu_panel_colour: 0b1218\n'
+              'interface_menu_text_colour: efe3d1\n'
+              'interface_menu_muted_colour: a99b88\n'
+              'interface_menu_icon: First=boot():/arch.png\n'
+              'interface_menu_icon: Linux=boot():/linux.png\n'
+              'interface_menu_icon: Windows=boot():/windows.png\n'
+              'interface_menu_accent_colour: d3a574\n')
+    return config + entries, files
 
 
 def wait_menu(t, m, needle='ARROWS', timeout=30):
@@ -90,6 +123,85 @@ def menu_layout(t):
     t.require(selected and other, 'entries found on screen')
     t.expect_eq((selected[1].fg, selected[1].bg), (other[1].bg, other[1].fg),
                 '[intent] the default entry is shown in inverse video')
+
+
+@check(ports=UEFI_PORTS, tags=['menu'])
+def menu_graphical(t):
+    """The graphical menu draws the Classical header, wallpaper, and icon."""
+    accent = 0xd3a574
+    icon = 0xe0b88f
+    config, files = graphical_theme(
+        menu_entry(1, 'First', 'first')
+        + menu_entry(1, 'Linux', 'linux')
+        + menu_entry(1, 'Windows', 'windows')
+        + menu_entry(1, 'Last', 'last'))
+    m = boot_menu(t, config, files=files)
+    t.wait_screen(m, lambda _: m.screendump().count_colour(icon) > 0,
+                  desc='graphical menu icon')
+    screen = m.screendump()
+    t.expect_eq((screen.width, screen.height), (1920, 1080),
+                'the graphical menu uses the requested 1920x1080 resolution')
+    t.expect_eq(screen.pixel(0, 0), 0x010101,
+                'the graphical menu preserves the full-screen wallpaper')
+    t.check(screen.count_colour(accent) > 0, 'the graphical menu draws the configured accent')
+    item_x = screen.width * 11 // 100
+    item_y = screen.height * 41 // 100
+    for row, title in enumerate(('First', 'Linux', 'Windows')):
+        icon_region = (item_x + 40, item_y + row * 84 + 20,
+                       item_x + 72, item_y + row * 84 + 52)
+        t.check(screen.count_colour(icon, icon_region) > 0,
+                f'the {title} entry draws its assigned icon')
+    label_x = item_x + 40 + 32 + 18
+    text_pixels = sum(
+        screen.pixel(x, y) in (0xefe3d1, 0xa99b88)
+        for y in range(item_y, item_y + 72)
+        for x in range(label_x, label_x + 150)
+    )
+    t.check(text_pixels > 0, 'the graphical menu draws its configured font')
+    m.press('down', 'down', 'down', 'ret')
+    t.expect_eq(booted_cmdline(t, m), 'last',
+                'the graphical menu boots the selected entry')
+
+
+@check(ports=UEFI_PORTS, tags=['menu'])
+def menu_graphical_long_list(t):
+    """Long graphical entries clip cleanly, and selection scrolls to nested entries."""
+    long_title = ('A Very Long Operating System Entry Name That Must Stop '
+                  'Before the Right Edge of the Menu')
+    entries = (
+        menu_entry(1, 'First', 'first')
+        + menu_entry(1, long_title, 'long')
+        + menu_entry(1, 'Linux', 'linux')
+        + menu_entry(1, 'Windows', 'windows')
+        + menu_entry(1, 'Standard Rescue', 'rescue')
+        + menu_entry(1, 'Firmware Setup', 'firmware')
+        + menu_entry(1, '+Recovery Tools')
+        + menu_entry(2, 'Network Recovery Entry', 'nested-target')
+        + menu_entry(2, 'Local Recovery Console', 'local-target')
+        + menu_entry(1, '+Advanced Tools')
+        + menu_entry(2, 'Memory Test', 'memory-target')
+        + menu_entry(2, 'Firmware Diagnostics', 'advanced-target')
+        + menu_entry(1, 'Final Entry', 'final')
+        + menu_entry(1, 'Last Entry', 'last')
+    )
+    config, files = graphical_theme(entries)
+    m = boot_menu(t, config, files=files)
+    t.wait_screen(m, lambda _: m.screendump().width == 1920,
+                  desc='1920x1080 graphical menu')
+
+    screen = m.screendump()
+    item_x = screen.width * 11 // 100
+    item_width = screen.width * 34 // 100
+    item_y = screen.height * 41 // 100
+    row_height = 72
+    row_gap = screen.height // 90
+    m.press(*(['down'] * 11))
+    selected_y = item_y + 5 * (row_height + row_gap)
+    t.wait_screen(m, lambda _: m.screendump().pixel(item_x, selected_y) == 0xd3a574,
+                  desc='scrolled nested entry selection')
+    m.press('ret')
+    t.expect_eq(booted_cmdline(t, m), 'advanced-target',
+                'the selected nested entry boots after scrolling')
 
 
 @check(ports=ALL_PORTS, tags=['menu'])
@@ -339,4 +451,3 @@ def menu_remember_last_entry(t):
             f'[intent] remembered under Limine\'s vendor GUID: {sorted(n for n, _ in stored)}')
     m = t.boot(disk, vars_file=m.workdir + '/vars.fd')
     t.expect_eq(booted_cmdline(t, m), 'last', '[spec] Last selected and booted when the timeout ran out')
-
