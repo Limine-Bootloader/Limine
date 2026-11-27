@@ -116,6 +116,7 @@ def efi_chainload_no_cmdline(t):
     t.expect_eq(r['name'], 'nocmd', 'probe ran')
     t.expect_eq(r['options'], '(null)', 'no load options')
     t.expect_eq(r.int('options_size'), 0, 'load options size 0')
+    t.expect_eq(r.int('options_is_null'), 1, 'load options pointer is NULL')
 
 
 @check(ports=UEFI_PORTS, tags=['chainload'])

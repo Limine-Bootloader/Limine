@@ -43,7 +43,8 @@ def tpm_log_memory(t):
 def efi_headers_with_linux_macro(t):
     """UEFI interfaces compile with the Linux predefined macro present."""
     source = ('#include <lib/config.h>\n#include <lib/misc.h>\n'
-              '#include <lib/tpm.h>\n#include <lib/tpm_mem.h>\n#include <lib/uri.h>\n')
+              '#include <lib/tpm.h>\n#include <lib/tpm_mem.h>\n#include <lib/uri.h>\n'
+              '#include <protos/chainload.h>\n#include <protos/linux_efi.h>\n')
     command = efi_build_cc(t) + [
         '-std=gnu11', '-ffreestanding', '-Wall', '-Wextra', '-Wshadow',
         '-Wvla', '-Werror', '-fshort-wchar', '-DUEFI', '-Dlinux=1', '-nostdinc',

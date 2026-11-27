@@ -2553,8 +2553,21 @@ noreturn void boot(char *config) {
 
     char *proto = config_get_value(config, 0, "PROTOCOL");
     if (proto == NULL) {
-        panic(true, "Boot protocol not specified for this entry");
+#if defined(UEFI)
+        bool allow_menu = !firmware_secure_boot;
+#else
+        bool allow_menu = true;
+#endif
+        panic(allow_menu, "Boot protocol not specified for this entry");
     }
+
+#if defined(UEFI)
+    if (firmware_secure_boot) {
+        if (strcmp(proto, "linux") == 0) {
+            efi_load(config, cmdline, true);
+        }
+    }
+#endif
 
     if (!strcmp(proto, "limine")) {
         limine_load(config, cmdline);
