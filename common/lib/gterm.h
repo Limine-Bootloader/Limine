@@ -9,6 +9,11 @@
 bool gterm_init(struct fb_info **ret, size_t *_fbs_count,
                 char *config, size_t width, size_t height);
 
+bool gterm_get_menu_font(const uint8_t **font, size_t *height,
+                         size_t *scale_x, size_t *scale_y, size_t *spacing);
+bool gterm_menu_mouse_to_pixel(size_t cell_x, size_t cell_y,
+                               size_t *pixel_x, size_t *pixel_y);
+
 // The interface's rotation on fb: the config's interface_rotation where it is
 // set, else the turn that what is drawn on fb needs to look upright.
 int gterm_get_rotation(char *config, struct fb_info *fb);

@@ -292,6 +292,12 @@ static uint32_t default_bg_bright, default_fg_bright;
 
 static size_t bg_canvas_size;
 static uint32_t *bg_canvas;
+static uint8_t *prepared_menu_font;
+static size_t prepared_menu_font_size;
+static size_t menu_font_height;
+static size_t menu_font_scale_x;
+static size_t menu_font_scale_y;
+static size_t menu_font_spacing;
 
 #define A(rgb) (uint8_t)(rgb >> 24)
 #define R(rgb) (uint8_t)(rgb >> 16)
@@ -803,8 +809,41 @@ static void gterm_fb_setup(struct fb_info *fb, char *config,
     }
 }
 
+bool gterm_get_menu_font(const uint8_t **font, size_t *height,
+                         size_t *scale_x, size_t *scale_y, size_t *spacing) {
+    if (prepared_menu_font == NULL) {
+        return false;
+    }
+
+    *font = prepared_menu_font;
+    *height = menu_font_height;
+    *scale_x = menu_font_scale_x;
+    *scale_y = menu_font_scale_y;
+    *spacing = menu_font_spacing;
+    return true;
+}
+
+bool gterm_menu_mouse_to_pixel(size_t cell_x, size_t cell_y,
+                               size_t *pixel_x, size_t *pixel_y) {
+    if (terms_i == 0 || terms == NULL) {
+        return false;
+    }
+
+    struct flanterm_fb_context *context =
+        (struct flanterm_fb_context *)terms[0];
+    *pixel_x = context->offset_x + cell_x * context->glyph_width;
+    *pixel_y = context->offset_y + cell_y * context->glyph_height;
+    return true;
+}
+
 bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
                 char *config, size_t width, size_t height) {
+    if (prepared_menu_font != NULL) {
+        pmm_free(prepared_menu_font, prepared_menu_font_size);
+        prepared_menu_font = NULL;
+        prepared_menu_font_size = 0;
+    }
+
     static struct fb_info *fbs;
     static size_t fbs_count;
 
@@ -854,6 +893,13 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
 
     struct gterm_config cfg;
     gterm_parse_config(config, &cfg);
+    prepared_menu_font_size = cfg.font_size;
+    prepared_menu_font = ext_mem_alloc(prepared_menu_font_size);
+    memcpy(prepared_menu_font, cfg.font, prepared_menu_font_size);
+    menu_font_height = cfg.font_height;
+    menu_font_scale_x = cfg.font_scale_x;
+    menu_font_scale_y = cfg.font_scale_y;
+    menu_font_spacing = cfg.font_spacing;
 
     terms_i = 0;
     terms = ext_mem_alloc_counted(fbs_count, sizeof(void *));
@@ -871,6 +917,10 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
         size_t font_scale_x, font_scale_y;
         int rotation = gterm_get_rotation(config, fb);
         gterm_fb_setup(fb, config, &cfg, rotation, &font_scale_x, &font_scale_y);
+        if (terms_i == 0) {
+            menu_font_scale_x = font_scale_x;
+            menu_font_scale_y = font_scale_y;
+        }
 
         terms[terms_i] = flanterm_fb_init(ext_mem_alloc_size_t,
                             pmm_free_size_t,
@@ -907,6 +957,9 @@ bool gterm_init(struct fb_info **_fbs, size_t *_fbs_count,
     if (terms_i == 0) {
         pmm_free(terms, fbs_count * sizeof(void *));
         terms = NULL;
+        pmm_free(prepared_menu_font, prepared_menu_font_size);
+        prepared_menu_font = NULL;
+        prepared_menu_font_size = 0;
         return false;
     }
 

@@ -59,14 +59,18 @@ struct image *image_open(struct file_handle *file) {
     }
 
     // stb_image returns RGBA bytes (little-endian uint32 ABGR); convert to
-    // the framebuffer-native XRGB layout. The QOI decoder already produces
-    // XRGB, so this step is skipped on that path.
+    // framebuffer-native XRGB and store inverse alpha for wallpaper blending.
+    // The QOI decoder already produces XRGB, so this step is skipped on that
+    // path.
     if (!image->isQoi) {
         uint32_t *pptr = (void *)image->img;
         size_t pixel_count = CHECKED_MUL((size_t)x, (size_t)y,
             ({ free_image_data(image); pmm_free(image, sizeof(struct image)); return NULL; }));
         for (size_t i = 0; i < pixel_count; i++) {
-            pptr[i] = (pptr[i] & 0x0000ff00) | ((pptr[i] & 0x00ff0000) >> 16) | ((pptr[i] & 0x000000ff) << 16);
+            uint32_t transparency = 255 - (pptr[i] >> 24);
+            pptr[i] = (transparency << 24) | (pptr[i] & 0x0000ff00)
+                    | ((pptr[i] & 0x00ff0000) >> 16)
+                    | ((pptr[i] & 0x000000ff) << 16);
         }
     }
 
