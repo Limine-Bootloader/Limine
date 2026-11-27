@@ -21,9 +21,10 @@ noreturn void panic(bool allow_menu, const char *fmt, ...) {
     va_start(args, fmt);
 
 #if defined(UEFI)
-    // Don't return to the menu under measured boot: a partial boot may
-    // have already dirtied the TPM PCRs.
-    if (measured_boot) {
+    // Don't return to the menu under measured or authenticated boot: a partial
+    // boot may have dirtied the PCRs, and authenticated boot never falls back
+    // to an interactive menu after a failure.
+    if (measured_boot || firmware_secure_boot) {
         allow_menu = false;
     }
 #endif

@@ -1552,7 +1552,7 @@ static const char *uefi_shell_filename(void) {
 
 static bool uefi_shell_available(void) {
     // Only what the verified config describes may boot under enforcement.
-    if (secure_boot_active) {
+    if (firmware_secure_boot) {
         return false;
     }
 
@@ -1733,6 +1733,12 @@ noreturn void _menu(bool first_run) {
         }
     }
 
+#if defined(UEFI)
+    if (firmware_secure_boot && !config_ready) {
+        panic(false, "config: Configuration file not found in authenticated boot");
+    }
+#endif
+
 #if defined(__riscv)
     init_riscv(NULL);
 #endif
@@ -1791,12 +1797,12 @@ noreturn void _menu(bool first_run) {
     char *hash_mismatch_panic_str = config_get_value(NULL, 0, "HASH_MISMATCH_PANIC");
     hash_mismatch_panic = hash_mismatch_panic_str == NULL || strcasecmp(hash_mismatch_panic_str, "no") != 0;
 
-    if (secure_boot_active) {
+#if defined(UEFI)
+    if (firmware_secure_boot) {
         hash_mismatch_panic = true;
         editor_enabled = false;
     }
 
-#if defined(UEFI)
     char *measured_boot_str = config_get_value(NULL, 0, "MEASURED_BOOT");
     measured_boot = measured_boot_str != NULL && strcmp(measured_boot_str, "yes") == 0;
     if (secure_boot_active) {
@@ -1825,7 +1831,11 @@ noreturn void _menu(bool first_run) {
     }
 
     char *editor_enabled_str = config_get_value(NULL, 0, "EDITOR_ENABLED");
-    if (editor_enabled_str != NULL && !secure_boot_active) {
+    if (editor_enabled_str != NULL
+#if defined(UEFI)
+     && !firmware_secure_boot
+#endif
+    ) {
         editor_enabled = strcmp(editor_enabled_str, "yes") == 0;
     }
 
@@ -1854,14 +1864,18 @@ noreturn void _menu(bool first_run) {
     }
     format_fg_rgb_escape(interface_help_colour_bright, help_bright_rgb);
 
+#if defined(UEFI)
     bool custom_branding = false;
+#endif
     {
         char *tmp = config_get_value(NULL, 0, "INTERFACE_BRANDING");
         if (tmp != NULL) {
             size_t len = strlen(tmp) + 1;
             menu_branding = ext_mem_alloc(len);
             memcpy(menu_branding, tmp, len);
+#if defined(UEFI)
             custom_branding = true;
+#endif
         }
     }
     if (menu_branding == NULL) {
@@ -1900,13 +1914,15 @@ noreturn void _menu(bool first_run) {
 #endif
     }
 
-    if (secure_boot_active && !custom_branding) {
+#if defined(UEFI)
+    if (firmware_secure_boot && !custom_branding) {
         const char *suffix = ", Secure Boot)";
         size_t suffix_len = strlen(suffix) + 1;
         size_t old_len = strlen(menu_branding);
         menu_branding = pmm_realloc(menu_branding, old_len + 1, old_len + suffix_len);
         memcpy(menu_branding + old_len - 1, suffix, suffix_len);
     }
+#endif
 
     {
         char *tmp = config_get_value(NULL, 0, "INTERFACE_BRANDING_COLOUR");

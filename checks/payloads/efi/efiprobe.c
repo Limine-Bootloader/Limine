@@ -839,6 +839,112 @@ static void install_faketcg2(void) {
     out("K faketcg2=%x\n", (uint64_t)bs->install_protocol_interface(&h, &g, EFI_NATIVE_INTERFACE, &faketcg2));
 }
 
+static unsigned fake_sb_case = 0xff;
+static efi_get_variable real_get_variable;
+
+static bool same_wide(const uint16_t *a, const uint16_t *b) {
+    while (*a == *b && *a != 0) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
+static efi_status EFI_API fake_sb_get_variable(uint16_t *name, struct efi_guid *guid,
+                                                uint32_t *attributes, size_t *size,
+                                                void *data) {
+    struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
+    bool sb = name != NULL && same_wide(name, L"SecureBoot");
+    bool sm = name != NULL && same_wide(name, L"SetupMode");
+    bool am = fake_sb_case >= 23 && name != NULL && same_wide(name, L"AuditMode");
+    bool dm = fake_sb_case >= 23 && name != NULL && same_wide(name, L"DeployedMode");
+    if ((!sb && !sm && !am && !dm) || guid == NULL
+     || memcmp(guid, &global_variable, sizeof(struct efi_guid)) != 0) {
+        return real_get_variable(name, guid, attributes, size, data);
+    }
+    if (fake_sb_case >= 23) {
+        if ((am && fake_sb_case == 27) || (dm && fake_sb_case == 33)) {
+            return EFI_DEVICE_ERROR;
+        }
+        if (attributes != NULL) {
+            uint32_t attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS;
+            if (am && fake_sb_case == 26) {
+                attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS;
+            }
+            *attributes = attrs;
+        }
+        *size = 1;
+        uint8_t value = 0;
+        if (sb) {
+            value = fake_sb_case >= 29 && fake_sb_case <= 32 ? 0 : 1;
+        } else if (sm) {
+            if (fake_sb_case == 29 || fake_sb_case == 30 || fake_sb_case == 32) {
+                value = 1;
+            }
+        } else if (am) {
+            if (fake_sb_case == 23 || fake_sb_case == 30 || fake_sb_case == 31
+             || fake_sb_case == 32) {
+                value = 1;
+            } else if (fake_sb_case == 24) {
+                value = 2;
+            }
+        } else if (dm) {
+            if (fake_sb_case == 25) {
+                value = 2;
+            } else if (fake_sb_case == 28 || fake_sb_case == 29 || fake_sb_case == 30) {
+                value = 1;
+            }
+        }
+        if (data != NULL) {
+            *(uint8_t *)data = value;
+        }
+        return EFI_SUCCESS;
+    }
+    if (fake_sb_case == 0 || (sb && fake_sb_case == 1)
+     || (sm && (fake_sb_case == 2 || fake_sb_case == 18 || fake_sb_case == 22))) {
+        return EFI_NOT_FOUND;
+    }
+    if ((sb && fake_sb_case == 3) || (sm && fake_sb_case == 4)) {
+        return EFI_DEVICE_ERROR;
+    }
+    if (attributes != NULL) {
+        uint32_t attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS;
+        if ((sb && fake_sb_case == 15) || (sm && fake_sb_case == 17)) {
+            attrs |= EFI_VARIABLE_NON_VOLATILE;
+        } else if ((sm && fake_sb_case == 16) || (sb && fake_sb_case == 20)) {
+            attrs = EFI_VARIABLE_BOOTSERVICE_ACCESS;
+        } else if ((sb && fake_sb_case == 19) || (sm && fake_sb_case == 21)) {
+            attrs = EFI_VARIABLE_RUNTIME_ACCESS;
+        }
+        *attributes = attrs;
+    }
+    if ((sb && fake_sb_case == 13) || (sm && fake_sb_case == 14)) {
+        *size = 2;
+        return EFI_BUFFER_TOO_SMALL;
+    }
+    if ((sb && fake_sb_case == 5) || (sm && fake_sb_case == 6)) {
+        *size = sb ? 0 : 2;
+        return EFI_SUCCESS;
+    }
+    *size = 1;
+    uint8_t value = 0;
+    if (sb && (fake_sb_case == 7 || fake_sb_case == 22)) {
+        value = 2;
+    } else if (sb && (fake_sb_case == 9 || fake_sb_case == 12 || fake_sb_case == 15
+                   || fake_sb_case == 16 || fake_sb_case == 18)) {
+        value = 1;
+    } else if (sm && (fake_sb_case == 8 || fake_sb_case == 9 || fake_sb_case == 11
+                   || fake_sb_case == 17)) {
+        value = fake_sb_case == 8 ? 2 : 1;
+    }
+    if (data != NULL) {
+        *(uint8_t *)data = value;
+    }
+    return EFI_SUCCESS;
+}
+
+static bool orphan_image;
+
 static void cmd_chain(char *arg) {
     char *opts = arg;
     while (*opts != 0 && *opts != '@') {
@@ -854,6 +960,23 @@ static void cmd_chain(char *arg) {
     out("K chain.load=%x\n", (uint64_t)s);
     if (s != EFI_SUCCESS) {
         return;
+    }
+    if (orphan_image) {
+        struct efi_guid guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+        struct efi_loaded_image_protocol *child = NULL;
+        if (bs->handle_protocol(h, &guid, (void **)&child) != EFI_SUCCESS || child == NULL) {
+            return;
+        }
+        child->device_handle = self;
+        child->parent_handle = NULL;
+    }
+    if (fake_sb_case != 0xff) {
+        real_get_variable = rt->get_variable;
+        rt->get_variable = fake_sb_get_variable;
+        rt->hdr.crc32 = 0;
+        uint32_t crc = 0;
+        bs->calculate_crc32(rt, rt->hdr.header_size, &crc);
+        rt->hdr.crc32 = crc;
     }
     if (faketcg2_pending) {
         install_faketcg2();
@@ -1650,6 +1773,10 @@ efi_status efi_main(efi_handle image, struct efi_system_table *system_table) {
             cmd_faketcg2(tok + 9);
         } else if (sprefix(tok, "fakedisk:")) {
             cmd_fakedisk(tok + 9);
+        } else if (sprefix(tok, "fakesb:")) {
+            fake_sb_case = (unsigned)parse_hex(tok + 7, NULL);
+        } else if (sprefix(tok, "orphan")) {
+            orphan_image = true;
 #if defined(__riscv)
         } else if (sprefix(tok, "satpoff")) {
             cmd_satpoff();
