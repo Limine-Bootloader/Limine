@@ -157,7 +157,7 @@ def tpm_linux_event_log(t):
 
 CC_CALL = re.compile(r'K cc\.(map|extend)=([^\r\n]*)')
 ESCAPES = re.compile(r'\x1b\[[0-9;?]*[A-Za-z]')
-CC_PROMPT = 'Press Y to continue, press any other key to panic...'
+UNMEASURED_PROMPT = 'Press Y to continue, press any other key to panic...'
 
 
 def cc_extends(text):
@@ -184,7 +184,7 @@ def answer_prompts(t, m, key, done, most):
     answered = 0
     deadline = time.monotonic() + 120 * t.port.timeout_scale
     while not done():
-        shown = ESCAPES.sub('', m.stream('serial').text()).count(CC_PROMPT)
+        shown = ESCAPES.sub('', m.stream('serial').text()).count(UNMEASURED_PROMPT)
         if shown > answered:
             t.require(shown <= most, f'no more than {most} prompts')
             m.press(key)
@@ -228,7 +228,7 @@ def tpm_cc_measurements(t):
         t.check(warning in ESCAPES.sub('', m.stream('serial').text()), f'flags {flags}: {warning!r}')
         m.stop()
     m = cc_boot(t, 1, config, files)
-    answer_prompts(t, m, 'n', lambda: CC_PROMPT in ESCAPES.sub('', m.stream('serial').text()), 1)
+    answer_prompts(t, m, 'n', lambda: UNMEASURED_PROMPT in ESCAPES.sub('', m.stream('serial').text()), 1)
     m.press('n')
     msg, scr = wait_panic(t, m)
     t.expect_eq(msg, 'tpm: refusing to boot with an unmeasured component', 'any other key panics')
@@ -246,6 +246,32 @@ def tcg2_extends(text):
         pcr, kind, _, digest, length, desc = value.split(' ', 5)
         out.append((int(pcr), int(kind, 16), int(digest, 16), int(length), unescape(desc)))
     return out
+
+
+def tcg2_boot(t, flags, config, files):
+    from cases.chainload import probe_then_limine
+    return probe_then_limine(t, f'name:tcg2 faketcg2:{flags:x}', config, files)
+
+
+@check(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
+def tpm_extend_failed(t):
+    """An extend that fails, here one of a TCG2 protocol the EFI probe
+    installs, stops the boot to ask whether to go on unmeasured, any key but
+    Y panicking [intent]."""
+    kpath = 'boot():/boot/kernel.elf'
+    config = 'timeout: 0\nserial: yes\nmeasured_boot: yes\n' + entry('Test', path=kpath, cmdline='x')
+    files = {'/boot/kernel.elf': read(kernel_file(t, 'full'))}
+    warning = 'WARNING: tpm: HashLogExtendEvent for PCR 8 failed'
+    m = tcg2_boot(t, 2, config, files)
+    shown = answer_prompts(t, m, 'y', lambda: 'E DONE' in m.stream(t.kernel_channel).text(), 4)
+    t.expect_eq(shown, 4, 'a prompt for each of the four measurements')
+    t.check(warning in ESCAPES.sub('', m.stream('serial').text()), repr(warning))
+    m.stop()
+    m = tcg2_boot(t, 2, config, files)
+    answer_prompts(t, m, 'n', lambda: UNMEASURED_PROMPT in ESCAPES.sub('', m.stream('serial').text()), 1)
+    m.press('n')
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'tpm: refusing to boot with an unmeasured component', 'any other key panics')
 
 
 @check(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
@@ -270,7 +296,7 @@ def tpm_event_log_full(t):
         t.expect_eq(pcrs, [8, 8, 8, 9, 9, 9], f'{protocol}: all six measurements extended')
         serial = ESCAPES.sub('', m.stream('serial').text())
         t.expect_eq(serial.count(LOG_FULL_WARNING), 1, f'{protocol}: one warning')
-        t.check(CC_PROMPT not in serial, f'{protocol}: no prompt to go on unmeasured')
+        t.check(UNMEASURED_PROMPT not in serial, f'{protocol}: no prompt to go on unmeasured')
         m.stop()
 
 
@@ -298,4 +324,31 @@ def tpm_cc_linux(t):
                 [(pcr, 3, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, data, desc in want],
                 '[spec] PCR 8 and 9 events')
     t.check('K cc.event_log=2' in text, 'the TCG 2 log asked for')
+    t.check('tpm_log.size' not in r, 'no TPM event log table')
+
+
+@check(ports=UEFI_PORTS, tags=['tpm', 'linux'])
+def tpm_linux_measurements(t):
+    """A Linux kernel is measured as USAGE.md has it: command line and paths
+    into PCR 8, the config, the kernel image as read from disk and the
+    initrd into PCR 9 [spec]. With GetEventLog() failing, here that of a
+    TCG2 protocol the EFI probe installs, there is no log to pass on, and no
+    TPM event log table [intent]."""
+    from cases.linux import bzimage, stub, stub_report, x86_report
+    image = bzimage(t) if t.port.is_x86 else stub(t)
+    path, kernel = ('/bzImage' if t.port.is_x86 else '/Image'), read(image.path)
+    initrd = b'measured initrd\n' * 9
+    config = 'timeout: 0\nmeasured_boot: yes\n' + entry('Linux', protocol='linux', path=f'boot():{path}',
+                                                         cmdline='tcg2 linux', modules=[('boot():/initrd', None)])
+    m = tcg2_boot(t, 4, config, {path: kernel, '/initrd': initrd})
+    r = x86_report(t, m) if t.port.is_x86 else stub_report(t, m)
+    text = m.stream(t.kernel_channel).text()
+    evs = [e for e in tcg2_extends(text) if e[0] >= 8]
+    want = [(8, b'tcg2 linux', 'cmdline: tcg2 linux'), (8, f'boot():{path}'.encode(), f'path: boot():{path}'),
+            (8, b'boot():/initrd', 'module_path: boot():/initrd'), (9, config.encode(), 'limine_cfg'),
+            (9, kernel, f'path: boot():{path}'), (9, initrd, 'module_path: boot():/initrd')]
+    t.expect_eq(sorted(evs, key=lambda e: e[0]),
+                [(pcr, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, data, desc in want],
+                '[spec] PCR 8 and 9 events')
+    t.check('K tcg2.event_log=2' in text, 'the TCG 2 log asked for')
     t.check('tpm_log.size' not in r, 'no TPM event log table')
