@@ -61,12 +61,11 @@ those of the firmware itself.
 ## Measured Boot
 Measured boot is opt-in. Limine performs measurements only when the
 `measured_boot` config option is set to `yes` (also forced on under UEFI
-Secure Boot) **and** the firmware exposes `EFI_TCG2_PROTOCOL` (or
-`EFI_CC_MEASUREMENT_PROTOCOL` on confidential computing platforms such as
-Intel TDX and AMD SEV-SNP). With either condition unmet, no PCR is extended
-by the bootloader; firmware's pre-boot event log is still captured and
-relayed if a TPM is present, since it carries useful PCR 0-7 information
-regardless of what Limine does.
+Secure Boot) **and** the firmware exposes `EFI_TCG2_PROTOCOL` with a TPM
+present. With either condition unmet, no PCR is extended by the bootloader;
+firmware's pre-boot event log is still captured and relayed if a TPM is
+present, since it carries useful PCR 0-7 information regardless of what Limine
+does.
 
 When measured boot is active, Limine extends the platform PCRs with the
 artifacts it loads, following the GRUB convention from the
@@ -94,11 +93,6 @@ measured: `cmdline: <cmdline>` for command lines, `path: <kernel_path>` for
 the kernel image, `module_path: <module_path>` for modules and initrds,
 `dtb_path: <dtb_path>` for a DTB loaded from a file, `efi_dtb` for the
 firmware-provided DTB, and `limine_cfg` for the `limine.conf` blob.
-
-On confidential computing platforms each PCR index is translated to the
-corresponding Memory Reference (MR) register via
-`EFI_CC_MEASUREMENT_PROTOCOL.MapPcrToMrIndex`; the rest of the contract is
-unchanged.
 
 The captured TCG event log is published to the operating system via the
 `LINUX_EFI_TPM_EVENT_LOG` configuration table (for the Linux protocol), or

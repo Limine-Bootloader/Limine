@@ -156,7 +156,7 @@ Miscellaneous:
   wallpaper or font whose hash does not match is skipped either way.
 * `measured_boot` - If set to `yes`, opt in to measured boot. Forced to `yes`
   when Secure Boot is active and a config hash is enrolled, and forced back to
-  `no` if the firmware does not expose a TPM 2.0/CC measurement interface. See
+  `no` if the firmware does not expose a TPM 2.0 measurement interface. See
   [USAGE.md](USAGE.md#measured-boot).
 * `firmware_logo` - If set to `yes`, restore the OEM firmware boot logo upon
   handoff to the OS, instead of leaving a blank screen, by clearing the

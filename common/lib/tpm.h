@@ -18,7 +18,7 @@
 
 void tpm_init(void);
 
-// True if a TCG2 or CC measurement protocol is available.
+// True if a TCG2 protocol with a TPM present is available.
 bool tpm_present(void);
 
 void tpm_measure(uint32_t pcr, uint32_t event_type,
@@ -53,11 +53,8 @@ void tpm_release_event_log(void);
 // that is unknown, or if no log has been captured.
 size_t tpm_get_final_events_preboot_size(void);
 
-// Locate the firmware's final-events table for the active measurement
-// protocol (EFI_TCG2_FINAL_EVENTS_TABLE_GUID for TCG2, or
-// EFI_CC_FINAL_EVENTS_TABLE_GUID for CC). Both tables share the same
-// {Version, NumberOfEvents, Events[]} layout. Returns NULL if no TPM/CC
-// interface is active or the table isn't present.
+// Locate the firmware's final-events table (EFI_TCG2_FINAL_EVENTS_TABLE_GUID).
+// Returns NULL if no TPM is present or the table isn't.
 void *tpm_get_final_events_table(void);
 
 #endif

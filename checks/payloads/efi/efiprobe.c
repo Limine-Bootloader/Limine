@@ -783,74 +783,9 @@ static uint64_t fnv1a(const uint8_t *p, uint64_t len) {
     return h;
 }
 
-// A CC measurement protocol over no hardware, as Limine finds on Intel TDX
-// and AMD SEV: it maps PCRs to MRs as TDX does (PCR 0 to the MRTD, 1 and 7 to
-// RTMR[0], 2 to 6 to RTMR[1], 8 to 15 to RTMR[2]), and reports each call.
-// Flags: 1 has MapPcrToMrIndex() fail, 2 HashLogExtendEvent(), 4
-// GetEventLog(); 8 has HashLogExtendEvent() report the event log full.
-static uint32_t fakecc_flags;
-
-static efi_status EFI_API fakecc_capability(struct efi_cc_measurement_protocol *this,
-                                            struct efi_cc_boot_service_capability *cap) {
-    (void)this;
-    cap->structure_version = (struct efi_cc_version){ 1, 0 };
-    cap->protocol_version = (struct efi_cc_version){ 1, 0 };
-    cap->hash_algorithm_bitmap = EFI_CC_BOOT_HASH_ALG_SHA384;
-    cap->supported_event_logs = EFI_CC_EVENT_LOG_FORMAT_TCG_2;
-    cap->cc_type = (struct efi_cc_type){ EFI_CC_TYPE_INTEL_TDX, 0 };
-    return EFI_SUCCESS;
-}
-
-static efi_status EFI_API fakecc_event_log(struct efi_cc_measurement_protocol *this, efi_cc_event_log_format format,
-                                           efi_physical_address *location, efi_physical_address *last,
-                                           bool *truncated) {
-    (void)this;
-    out("K cc.event_log=%x\n", (uint64_t)format);
-    if (fakecc_flags & 4) {
-        return EFI_DEVICE_ERROR;
-    }
-    *location = 0;
-    *last = 0;
-    *truncated = false;
-    return EFI_SUCCESS;
-}
-
-static efi_status EFI_API fakecc_extend(struct efi_cc_measurement_protocol *this, uint64_t flags,
-                                        efi_physical_address data, uint64_t len, struct efi_cc_event *event) {
-    (void)this;
-    out("K cc.extend=%u %x %x %x %u %e\n", (uint64_t)event->header.mr_index, (uint64_t)event->header.event_type,
-        (uint64_t)flags, fnv1a((const uint8_t *)(uintptr_t)data, len), (uint64_t)len, (const char *)event->event);
-    return (fakecc_flags & 2) ? EFI_DEVICE_ERROR : (fakecc_flags & 8) ? EFI_VOLUME_FULL : EFI_SUCCESS;
-}
-
-static efi_status EFI_API fakecc_map(struct efi_cc_measurement_protocol *this, efi_tcg_pcrindex pcr, efi_cc_mr_index *mr) {
-    (void)this;
-    out("K cc.map=%u\n", (uint64_t)pcr);
-    if ((fakecc_flags & 1) || pcr > 15) {
-        return EFI_INVALID_PARAMETER;
-    }
-    *mr = pcr == 0 ? 0 : pcr == 1 || pcr == 7 ? 1 : pcr <= 6 ? 2 : 3;
-    return EFI_SUCCESS;
-}
-
-static struct efi_cc_measurement_protocol fakecc = { fakecc_capability, fakecc_event_log, fakecc_extend, fakecc_map };
-static bool fakecc_pending;
-
-// Installed by chain: once the image is loaded, for firmware that measures
-// the images it loads not to measure that one through it.
-static void cmd_fakecc(char *arg) {
-    fakecc_flags = (uint32_t)parse_hex(arg, NULL);
-    fakecc_pending = true;
-}
-
-static void install_fakecc(void) {
-    struct efi_guid g = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
-    efi_handle h = NULL;
-    out("K fakecc=%x\n", (uint64_t)bs->install_protocol_interface(&h, &g, EFI_NATIVE_INTERFACE, &fakecc));
-}
-
-// A TCG2 protocol over no TPM that claims one, reporting each call. Flags as
-// the CC protocol's, but for 1, which it has no use for.
+// A TCG2 protocol over no TPM that claims one, reporting each call. Flags: 2
+// has HashLogExtendEvent() fail, 4 GetEventLog(); 8 has HashLogExtendEvent()
+// report the event log full, and GetEventLog() a truncated log.
 static uint32_t faketcg2_flags;
 
 static efi_status EFI_API faketcg2_capability(struct efi_tcg2_protocol *this, struct efi_tcg2_boot_service_capability *cap) {
@@ -891,7 +826,8 @@ static struct efi_tcg2_protocol faketcg2 = { faketcg2_capability, faketcg2_event
                                       NULL };
 static bool faketcg2_pending;
 
-// Installed by chain, as the CC protocol is.
+// Installed by chain: once the image is loaded, for firmware that measures the
+// images it loads not to measure that one through it.
 static void cmd_faketcg2(char *arg) {
     faketcg2_flags = (uint32_t)parse_hex(arg, NULL);
     faketcg2_pending = true;
@@ -918,9 +854,6 @@ static void cmd_chain(char *arg) {
     out("K chain.load=%x\n", (uint64_t)s);
     if (s != EFI_SUCCESS) {
         return;
-    }
-    if (fakecc_pending) {
-        install_fakecc();
     }
     if (faketcg2_pending) {
         install_faketcg2();
@@ -1713,8 +1646,6 @@ efi_status efi_main(efi_handle image, struct efi_system_table *system_table) {
             cmd_wdfail();
         } else if (sprefix(tok, "ebsfail:")) {
             cmd_ebsfail(tok + 8);
-        } else if (sprefix(tok, "fakecc:")) {
-            cmd_fakecc(tok + 7);
         } else if (sprefix(tok, "faketcg2:")) {
             cmd_faketcg2(tok + 9);
         } else if (sprefix(tok, "fakedisk:")) {
