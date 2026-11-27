@@ -165,13 +165,14 @@ def authenticated_config_directory_rejected(t):
     code, _ = tpm_firmware(t, False)
     tree = Tree({
         '/EFI/BOOT/' + t.port.efi_name: HostFile(limine_efi(t)),
+        '/EFI/BOOT/limine.conf/dummy': b'not a file',
     })
     variables = secureboot.enrolled_vars(t.env, t.port, t.path('vars.fd'))
     m = t.boot(t.boot_disk(tree), code_file=code, vars_file=variables,
                **secureboot.machine_options(t.port))
     message, screen = wait_panic(t, m)
     t.expect_eq(message, 'config: Configuration file not found in authenticated boot',
-                'missing configuration is rejected')
+                'directory named limine.conf is rejected')
     t.check('Press a key' not in screen_text(screen), 'halts without empty menu')
 
 
@@ -229,3 +230,55 @@ def authenticated_optional_resource_unauthenticated_config(t):
     scr = t.wait_text(m, 'ARROWS', font=Font())
     t.check('PANIC' not in screen_text(scr), 'menu shown in built-in font')
     t.check(m.screendump().count_colour(0xff0000) == 0, 'hashed wallpaper skipped without enrolled config')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_config_partition_search(t):
+    from harness.media import Fat, Part
+    code, _ = tpm_firmware(t, False)
+    boot = Tree({'/EFI/BOOT/' + t.port.efi_name: HostFile(limine_efi(t))})
+    variables = secureboot.enrolled_vars(t.env, t.port, t.path('vars.fd'))
+    config = 'timeout: 0\n' + entry('EFI', protocol='efi', path='boot():/child.efi', cmdline='name:otherpart info')
+    files = {'/limine.conf': config, '/child.efi': signed_probe(t)}
+    parts = [Part(size_mb=4), Part(size_mb=64, fs=Fat(files=files))]
+    disk = t.boot_disk(boot, size_mb=144, extra_parts=parts)
+    m = t.boot(disk, code_file=code, vars_file=variables, **secureboot.machine_options(t.port))
+    t.expect_eq(probe_report(t, m, timeout=120)['name'], 'otherpart', 'continued past non-filesystems')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_smbios_config_and_tftp_rejection(t):
+    child = signed_probe(t)
+    smbios_cfg = 'timeout:_0;/SMBIOS;protocol:_efi;path:_boot():/kernel.efi;cmdline:_name:smbios_info'
+    m = authenticated_boot(t, 'timeout: no\n', {'/kernel.efi': child}, tpm=False,
+                           commands=f'smbioscfg:{smbios_cfg}')
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'smbios', 'SMBIOS Type 11 config boots signed EFI image')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_el_torito_iso(t):
+    from harness.media import Fat, Iso
+    from harness.ports import Drive
+    code, _ = tpm_firmware(t, False)
+    esp_size = 8 * 1024 * 1024
+    efiboot = t.path('efiboot.img')
+    with open(efiboot, 'wb') as f:
+        f.truncate(esp_size)
+    cfg = 'timeout: no\n' + entry('El Torito ESP', protocol='efi', path='boot():/missing')
+    esp_tree = Tree({
+        '/EFI/BOOT/' + t.port.efi_name: HostFile(limine_efi(t)),
+        '/EFI/BOOT/limine.conf': cfg,
+    })
+    Fat(16, files=esp_tree).write_into(efiboot, 0, esp_size, t.workdir)
+    # Decoy ISO9660 config proves Limine reads from the El Torito ESP's SFS.
+    iso_tree = Tree({
+        '/boot/efiboot.img': HostFile(efiboot),
+        '/boot/limine.conf': 'timeout: 0\n',
+    })
+    iso_path = t.path('el-torito.iso')
+    Iso(iso_tree, uefi_boot='/boot/efiboot.img', hybrid=False).build(iso_path, t.workdir)
+    variables = secureboot.enrolled_vars(t.env, t.port, t.path('isovars.fd'))
+    m = t.machine(drives=[Drive(iso_path, media='cdrom', bootindex=0)],
+                  code_file=code, vars_file=variables, **secureboot.machine_options(t.port))
+    t.wait_text(m, 'El Torito ESP')

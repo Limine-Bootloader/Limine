@@ -11,6 +11,7 @@
 #include <pxe/tftp.h>
 #include <crypt/hash.h>
 #include <lib/tpm.h>
+#include <lib/uri.h>
 #include <lib/utf.h>
 #include <sys/cpu.h>
 
@@ -145,6 +146,15 @@ found:
 }
 #endif
 
+static struct file_handle *open_config_file(struct volume *part, const char *path) {
+#if defined(UEFI)
+    if (firmware_secure_boot) {
+        return uri_open_efi_fs_file(part, path);
+    }
+#endif
+    return fopen(part, path);
+}
+
 int init_config_disk(struct volume *part) {
 #if defined(UEFI)
     bool use_default_efi_search_path = false;
@@ -161,28 +171,25 @@ int init_config_disk(struct volume *part) {
     }
 #endif
 
-    struct file_handle *f;
-
+    const char *paths[] = {
+#if defined(UEFI)
+        use_default_efi_search_path ? "/EFI/BOOT/limine.conf" : efi_app_path,
+#endif
+        "/boot/limine/limine.conf", "/boot/limine.conf", "/limine/limine.conf", "/limine.conf"
+    };
     bool old_cif = case_insensitive_fopen;
     case_insensitive_fopen = true;
-    if (
-     false
-#if defined(UEFI)
-     || (f = fopen(part, use_default_efi_search_path ? "/EFI/BOOT/limine.conf" : efi_app_path)) != NULL
-#endif
-     || (f = fopen(part, "/boot/limine/limine.conf")) != NULL
-     || (f = fopen(part, "/boot/limine.conf")) != NULL
-     || (f = fopen(part, "/limine/limine.conf")) != NULL
-     || (f = fopen(part, "/limine.conf")) != NULL
-    ) {
-        goto opened;
+    struct file_handle *f = NULL;
+    for (size_t i = 0; i < SIZEOF_ARRAY(paths); i++) {
+        f = open_config_file(part, paths[i]);
+        if (f != NULL) {
+            break;
+        }
     }
-
     case_insensitive_fopen = old_cif;
-    return -1;
-
-opened:
-    case_insensitive_fopen = old_cif;
+    if (f == NULL) {
+        return -1;
+    }
 
     if (f->size > SIZE_MAX - 2) {
         panic(false, "Config file too large");
@@ -703,4 +710,19 @@ char *config_get_value(const char *config, size_t index, const char *key) {
     }
 
     return NULL;
+}
+
+char *config_get_value_next(const char **cursor, const char *key) {
+    if (cursor == NULL || *cursor == NULL) {
+        return NULL;
+    }
+    char *value = config_get_value(*cursor, 0, key);
+    if (value != NULL) {
+        const char *next = lastkey;
+        while (*next != 0 && *next != SEPARATOR) {
+            next++;
+        }
+        *cursor = *next == SEPARATOR ? next + 1 : next;
+    }
+    return value;
 }

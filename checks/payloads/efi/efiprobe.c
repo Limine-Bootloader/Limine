@@ -1652,6 +1652,54 @@ static void cmd_smbios3(char *arg) {
     out("K smbios3=%x\n", (uint64_t)bs->install_configuration_table(&g, ep));
 }
 
+// An SMBIOS 3.0 table with one Type 11 OEM string "limine:config:<cfg>"
+// ('_' decodes to space, ';' to newline) and a Type 127 end-of-table marker.
+static void cmd_smbioscfg(char *arg) {
+    static const char prefix[] = "limine:config:";
+    size_t plen = sizeof(prefix) - 1;
+    size_t alen = slen(arg);
+    size_t table_size = 5 + plen + alen + 2 + 6;
+    uint8_t *table = NULL;
+    uint8_t *ep = NULL;
+    if (bs->allocate_pool(EFI_RUNTIME_SERVICES_DATA, table_size, (void **)&table) != EFI_SUCCESS
+     || bs->allocate_pool(EFI_RUNTIME_SERVICES_DATA, 24, (void **)&ep) != EFI_SUCCESS) {
+        out("K smbioscfg=alloc_error\n");
+        return;
+    }
+    memset(table, 0, table_size);
+    table[0] = 11;
+    table[1] = 5;
+    table[2] = 1;
+    table[4] = 1;
+    memcpy(table + 5, prefix, plen);
+    for (size_t i = 0; i < alen; i++) {
+        table[5 + plen + i] = arg[i] == '_' ? ' ' : arg[i] == ';' ? '\n' : (uint8_t)arg[i];
+    }
+    uint8_t *end = table + 5 + plen + alen + 2;
+    end[0] = 127;
+    end[1] = 4;
+    end[2] = 2;
+    memset(ep, 0, 24);
+    memcpy(ep, "_SM3_", 5);
+    ep[6] = 24;
+    ep[7] = 3;
+    ep[10] = 1;
+    uint64_t addr = (uint64_t)(uintptr_t)table;
+    for (int i = 0; i < 4; i++) {
+        ep[12 + i] = (uint8_t)(table_size >> (8 * i));
+    }
+    for (int i = 0; i < 8; i++) {
+        ep[16 + i] = (uint8_t)(addr >> (8 * i));
+    }
+    uint8_t sum = 0;
+    for (int i = 0; i < 24; i++) {
+        sum += ep[i];
+    }
+    ep[5] = (uint8_t)-sum;
+    struct efi_guid g = EFI_SMBIOS3_TABLE_GUID;
+    out("K smbioscfg=%x\n", (uint64_t)bs->install_configuration_table(&g, ep));
+}
+
 #if defined(__riscv)
 // Translation off, as some RISC-V firmware runs: the firmware's identity map
 // leaves every address the same without it.
@@ -1765,6 +1813,8 @@ efi_status efi_main(efi_handle image, struct efi_system_table *system_table) {
             cmd_fragment(tok + 9);
         } else if (sprefix(tok, "smbios3:")) {
             cmd_smbios3(tok + 8);
+        } else if (sprefix(tok, "smbioscfg:")) {
+            cmd_smbioscfg(tok + 10);
         } else if (sprefix(tok, "wdfail")) {
             cmd_wdfail();
         } else if (sprefix(tok, "ebsfail:")) {

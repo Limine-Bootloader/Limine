@@ -30,6 +30,15 @@
 void stage3_common(void);
 
 #if defined(UEFI)
+static bool handle_has_efi_fs(efi_handle handle) {
+    if (handle == NULL) {
+        return false;
+    }
+    struct efi_guid fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    void *fs = NULL;
+    return gBS->handle_protocol(handle, &fs_guid, &fs) == EFI_SUCCESS && fs != NULL;
+}
+
 noreturn void uefi_entry(efi_handle image_handle, struct efi_system_table *system_table) {
     gST = system_table;
     gBS = system_table->boot_services;
@@ -144,8 +153,16 @@ opened:
         boot_volume = disk_volume_from_efi_handle(loaded_image->device_handle);
 
         if (boot_volume != NULL) {
-            if (firmware_secure_boot && boot_volume->pxe) {
-                panic(false, "uefi: PXE boot is unavailable in authenticated boot");
+            if (firmware_secure_boot) {
+                if (boot_volume->pxe) {
+                    panic(false, "uefi: PXE boot is unavailable in authenticated boot");
+                }
+                // On a pure El Torito ISO, the disc volume holds the disc
+                // handle rather than the El Torito ESP's filesystem handle.
+                if (!handle_has_efi_fs(boot_volume->efi_part_handle)
+                 && handle_has_efi_fs(loaded_image->device_handle)) {
+                    boot_volume->efi_part_handle = loaded_image->device_handle;
+                }
             }
             stage3_common();
         }
