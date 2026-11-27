@@ -54,7 +54,7 @@ A *menu entry* can be a directory, meaning it can hold sub-entries. In order
 for an entry to become a directory, it needs to have a sub-entry following
 right after it.
 (A `comment` option may be present between the beginning of the directory entry
-and the beginning of the sub-entry).
+and the beginning of the sub-entry.)
 
 A *sub-entry* is a menu entry started with a number of `/` greater than 1
 prepended to it.
@@ -115,9 +115,9 @@ Miscellaneous:
   Can be a 1-based entry index (e.g. `1`), or an entry path (e.g.
   `OSes/Arch Linux`). Entry paths use `/` as a directory separator; literal
   `/`, `\`, and `#` characters in entry names must be escaped as `\/`, `\\`,
-  and `\#` respectively. If multiple sibling entries share the same name, append
-  `#N` to select the Nth duplicate (e.g. `Arch Linux#1` for the second entry
-  named `Arch Linux`). If unspecified, it is `1`. On UEFI, a Boot Loader
+  and `\#` respectively. If multiple sibling entries share the same name,
+  append `#N` to select the Nth duplicate (e.g. `Arch Linux#1` for the second
+  entry named `Arch Linux`). If unspecified, it is `1`. On UEFI, a Boot Loader
   Interface `LoaderEntryOneShot` request takes precedence over this option, and
   so does `remember_last_entry` where it has an entry to restore. The
   persistent `LoaderEntryDefault` variable is consulted only where this option
@@ -128,7 +128,7 @@ Miscellaneous:
 * `remember_last_entry` - If set to `yes`, remember last booted entry. Takes
   precedence over `default_entry` and over the persistent `LoaderEntryDefault`
   variable; `default_entry` applies only where this option is `no` or no
-  remembered entry resolves. (UEFI only).
+  remembered entry resolves. (UEFI only.)
 * `graphics` - If set to `no`, force text mode for the boot menu, else use
   a video mode.
 * `wallpaper` - Path to a file to use as a wallpaper. BMP, PNG, JPEG, and QOI
@@ -227,8 +227,8 @@ These are ignored if using text mode.
   would display the font in double size, which is useful on high-DPI displays
   at native resolution. `2x1` only makes the font twice as wide, similar to the
   VGA 40 column mode. `4x2` might be good for a narrow font on a high
-  resolution display. Each factor must be between 1 and 8; any value that is not
-  such a pair is treated as if the option were unset. If unset, the scaling
+  resolution display. Each factor must be between 1 and 8; any value that is
+  not such a pair is treated as if the option were unset. If unset, the scaling
   follows the resolution: `1x1` below 2560x1440, `2x2` from there, and `4x4`
   from 5120x2880.
 * `term_font_spacing` - Horizontal spacing, in pixels, between glyphs on
@@ -237,10 +237,10 @@ These are ignored if using text mode.
   option were unset.
 * `term_palette` - Specifies the colour palette used by the terminal (RRGGBB).
   It is a `;` separated array of 8 colours: black, red, green, brown, blue,
-  magenta, cyan, and gray. Ignored if not using a graphical terminal.
+  magenta, cyan, and grey. Ignored if not using a graphical terminal.
 * `term_palette_bright` - Specifies the bright colour palette used by the
   terminal (RRGGBB). It is a `;` separated array of 8 bright colours:
-  dark gray, bright red, bright green, yellow, bright blue, bright magenta,
+  dark grey, bright red, bright green, yellow, bright blue, bright magenta,
   bright cyan, and white. Ignored if not using a graphical terminal.
 * `term_background` - Terminal text background colour (TTRRGGBB). TT stands for
   transparency. Defaults to `00000000`, or to `80000000` when a `wallpaper` is

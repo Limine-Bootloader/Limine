@@ -166,7 +166,7 @@ In order to create a hybrid ISO with Limine, place the
 created ISO.
 (`limine-bios.sys` and `limine.conf` must either be in the root, `limine`,
 `boot`, or `boot/limine` directory; `limine-uefi-cd.bin` and
-`limine-bios-cd.bin` can reside anywhere).
+`limine-bios-cd.bin` can reside anywhere.)
 
 After that, create a `<ISO root directory>/EFI/BOOT` directory and copy the
 relevant Limine EFI executables over (such as `BOOTX64.EFI`).

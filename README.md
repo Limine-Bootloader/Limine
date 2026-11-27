@@ -7,13 +7,15 @@
 ### What is Limine?
 
 Limine (pronounced as demonstrated [here](https://www.merriam-webster.com/dictionary/in%20limine))
-is a modern, secure, portable, multiprotocol bootloader and boot manager, also used
-as the reference implementation for the [Limine boot protocol](https://github.com/Limine-Bootloader/limine-protocol/blob/trunk/PROTOCOL.md).
+is a modern, secure, portable, multiprotocol bootloader and boot manager, also
+used as the reference implementation for the [Limine boot protocol](https://github.com/Limine-Bootloader/limine-protocol/blob/trunk/PROTOCOL.md).
 
 ### Community and Support
 
 #### Community
-We have a Matrix room at [`#limine:matrix.org`](https://matrix.to/#/#limine:matrix.org) if you need support, info, or you just want to hang out with us.
+We have a Matrix room at
+[`#limine:matrix.org`](https://matrix.to/#/#limine:matrix.org) if you need
+support, info, or you just want to hang out with us.
 
 ### Limine's boot menu
 
@@ -44,14 +46,14 @@ We have a Matrix room at [`#limine:matrix.org`](https://matrix.to/#/#limine:matr
 * FAT12/16/32
 * ISO9660 (CDs/DVDs)
 
-If your filesystem isn't listed here, please read [the FAQ](FAQ.md) first, especially before
-opening issues or pull requests related to this.
+If your filesystem isn't listed here, please read [the FAQ](FAQ.md) first,
+especially before opening issues or pull requests related to this.
 
 ### Minimum system requirements
 For 32-bit x86 systems, support is only ensured starting with those with
 Pentium Pro (i686) class CPUs.
 
-All x86-64, aarch64, riscv64 and loongarch64 (UEFI) systems are supported.
+All x86-64, aarch64, riscv64, and loongarch64 (UEFI) systems are supported.
 
 ### Unsupported environments
 Confidential computing guests, such as Intel TDX trust domains, AMD SEV guests
@@ -59,7 +61,8 @@ of any kind, and Arm CCA Realms, are not supported.
 
 ## Packaging status
 
-All Limine releases since 7.x use [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for their naming.
+All Limine releases since 7.x use
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) for their naming.
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/limine.svg?columns=3)](https://repology.org/project/limine/versions)
 
