@@ -12,6 +12,13 @@ from cases.chainload import probe_then_limine
 # their width, and an EDID that prefers 800x600. Two such GOPs share their
 # memory.
 
+# The probe's FAKEGOP_ flags.
+FAKEGOP_NOT_STARTED = 0x1
+FAKEGOP_MODE1_FAILS = 0x2
+FAKEGOP_BS_DATA = 0x4
+FAKEGOP_NO_DISPLAY = 0x8
+FAKEGOP_NO_MODES = 0x10
+
 
 def boot_fake_gop(t, extra=''):
     m = probe_then_limine(t, 'name:fakegop fakegop:2',
@@ -58,9 +65,14 @@ def gop_pixel_formats(t):
     t.expect_eq(fb, '320x200x16 pitch=640 model=1 r=5:10 g=5:5 b=5:0', '5:5:5 with a reserved bit: 16 bits')
 
 
+def fakegop(flags):
+    """The probe's command for its two GOPs, which takes flags in hex."""
+    return f'fakegop:2:{flags:x}'
+
+
 def boot_fake_gop_only(t, flags):
     """The probe's two GOPs alone, the machine having no display of its own."""
-    m = probe_then_limine(t, f'fakegop:2:{flags}',
+    m = probe_then_limine(t, fakegop(flags),
                           'timeout: 0\n' + entry('Test', path='boot():/boot/kernel.elf', cmdline='x'),
                           {'/boot/kernel.elf': HostFile(kernel_file(t, 'full'))}, display=False)
     r = t.kernel_report(m)
@@ -75,10 +87,10 @@ def gop_not_started_or_refusing(t):
     firmware's did until SetMode() was called, is started in its first mode
     where no framebuffer was found before it, and passed over otherwise; a
     mode SetMode() refuses is passed over for another."""
-    r = boot_fake_gop_only(t, 1)
+    r = boot_fake_gop_only(t, FAKEGOP_NOT_STARTED)
     t.expect_eq(r.int('framebuffer.count'), 1, 'one framebuffer: the first GOP started, the second passed over')
     t.expect_eq(r['framebuffer.0'], '800x600x32 pitch=3200 model=1 r=8:0 g=8:8 b=8:16', 'the EDID mode, once started')
-    r = boot_fake_gop_only(t, 2)
+    r = boot_fake_gop_only(t, FAKEGOP_MODE1_FAILS)
     fb = r.get('framebuffer.0', '')
     t.check(r.int('framebuffer.count') == 1 and fb and not fb.startswith('800x600'),
             f'the EDID mode refused, another taken: {fb}')
@@ -90,7 +102,7 @@ def gop_framebuffer_in_boot_services_data(t):
     pages, which the memory map hands the OS once boot services exit, is
     passed on as framebuffer memory with the free memory around it cut back
     to whole pages, instead of stopping the boot."""
-    r = boot_fake_gop_only(t, 4)
+    r = boot_fake_gop_only(t, FAKEGOP_BS_DATA)
     t.expect_eq(r.int('framebuffer.count'), 1, 'one framebuffer: the second GOP, over the same memory, left out')
     t.expect_eq(int(r['framebuffer.address'], 16) & 0xfff, 0x800, 'the fake framebuffer, half a page in')
 
@@ -101,12 +113,12 @@ def gop_without_display(t):
     0x0 with no framebuffer, are left alone rather than set another mode, as
     there is nothing to draw on: the boot goes on without a framebuffer, for
     the Limine protocol and, on x86, Linux."""
-    r = boot_fake_gop_only(t, 8)
+    r = boot_fake_gop_only(t, FAKEGOP_NO_DISPLAY)
     t.expect_eq(r.flag('framebuffer.response'), False, 'no framebuffer response')
     if t.port.is_x86:
         from cases.linux import bzimage, hexint, x86_report
         config = 'timeout: 0\n' + entry('Linux', protocol='linux', path='boot():/bzImage', cmdline='x')
-        m = probe_then_limine(t, 'fakegop:2:8', config, {'/bzImage': bzimage(t)}, display=False)
+        m = probe_then_limine(t, fakegop(FAKEGOP_NO_DISPLAY), config, {'/bzImage': bzimage(t)}, display=False)
         t.expect_eq(hexint(x86_report(t, m), 'si.isvga'), 0, 'Linux: no framebuffer in screen_info')
         m.stop()
 
@@ -118,13 +130,13 @@ def gop_without_modes(t):
     with no display attached answers with EFI_SUCCESS and its outputs
     unwritten: the boot goes on without a framebuffer, for the Limine
     protocol and, on x86, Linux."""
-    r = boot_fake_gop_only(t, '10')
+    r = boot_fake_gop_only(t, FAKEGOP_NO_MODES)
     t.check('fakegop.query_without_modes' not in r.raw, 'no QueryMode() call on a GOP with no modes')
     t.expect_eq(r.flag('framebuffer.response'), False, 'no framebuffer response')
     if t.port.is_x86:
         from cases.linux import bzimage, hexint, x86_report
         config = 'timeout: 0\n' + entry('Linux', protocol='linux', path='boot():/bzImage', cmdline='x')
-        m = probe_then_limine(t, 'fakegop:2:10', config, {'/bzImage': bzimage(t)}, display=False)
+        m = probe_then_limine(t, fakegop(FAKEGOP_NO_MODES), config, {'/bzImage': bzimage(t)}, display=False)
         report = x86_report(t, m)
         t.check('fakegop.query_without_modes' not in report.raw, 'Linux: no QueryMode() call on a GOP with no modes')
         t.expect_eq(hexint(report, 'si.isvga'), 0, 'Linux: no framebuffer in screen_info')

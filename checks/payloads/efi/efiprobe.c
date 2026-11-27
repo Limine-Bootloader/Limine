@@ -389,7 +389,7 @@ static efi_status EFI_API fake_query_mode(struct efi_graphics_output_protocol *t
         out("K fakegop.query_without_modes=%u\n", (uint64_t)n);
         return EFI_SUCCESS;
     }
-    if ((fakegop_flags & FAKEGOP_NOT_STARTED) && !((struct fake_gop *)this)->started) {
+    if ((fakegop_flags & FAKEGOP_NOT_STARTED) != 0 && !((struct fake_gop *)this)->started) {
         return EFI_NOT_STARTED;
     }
     if (n >= FAKE_MODES) {
@@ -414,7 +414,7 @@ static efi_status EFI_API fake_set_mode(struct efi_graphics_output_protocol *thi
     if (n >= FAKE_MODES) {
         return EFI_UNSUPPORTED;
     }
-    if ((fakegop_flags & FAKEGOP_MODE1_FAILS) && n == 1) {
+    if ((fakegop_flags & FAKEGOP_MODE1_FAILS) != 0 && n == 1) {
         return EFI_DEVICE_ERROR;
     }
     f->started = true;
@@ -439,7 +439,7 @@ static void cmd_fakegop(char *arg) {
     fakegop_flags = *end == ':' ? parse_hex(end + 1, NULL) : 0;
     if (fake_fb == 0) {
         size_t pages = (1280 * 1024 * 4 + 4095) / 4096;
-        if (fakegop_flags & FAKEGOP_BS_DATA) {
+        if ((fakegop_flags & FAKEGOP_BS_DATA) != 0) {
             bs->allocate_pages(
                 EFI_ALLOCATE_ANY_PAGES, EFI_BOOT_SERVICES_DATA, pages + 1, &fake_fb
             );
@@ -478,12 +478,12 @@ static void cmd_fakegop(char *arg) {
         f->mode.size_of_info = sizeof(f->info);
         f->mode.frame_buffer_base = fake_fb;
         fake_set_mode(&f->gop, 0);
-        f->started = !(fakegop_flags & FAKEGOP_NOT_STARTED);
-        if (fakegop_flags & FAKEGOP_NO_MODES) {
+        f->started = (fakegop_flags & FAKEGOP_NOT_STARTED) == 0;
+        if ((fakegop_flags & FAKEGOP_NO_MODES) != 0) {
             f->mode.max_mode = 0;
             f->no_modes = true;
         }
-        if (fakegop_flags & (FAKEGOP_NO_DISPLAY | FAKEGOP_NO_MODES)) {
+        if ((fakegop_flags & (FAKEGOP_NO_DISPLAY | FAKEGOP_NO_MODES)) != 0) {
             f->info.horizontal_resolution = 0;
             f->info.vertical_resolution = 0;
             f->mode.frame_buffer_base = 0;
@@ -495,7 +495,7 @@ static void cmd_fakegop(char *arg) {
         efi_handle h = NULL;
         efi_status s = bs->install_protocol_interface(&h, &gg, EFI_NATIVE_INTERFACE, &f->gop);
         if (s == EFI_SUCCESS && i == 0
-         && !(fakegop_flags & (FAKEGOP_NO_DISPLAY | FAKEGOP_NO_MODES))) {
+         && (fakegop_flags & (FAKEGOP_NO_DISPLAY | FAKEGOP_NO_MODES)) == 0) {
             s = bs->install_protocol_interface(&h, &eg, EFI_NATIVE_INTERFACE, &f->edid);
         }
         out("K fakegop.%u=%x\n", i, (uint64_t)s);
