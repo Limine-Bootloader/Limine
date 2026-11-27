@@ -181,13 +181,14 @@ def sb_efi_chainload(t):
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
 def sb_not_enrolled(t):
-    """Secure Boot disables the editor even without an enrolled config hash."""
+    """Secure Boot restricts native loading even without an enrolled config hash."""
     config = 'timeout: no\n' + kernel_entry(t, hashed=False)
     m = sb_boot(t, config, enrolled=False)
     text = screen_text(t.wait_text(m, 'ARROWS'))
     t.check('E Edit' not in text, 'editor unavailable')
     m.press('ret')
-    t.expect_eq(unescape(t.kernel_report(m)['cmdline']), 'secure boot', 'a kernel without a hash boots')
+    msg, _ = wait_panic(t, m)
+    t.expect_eq(msg, 'boot: Protocol is unavailable with firmware Secure Boot', 'native protocol refused')
 
 
 @check(ports=UEFI_PORTS, tags=['secureboot'])
