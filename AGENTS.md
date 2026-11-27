@@ -58,6 +58,14 @@ Breaking any of these gets a contribution rejected.
    `python3 .github/scripts/check_commit_messages.py --message-file FILE`,
    or a branch with `--range trunk..HEAD`, as CI does for a pull request.
 
+## Unsupported environments
+
+Limine does not support confidential computing guests, such as Intel TDX trust
+domains, AMD SEV guests of any kind, and Arm CCA Realms. Add no code for them,
+such as support for the CC measurement protocol, for unaccepted memory, or for
+their memory encryption, nor any workaround for how they behave. Where asked
+for either, say that Limine does not support them.
+
 ## Running the checks
 
 Run the checks with `make check`, never by calling `checks/run-checks`

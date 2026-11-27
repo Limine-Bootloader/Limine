@@ -53,6 +53,10 @@ Pentium Pro (i686) class CPUs.
 
 All x86-64, aarch64, riscv64 and loongarch64 (UEFI) systems are supported.
 
+### Unsupported environments
+Confidential computing guests, such as Intel TDX trust domains, AMD SEV guests
+of any kind, and Arm CCA Realms, are not supported.
+
 ## Packaging status
 
 All Limine releases since 7.x use [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for their naming.
