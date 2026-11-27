@@ -54,6 +54,22 @@ static bool validate_pitch(struct fb_info *ret, size_t mode) {
     return true;
 }
 
+// Some firmware returns EFI_SUCCESS from QueryMode() without writing its
+// outputs, so mode information left NULL counts as a failure.
+static efi_status query_mode(
+    struct efi_graphics_output_protocol *gop,
+    uint32_t mode,
+    struct efi_graphics_output_mode_information **info
+) {
+    size_t info_size;
+    *info = NULL;
+    efi_status status = gop->query_mode(gop, mode, &info_size, info);
+    if (status == EFI_SUCCESS && *info == NULL) {
+        return EFI_DEVICE_ERROR;
+    }
+    return status;
+}
+
 // Most of this code taken from https://wiki.osdev.org/GOP
 
 static bool mode_to_fb_info(
@@ -61,14 +77,9 @@ static bool mode_to_fb_info(
     struct efi_graphics_output_protocol *gop,
     size_t mode
 ) {
-    efi_status status;
-
     struct efi_graphics_output_mode_information *mode_info;
-    size_t mode_info_size;
 
-    status = gop->query_mode(gop, mode, &mode_info_size, &mode_info);
-
-    if (status) {
+    if (query_mode(gop, mode, &mode_info) != EFI_SUCCESS) {
         return false;
     }
 
@@ -318,10 +329,8 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
         }
 
         struct efi_graphics_output_mode_information *mode_info;
-        size_t mode_info_size;
 
-        status = gop->query_mode(gop, gop->mode == NULL ? 0 : gop->mode->mode,
-                                &mode_info_size, &mode_info);
+        status = query_mode(gop, gop->mode == NULL ? 0 : gop->mode->mode, &mode_info);
 
         if (status == EFI_NOT_STARTED) {
             if (fbs_count > 0) {
@@ -331,8 +340,7 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
             if (status) {
                 continue;
             }
-            status = gop->query_mode(gop, gop->mode == NULL ? 0 : gop->mode->mode,
-                                    &mode_info_size, &mode_info);
+            status = query_mode(gop, gop->mode == NULL ? 0 : gop->mode->mode, &mode_info);
         }
 
         if (status) {
