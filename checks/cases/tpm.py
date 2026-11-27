@@ -125,13 +125,13 @@ def tpm_panic_halts(t):
 
 @check(ports=UEFI_PORTS, tags=['tpm', 'secureboot'])
 def tpm_forced_by_secure_boot(t):
-    """With Secure Boot active and a config hash enrolled, measured boot is
-    on without measured_boot set."""
+    """An enrolled config cannot disable measurements when Secure Boot is active."""
     tpm_firmware(t)
-    m = sb_boot(t, 'timeout: 0\n' + kernel_entry(t), tpm=t.software_tpm())
+    config = 'timeout: 0\nmeasured_boot: no\n' + kernel_entry(t)
+    m = sb_boot(t, config, tpm=t.software_tpm())
     evs = events(t.kernel_report(m, timeout=120))
-    t.check(any(pcr == 9 and data == 'limine_cfg' for pcr, _, _, data in evs),
-            f'[spec] the config measured into PCR 9: {[(e[0], e[3]) for e in evs]}')
+    t.check((EV_IPL, sha256(config.encode()), 'limine_cfg') in by_pcr(evs, 9),
+            'raw config measured into PCR 9 despite measured_boot: no')
 
 
 @check(ports=UEFI_PORTS, tags=['tpm', 'linux'])
@@ -177,7 +177,7 @@ def answer_prompts(t, m, key, done, most):
 
 
 TCG2_CALL = re.compile(r'K tcg2\.extend=([^\r\n]*)')
-LOG_FULL_WARNING = 'WARNING: tpm: The event log is full; measurements from here on are not logged.'
+LOG_FULL_WARNING = 'WARNING: tpm: The event log is full; PCR replay may be incomplete.'
 
 
 def tcg2_extends(text):

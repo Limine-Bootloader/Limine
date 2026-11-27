@@ -16,6 +16,7 @@
 #include <sys/idt.h>
 #include <sys/cpu.h>
 #include <lib/bli.h>
+#include <lib/tpm.h>
 #include <lib/utf.h>
 #include <protos/linux_efi.h>
 #include <drivers/vga_textmode.h>
@@ -672,6 +673,9 @@ noreturn void efi_load(char *config, char *cmdline, bool linux_protocol) {
     }
 
     if (firmware_secure_boot) {
+        if (new_cmdline != NULL) {
+            tpm_measure_load_options(new_cmdline, new_cmdline_size);
+        }
         linux_efi_register();
     }
 

@@ -8,7 +8,8 @@ from harness import authenticode, efivars, secureboot
 from cases._common import entry, kernel_file, read, screen_text, wait_panic
 from cases.chainload import probe, probe_report
 from cases.secureboot import b2, limine_efi
-from cases.tpm import tpm_firmware
+from cases.tpm import (ESCAPES, EV_IPL, LOG_FULL_WARNING, UNMEASURED_PROMPT, by_pcr, events,
+                       sha256, tcg2_extends, tpm_firmware)
 
 
 TAGS = ['authenticated-boot', 'secureboot', 'tpm']
@@ -28,7 +29,7 @@ def signed_probe(t):
 
 def authenticated_boot(t, config, files=None, *, keys=True, tpm=True, commands=None,
                        size_mb=64, revoked=None, secure_boot=True, enrolled=False,
-                       limine_image=None, part_guid=None, app_dir='limine'):
+                       limine_image=None, part_guid=None, app_dir='limine', smbios=None):
     code, template = tpm_firmware(t, tpm)
     image = limine_image or limine_efi(t, config if enrolled else None)
     tree = Tree()
@@ -52,7 +53,8 @@ def authenticated_boot(t, config, files=None, *, keys=True, tpm=True, commands=N
             ('dbx', secureboot.IMAGE_SECURITY): (secureboot.AUTHENTICATED, secureboot.DBX_TIME, dbx)})
     disk = t.boot_disk(tree, size_mb=size_mb, part_guid=part_guid)
     return t.boot(disk, code_file=code, vars_file=variables,
-                  tpm=t.software_tpm() if tpm else None, **secureboot.machine_options(t.port))
+                  tpm=t.software_tpm() if tpm else None, smbios=smbios,
+                  **secureboot.machine_options(t.port))
 
 
 def linux_config(cmdline='name:authenticated info', modules=(), extra=''):
@@ -164,12 +166,65 @@ def authenticated_optional_resource_unauthenticated_config(t):
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_swtpm_replay(t):
+    command = 'name:replay readtpm'
+    config = 'measured_boot: no\n' + linux_config(command)
+    child = read(probe(t).path)
+    child_digest, _ = authenticode.image_digest(child + b'\0' * (-len(child) % 8))
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)}, tpm=True)
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'replay', 'signed child ran')
+    t.expect_eq(report.int('tpm.truncated'), 0, 'complete firmware log')
+    evs = events(report)
+    for pcr in (4, 5, 7, 9, 12):
+        value = bytes(32)
+        for kind, digest, _ in by_pcr(evs, pcr):
+            if kind != 3:  # EV_NO_ACTION is not extended.
+                t.require(len(digest) == 64, f'PCR {pcr} event has a SHA-256 digest')
+                value = hashlib.sha256(value + bytes.fromhex(digest)).digest()
+        t.expect_eq(value.hex(), report[f'tpm.pcr.{pcr}'], f'PCR {pcr} replay against TPM2_PCR_Read')
+    images = [i for i, (p, kind, digest, _) in enumerate(evs)
+              if (p, kind, digest) == (4, 0x80000003, child_digest.hex())]
+    t.require(len(images) == 1, 'one firmware application event for the exact signed child')
+    cfg = (EV_IPL, sha256(config.encode()), 'limine_cfg')
+    t.expect_eq(by_pcr(evs, 9), [cfg], 'exact raw configuration')
+    for kind, digest, _ in by_pcr(evs, 5):
+        t.check(kind not in (EV_IPL, 6) and digest != cfg[1], 'no loader configuration or options in PCR 5')
+    t.check(any(kind == 0x800000e0 for kind, _, _ in by_pcr(evs, 7)), 'firmware measured a signing authority')
+    options = (command + '\0').encode('utf-16-le')
+    event = (12, EV_IPL, sha256(options), options.decode('latin-1'))
+    t.expect_eq(by_pcr(evs, 12), [event[1:]], 'exact UTF-16LE LoadOptions, including NUL')
+    t.check(event in evs and evs.index(event) > images[0], 'child LoadImage precedes its LoadOptions')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_swtpm_empty_options(t):
+    config = linux_config('')
+    m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t), '/efiprobe.cmd': 'info readtpm\n'}, tpm=True)
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report.int('options_is_null'), 1, 'no LoadOptions')
+    t.expect_eq(report.int('tpm.truncated'), 0, 'complete firmware log')
+    t.expect_eq(by_pcr(events(report), 12), [], 'no PCR 12 event')
+    t.expect_eq(report['tpm.pcr.12'], '00' * 32, 'actual PCR 12 remains zero')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_efi_entry(t):
     config = 'timeout: 0\n' + entry('EFI', protocol='efi', path='boot():/kernel.efi', cmdline='name:efi info')
     m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)})
     report = probe_report(t, m, timeout=120)
     t.expect_eq(report['name'], 'efi', 'generic signed EFI entry started')
     t.expect_eq(report['options'], 'name:efi info', 'EFI entry receives its command line')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_without_tpm(t):
+    m = authenticated_boot(t, linux_config('name:notpm info'),
+                           {'/kernel.efi': signed_probe(t)}, tpm=False)
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report['name'], 'notpm', 'signed EFI image runs without a TPM')
+    t.check('Secure Boot is active without TPM 2.0 measurements.' in
+            ESCAPES.sub('', m.stream('serial').text()), 'unmeasured state is reported')
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
@@ -449,6 +504,44 @@ def authenticated_rejects_inherited_initrd(t):
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_measurement_capabilities(t):
+    for commands, expected in (
+        ('faketcg2:10', 'tpm: Present TPM 2.0 does not meet'),
+        ('faketcg2:20', 'tpm: Present TPM 2.0 does not meet'),
+        ('faketcg2:40', 'tpm: Failed to query TPM 2.0 capabilities'),
+        ('faketcg2:100', 'tpm: Failed to query TPM 2.0 capabilities'),
+        ('faketcg2:400', 'tpm: Present TPM 2.0 does not meet'),
+        ('faketcg2:800', 'tpm: Present TPM 2.0 does not meet'),
+        ('faketcg2:2000', 'tpm: Present TPM 2.0 does not meet'),
+        ('faketcg2:4000', 'tpm: Present TPM 2.0 does not meet'),
+    ):
+        m = authenticated_boot(t, linux_config(), tpm=False, commands=commands)
+        message, screen = wait_panic(t, m)
+        t.check(message.startswith(expected), f'{commands}: {message}')
+        t.check(UNMEASURED_PROMPT not in screen_text(screen), 'no prompt')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_measurement_hardware_absent(t):
+    m = authenticated_boot(t, linux_config('name:absent info'), {'/kernel.efi': signed_probe(t)},
+                           tpm=False, commands='faketcg2:80')
+    m.wait_for(t.kernel_channel, 'K name=absent', 120)
+    serial = ESCAPES.sub('', m.stream('serial').text())
+    t.expect_eq(serial.count('Secure Boot is active without TPM 2.0 measurements.'), 1, 'faketcg2:80')
+    text = m.stream(t.kernel_channel).text()
+    t.check(not any(p in (9, 12) for p, *_ in tcg2_extends(text)), 'no loader extend')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_measurement_errors(t):
+    m = authenticated_boot(t, linux_config(), tpm=False, commands='faketcg2:2')
+    message, screen = wait_panic(t, m)
+    t.check(message.startswith('tpm: authenticated boot measurement failed'), f'faketcg2:2: {message}')
+    t.check(UNMEASURED_PROMPT not in screen_text(screen), 'no prompt to continue')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_empty_initrd(t):
     for modules, files in (([], {}), ([('boot():/empty', None)], {'/empty': b''})):
         config = linux_config('name:empty readinitrd', modules)
@@ -490,6 +583,74 @@ def authenticated_rejects_config_overrides(t):
         t.expect_eq(message, expected, config)
         t.check('K name=authenticated' not in m.stream(t.kernel_channel).text(), 'child was not entered')
         m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_options_and_config_measurement(t):
+    for command in ('', 'name:unicode info text:\u017c\U0001f642'):
+        config = 'measured_boot: no\n' + linux_config(command)
+        m = authenticated_boot(t, config, {'/kernel.efi': signed_probe(t)},
+                               tpm=False, commands='faketcg2:0 info')
+        if command:
+            m.wait_for(t.kernel_channel, 'K name=unicode', 120)
+        else:
+            start = m.wait_for(t.kernel_channel, 'B CHAIN-RETURN-PENDING', 120)
+            m.wait_for(t.kernel_channel, 'K options_is_null=1', 120, start=start)
+        measurements = tcg2_extends(m.stream(t.kernel_channel).text())
+        if command:
+            data = command.encode('utf-16-le') + b'\0\0'
+            t.check(any((pcr, kind, digest, size) == (12, 0xd, int(fnv1a(data), 16), len(data))
+                        for pcr, kind, digest, size, _ in measurements),
+                    f'PCR12 contains exact UTF-16 options: {measurements}')
+        else:
+            t.check(not any(pcr == 12 for pcr, _, _, _, _ in measurements),
+                    f'empty options do not extend PCR12: {measurements}')
+        data = config.encode()
+        t.check(any((pcr, kind, digest, size) == (9, EV_IPL, int(fnv1a(data), 16), len(data))
+                    for pcr, kind, digest, size, _ in measurements),
+                f'measured_boot: no cannot disable PCR 9 config measurement: {measurements}')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_strong_banks(t):
+    command = 'name:banks info'
+    config = 'measured_boot: no\n' + linux_config(command)
+    child = signed_probe(t)
+    expected = [(pcr, EV_IPL, int(fnv1a(data), 16), len(data)) for pcr, data in
+                ((9, config.encode()), (12, (command + '\0').encode('utf-16-le')))]
+    for flags, use_tpm in ((0, True), (0x200, True), (0x1000, True), (0x80, False)):
+        m = authenticated_boot(t, config, {'/kernel.efi': child}, tpm=False,
+                               commands=f'faketcg2:{flags:x}')
+        m.wait_for(t.kernel_channel, 'K name=banks', 120)
+        text = m.stream(t.kernel_channel).text()
+        t.expect_eq([(p, k, h, n) for p, k, h, n, _ in tcg2_extends(text) if k == EV_IPL],
+                    expected if use_tpm else [], f'TPM active banks: {flags:x}')
+        m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_tpm_volume_full(t):
+    child = signed_probe(t)
+    m = authenticated_boot(t, linux_config('name:volfull info'), {'/kernel.efi': child},
+                           tpm=False, commands='faketcg2:8')
+    m.wait_for(t.kernel_channel, 'K name=volfull', 120)
+    serial = ESCAPES.sub('', m.stream('serial').text())
+    t.expect_eq(serial.count(LOG_FULL_WARNING), 1, 'warned exactly once')
+    t.check(UNMEASURED_PROMPT not in serial, 'no prompt')
+    text = m.stream(t.kernel_channel).text()
+    pcrs = [p for p, k, *_ in tcg2_extends(text) if k == EV_IPL]
+    t.expect_eq(pcrs, [9, 12], 'one extend for each component, no retries')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_rejected_image_no_options(t):
+    m = authenticated_boot(t, linux_config('name:unsigned info'), {'/kernel.efi': probe(t)},
+                           tpm=False, commands='faketcg2:0')
+    message, _ = wait_panic(t, m)
+    t.check('LoadImage' in message, f'firmware refused the image: {message}')
+    t.expect_eq([p for p, k, *_ in tcg2_extends(m.stream(t.kernel_channel).text()) if k == EV_IPL],
+                [9], 'config measured, rejected child options never extended')
 
 
 @check(ports=['uefi-ia32', 'uefi-x86-64'], tags=TAGS)
@@ -541,11 +702,13 @@ def authenticated_rejects_directories(t):
 
 @check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_custom_config_directory(t):
-    config = linux_config('name:custom info')
+    config = 'measured_boot: yes\n' + linux_config('name:custom readtpm')
     files = {'/kernel.efi': signed_probe(t), '/boot/limine.conf': linux_config('name:fallback')}
-    m = authenticated_boot(t, config, files, commands='info', app_dir='custom-dir', tpm=False)
+    m = authenticated_boot(t, config, files, commands='info', app_dir='custom-dir', tpm=True)
     report = probe_report(t, m, timeout=120)
     t.expect_eq(report['name'], 'custom', 'configuration beside the EFI image takes precedence')
+    t.check((EV_IPL, sha256(config.encode()), 'limine_cfg') in by_pcr(events(report), 9),
+            'measured the file from the custom directory, not the fallback')
 
 
 @check(ports=UEFI_PORTS, tags=TAGS)
@@ -713,6 +876,23 @@ def authenticated_smbios_config_and_tftp_rejection(t):
     t.expect_eq(report['name'], 'smbios', 'SMBIOS Type 11 config boots signed EFI image')
     m.stop()
 
+    smbios_file = t.path('smbios.txt')
+    smbios_tpm_cfg = (
+        'timeout: 0\n'
+        + entry('SMBIOS TPM', protocol='efi', path='boot():/kernel.efi',
+                cmdline='name:smbiostpm info readtpm')
+    )
+    with open(smbios_file, 'w') as f:
+        f.write('limine:config:' + smbios_tpm_cfg)
+    m = authenticated_boot(t, 'timeout: no\n', {'/kernel.efi': child}, tpm=True,
+                           smbios=[f'type=11,path={smbios_file}'])
+    report_tpm = probe_report(t, m, timeout=120)
+    t.expect_eq(report_tpm['name'], 'smbiostpm', 'SMBIOS Type 11 config measured and booted')
+    evs = events(report_tpm)
+    t.expect_eq(by_pcr(evs, 9), [(EV_IPL, sha256(smbios_tpm_cfg.encode()), 'limine_cfg')],
+                'SMBIOS config digest matches PCR 9')
+    m.stop()
+
 @check(ports=UEFI_PORTS, tags=TAGS)
 def authenticated_el_torito_iso(t):
     from harness.media import Fat, Iso
@@ -817,3 +997,10 @@ def authenticated_efi_boot_entry(t):
     m.qmp.cmd('query-status')
     t.check(any(e['event'] == 'RESET' for e in m.qmp.events),
             'signed BootNext target ran after reboot under Secure Boot')
+
+
+@check(ports=[p for p in UEFI_PORTS if p != 'uefi-loongarch64'], tags=TAGS)
+def authenticated_locate_protocol_errors(t):
+    m = authenticated_boot(t, linux_config(), tpm=False, commands='locfail:1')
+    message, _ = wait_panic(t, m)
+    t.check(message.startswith('tpm: Failed to locate EFI_TCG2_PROTOCOL'), f'locfail:1: {message}')

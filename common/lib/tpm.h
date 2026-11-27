@@ -1,22 +1,43 @@
 #ifndef LIB__TPM_H
 #define LIB__TPM_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
-// PCR allocation, following the GRUB convention:
+#if defined(UEFI)
+#   include <efi.h>
+#endif
+
+// PCR 8 and 9 follow the GRUB convention:
 //   PCR 8: kernel command line and other authoritative strings
-//   PCR 9: kernel image, initrd, devicetree, and other binary blobs
+//   PCR 9: raw configuration, kernel image, initrd, and device tree
 #define TPM_PCR_BOOT_AUTH       8
 #define TPM_PCR_LOADED_IMAGES   9
+#define TPM_PCR_KERNEL_CONFIG   12
 
-// TCG PC Client Platform Firmware Profile event types
+// TCG PC Client Platform Firmware Profile 1.06 revision 52 event types.
 #define TPM_EV_IPL              0x0000000d
 
 #if defined(UEFI)
 
+// TCG EFI Protocol Specification Level 00 Revision 00.13, table 4.
+#ifndef EFI_TCG2_BOOT_HASH_ALG_SHA3_256
+#   define EFI_TCG2_BOOT_HASH_ALG_SHA3_256 0x00000020
+#endif
+#ifndef EFI_TCG2_BOOT_HASH_ALG_SHA3_384
+#   define EFI_TCG2_BOOT_HASH_ALG_SHA3_384 0x00000040
+#endif
+#ifndef EFI_TCG2_BOOT_HASH_ALG_SHA3_512
+#   define EFI_TCG2_BOOT_HASH_ALG_SHA3_512 0x00000080
+#endif
+
 void tpm_init(void);
+
+void tpm_measure_config(const void *data, size_t size);
+
+// Measure the final UTF-16 load options, including their terminating NUL.
+void tpm_measure_load_options(const uint16_t *options, size_t bytes);
 
 // True if a TCG2 protocol with a TPM present is available.
 bool tpm_present(void);

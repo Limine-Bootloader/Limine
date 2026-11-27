@@ -1,15 +1,16 @@
 #if defined(UEFI)
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <efi.h>
 #include <lib/tpm.h>
+#include <lib/getchar.h>
+#include <lib/libc.h>
 #include <lib/misc.h>
 #include <lib/print.h>
+#include <lib/term.h>
 #include <lib/tpm_mem.h>
-#include <lib/libc.h>
-#include <lib/getchar.h>
 #include <mm/pmm.h>
 
 // Event log records, as laid out by the TCG EFI Protocol Specification, Family
@@ -68,20 +69,66 @@ struct tcg_digest_sizes {
 
 static struct efi_tcg2_protocol *tcg2 = NULL;
 
-void tpm_init(void) {
-    struct efi_guid tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
-    struct efi_tcg2_protocol *tcg2_proto = NULL;
-    efi_status status = gBS->locate_protocol(&tcg2_guid, NULL, (void **)&tcg2_proto);
-    if (status == EFI_SUCCESS && tcg2_proto != NULL) {
-        struct efi_tcg2_boot_service_capability cap;
-        memset(&cap, 0, sizeof(cap));
-        cap.size = sizeof(cap);
-        status = tcg2_proto->get_capability(tcg2_proto, &cap);
-        if (status == EFI_SUCCESS && cap.tpm_present_flag) {
-            tcg2 = tcg2_proto;
-            printv("tpm: TCG2 protocol located, TPM present (active PCR banks: %x)\n",
-                   (uint32_t)cap.active_pcr_banks);
+#define TPM_STRONG_PCR_BANKS ( \
+    EFI_TCG2_BOOT_HASH_ALG_SHA256 | EFI_TCG2_BOOT_HASH_ALG_SHA384 | \
+    EFI_TCG2_BOOT_HASH_ALG_SHA512 | EFI_TCG2_BOOT_HASH_ALG_SHA3_256 | \
+    EFI_TCG2_BOOT_HASH_ALG_SHA3_384 | EFI_TCG2_BOOT_HASH_ALG_SHA3_512 \
+)
+
+static bool secure_boot_capable(const struct efi_tcg2_boot_service_capability *cap) {
+    size_t min_size = offsetof(struct efi_tcg2_boot_service_capability, active_pcr_banks)
+                    + sizeof(efi_tcg2_event_algorithm_bitmap);
+    return cap->size >= min_size
+        && (cap->structure_version.major > 1
+         || (cap->structure_version.major == 1 && cap->structure_version.minor >= 1))
+        && (cap->protocol_version.major > 1
+         || (cap->protocol_version.major == 1 && cap->protocol_version.minor >= 1))
+        && (cap->active_pcr_banks & cap->hash_algorithm_bitmap & TPM_STRONG_PCR_BANKS) != 0
+        && (cap->supported_event_logs & EFI_TCG2_EVENT_LOG_FORMAT_TCG_2) != 0;
+}
+
+static struct efi_tcg2_protocol *locate_tcg2(void) {
+    struct efi_guid guid = EFI_TCG2_PROTOCOL_GUID;
+    struct efi_tcg2_protocol *proto = NULL;
+    efi_status status = gBS->locate_protocol(&guid, NULL, (void **)&proto);
+    if (status != EFI_SUCCESS) {
+        if (firmware_secure_boot && status != EFI_NOT_FOUND) {
+            panic(false, "tpm: Failed to locate EFI_TCG2_PROTOCOL (%X)", (uint64_t)status);
         }
+        return NULL;
+    }
+    if (proto == NULL || proto->get_capability == NULL || proto->get_event_log == NULL
+     || proto->hash_log_extend_event == NULL) {
+        if (firmware_secure_boot) {
+            panic(false, "tpm: Incomplete EFI_TCG2_PROTOCOL");
+        }
+        return NULL;
+    }
+    struct efi_tcg2_boot_service_capability cap = {
+        .size = sizeof(struct efi_tcg2_boot_service_capability)
+    };
+    status = proto->get_capability(proto, &cap);
+    if (status != EFI_SUCCESS
+     || cap.size <= offsetof(struct efi_tcg2_boot_service_capability, tpm_present_flag)) {
+        if (firmware_secure_boot) {
+            panic(false, "tpm: Failed to query TPM 2.0 capabilities (%X)", (uint64_t)status);
+        }
+        return NULL;
+    }
+    if (cap.tpm_present_flag == 0) {
+        return NULL;
+    }
+    if (firmware_secure_boot && !secure_boot_capable(&cap)) {
+        panic(false, "tpm: Present TPM 2.0 does not meet authenticated boot requirements");
+    }
+    printv("tpm: TCG2 protocol located, TPM present\n");
+    return proto;
+}
+
+void tpm_init(void) {
+    tcg2 = locate_tcg2();
+    if (firmware_secure_boot) {
+        measured_boot = tpm_present();
     }
 }
 
@@ -97,8 +144,12 @@ static void tpm_log_full(void) {
 
     if (!warned) {
         warned = true;
+        // The graphics terminal has already been released at LoadImage.
+        if (term_backend == _NOT_READY && !efi_boot_services_exited) {
+            term_fallback();
+        }
         quiet = false;
-        print("WARNING: tpm: The event log is full; measurements from here on are not logged.\n");
+        print("WARNING: tpm: The event log is full; PCR replay may be incomplete.\n");
     }
 }
 
@@ -112,21 +163,39 @@ static void tpm_extend_failed(void) {
     }
 }
 
-void tpm_measure(uint32_t pcr, uint32_t event_type,
-                 const void *data, size_t data_size,
-                 const char *desc_prefix, const char *desc_value) {
+static void *allocate_event(size_t event_size) {
+    void *event = NULL;
+    efi_status status = gBS->allocate_pool(EFI_LOADER_DATA, event_size, &event);
+    if (status != EFI_SUCCESS || event == NULL) {
+        panic(false, "tpm: event allocation failed (%X)", (uint64_t)status);
+    }
+    memset(event, 0, event_size);
+    return event;
+}
+
+static void tpm_measure_event(uint32_t pcr, uint32_t event_type,
+    const void *data, size_t data_size, const void *desc_prefix, size_t prefix_len,
+    const void *desc_value, size_t value_len, size_t terminator_size) {
+    if (firmware_secure_boot && tpm_present() && (!measured_boot || data == NULL)) {
+        panic(false, "tpm: authenticated boot cannot skip a measurement");
+    }
     if (!measured_boot || data == NULL) {
         return;
     }
 
-    size_t prefix_len = desc_prefix != NULL ? strlen(desc_prefix) : 0;
-    size_t value_len = desc_value != NULL ? strlen(desc_value) : 0;
-    size_t desc_len = prefix_len + value_len + 1;
+    size_t desc_len = CHECKED_ADD(prefix_len, value_len,
+        panic(false, "tpm: event description size overflow"));
+    desc_len = CHECKED_ADD(desc_len, terminator_size,
+        panic(false, "tpm: event description size overflow"));
 
     if (tcg2 != NULL) {
-        size_t event_size = offsetof(struct efi_tcg2_event, event) + desc_len;
+        size_t event_size = CHECKED_ADD(offsetof(struct efi_tcg2_event, event), desc_len,
+            panic(false, "tpm: event size overflow"));
+        if (event_size > UINT32_MAX) {
+            panic(false, "tpm: event is too large");
+        }
 
-        struct efi_tcg2_event *event = ext_mem_alloc(event_size);
+        struct efi_tcg2_event *event = allocate_event(event_size);
         event->size = (uint32_t)event_size;
         event->header.header_size = sizeof(struct efi_tcg2_event_header);
         event->header.header_version = 1;
@@ -143,22 +212,50 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             tcg2, 0,
             (efi_physical_address)(uintptr_t)data, (uint64_t)data_size,
             event);
+        gBS->free_pool(event);
         if (status == EFI_VOLUME_FULL) {
             tpm_log_full();
         } else if (status != EFI_SUCCESS) {
+            if (firmware_secure_boot) {
+                panic(false, "tpm: authenticated boot measurement failed (%X)", (uint64_t)status);
+            }
             quiet = false;
             print("WARNING: tpm: HashLogExtendEvent for PCR %u failed: %X\n"
                   "         This component has not been measured.\n",
                   pcr, (uint64_t)status);
             tpm_extend_failed();
         }
-
-        pmm_free(event, event_size);
     }
+}
+
+void tpm_measure(uint32_t pcr, uint32_t event_type,
+    const void *data, size_t data_size, const char *desc_prefix, const char *desc_value) {
+    tpm_measure_event(pcr, event_type, data, data_size,
+        desc_prefix, desc_prefix != NULL ? strlen(desc_prefix) : 0,
+        desc_value, desc_value != NULL ? strlen(desc_value) : 0, 1);
+}
+
+void tpm_measure_config(const void *data, size_t size) {
+    tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL, data, size, "limine_cfg", NULL);
+}
+
+void tpm_measure_load_options(const uint16_t *options, size_t bytes) {
+    if (!firmware_secure_boot || !tpm_present()) {
+        return;
+    }
+    if (options == NULL || bytes < sizeof(uint16_t) || bytes % sizeof(uint16_t) != 0
+     || options[bytes / sizeof(uint16_t) - 1] != 0) {
+        panic(false, "tpm: invalid UTF-16 load options");
+    }
+    tpm_measure_event(TPM_PCR_KERNEL_CONFIG, TPM_EV_IPL,
+        options, bytes, NULL, 0, options, bytes, 0);
 }
 
 void tpm_measure_path(uint32_t pcr, uint32_t event_type,
                       const char *desc_prefix, const char *path) {
+    if (firmware_secure_boot && tpm_present() && (!measured_boot || path == NULL)) {
+        panic(false, "tpm: authenticated boot cannot skip a measurement");
+    }
     if (!measured_boot || path == NULL) {
         return;
     }
@@ -173,6 +270,9 @@ void tpm_measure_path(uint32_t pcr, uint32_t event_type,
     // already panic in uri_resolve(), so a too-long path here is a bug.
     static char stripped[4096];
     if (path_len >= sizeof(stripped)) {
+        if (firmware_secure_boot && tpm_present()) {
+            panic(false, "tpm: path too long to measure in authenticated boot");
+        }
         return;
     }
     memcpy(stripped, path, path_len);

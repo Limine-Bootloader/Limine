@@ -321,6 +321,207 @@ static void cmd_info(void) {
     }
 }
 
+static uint32_t log_u32(const uint8_t *p) {
+    uint32_t value;
+    memcpy(&value, p, sizeof(uint32_t));
+    return value;
+}
+
+static uint16_t log_u16(const uint8_t *p) {
+    uint16_t value;
+    memcpy(&value, p, sizeof(uint16_t));
+    return value;
+}
+
+// GetEventLog gives the start, not the length, of the final record.
+static size_t last_record_room(uintptr_t address) {
+    size_t size = 0, key, stride;
+    uint32_t version;
+    efi_status status = bs->get_memory_map(&size, NULL, &key, &stride, &version);
+    if (status != EFI_BUFFER_TOO_SMALL || size > SIZE_MAX - EFI_PAGE_SIZE) {
+        return 0;
+    }
+    size_t capacity = size + EFI_PAGE_SIZE;
+    void *map = alloc(capacity);
+    if (map == NULL) {
+        return 0;
+    }
+    size = capacity;
+    status = bs->get_memory_map(&size, map, &key, &stride, &version);
+    size_t room = 0;
+    if (status == EFI_SUCCESS && size <= capacity && stride >= sizeof(struct efi_memory_descriptor)
+     && size % stride == 0) {
+        for (size_t off = 0; off < size; off += stride) {
+            struct efi_memory_descriptor d;
+            memcpy(&d, (uint8_t *)map + off, sizeof(struct efi_memory_descriptor));
+            if (address < d.physical_start || d.type == EFI_MEMORY_MAPPED_IO
+             || d.type == EFI_MEMORY_MAPPED_IO_PORT_SPACE
+             || d.number_of_pages > (UINT64_MAX - d.physical_start) / EFI_PAGE_SIZE) {
+                continue;
+            }
+            uint64_t end = d.physical_start + d.number_of_pages * EFI_PAGE_SIZE;
+            if (address < end) {
+                room = end - address < UINTPTR_MAX - address
+                    ? end - address
+                    : UINTPTR_MAX - address;
+                break;
+            }
+        }
+    }
+    bs->free_pool(map);
+    return room;
+}
+
+static void print_event_data(const uint8_t *p, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        uint8_t c = p[i];
+        if (c >= 0x20 && c < 0x7f && c != '\\') {
+            putch(c);
+        } else {
+            out("\\x%02x", (uint64_t)c);
+        }
+    }
+}
+
+static bool print_event_log(uintptr_t start, uintptr_t last) {
+    if (start == 0 || last < start || last - start >= 0x400000) {
+        return false;
+    }
+    size_t room = last_record_room(last);
+    if (room == 0) {
+        return false;
+    }
+    const uint8_t *p = (const uint8_t *)start;
+    size_t avail = start == last ? room : last - start;
+    if (avail < 32 || log_u32(p + 4) != 3) {
+        return false;
+    }
+    uint32_t size = log_u32(p + 28);
+    const uint8_t *spec = p + 32;
+    if (size < 29 || size > avail - 32 || memcmp(spec, "Spec ID Event03", 16) != 0) {
+        return false;
+    }
+    uint32_t algs = log_u32(spec + 24);
+    if (algs == 0 || algs > 16 || algs * 4 > size - 29) {
+        return false;
+    }
+    uint64_t n = 0;
+    if (start != last) {
+        p = spec + size;
+        for (;;) {
+            bool final = (uintptr_t)p == last;
+            avail = final ? room : last - (uintptr_t)p;
+            if (avail < 12) {
+                return false;
+            }
+            uint32_t pcr = log_u32(p), type = log_u32(p + 4), count = log_u32(p + 8);
+            if (count > algs) {
+                return false;
+            }
+            p += 12;
+            avail -= 12;
+            const uint8_t *digest = NULL;
+            for (size_t i = 0; i < count; i++) {
+                if (avail < 2) {
+                    return false;
+                }
+                uint16_t id = log_u16(p), len = 0;
+                for (size_t a = 0; a < algs; a++) {
+                    if (log_u16(spec + 28 + a * 4) == id) {
+                        len = log_u16(spec + 30 + a * 4);
+                        break;
+                    }
+                }
+                if (len == 0 || len > avail - 2) {
+                    return false;
+                }
+                if (id == 0x000b) {
+                    if (len != 32 || digest != NULL) {
+                        return false;
+                    }
+                    digest = p + 2;
+                }
+                p += 2 + len;
+                avail -= 2 + len;
+            }
+            if (avail < 4 || log_u32(p) > avail - 4) {
+                return false;
+            }
+            size = log_u32(p);
+            p += 4;
+            out("K tpm.event.%u=%u %08x ", n++, (uint64_t)pcr, (uint64_t)type);
+            if (digest == NULL) {
+                putch('-');
+            } else {
+                hexdump(digest, 32);
+            }
+            putch(' ');
+            // ASCII EV_IPL descriptions omit their trailing NUL in the report.
+            size_t shown = size;
+            if (type == 0x0d && pcr != 12 && shown != 0 && p[shown - 1] == 0) {
+                shown--;
+            }
+            print_event_data(p, shown);
+            putch('\n');
+            if (final) {
+                break;
+            }
+            p += size;
+        }
+    }
+    out("K tpm.event_count=%u\n", n);
+    return true;
+}
+
+static bool print_pcrs(struct efi_tcg2_protocol *tcg) {
+    // TPM 2.0 Library Part 3, Revision 01.59, section 22.4 (TPM2_PCR_Read).
+    // The command and response use big-endian integers, unlike the event log.
+    uint8_t command[] = {
+        0x80, 0x01, 0, 0, 0, 20, 0, 0, 0x01, 0x7e,
+        0, 0, 0, 1, 0, 0x0b, 3, 0xb0, 0x12, 0
+    };
+    static const uint8_t pcrs[] = { 4, 5, 7, 9, 12 };
+    uint8_t response[28 + sizeof(pcrs) * 34] = { 0 };
+    efi_status status = tcg->submit_command(
+        tcg, sizeof(command), command, sizeof(response), response
+    );
+    if (status != EFI_SUCCESS || memcmp(response, command, 2) != 0
+     || __builtin_bswap32(log_u32(response + 2)) != sizeof(response) || log_u32(response + 6) != 0
+     || memcmp(response + 14, command + 10, 10) != 0
+     || __builtin_bswap32(log_u32(response + 24)) != sizeof(pcrs)) {
+        return false;
+    }
+    for (size_t i = 0; i < sizeof(pcrs); i++) {
+        const uint8_t *v = response + 28 + 34 * i;
+        if (v[0] != 0 || v[1] != 32) {
+            return false;
+        }
+        out("K tpm.pcr.%u=", (uint64_t)pcrs[i]);
+        hexdump(v + 2, 32);
+        putch('\n');
+    }
+    return true;
+}
+
+static void cmd_readtpm(void) {
+    struct efi_guid guid = EFI_TCG2_PROTOCOL_GUID;
+    struct efi_tcg2_protocol *tcg = NULL;
+    efi_status status = bs->locate_protocol(&guid, NULL, (void **)&tcg);
+    if (status != EFI_SUCCESS || tcg == NULL || tcg->get_event_log == NULL
+     || tcg->submit_command == NULL) {
+        out("K tpm.error=no TCG2 interface\n");
+        return;
+    }
+    efi_physical_address start = 0, last = 0;
+    bool truncated = false;
+    status = tcg->get_event_log(tcg, EFI_TCG2_EVENT_LOG_FORMAT_TCG_2, &start, &last, &truncated);
+    out("K tpm.truncated=%u\n", (uint64_t)truncated);
+    if (status != EFI_SUCCESS || start > UINTPTR_MAX || last > UINTPTR_MAX
+     || !print_event_log(start, last) || !print_pcrs(tcg)) {
+        out("K tpm.error=invalid log or PCR_Read response\n");
+    }
+}
+
 static void cmd_gop(void) {
     struct efi_guid g = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     struct efi_graphics_output_protocol *gop = NULL;
@@ -883,18 +1084,42 @@ static void cmd_fakeinitrdtable(void) {
 
 // A TCG2 protocol over no TPM that claims one, reporting each call. Flags: 2
 // has HashLogExtendEvent() fail, 4 GetEventLog(); 8 has HashLogExtendEvent()
-// report the event log full, and GetEventLog() a truncated log.
+// report the event log full, and GetEventLog() a truncated log; 10 SHA-1
+// only, 20 no TCG2 log, 40 short capability, 80 no device, 100 failed query,
+// 200 SHA-384 only, 400 short present-device capability, 800 old protocol,
+// 1000 SHA3 only, 2000 old structure version, 4000 active bank absent from
+// supported bitmap.
 static uint32_t faketcg2_flags;
 
 static efi_status EFI_API faketcg2_capability(struct efi_tcg2_protocol *this, struct efi_tcg2_boot_service_capability *cap) {
     (void)this;
-    cap->structure_version = (struct efi_tcg2_version){ 1, 1 };
-    cap->protocol_version = (struct efi_tcg2_version){ 1, 1 };
+    if ((faketcg2_flags & 0x100) != 0) {
+        return EFI_DEVICE_ERROR;
+    }
+    cap->size = sizeof(struct efi_tcg2_boot_service_capability);
+    if ((faketcg2_flags & 0x40) != 0) {
+        cap->size = 1;
+    } else if ((faketcg2_flags & 0x400) != 0) {
+        cap->size = offsetof(struct efi_tcg2_boot_service_capability, active_pcr_banks);
+    }
+    cap->structure_version = (struct efi_tcg2_version){ 1, (faketcg2_flags & 0x2000) == 0 };
+    cap->protocol_version = (struct efi_tcg2_version){ 1, (faketcg2_flags & 0x800) == 0 };
     cap->hash_algorithm_bitmap = EFI_TCG2_BOOT_HASH_ALG_SHA256;
-    cap->supported_event_logs = EFI_TCG2_EVENT_LOG_FORMAT_TCG_2;
-    cap->tpm_present_flag = true;
+    if ((faketcg2_flags & 0x10) != 0) {
+        cap->hash_algorithm_bitmap = EFI_TCG2_BOOT_HASH_ALG_SHA1;
+    } else if ((faketcg2_flags & 0x200) != 0) {
+        cap->hash_algorithm_bitmap = EFI_TCG2_BOOT_HASH_ALG_SHA384;
+    } else if ((faketcg2_flags & 0x1000) != 0) {
+        cap->hash_algorithm_bitmap = 0x20;
+    }
+    cap->supported_event_logs = (faketcg2_flags & 0x20) == 0 ? EFI_TCG2_EVENT_LOG_FORMAT_TCG_2 : 0;
+    cap->tpm_present_flag = (faketcg2_flags & 0x80) == 0;
     cap->number_of_pcr_banks = 1;
-    cap->active_pcr_banks = EFI_TCG2_BOOT_HASH_ALG_SHA256;
+    cap->active_pcr_banks = cap->hash_algorithm_bitmap;
+    if ((faketcg2_flags & 0x4000) != 0) {
+        cap->hash_algorithm_bitmap = EFI_TCG2_BOOT_HASH_ALG_SHA1;
+        cap->active_pcr_banks = EFI_TCG2_BOOT_HASH_ALG_SHA256;
+    }
     return EFI_SUCCESS;
 }
 
@@ -1101,6 +1326,19 @@ static struct efi_loaded_image_protocol *fake_loaded_image;
 static struct efi_device_path_protocol *fake_image_path;
 static efi_handle fake_image_device;
 static efi_handle fake_alternate_device;
+static uint32_t fake_locate_fail;
+static efi_locate_protocol real_locate_protocol;
+
+static efi_status EFI_API fake_locate_protocol(
+    struct efi_guid *guid, void *registration, void **iface
+) {
+    struct efi_guid tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
+    if ((fake_locate_fail & 1) != 0
+     && memcmp(guid, &tcg2_guid, sizeof(struct efi_guid)) == 0) {
+        return EFI_DEVICE_ERROR;
+    }
+    return real_locate_protocol(guid, registration, iface);
+}
 
 static efi_status EFI_API fake_unload_image(efi_handle handle) {
     if (handle == fake_image_handle && (fake_image_mode == 3 || fake_image_mode == 4)) {
@@ -1224,6 +1462,14 @@ static void cmd_chain(char *arg) {
         bs->free_pool = fake_image_free_pool;
         bs->load_image = fake_load_image;
         bs->start_image = fake_start_image;
+        bs->hdr.crc32 = 0;
+        uint32_t crc = 0;
+        bs->calculate_crc32(bs, bs->hdr.header_size, &crc);
+        bs->hdr.crc32 = crc;
+    }
+    if (fake_locate_fail != 0) {
+        real_locate_protocol = bs->locate_protocol;
+        bs->locate_protocol = fake_locate_protocol;
         bs->hdr.crc32 = 0;
         uint32_t crc = 0;
         bs->calculate_crc32(bs, bs->hdr.header_size, &crc);
@@ -2086,12 +2332,16 @@ efi_status efi_main(efi_handle image, struct efi_system_table *system_table) {
             fake_sb_case = (unsigned)parse_hex(tok + 7, NULL);
         } else if (sprefix(tok, "fakeimage:")) {
             fake_image_mode = (uint32_t)parse_hex(tok + 10, NULL);
+        } else if (sprefix(tok, "locfail:")) {
+            fake_locate_fail = (uint32_t)parse_hex(tok + 8, NULL);
         } else if (sprefix(tok, "orphan")) {
             orphan_image = true;
         } else if (sprefix(tok, "fakeinitrdtable")) {
             cmd_fakeinitrdtable();
         } else if (sprefix(tok, "fakeinitrd")) {
             cmd_fakeinitrd();
+        } else if (sprefix(tok, "readtpm")) {
+            cmd_readtpm();
         } else if (sprefix(tok, "readinitrd")) {
             cmd_initrd();
 #if defined(__riscv)

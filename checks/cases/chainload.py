@@ -38,6 +38,17 @@ def probe_report(t, m, timeout=60):
     return t.kernel_report(m, timeout=timeout, begin='B EFIPROBE')
 
 
+@check(ports=UEFI_PORTS, tags=['chainload', 'tpm'])
+def efi_probe_reads_tpm(t):
+    from cases.tpm import events, tpm_boot
+    config = 'timeout: 0\n' + entry('Probe', protocol='efi', path='boot():/probe.efi', cmdline='readtpm')
+    m = tpm_boot(t, config, {'/probe.efi': probe(t)})
+    report = probe_report(t, m, timeout=120)
+    t.expect_eq(report.int('tpm.truncated'), 0, 'complete firmware log')
+    t.require(events(report), 'firmware recorded events')
+    t.expect_eq(report['tpm.pcr.12'], '00' * 32, 'unextended SHA-256 PCR read from the TPM')
+
+
 @check(ports=UEFI_PORTS, tags=['chainload'])
 def efi_chainload(t):
     """An EFI image runs with the cmdline as its load options, the partition
