@@ -212,3 +212,20 @@ def authenticated_efi_boot_entry(t):
     m.qmp.cmd('query-status')
     t.check(any(e['event'] == 'RESET' for e in m.qmp.events),
             'signed BootNext target ran after reboot under Secure Boot')
+
+
+@check(ports=UEFI_PORTS, tags=TAGS)
+def authenticated_optional_resource_unauthenticated_config(t):
+    from harness import images
+    from harness.screen import Font, builtin_font
+    from cases.secureboot import b2
+    bg = images.bmp(8, 8, [0xff0000] * 64)
+    font = bytes(b ^ 0xff for b in builtin_font())
+    config = (f'timeout: no\nwallpaper: boot():/bg.bmp#{b2(bg)}\n'
+              f'term_font: boot():/font.bin#{b2(font)}\n'
+              + entry('Linux', protocol='linux', path='boot():/missing'))
+    m = authenticated_boot(t, config, {'/bg.bmp': bg, '/font.bin': font},
+                           enrolled=False, tpm=False)
+    scr = t.wait_text(m, 'ARROWS', font=Font())
+    t.check('PANIC' not in screen_text(scr), 'menu shown in built-in font')
+    t.check(m.screendump().count_colour(0xff0000) == 0, 'hashed wallpaper skipped without enrolled config')
