@@ -1,3 +1,26 @@
+2026-11-27  Mintsuki  <mintsuki@protonmail.com>
+
+    *** Release 12.11.2 ***
+
+    Noteworthy changes compared to the previous release, 12.11.1:
+
+    Bug fixes:
+        - UEFI: Skip a GOP that has no modes, as that of a GPU with no display
+          attached is on several Minisforum AMD machines. Their firmware
+          returns success from QueryMode() without writing the mode
+          information, and freeing what Limine found in its place hung the
+          boot, as it has since 12.9.4, which 12.9.6 did not fix. Fixes #701.
+        - UEFI: Pass over any graphics mode whose information QueryMode()
+          returns success for without writing it, and leave alone a GOP whose
+          current mode that is.
+
+    Miscellaneous:
+        - Drop the measured boot code for EFI_CC_MEASUREMENT_PROTOCOL, which
+          only confidential computing guests offer: Limine has never been able
+          to run as one, and README.md now says that such guests are not
+          supported.
+        - Miscellaneous improvements.
+
 2026-11-21  Mintsuki  <mintsuki@protonmail.com>
 
     *** Release 12.11.1 ***
