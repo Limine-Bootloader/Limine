@@ -309,6 +309,14 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
             continue;
         }
 
+        // A GOP with no modes has none to query (UEFI 2.11 section 12.9),
+        // and the firmware of some GPUs with no display attached returns
+        // EFI_SUCCESS from QueryMode() for it without writing its outputs.
+        if (gop->mode != NULL && gop->mode->max_mode == 0) {
+            printv("gop: No modes, skipping this GOP.\n");
+            continue;
+        }
+
         struct efi_graphics_output_mode_information *mode_info;
         size_t mode_info_size;
 
