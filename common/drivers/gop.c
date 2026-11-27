@@ -309,7 +309,7 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
             continue;
         }
 
-        // A GOP with no modes has none to query (UEFI 2.11 section 12.9),
+        // A GOP with no modes has none to query (UEFI 2.11 section 12.9.2.1),
         // and the firmware of some GPUs with no display attached returns
         // EFI_SUCCESS from QueryMode() for it without writing its outputs.
         if (gop->mode != NULL && gop->mode->max_mode == 0) {
@@ -351,9 +351,8 @@ void init_gop(struct fb_info **ret, size_t *_fbs_count,
             gBS->free_pool(mode_info);
         }
 
-        // A GPU with no display attached can report a 0x0 current mode, and
-        // setting it another mode can hang the firmware. There is nothing to
-        // draw on, so leave it be.
+        // A GPU with no display attached can report a 0x0 current mode. There
+        // is nothing to draw on, so leave it be.
         if (mode_width == 0 || mode_height == 0) {
             printv("gop: Current mode is 0x0, skipping this GOP.\n");
             continue;

@@ -98,9 +98,9 @@ def gop_framebuffer_in_boot_services_data(t):
 @check(ports=UEFI_PORTS, tags=['limine-protocol', 'linux', 'gop', 'hostile'])
 def gop_without_display(t):
     """[intent] The GOPs of GPUs with no display attached, their current mode
-    0x0 with no framebuffer, are left alone rather than set another mode,
-    which such firmware can hang in: the boot goes on without a framebuffer,
-    for the Limine protocol and, on x86, Linux."""
+    0x0 with no framebuffer, are left alone rather than set another mode, as
+    there is nothing to draw on: the boot goes on without a framebuffer, for
+    the Limine protocol and, on x86, Linux."""
     r = boot_fake_gop_only(t, 8)
     t.expect_eq(r.flag('framebuffer.response'), False, 'no framebuffer response')
     if t.port.is_x86:
@@ -113,11 +113,11 @@ def gop_without_display(t):
 
 @check(ports=UEFI_PORTS, tags=['limine-protocol', 'linux', 'gop', 'hostile'])
 def gop_without_modes(t):
-    """[spec] A GOP with no modes, its MaxMode 0 (UEFI 2.11 12.9), is passed
-    over without a QueryMode() call, which the firmware of some GPUs with no
-    display attached answers with EFI_SUCCESS and its outputs unwritten: the
-    boot goes on without a framebuffer, for the Limine protocol and, on x86,
-    Linux."""
+    """[spec] A GOP with no modes, its MaxMode 0 (UEFI 2.11 12.9.2.1), is
+    passed over without a QueryMode() call, which the firmware of some GPUs
+    with no display attached answers with EFI_SUCCESS and its outputs
+    unwritten: the boot goes on without a framebuffer, for the Limine
+    protocol and, on x86, Linux."""
     r = boot_fake_gop_only(t, '10')
     t.check('fakegop.query_without_modes' not in r.raw, 'no QueryMode() call on a GOP with no modes')
     t.expect_eq(r.flag('framebuffer.response'), False, 'no framebuffer response')
