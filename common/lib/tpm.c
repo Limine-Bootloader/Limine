@@ -25,7 +25,7 @@
 // TPMs have a handful of PCR banks; the cap keeps record parsing cheap.
 #define TCG_LOG_MAX_ALGORITHMS 16
 
-// TCG EFI Protocol section 7, UEFI 2.11 section 38.3.
+// TCG EFI Protocol section 7.
 #define TCG_FINAL_EVENTS_TABLE_VERSION 1
 
 // Section 5.1, without the trailing event data.
@@ -65,11 +65,7 @@ struct tcg_digest_sizes {
     struct tcg_efi_spec_id_event_algorithm_size algorithms[TCG_LOG_MAX_ALGORITHMS];
 };
 
-// At most one of these is non-NULL after tpm_init. tcg2 takes precedence
-// since it's the more common case (real TPMs); the cc fallback is for
-// confidential-computing platforms (TDX, SEV-SNP) without a discrete TPM.
 static struct efi_tcg2_protocol *tcg2 = NULL;
-static struct efi_cc_measurement_protocol *cc = NULL;
 
 void tpm_init(void) {
     struct efi_guid tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
@@ -84,39 +80,17 @@ void tpm_init(void) {
             tcg2 = tcg2_proto;
             printv("tpm: TCG2 protocol located, TPM present (active PCR banks: %x)\n",
                    (uint32_t)cap.active_pcr_banks);
-            return;
-        }
-    }
-
-    // No TCG2/TPM 2.0; fall back to the CC measurement protocol.
-    struct efi_guid cc_guid = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
-    struct efi_cc_measurement_protocol *cc_proto = NULL;
-    status = gBS->locate_protocol(&cc_guid, NULL, (void **)&cc_proto);
-    if (status == EFI_SUCCESS && cc_proto != NULL) {
-        struct efi_cc_boot_service_capability cap;
-        memset(&cap, 0, sizeof(cap));
-        cap.size = sizeof(cap);
-        status = cc_proto->get_capability(cc_proto, &cap);
-        if (status == EFI_SUCCESS) {
-            cc = cc_proto;
-            const char *cc_name = "unknown";
-            switch (cap.cc_type.type) {
-                case EFI_CC_TYPE_AMD_SEV:   cc_name = "AMD SEV";   break;
-                case EFI_CC_TYPE_INTEL_TDX: cc_name = "Intel TDX"; break;
-            }
-            printv("tpm: CC measurement protocol located (type: %s)\n", cc_name);
-            return;
         }
     }
 }
 
 bool tpm_present(void) {
-    return tcg2 != NULL || cc != NULL;
+    return tcg2 != NULL;
 }
 
 // EFI_VOLUME_FULL has the PCR extended and only the event left out of the log
-// (TCG EFI Protocol Specification Level 00 Revision 00.13, Table 12; UEFI 2.11
-// section 38.2.4), so the component stands measured.
+// (TCG EFI Protocol Specification Level 00 Revision 00.13, Table 12), so the
+// component stands measured.
 static void tpm_log_full(void) {
     static bool warned = false;
 
@@ -175,51 +149,6 @@ void tpm_measure(uint32_t pcr, uint32_t event_type,
             print("WARNING: tpm: HashLogExtendEvent for PCR %u failed: %X\n"
                   "         This component has not been measured.\n",
                   pcr, (uint64_t)status);
-            tpm_extend_failed();
-        }
-
-        pmm_free(event, event_size);
-    } else if (cc != NULL) {
-        // CC platforms expose Memory Reference (MR) registers rather than
-        // PCRs. The protocol provides a translation from a requested PCR
-        // index to the platform's corresponding MR index.
-        efi_cc_mr_index mr_index;
-        efi_status status = cc->map_pcr_to_mr_index(cc, pcr, &mr_index);
-        if (status != EFI_SUCCESS) {
-            quiet = false;
-            print("WARNING: tpm: no measurement register for PCR %u: %X\n"
-                  "         This component has not been measured.\n",
-                  pcr, (uint64_t)status);
-            tpm_extend_failed();
-            return;
-        }
-
-        size_t event_size = offsetof(struct efi_cc_event, event) + desc_len;
-
-        struct efi_cc_event *event = ext_mem_alloc(event_size);
-        event->size = (uint32_t)event_size;
-        event->header.header_size = sizeof(struct efi_cc_event_header);
-        event->header.header_version = EFI_CC_EVENT_HEADER_VERSION;
-        event->header.mr_index = mr_index;
-        event->header.event_type = event_type;
-        if (prefix_len > 0) {
-            memcpy(event->event, desc_prefix, prefix_len);
-        }
-        if (value_len > 0) {
-            memcpy(event->event + prefix_len, desc_value, value_len);
-        }
-
-        status = cc->hash_log_extend_event(
-            cc, 0,
-            (efi_physical_address)(uintptr_t)data, (uint64_t)data_size,
-            event);
-        if (status == EFI_VOLUME_FULL) {
-            tpm_log_full();
-        } else if (status != EFI_SUCCESS) {
-            quiet = false;
-            print("WARNING: tpm: CC HashLogExtendEvent for PCR %u (MR %u) failed: %X\n"
-                  "         This component has not been measured.\n",
-                  pcr, (uint32_t)mr_index, (uint64_t)status);
             tpm_extend_failed();
         }
 
@@ -410,10 +339,10 @@ static size_t tcg_log_size(const uint8_t *data, size_t limit, size_t last_offset
 }
 
 // The final events table repeats every event logged since the first
-// GetEventLog call (TCG EFI Protocol section 7, UEFI 2.11 section 38.3), so the
-// events it holds at capture are the newest ones of the captured log. Gives
-// their number and size, unless that cannot be established: an OS then
-// replays them all, and a duplicated event does less harm than a lost one.
+// GetEventLog call (TCG EFI Protocol section 7), so the events it holds at
+// capture are the newest ones of the captured log. Gives their number and
+// size, unless that cannot be established: an OS then replays them all, and a
+// duplicated event does less harm than a lost one.
 static bool tcg_final_events_preboot(const uint8_t *log_data, size_t log_size,
     const struct tcg_digest_sizes *sizes, uint64_t *count, size_t *total_size) {
     const uint8_t *table = tpm_get_final_events_table();
@@ -511,13 +440,6 @@ static bool event_log_capture(void) {
     if (tcg2 != NULL) {
         if (!tcg2_get_event_log(&format, &location, &last_entry, &truncated)) {
             printv("tpm: unable to retrieve the event log\n");
-            return false;
-        }
-    } else if (cc != NULL) {
-        format = EFI_CC_EVENT_LOG_FORMAT_TCG_2;
-        efi_status status = cc->get_event_log(cc, format, &location, &last_entry, &truncated);
-        if (status != EFI_SUCCESS) {
-            printv("tpm: CC GetEventLog failed: %X\n", (uint64_t)status);
             return false;
         }
     } else {
@@ -659,16 +581,11 @@ void tpm_release_event_log(void) {
 }
 
 void *tpm_get_final_events_table(void) {
-    struct efi_guid guid;
-    if (tcg2 != NULL) {
-        struct efi_guid tcg2_guid = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
-        guid = tcg2_guid;
-    } else if (cc != NULL) {
-        struct efi_guid cc_guid = EFI_CC_FINAL_EVENTS_TABLE_GUID;
-        guid = cc_guid;
-    } else {
+    if (tcg2 == NULL) {
         return NULL;
     }
+
+    struct efi_guid guid = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
 
     for (size_t i = 0; i < gST->number_of_table_entries; i++) {
         if (memcmp(&gST->configuration_table[i].vendor_guid,

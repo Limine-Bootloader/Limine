@@ -155,27 +155,8 @@ def tpm_linux_event_log(t):
     t.expect_eq(unescape(r['tpm_log.first_event']), 'Spec ID Event03', 'the Spec ID event first')
 
 
-CC_CALL = re.compile(r'K cc\.(map|extend)=([^\r\n]*)')
 ESCAPES = re.compile(r'\x1b\[[0-9;?]*[A-Za-z]')
 UNMEASURED_PROMPT = 'Press Y to continue, press any other key to panic...'
-
-
-def cc_extends(text):
-    """(pcr, mr, type, fnv1a, length, description) of each extend the probe's
-    CC protocol saw, the PCR the one Limine mapped just before it."""
-    out, pcr = [], None
-    for kind, value in CC_CALL.findall(text):
-        if kind == 'map':
-            pcr = int(value)
-        else:
-            mr, kind_, _, digest, length, desc = value.split(' ', 5)
-            out.append((pcr, int(mr), int(kind_, 16), int(digest, 16), int(length), unescape(desc)))
-    return out
-
-
-def cc_boot(t, flags, config, files):
-    from cases.chainload import probe_then_limine
-    return probe_then_limine(t, f'name:cc fakecc:{flags:x}', config, files)
 
 
 def answer_prompts(t, m, key, done, most):
@@ -193,45 +174,6 @@ def answer_prompts(t, m, key, done, most):
             t.fail(f'stuck after {answered} prompts')
         time.sleep(0.2)
     return answered
-
-
-@check(ports=UEFI_PORTS, tags=['tpm', 'hostile'])
-def tpm_cc_measurements(t):
-    """With no TPM but a CC measurement protocol, here one the EFI probe
-    installs, the same events go to the MR each PCR maps to (USAGE.md) [spec].
-    An MR that cannot be had, or an extend that fails, stops the boot to ask
-    whether to go on unmeasured, any key but Y panicking [intent]."""
-    kernel = read(kernel_file(t, 'full'))
-    mod = b'measured module\n'
-    kpath, mpath = 'boot():/boot/kernel.elf', 'boot():/boot/m.bin'
-    config = 'timeout: 0\nserial: yes\nmeasured_boot: yes\n' + entry('Test', path=kpath, cmdline='cc cmdline',
-                                                                      modules=[(mpath, 'mod')])
-    files = {'/boot/kernel.elf': kernel, '/boot/m.bin': mod}
-    m = cc_boot(t, 0, config, files)
-    r = t.kernel_report(m)
-    # Firmware measures into the PCRs below 8 for itself.
-    evs = [e for e in cc_extends(m.stream(t.kernel_channel).text()) if e[0] >= 8]
-    want = [(8, b'cc cmdline', 'cmdline: cc cmdline'), (8, kpath.encode(), f'path: {kpath}'),
-            (8, mpath.encode(), f'module_path: {mpath}'), (9, config.encode(), 'limine_cfg'),
-            (9, kernel, f'path: {kpath}'), (9, mod, f'module_path: {mpath}')]
-    got = sorted(evs, key=lambda e: e[0])
-    t.expect_eq(got, [(pcr, 3, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, data, desc in want],
-                '[spec] PCR 8 and 9 events, in RTMR[2], the MR they map to')
-    t.check(not r.flag('tpm_event_log.response'), 'no event log from a protocol that gives none')
-    m.stop()
-    config = 'timeout: 0\nserial: yes\nmeasured_boot: yes\n' + entry('Test', path=kpath, cmdline='x')
-    for flags, warning in ((1, 'WARNING: tpm: no measurement register for PCR 8'),
-                           (2, 'WARNING: tpm: CC HashLogExtendEvent for PCR 8 (MR 3) failed')):
-        m = cc_boot(t, flags, config, files)
-        shown = answer_prompts(t, m, 'y', lambda: 'E DONE' in m.stream(t.kernel_channel).text(), 4)
-        t.expect_eq(shown, 4, f'flags {flags}: a prompt for each of the four measurements')
-        t.check(warning in ESCAPES.sub('', m.stream('serial').text()), f'flags {flags}: {warning!r}')
-        m.stop()
-    m = cc_boot(t, 1, config, files)
-    answer_prompts(t, m, 'n', lambda: UNMEASURED_PROMPT in ESCAPES.sub('', m.stream('serial').text()), 1)
-    m.press('n')
-    msg, scr = wait_panic(t, m)
-    t.expect_eq(msg, 'tpm: refusing to boot with an unmeasured component', 'any other key panics')
 
 
 TCG2_CALL = re.compile(r'K tcg2\.extend=([^\r\n]*)')
@@ -278,53 +220,23 @@ def tpm_extend_failed(t):
 def tpm_event_log_full(t):
     """EFI_VOLUME_FULL from HashLogExtendEvent() says the extend took place
     and only its event went unlogged (TCG EFI Protocol Specification Level 00
-    Revision 00.13, Table 12; UEFI 2.11 section 38.2.4) [spec]. Under the
-    TCG2 protocol and the CC one, each a stand-in the EFI probe installs, the
-    boot goes on unasked, with one warning however many extends report it
-    [user]."""
-    from cases.chainload import probe_then_limine
+    Revision 00.13, Table 12) [spec]. Under a TCG2 protocol the EFI probe
+    installs, the boot goes on unasked, with one warning however many extends
+    report it [user]."""
     kernel = read(kernel_file(t, 'full'))
     mod = b'measured module\n'
     kpath, mpath = 'boot():/boot/kernel.elf', 'boot():/boot/m.bin'
     config = 'timeout: 0\nserial: yes\nmeasured_boot: yes\n' + entry('Test', path=kpath, cmdline='full log',
                                                                       modules=[(mpath, 'mod')])
     files = {'/boot/kernel.elf': kernel, '/boot/m.bin': mod}
-    for protocol, extends in (('tcg2', tcg2_extends), ('cc', cc_extends)):
-        m = probe_then_limine(t, f'name:{protocol} fake{protocol}:8', config, files)
-        t.kernel_report(m)
-        pcrs = sorted(e[0] for e in extends(m.stream(t.kernel_channel).text()) if e[0] >= 8)
-        t.expect_eq(pcrs, [8, 8, 8, 9, 9, 9], f'{protocol}: all six measurements extended')
-        serial = ESCAPES.sub('', m.stream('serial').text())
-        t.expect_eq(serial.count(LOG_FULL_WARNING), 1, f'{protocol}: one warning')
-        t.check(UNMEASURED_PROMPT not in serial, f'{protocol}: no prompt to go on unmeasured')
-        m.stop()
-
-
-@check(ports=UEFI_PORTS, tags=['tpm', 'linux'])
-def tpm_cc_linux(t):
-    """A Linux kernel booted under the CC measurement protocol is measured as
-    USAGE.md has it: command line and paths into PCR 8, the config, the
-    kernel image as read from disk and the initrd into PCR 9 [spec]. With
-    the protocol's GetEventLog() failing there is no log to pass on, and
-    no TPM event log table [intent]."""
-    from cases.linux import bzimage, stub, stub_report, x86_report
-    image = bzimage(t) if t.port.is_x86 else stub(t)
-    path, kernel = ('/bzImage' if t.port.is_x86 else '/Image'), read(image.path)
-    initrd = b'measured initrd\n' * 9
-    config = 'timeout: 0\nmeasured_boot: yes\n' + entry('Linux', protocol='linux', path=f'boot():{path}',
-                                                         cmdline='cc linux', modules=[('boot():/initrd', None)])
-    m = cc_boot(t, 4, config, {path: kernel, '/initrd': initrd})
-    r = x86_report(t, m) if t.port.is_x86 else stub_report(t, m)
-    text = m.stream(t.kernel_channel).text()
-    evs = [e for e in cc_extends(text) if e[0] >= 8]
-    want = [(8, b'cc linux', 'cmdline: cc linux'), (8, f'boot():{path}'.encode(), f'path: boot():{path}'),
-            (8, b'boot():/initrd', 'module_path: boot():/initrd'), (9, config.encode(), 'limine_cfg'),
-            (9, kernel, f'path: boot():{path}'), (9, initrd, 'module_path: boot():/initrd')]
-    t.expect_eq(sorted(evs, key=lambda e: e[0]),
-                [(pcr, 3, EV_IPL, int(fnv1a(data), 16), len(data), desc) for pcr, data, desc in want],
-                '[spec] PCR 8 and 9 events')
-    t.check('K cc.event_log=2' in text, 'the TCG 2 log asked for')
-    t.check('tpm_log.size' not in r, 'no TPM event log table')
+    m = tcg2_boot(t, 8, config, files)
+    t.kernel_report(m)
+    pcrs = sorted(e[0] for e in tcg2_extends(m.stream(t.kernel_channel).text()) if e[0] >= 8)
+    t.expect_eq(pcrs, [8, 8, 8, 9, 9, 9], 'all six measurements extended')
+    serial = ESCAPES.sub('', m.stream('serial').text())
+    t.expect_eq(serial.count(LOG_FULL_WARNING), 1, 'one warning')
+    t.check(UNMEASURED_PROMPT not in serial, 'no prompt to go on unmeasured')
+    m.stop()
 
 
 @check(ports=UEFI_PORTS, tags=['tpm', 'linux'])
