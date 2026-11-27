@@ -1,3 +1,5 @@
+import re
+
 from harness.api import check
 from harness.media import HostFile
 from harness.ports import UEFI_PORTS
@@ -18,6 +20,8 @@ FAKEGOP_MODE1_FAILS = 0x2
 FAKEGOP_BS_DATA = 0x4
 FAKEGOP_NO_DISPLAY = 0x8
 FAKEGOP_NO_MODES = 0x10
+FAKEGOP_MODE1_UNWRITTEN = 0x20
+FAKEGOP_MODE1_CURRENT = 0x40
 
 
 def boot_fake_gop(t, extra=''):
@@ -141,3 +145,22 @@ def gop_without_modes(t):
         t.check('fakegop.query_without_modes' not in report.raw, 'Linux: no QueryMode() call on a GOP with no modes')
         t.expect_eq(hexint(report, 'si.isvga'), 0, 'Linux: no framebuffer in screen_info')
         m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=['limine-protocol', 'gop', 'hostile'])
+def gop_mode_information_unwritten(t):
+    """[intent] A mode QueryMode() answers with EFI_SUCCESS and its outputs
+    unwritten, which Limine tells by setting them to NULL first, is passed
+    over: the EDID's for the current mode, and, where it is the current mode,
+    the whole GOP."""
+    def outputs_set_to_null(r, what):
+        seen = re.findall(r'K fakegop\.unwritten=([0-9a-f]+)', r.raw)
+        t.check(len(seen) > 0 and all(v == '0' for v in seen), f'{what}: the outputs set to NULL first: {seen}')
+
+    r = boot_fake_gop_only(t, FAKEGOP_MODE1_UNWRITTEN)
+    outputs_set_to_null(r, 'the EDID mode')
+    t.expect_eq(r.int('framebuffer.count'), 1, 'one framebuffer: the second GOP, over the same memory, left out')
+    t.expect_eq(r['framebuffer.0'], '640x480x16 pitch=1280 model=1 r=5:11 g=6:5 b=5:0', 'the current mode')
+    r = boot_fake_gop_only(t, FAKEGOP_MODE1_UNWRITTEN | FAKEGOP_MODE1_CURRENT)
+    outputs_set_to_null(r, 'the current mode')
+    t.expect_eq(r.flag('framebuffer.response'), False, 'no framebuffer response')
