@@ -284,7 +284,12 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
     size_t size = 0;
     void *dtb = NULL;
 
-    {
+    bool allow_external_dtb = true;
+#if defined(UEFI)
+    allow_external_dtb = !firmware_secure_boot || config_authenticated;
+#endif
+
+    if (allow_external_dtb) {
         char *dtb_path = NULL;
         bool soft_panic;
         if (config != NULL) {
@@ -343,8 +348,16 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
         struct efi_guid dtb_guid = EFI_DTB_TABLE_GUID;
         for (size_t i = 0; i < gST->number_of_table_entries; i++) {
             struct efi_configuration_table *cur_table = &gST->configuration_table[i];
-            if (memcmp(&cur_table->vendor_guid, &dtb_guid, sizeof(struct efi_guid)))
+            if (memcmp(&cur_table->vendor_guid, &dtb_guid, sizeof(struct efi_guid)) != 0) {
                 continue;
+            }
+            if (cur_table->vendor_table == NULL
+             || fdt_check_header(cur_table->vendor_table) != 0) {
+                if (required) {
+                    panic(true, "dtb: Invalid firmware device tree blob");
+                }
+                break;
+            }
             size = fdt_totalsize(cur_table->vendor_table);
             if (measure) {
                 tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,

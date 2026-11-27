@@ -382,14 +382,21 @@ void init_riscv(const char *config) {
         riscv_fdt = NULL;
     }
 
+    bool allow_external_dtb = true;
+#if defined(UEFI)
+    allow_external_dtb = !firmware_secure_boot || config_authenticated;
+#endif
+
     bool entry_dtb = false;
     bool prioritise_dtb = false;
-    if (config != NULL) {
-        entry_dtb = config_get_value(config, 0, "dtb_path");
-        prioritise_dtb = entry_dtb;
-    }
-    if (!prioritise_dtb) {
-        prioritise_dtb = config_get_value(NULL, 0, "global_dtb");
+    if (allow_external_dtb) {
+        if (config != NULL) {
+            entry_dtb = config_get_value(config, 0, "dtb_path");
+            prioritise_dtb = entry_dtb;
+        }
+        if (!prioritise_dtb) {
+            prioritise_dtb = config_get_value(NULL, 0, "global_dtb");
+        }
     }
 
     if (!prioritise_dtb && acpi_get_rsdp()) {
