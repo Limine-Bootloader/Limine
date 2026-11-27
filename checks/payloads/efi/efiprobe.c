@@ -356,17 +356,20 @@ struct fake_gop {
     struct efi_edid_active_protocol edid;
     bool started;
     bool no_display;
+    bool no_modes;
 };
 
 // Bit 0: QueryMode() says EFI_NOT_STARTED until SetMode() is called. Bit 1:
 // SetMode() refuses mode 1, the EDID's. Bit 2: the framebuffer lies in boot
 // services data, half a page into its pages. Bit 3: a GPU with no display
 // attached: no EDID, a current mode of 0x0 with no framebuffer, and a
-// SetMode() that never returns.
+// SetMode() that never returns. Bit 4: as bit 3, but with no modes at all,
+// and a QueryMode() that returns EFI_SUCCESS without writing its outputs.
 #define FAKEGOP_NOT_STARTED 1
 #define FAKEGOP_MODE1_FAILS 2
 #define FAKEGOP_BS_DATA 4
 #define FAKEGOP_NO_DISPLAY 8
+#define FAKEGOP_NO_MODES 16
 static uint64_t fakegop_flags;
 static efi_physical_address fake_fb;
 static uint8_t fake_edid[128];
@@ -382,6 +385,10 @@ static void fake_info(struct efi_graphics_output_mode_information *info, uint32_
 
 static efi_status EFI_API fake_query_mode(struct efi_graphics_output_protocol *this, uint32_t n, size_t *size,
                                           struct efi_graphics_output_mode_information **info) {
+    if (((struct fake_gop *)this)->no_modes) {
+        out("K fakegop.query_without_modes=%u\n", (uint64_t)n);
+        return EFI_SUCCESS;
+    }
     if ((fakegop_flags & FAKEGOP_NOT_STARTED) && !((struct fake_gop *)this)->started) {
         return EFI_NOT_STARTED;
     }
@@ -461,6 +468,7 @@ static void cmd_fakegop(char *arg) {
     for (uint64_t i = 0; i < count; i++) {
         struct fake_gop *f = alloc(sizeof(*f));
         f->no_display = false;
+        f->no_modes = false;
         f->gop.query_mode = fake_query_mode;
         f->gop.set_mode = fake_set_mode;
         f->gop.blt = fake_blt;
@@ -471,7 +479,11 @@ static void cmd_fakegop(char *arg) {
         f->mode.frame_buffer_base = fake_fb;
         fake_set_mode(&f->gop, 0);
         f->started = !(fakegop_flags & FAKEGOP_NOT_STARTED);
-        if (fakegop_flags & FAKEGOP_NO_DISPLAY) {
+        if (fakegop_flags & FAKEGOP_NO_MODES) {
+            f->mode.max_mode = 0;
+            f->no_modes = true;
+        }
+        if (fakegop_flags & (FAKEGOP_NO_DISPLAY | FAKEGOP_NO_MODES)) {
             f->info.horizontal_resolution = 0;
             f->info.vertical_resolution = 0;
             f->mode.frame_buffer_base = 0;
@@ -482,7 +494,8 @@ static void cmd_fakegop(char *arg) {
         f->edid.edid = fake_edid;
         efi_handle h = NULL;
         efi_status s = bs->install_protocol_interface(&h, &gg, EFI_NATIVE_INTERFACE, &f->gop);
-        if (s == EFI_SUCCESS && i == 0 && !(fakegop_flags & FAKEGOP_NO_DISPLAY)) {
+        if (s == EFI_SUCCESS && i == 0
+         && !(fakegop_flags & (FAKEGOP_NO_DISPLAY | FAKEGOP_NO_MODES))) {
             s = bs->install_protocol_interface(&h, &eg, EFI_NATIVE_INTERFACE, &f->edid);
         }
         out("K fakegop.%u=%x\n", i, (uint64_t)s);

@@ -109,3 +109,23 @@ def gop_without_display(t):
         m = probe_then_limine(t, 'fakegop:2:8', config, {'/bzImage': bzimage(t)}, display=False)
         t.expect_eq(hexint(x86_report(t, m), 'si.isvga'), 0, 'Linux: no framebuffer in screen_info')
         m.stop()
+
+
+@check(ports=UEFI_PORTS, tags=['limine-protocol', 'linux', 'gop', 'hostile'])
+def gop_without_modes(t):
+    """[spec] A GOP with no modes, its MaxMode 0 (UEFI 2.11 12.9), is passed
+    over without a QueryMode() call, which the firmware of some GPUs with no
+    display attached answers with EFI_SUCCESS and its outputs unwritten: the
+    boot goes on without a framebuffer, for the Limine protocol and, on x86,
+    Linux."""
+    r = boot_fake_gop_only(t, '10')
+    t.check('fakegop.query_without_modes' not in r.raw, 'no QueryMode() call on a GOP with no modes')
+    t.expect_eq(r.flag('framebuffer.response'), False, 'no framebuffer response')
+    if t.port.is_x86:
+        from cases.linux import bzimage, hexint, x86_report
+        config = 'timeout: 0\n' + entry('Linux', protocol='linux', path='boot():/bzImage', cmdline='x')
+        m = probe_then_limine(t, 'fakegop:2:10', config, {'/bzImage': bzimage(t)}, display=False)
+        report = x86_report(t, m)
+        t.check('fakegop.query_without_modes' not in report.raw, 'Linux: no QueryMode() call on a GOP with no modes')
+        t.expect_eq(hexint(report, 'si.isvga'), 0, 'Linux: no framebuffer in screen_info')
+        m.stop()
