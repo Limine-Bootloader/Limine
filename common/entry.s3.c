@@ -30,6 +30,15 @@
 void stage3_common(void);
 
 #if defined(UEFI)
+static bool handle_has_efi_fs(efi_handle handle) {
+    if (handle == NULL) {
+        return false;
+    }
+    struct efi_guid fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    void *fs = NULL;
+    return gBS->handle_protocol(handle, &fs_guid, &fs) == EFI_SUCCESS && fs != NULL;
+}
+
 noreturn void uefi_entry(efi_handle image_handle, struct efi_system_table *system_table) {
     gST = system_table;
     gBS = system_table->boot_services;
@@ -64,22 +73,7 @@ noreturn void uefi_entry(efi_handle image_handle, struct efi_system_table *syste
 
     disk_create_index();
 
-    // Detect UEFI Secure Boot
-    {
-        struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
-        uint8_t secure_boot = 0;
-        size_t sb_size = sizeof(secure_boot);
-        efi_status sb_status = gRT->get_variable(L"SecureBoot", &global_variable, NULL, &sb_size, &secure_boot);
-        if (sb_status == EFI_SUCCESS && secure_boot == 1) {
-            uint8_t setup_mode = 0;
-            size_t sm_size = sizeof(setup_mode);
-            efi_status sm_status = gRT->get_variable(L"SetupMode", &global_variable, NULL, &sm_size, &setup_mode);
-            if (sm_status != EFI_SUCCESS || setup_mode == 0) {
-                secure_boot_active = true;
-            }
-        }
-    }
-
+    efi_init_secure_boot();
     tpm_init();
 
     boot_volume = NULL;
@@ -88,6 +82,9 @@ noreturn void uefi_entry(efi_handle image_handle, struct efi_system_table *syste
     for (size_t j = 0; j < 25; j++) {
         if (current_handle == NULL) {
 could_not_match:
+            if (firmware_secure_boot) {
+                panic(false, "uefi: Cannot match boot device handle in authenticated boot");
+            }
             print("WARNING: Could not meaningfully match the boot device handle with a volume.\n");
             print("         Using the first volume containing a Limine configuration!\n");
             print("\n");
@@ -156,6 +153,17 @@ opened:
         boot_volume = disk_volume_from_efi_handle(loaded_image->device_handle);
 
         if (boot_volume != NULL) {
+            if (firmware_secure_boot) {
+                if (boot_volume->pxe) {
+                    panic(false, "uefi: PXE boot is unavailable in authenticated boot");
+                }
+                // On a pure El Torito ISO, the disc volume holds the disc
+                // handle rather than the El Torito ESP's filesystem handle.
+                if (!handle_has_efi_fs(boot_volume->efi_part_handle)
+                 && handle_has_efi_fs(loaded_image->device_handle)) {
+                    boot_volume->efi_part_handle = loaded_image->device_handle;
+                }
+            }
             stage3_common();
         }
 

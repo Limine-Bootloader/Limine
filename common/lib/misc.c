@@ -125,6 +125,70 @@ bool secure_boot_active = false;
 uint64_t usec_at_bootloader_entry;
 
 #if defined(UEFI)
+bool firmware_secure_boot = false;
+
+void efi_init_secure_boot(void) {
+    struct efi_guid global_variable = EFI_GLOBAL_VARIABLE;
+    uint32_t expected_attrs =
+        EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS;
+    uint32_t sb_attrs = 0;
+    uint32_t sm_attrs = 0;
+    uint32_t am_attrs = 0;
+    uint32_t dm_attrs = 0;
+    uint8_t secure_boot = 0;
+    uint8_t setup_mode = 0;
+    uint8_t audit_mode = 0;
+    uint8_t deployed_mode = 0;
+    size_t sb_size = sizeof(uint8_t);
+    size_t sm_size = sizeof(uint8_t);
+    size_t am_size = sizeof(uint8_t);
+    size_t dm_size = sizeof(uint8_t);
+    efi_status sb_status = gRT->get_variable(
+        L"SecureBoot", &global_variable, &sb_attrs, &sb_size, &secure_boot
+    );
+    efi_status sm_status = gRT->get_variable(
+        L"SetupMode", &global_variable, &sm_attrs, &sm_size, &setup_mode
+    );
+
+    // UEFI 2.11 section 3.3 defines these only on Secure Boot platforms.
+    if (sb_status == EFI_NOT_FOUND && sm_status == EFI_NOT_FOUND) {
+        return;
+    }
+    // UEFI 2.11 sections 3.3 and 32.3: AuditMode and DeployedMode are optional
+    // on older firmware, but when present must be valid 1-byte booleans
+    // consistent with SecureBoot, SetupMode, and each other.
+    efi_status am_status = gRT->get_variable(
+        L"AuditMode", &global_variable, &am_attrs, &am_size, &audit_mode
+    );
+    efi_status dm_status = gRT->get_variable(
+        L"DeployedMode", &global_variable, &dm_attrs, &dm_size, &deployed_mode
+    );
+
+    bool sb_valid = sb_status == EFI_SUCCESS && sb_size == sizeof(uint8_t)
+                 && (sb_attrs & expected_attrs) == expected_attrs && secure_boot <= 1;
+    bool sm_valid = sm_status == EFI_SUCCESS && sm_size == sizeof(uint8_t)
+                 && (sm_attrs & expected_attrs) == expected_attrs && setup_mode <= 1
+                 && (secure_boot == 0 || setup_mode == 0);
+    bool am_valid = am_status == EFI_SUCCESS && am_size == sizeof(uint8_t)
+                 && (am_attrs & expected_attrs) == expected_attrs && audit_mode <= 1
+                 && (audit_mode == 0
+                  || (secure_boot == 0 && (sm_status == EFI_NOT_FOUND || setup_mode == 1)));
+    bool dm_valid = dm_status == EFI_SUCCESS && dm_size == sizeof(uint8_t)
+                 && (dm_attrs & expected_attrs) == expected_attrs && deployed_mode <= 1
+                 && (deployed_mode == 0 || (setup_mode == 0 && audit_mode == 0));
+    // Some firmware reports SecureBoot without exposing SetupMode.
+    if (!sb_valid || (sm_status != EFI_NOT_FOUND && !sm_valid)
+     || (am_status != EFI_NOT_FOUND && !am_valid)
+     || (dm_status != EFI_NOT_FOUND && !dm_valid)) {
+        panic(false, "uefi: Cannot determine the firmware Secure Boot state");
+    }
+
+    firmware_secure_boot = secure_boot == 1;
+    if (firmware_secure_boot) {
+        editor_enabled = false;
+    }
+}
+
 bool is_efi_serial_present(void) {
     efi_status status;
     struct efi_serial_io_protocol *serial_io = NULL;
@@ -220,7 +284,12 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
     size_t size = 0;
     void *dtb = NULL;
 
-    {
+    bool allow_external_dtb = true;
+#if defined(UEFI)
+    allow_external_dtb = !firmware_secure_boot || config_authenticated;
+#endif
+
+    if (allow_external_dtb) {
         char *dtb_path = NULL;
         bool soft_panic;
         if (config != NULL) {
@@ -279,8 +348,16 @@ void *get_device_tree_blob(const char *config, size_t extra_size,
         struct efi_guid dtb_guid = EFI_DTB_TABLE_GUID;
         for (size_t i = 0; i < gST->number_of_table_entries; i++) {
             struct efi_configuration_table *cur_table = &gST->configuration_table[i];
-            if (memcmp(&cur_table->vendor_guid, &dtb_guid, sizeof(struct efi_guid)))
+            if (memcmp(&cur_table->vendor_guid, &dtb_guid, sizeof(struct efi_guid)) != 0) {
                 continue;
+            }
+            if (cur_table->vendor_table == NULL
+             || fdt_check_header(cur_table->vendor_table) != 0) {
+                if (required) {
+                    panic(true, "dtb: Invalid firmware device tree blob");
+                }
+                break;
+            }
             size = fdt_totalsize(cur_table->vendor_table);
             if (measure) {
                 tpm_measure(TPM_PCR_LOADED_IMAGES, TPM_EV_IPL,

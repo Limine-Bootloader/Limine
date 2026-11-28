@@ -788,7 +788,7 @@ static void find_part_handles(efi_handle *handles, size_t handle_count) {
 
         // A disc keeps its own handle, not one of its El Torito images'.
         struct volume *vol = volume_from_efi_handle(handles[i], false);
-        if (vol == NULL) {
+        if (vol == NULL || vol->efi_part_handle != NULL) {
             continue;
         }
         vol->efi_part_handle = handles[i];
