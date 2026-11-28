@@ -426,6 +426,52 @@ static struct efi_device_path_protocol *build_relative_efi_file_path(struct file
     return device_path;
 }
 
+// Some firmware, such as the ThinkPad T430's, fails LoadImage() with
+// EFI_INVALID_PARAMETER when given a memory-mapped device path, so an image on
+// a partition is given its full path, as firmware gives the images it loads.
+static struct efi_device_path_protocol *build_full_efi_file_path(
+    efi_handle part_handle,
+    struct efi_device_path_protocol *file_path
+) {
+    if (part_handle == 0) {
+        return NULL;
+    }
+
+    struct efi_guid dp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+    struct efi_device_path_protocol *part_path = NULL;
+    efi_status status = gBS->handle_protocol(part_handle, &dp_guid, (void **)&part_path);
+    if (status != 0) {
+        return NULL;
+    }
+
+    size_t part_len = 0;
+    for (;;) {
+        struct efi_device_path_protocol *n = (void *)part_path + part_len;
+        if (n->type == EFI_END_DEVICE_PATH_TYPE
+         && n->sub_type == EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE) {
+            break;
+        }
+        uint16_t len = efi_device_path_node_length(n);
+        if (len < sizeof(struct efi_device_path_protocol)) {
+            return NULL;
+        }
+        part_len += len;
+    }
+
+    size_t file_len = efi_device_path_node_length(file_path)
+                    + sizeof(struct efi_device_path_protocol);
+
+    struct efi_device_path_protocol *full_path;
+    status = gBS->allocate_pool(EFI_LOADER_DATA, part_len + file_len, (void **)&full_path);
+    if (status != 0) {
+        panic(true, "efi: AllocatePool() failure (%X)", (uint64_t)status);
+    }
+
+    memcpy(full_path, part_path, part_len);
+    memcpy((void *)full_path + part_len, file_path, file_len);
+    return full_path;
+}
+
 noreturn void chainload(char *config, char *cmdline) {
     char *image_path = config_get_value(config, 0, "PATH");
     if (image_path == NULL) {
@@ -517,11 +563,15 @@ noreturn void chainload(char *config, char *cmdline) {
     memdev_path[1].header.length[0] = sizeof(struct efi_device_path_protocol);
     memdev_path[1].header.length[1] = sizeof(struct efi_device_path_protocol) >> 8;
 
+    struct efi_device_path_protocol *load_path =
+        build_full_efi_file_path(efi_part_handle, efi_file_path);
+    if (load_path == NULL) {
+        load_path = (struct efi_device_path_protocol *)memdev_path;
+    }
+
     efi_handle new_handle = 0;
 
-    status = gBS->load_image(0, efi_image_handle,
-                            (struct efi_device_path_protocol *)memdev_path,
-                            ptr, image_size, &new_handle);
+    status = gBS->load_image(0, efi_image_handle, load_path, ptr, image_size, &new_handle);
     if (status) {
         panic(false, "efi: LoadImage failure (%X)", (uint64_t)status);
     }

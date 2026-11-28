@@ -306,6 +306,11 @@ static void cmd_info(void) {
         bs->handle_protocol(loaded->device_handle, &dpg, (void **)&dev);
     }
     put_devpath(dev);
+    out("\nK loaded_image_device_path=");
+    struct efi_guid lidpg = EFI_LOADED_IMAGE_DEVICE_PATH_PROTOCOL_GUID;
+    struct efi_device_path_protocol *lidp = NULL;
+    bs->handle_protocol(self, &lidpg, (void **)&lidp);
+    put_devpath(lidp);
     out("\nK image_code_type=%u\n", (uint64_t)loaded->image_code_type);
     struct efi_guid lig = EFI_LOADED_IMAGE_PROTOCOL_GUID;
     struct efi_loaded_image_protocol *parent = NULL;
