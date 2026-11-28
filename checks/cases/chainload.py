@@ -54,6 +54,8 @@ def efi_chainload(t):
     device = unescape(r['device_path'])
     t.check(disk.parts[0].guid.lower() in device.lower(),
             f'device path {device} is the boot partition {disk.parts[0].guid}')
+    t.expect_eq(unescape(r['loaded_image_device_path']), device + '/\\EFI\\probe\\probe.efi',
+                'LoadImage() given the full path, not a memory-mapped one')
     parent = unescape(r['parent_file_path'])
     t.check(parent.upper().endswith('\\EFI\\BOOT\\' + t.port.efi_name), f'parent image is Limine: {parent}')
 
